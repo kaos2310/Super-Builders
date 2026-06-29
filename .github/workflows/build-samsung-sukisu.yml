@@ -454,6 +454,37 @@ jobs:
 
         java -version
         javac -version
+
+        echo "[+] Patching Kleaf Bazel to use JAVA_HOME instead of embedded JDK"
+
+        export KLEAF_BAZEL_PY="$SYNC_DIR/kernel_platform/build/kernel/kleaf/bazel.py"
+
+        if [ ! -f "$KLEAF_BAZEL_PY" ]; then
+          echo "FATAL: Kleaf bazel.py not found at $KLEAF_BAZEL_PY"
+          exit 1
+        fi
+
+        python3 - <<'PY'
+        import os
+        from pathlib import Path
+
+        p = Path(os.environ["KLEAF_BAZEL_PY"])
+        s = p.read_text()
+
+        old = '        bazel_jdk_path = f"{self.root_dir}/{_BAZEL_JDK_REL_PATH}"'
+        new = '        bazel_jdk_path = os.environ.get("JAVA_HOME") or f"{self.root_dir}/{_BAZEL_JDK_REL_PATH}"'
+
+        if new in s:
+            print("[+] bazel.py already patched")
+        elif old in s:
+            s = s.replace(old, new)
+            p.write_text(s)
+            print("[+] bazel.py patched successfully")
+        else:
+            raise SystemExit("FATAL: expected bazel_jdk_path line not found")
+        PY
+
+        grep -n "bazel_jdk_path" "$KLEAF_BAZEL_PY" | head -5
         
         echo "[+] Creating missing Samsung output directories"
         mkdir -p "$SYNC_DIR/out/target/product/e3q"
