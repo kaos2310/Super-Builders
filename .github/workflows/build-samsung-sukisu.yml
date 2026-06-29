@@ -98,7 +98,7 @@ jobs:
   build:
     needs: [download-dependencies]
     name: "Samsung SukiSU — ${{ inputs.device }}"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
     env:
       KSU_VARIANT: SukiSU
@@ -439,43 +439,22 @@ jobs:
         BUILD_RC=0
         TC="$GITHUB_WORKSPACE/toolchain"
 
-        echo "[+] Preparing Java/Bazel environment"
+        echo "[+] Preparing stable Samsung/Bazel environment"
 
         sudo apt-get update -qq
-        sudo apt-get install -y -qq openjdk-17-jdk-headless
+        sudo apt-get install -y -qq openjdk-11-jdk-headless || sudo apt-get install -y -qq openjdk-17-jdk-headless
 
-        export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+        if [ -d "/usr/lib/jvm/java-11-openjdk-amd64" ]; then
+          export JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
+        else
+          export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+        fi
+
         export PATH="$JAVA_HOME/bin:$PATH"
-        export BAZEL_USE_SYSTEM_JAVA=1
 
         java -version
         javac -version
-
-        echo "[+] Forcing Samsung Bazel to use system JDK 17"
-
-        BAZEL_BIN="$SYNC_DIR/kernel_platform/tools/bazel"
-
-        if [ -x "$BAZEL_BIN" ] && [ ! -f "${BAZEL_BIN}.real" ]; then
-        mv "$BAZEL_BIN" "${BAZEL_BIN}.real"
-
-        cat > "$BAZEL_BIN" <<'EOF'
-        #!/usr/bin/env bash
-        set -e
-
-        JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
-
-        exec "$(dirname "$0")/bazel.real" \
-          --server_javabase="$JAVA_HOME" \
-          --host_jvm_args=-Xmx4096m \
-          --host_jvm_args=-XX:+UseParallelGC \
-          "$@"
-        EOF
-
-           chmod +x "$BAZEL_BIN"
-        fi
-
-        "$BAZEL_BIN" --version || true
-
+        
         echo "[+] Creating missing Samsung output directories"
         mkdir -p "$SYNC_DIR/out/target/product/e3q"
         mkdir -p "$SYNC_DIR/kernel_platform/out"
