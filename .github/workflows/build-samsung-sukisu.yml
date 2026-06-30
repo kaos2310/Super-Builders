@@ -517,7 +517,42 @@ jobs:
         elif [ "$LTO_DEFAULT" = "thin" ]; then
           export LTO="thin"
         fi
+        echo "[+] Fixing missing Android 14 clang-r487747c"
 
+        cd "$SYNC_DIR/kernel_platform"
+
+        CLANG_BASE="prebuilts/clang/host/linux-x86"
+        CLANG_VER="clang-r487747c"
+        CLANG_DIR="$CLANG_BASE/$CLANG_VER"
+
+        if [ ! -x "$CLANG_DIR/bin/clang.real" ]; then
+          echo "[!] Missing $CLANG_DIR/bin/clang.real"
+          echo "[+] Downloading official Android 14 clang prebuilt"
+
+          rm -rf /tmp/aosp-clang "$CLANG_DIR"
+          mkdir -p "$CLANG_BASE"
+
+        git clone \
+          --depth=1 \
+          --filter=blob:none \
+          --sparse \
+          -b android14-release \
+          https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
+          /tmp/aosp-clang
+
+        git -C /tmp/aosp-clang sparse-checkout set "$CLANG_VER"
+
+        cp -a "/tmp/aosp-clang/$CLANG_VER" "$CLANG_BASE/"
+
+        chmod -R u+rx "$CLANG_DIR/bin"
+        fi
+
+        echo "[+] Verifying clang-r487747c"
+        ls -l "$CLANG_DIR/bin/clang" "$CLANG_DIR/bin/clang.real"
+        "$CLANG_DIR/bin/clang" --version
+
+        cd "$SYNC_DIR"
+        
         eval "$BUILD_COMMAND" || BUILD_RC=$?
 
         if [ "$BUILD_RC" -ne 0 ]; then
