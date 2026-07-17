@@ -79,10 +79,14 @@ runs:
             if [ "$SUBLEVEL" -le 43 ]; then
               perl -i -pe 's/(int|size_t)\s+this_len\s*=\s*min_t\s*\(\s*\1\s*,/size_t this_len = min_t(size_t,/' fs/proc/base.c
             fi
-            [ "$SUBLEVEL" -le 117 ] && prepare_fdinfo
+            if [ "$SUBLEVEL" -le 117 ]; then
+              prepare_fdinfo
+            fi
             ;;
           android13-5.10)
-            [ "$SUBLEVEL" -le 107 ] && prepare_fdinfo
+            if [ "$SUBLEVEL" -le 107 ]; then
+              prepare_fdinfo
+            fi
             ;;
           android13-5.15)
             if [ "$SUBLEVEL" -le 41 ]; then
@@ -96,9 +100,15 @@ runs:
             fi
             ;;
           android14-6.1)
-            [ "$SUBLEVEL" -le 25 ] && sed -i '/^#include <trace\/events\/oom.h>$/a #include <trace/hooks/sched.h>' fs/proc/base.c
-            [ "$SUBLEVEL" -le 141 ] && sed -i '/^#include <linux\/cpufreq_times.h>$/a #include <linux/dma-buf.h>' fs/proc/base.c
-            [ "$SUBLEVEL" -ge 157 ] && sed -i '/^#include <trace\/hooks\/blk.h>$/d' fs/namespace.c
+            if [ "$SUBLEVEL" -le 25 ]; then
+              sed -i '/^#include <trace\/events\/oom.h>$/a #include <trace/hooks/sched.h>' fs/proc/base.c
+            fi
+            if [ "$SUBLEVEL" -le 141 ]; then
+              sed -i '/^#include <linux\/cpufreq_times.h>$/a #include <linux/dma-buf.h>' fs/proc/base.c
+            fi
+            if [ "$SUBLEVEL" -ge 157 ]; then
+              sed -i '/^#include <trace\/hooks\/blk.h>$/d' fs/namespace.c
+            fi
             ;;
           android15-6.6)
             if [ "$SUBLEVEL" -le 30 ]; then
@@ -121,12 +131,20 @@ runs:
                 $_ = join "\n", @l
               ' fs/proc/task_mmu.c
             fi
-            [ "$SUBLEVEL" -le 92 ] && sed -i '/^#include <linux\/cpufreq_times.h>$/a #include <linux/dma-buf.h>' fs/proc/base.c
-            [ "$SUBLEVEL" -le 57 ] && sed -i '/^#include <linux\/sched\/sysctl.h>$/a #include <linux/zswap.h>' mm/memory.c
+            if [ "$SUBLEVEL" -le 92 ]; then
+              sed -i '/^#include <linux\/cpufreq_times.h>$/a #include <linux/dma-buf.h>' fs/proc/base.c
+            fi
+            if [ "$SUBLEVEL" -le 57 ]; then
+              sed -i '/^#include <linux\/sched\/sysctl.h>$/a #include <linux/zswap.h>' mm/memory.c
+            fi
             ;;
           android16-6.12)
-            [ "$SUBLEVEL" -ge 58 ] && sed -i '/^#include <linux\/dma-buf.h>$/d' fs/exec.c
-            [ "$SUBLEVEL" -ge 69 ] && sed -i 's/vma_data_pages/vma_pages/g' fs/proc/task_mmu.c
+            if [ "$SUBLEVEL" -ge 58 ]; then
+              sed -i '/^#include <linux\/dma-buf.h>$/d' fs/exec.c
+            fi
+            if [ "$SUBLEVEL" -ge 69 ]; then
+              sed -i 's/vma_data_pages/vma_pages/g' fs/proc/task_mmu.c
+            fi
             ;;
         esac
 
@@ -134,11 +152,17 @@ runs:
 
         case "$TARGET" in
           android12-5.10)
-            [ "$SUBLEVEL" -le 43 ] && sed -i 's/^size_t this_len = min_t(size_t, count, PAGE_SIZE);$/int this_len = min_t(int, count, PAGE_SIZE);/' fs/proc/base.c
-            [ "$SUBLEVEL" -le 117 ] && restore_fdinfo
+            if [ "$SUBLEVEL" -le 43 ]; then
+              sed -i 's/^size_t this_len = min_t(size_t, count, PAGE_SIZE);$/int this_len = min_t(int, count, PAGE_SIZE);/' fs/proc/base.c
+            fi
+            if [ "$SUBLEVEL" -le 117 ]; then
+              restore_fdinfo
+            fi
             ;;
           android13-5.10)
-            [ "$SUBLEVEL" -le 107 ] && restore_fdinfo
+            if [ "$SUBLEVEL" -le 107 ]; then
+              restore_fdinfo
+            fi
             ;;
           android13-5.15)
             if [ "$SUBLEVEL" -le 41 ]; then
@@ -148,21 +172,39 @@ runs:
               sed -i 's|i_uid_into_mnt(i_user_ns(&fi->inode), &fi->inode).val|i_uid_into_mnt(\&init_user_ns, \&fi->inode).val|g' fs/susfs.c
               sed -i 's|i_uid_into_mnt(i_user_ns(inode), inode).val|i_uid_into_mnt(\&init_user_ns, inode).val|g' fs/susfs.c
             fi
-            [ "$SUBLEVEL" -ge 197 ] && sed -i '/^#include "internal.h"$/a #include <trace/hooks/blk.h>' fs/namespace.c
-            [ "$SUBLEVEL" -ge 206 ] && sed -i '/^#include <linux\/pkeys.h>$/a #include <trace/hooks/mm.h>' fs/proc/task_mmu.c
+            if [ "$SUBLEVEL" -ge 197 ]; then
+              sed -i '/^#include "internal.h"$/a #include <trace/hooks/blk.h>' fs/namespace.c
+            fi
+            if [ "$SUBLEVEL" -ge 206 ]; then
+              sed -i '/^#include <linux\/pkeys.h>$/a #include <trace/hooks/mm.h>' fs/proc/task_mmu.c
+            fi
             ;;
           android14-6.1)
-            [ "$SUBLEVEL" -le 25 ] && sed -i '/^#include <trace\/hooks\/sched.h>$/d' fs/proc/base.c
-            [ "$SUBLEVEL" -le 141 ] && sed -i '/^#include <linux\/dma-buf.h>$/d' fs/proc/base.c
-            [ "$SUBLEVEL" -ge 157 ] && sed -i '/^#include "internal.h"$/a #include <trace/hooks/blk.h>' fs/namespace.c
+            if [ "$SUBLEVEL" -le 25 ]; then
+              sed -i '/^#include <trace\/hooks\/sched.h>$/d' fs/proc/base.c
+            fi
+            if [ "$SUBLEVEL" -le 141 ]; then
+              sed -i '/^#include <linux\/dma-buf.h>$/d' fs/proc/base.c
+            fi
+            if [ "$SUBLEVEL" -ge 157 ]; then
+              sed -i '/^#include "internal.h"$/a #include <trace/hooks/blk.h>' fs/namespace.c
+            fi
             ;;
           android15-6.6)
-            [ "$SUBLEVEL" -le 92 ] && sed -i '/^#include <linux\/dma-buf.h>$/d' fs/proc/base.c
-            [ "$SUBLEVEL" -le 57 ] && sed -i '/^#include <linux\/zswap.h>$/d' mm/memory.c
+            if [ "$SUBLEVEL" -le 92 ]; then
+              sed -i '/^#include <linux\/dma-buf.h>$/d' fs/proc/base.c
+            fi
+            if [ "$SUBLEVEL" -le 57 ]; then
+              sed -i '/^#include <linux\/zswap.h>$/d' mm/memory.c
+            fi
             ;;
           android16-6.12)
-            [ "$SUBLEVEL" -ge 58 ] && sed -i '/^#include /a #include <linux/dma-buf.h>' fs/exec.c
-            [ "$SUBLEVEL" -ge 69 ] && sed -i 's/vma_pages/vma_data_pages/g' fs/proc/task_mmu.c
+            if [ "$SUBLEVEL" -ge 58 ]; then
+              sed -i '/^#include /a #include <linux/dma-buf.h>' fs/exec.c
+            fi
+            if [ "$SUBLEVEL" -ge 69 ]; then
+              sed -i 's/vma_pages/vma_data_pages/g' fs/proc/task_mmu.c
+            fi
             ;;
         esac
 
@@ -178,4 +220,6 @@ runs:
         elif [[ "$TARGET" = "android14-6.1" && "$SUBLEVEL" -le 75 && "$OS_PATCH_LEVEL" != "2024-05" ]]; then
           SHOW_PAD_FIX=1
         fi
-        [ "$SHOW_PAD_FIX" = "1" ] && sed -i 's/goto show_pad;/return 0;/' fs/proc/task_mmu.c
+        if [ "$SHOW_PAD_FIX" = "1" ]; then
+          sed -i 's/goto show_pad;/return 0;/' fs/proc/task_mmu.c
+        fi
