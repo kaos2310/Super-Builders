@@ -24,7 +24,7 @@ on:
         default: true
       add_zeromount:
         type: boolean
-        default: true
+        default: false
       add_zram:
         type: boolean
         default: true
@@ -202,37 +202,20 @@ jobs:
         FIX_SCRIPT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/fix-old-kernel-compat.sh"
         [ -f "$FIX_SCRIPT" ] && bash "$FIX_SCRIPT" "$KERNEL_ROOT/common" "$SUBLEVEL" || true
 
-    - name: Apply Upstream SUSFS Patch
-      if: inputs.add_susfs
-      working-directory: ${{ env.KERNEL_ROOT }}/common
+    - name: Check ZeroMount compatibility
+      if: inputs.add_susfs && inputs.add_zeromount
       run: |
-        patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/ReSukiSU/patches/50_add_susfs_in_gki-${ANDROID_VER}-${KERNEL_VER}.patch"
+        echo "::error::The legacy ZeroMount patch stack is incompatible with SUSFS v2.2.0. Disable add_zeromount."
+        exit 1
 
-    - name: Apply Enhanced SUSFS Patch
+    - name: Apply SUSFS v2.2.0
       if: inputs.add_susfs
-      working-directory: ${{ env.KERNEL_ROOT }}/common
-      run: |
-        patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/ReSukiSU/patches/51_enhanced_susfs-${ANDROID_VER}-${KERNEL_VER}.patch"
-
-    - name: Apply KSU Safety Patch
-      if: inputs.add_susfs
-      working-directory: ${{ env.KERNEL_ROOT }}/${{ env.KSU_DIR }}
-      run: |
-        PATCH="$GITHUB_WORKSPACE/$VERSION_DIR/ReSukiSU/patches/70_ksu_safety-resukisu-${KERNEL_VER}.patch"
-        [ -s "$PATCH" ] && patch -p1 --no-backup-if-mismatch < "$PATCH" || echo "No 70_ patch needed"
-
-    - name: Apply ZeroMount Patch
-      if: inputs.add_zeromount && inputs.add_susfs
-      working-directory: ${{ env.KERNEL_ROOT }}/common
-      run: |
-        patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/ReSukiSU/patches/60_zeromount-${ANDROID_VER}-${KERNEL_VER}.patch"
-
-    - name: Fix SUSFS Compatibility
-      if: inputs.add_susfs
-      working-directory: ${{ env.KERNEL_ROOT }}/common
-      run: |
-        FIX="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/fix-susfs-compat.sh"
-        [ -f "$FIX" ] && bash "$FIX" . "$SUBLEVEL" "$ANDROID_VER" "$KERNEL_VER" "$KERNEL_PATCHES" || true
+      uses: ./.github/actions/susfs-v2.2
+      with:
+        android_version: ${{ inputs.android_version }}
+        kernel_version: ${{ inputs.kernel_version }}
+        sub_level: ${{ env.SUBLEVEL }}
+        os_patch_level: ${{ inputs.os_patch_level }}
 
     - name: Apply Kernel Patches
       if: inputs.add_ptrace_fix || inputs.add_perf_patches

@@ -153,9 +153,9 @@ on:
         type: boolean
         default: true
       add_zeromount:
-        description: "Add ZeroMount"
+        description: "Add ZeroMount (not compatible with SUSFS v2.2.0)"
         type: boolean
-        default: true
+        default: false
       add_zram:
         description: "Add ZRAM with LZ4K"
         type: boolean
@@ -192,7 +192,7 @@ on:
         default: true
       add_zeromount:
         type: boolean
-        default: true
+        default: false
       add_zram:
         type: boolean
         default: true
