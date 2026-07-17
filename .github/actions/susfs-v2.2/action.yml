@@ -47,6 +47,8 @@ runs:
         git clone --branch "gki-$TARGET" \
           https://gitlab.com/simonpunk/susfs4ksu.git "$SUSFS_DIR"
         git -C "$SUSFS_DIR" checkout --detach "$SUSFS_COMMIT"
+        git -C "$SUSFS_DIR" config user.name "github-actions[bot]"
+        git -C "$SUSFS_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
         # The two compatibility commits are part of the tested v2.2.0 GKI stack.
         git -C "$SUSFS_DIR" remote add pershoot https://gitlab.com/pershoot/susfs4ksu.git
