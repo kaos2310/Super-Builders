@@ -34,3 +34,15 @@ runs:
 
         cd "$KERNEL_COMMON"
         patch -p1 -F3 --no-backup-if-mismatch < "$FILTERED_PATCH"
+
+        # SUSFS v2.2.0 keeps the mmap inode inside the file branch, while
+        # ZeroMount's older 6.1 patch uses it after SUSFS's redirect label.
+        # Promote it to function scope; ZeroMount already handles a NULL inode.
+        if [ "$TARGET" = "android14-6.1" ]; then
+          perl -0pi -e '
+            my $old = "\tconst char *name = NULL;\n#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT\n\tchar *spoofed_redirected_name = NULL;\n#endif // #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT\n\n\tif (file) {\n\t\tstruct inode *inode = file_inode(vma->vm_file);";
+            my $new = "\tconst char *name = NULL;\n\tstruct inode *inode = NULL;\n#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT\n\tchar *spoofed_redirected_name = NULL;\n#endif // #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT\n\n\tif (file) {\n\t\tinode = file_inode(vma->vm_file);";
+            my $count = s/\Q$old\E/$new/;
+            die "expected SUSFS v2.2 ZeroMount context exactly once\n" unless $count == 1;
+          ' fs/proc/task_mmu.c
+        fi
