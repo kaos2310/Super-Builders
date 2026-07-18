@@ -43,31 +43,81 @@ extract_file_patch() {
   ' "$source_patch" > "$output_patch"
 }
 
+extract_matching_hunks() {
+  local source_patch="$1"
+  local target_path="$2"
+  local pattern="$3"
+  local output_patch="$4"
+  local file_patch="${output_patch}.file"
+
+  extract_file_patch "$source_patch" "$target_path" "$file_patch"
+
+  python3 - "$file_patch" "$pattern" "$output_patch" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+source = Path(sys.argv[1])
+pattern = re.compile(sys.argv[2])
+out = Path(sys.argv[3])
+lines = source.read_text().splitlines(keepends=True)
+
+header = []
+hunks = []
+current = []
+for line in lines:
+    if line.startswith('@@ '):
+        if current:
+            hunks.append(current)
+        current = [line]
+    elif current:
+        current.append(line)
+    else:
+        header.append(line)
+if current:
+    hunks.append(current)
+
+selected = [h for h in hunks if pattern.search(''.join(h))]
+if not selected:
+    raise SystemExit(f'No matching hunks for pattern: {pattern.pattern}')
+out.write_text(''.join(header + [line for h in selected for line in h]))
+PY
+}
+
 apply_targeted_patch() {
   local common_tree="$1"
   local source_patch="$2"
   local target_path="$3"
   local temp_patch="$4"
+  local hunk_pattern="${5:-}"
 
-  extract_file_patch "$source_patch" "$target_path" "$temp_patch"
+  if [[ -n "$hunk_pattern" ]]; then
+    extract_matching_hunks "$source_patch" "$target_path" "$hunk_pattern" "$temp_patch"
+  else
+    extract_file_patch "$source_patch" "$target_path" "$temp_patch"
+  fi
 
   if [[ ! -s "$temp_patch" ]]; then
     echo "::error::No patch section found for $target_path in $(basename "$source_patch")"
     return 1
   fi
 
-  if patch -d "$common_tree" -p1 -F3 --dry-run --batch < "$temp_patch" >/dev/null 2>&1; then
+  # --forward is mandatory. Without it, GNU patch may silently assume -R and
+  # remove hooks that are already installed by the SukiSU reconciliation step.
+  if patch -d "$common_tree" -p1 -F3 --forward --dry-run --batch < "$temp_patch" >/dev/null 2>&1; then
     echo "Applying official SUSFS base hooks: $target_path"
-    patch -d "$common_tree" -p1 -F3 --batch --no-backup-if-mismatch < "$temp_patch"
+    patch -d "$common_tree" -p1 -F3 --forward --batch --no-backup-if-mismatch < "$temp_patch"
     return 0
   fi
 
-  if patch -d "$common_tree" -R -p1 -F3 --dry-run --batch < "$temp_patch" >/dev/null 2>&1; then
+  # A successful explicit reverse dry-run means the selected hunks are already
+  # present. Never execute the reverse operation.
+  if patch -d "$common_tree" -R -p1 -F3 --forward --dry-run --batch < "$temp_patch" >/dev/null 2>&1; then
     echo "Official SUSFS base hooks already present: $target_path"
     return 0
   fi
 
-  echo "::error::Official SUSFS base hooks for $target_path neither apply cleanly nor are fully present"
+  echo "::error::Official SUSFS base hooks for $target_path neither apply forward nor are fully present"
   return 1
 }
 
@@ -99,16 +149,16 @@ if $ADD_SUSFS; then
   echo "Using official SUSFS base patch: $UPSTREAM_PATCH"
   mkdir -p "$TARGETED_DIR" "$AUDIT_DIR"
 
-  # The previous follow-up patch only modified hooks that should already have
-  # existed, so it could not apply to this partially reconciled SukiSU tree.
-  # Import the original upstream insertion hunks instead. These are the actual
-  # hooks for maps/smaps/pagemap, map_files/remote-memory and open redirect.
   apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
     'fs/proc/task_mmu.c' "$TARGETED_DIR/task_mmu-base.patch"
   apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
     'fs/proc/base.c' "$TARGETED_DIR/proc-base-base.patch"
+
+  # namei.c already contains unrelated SUS_PATH changes from the reconciliation.
+  # Import only the Open Redirect insertion hunks to avoid colliding with them.
   apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
-    'fs/namei.c' "$TARGETED_DIR/namei-base.patch"
+    'fs/namei.c' "$TARGETED_DIR/namei-open-redirect.patch" \
+    'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path'
 
   chmod +x "$VERIFY_SCRIPT"
   "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit.txt"
