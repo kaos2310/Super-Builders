@@ -65,10 +65,6 @@ if $ADD_SUSFS; then
     exit 1
   }
 
-  # The upstream v2.2 base is installed earlier by the SukiSU reconciliation
-  # step. Apply the maintained Android 14 / 6.1 follow-up containing the
-  # Procfs/SUS_MAP fixes, including the unmounted-app guard and the maps,
-  # smaps, pagemap, map_files and remote-memory filtering paths.
   apply_patch_once "$COMMON_TREE" "$ENHANCED_PATCH"
 
   mkdir -p "$AUDIT_DIR"
@@ -84,16 +80,43 @@ $ADD_KPM && extract_section "kpm" >> "$FRAGMENT_DST"
 $ADD_ZEROMOUNT && extract_section "zeromount" >> "$FRAGMENT_DST"
 $ADD_DROIDSPACES && extract_section "droidspaces" >> "$FRAGMENT_DST"
 
+# Open Redirect is a permanent part of the Android 14 / 6.1 SUSFS build.
+if $ADD_SUSFS; then
+  sed -i '/^CONFIG_KSU_SUSFS_OPEN_REDIRECT=/d' "$FRAGMENT_DST"
+  echo 'CONFIG_KSU_SUSFS_OPEN_REDIRECT=y' >> "$FRAGMENT_DST"
+
+  if ! grep -Rqx 'config KSU_SUSFS_OPEN_REDIRECT' \
+      "$COMMON_TREE" "${KSU_DIR:+$(dirname "$COMMON_TREE")/$KSU_DIR}" \
+      --include='Kconfig*' 2>/dev/null; then
+    echo "::error::SUSFS Open Redirect Kconfig symbol is missing"
+    exit 1
+  fi
+
+  # Remove the obsolete test-build suffix from names already created earlier.
+  if [[ -n "${ARTIFACT_BASE:-}" ]]; then
+    ARTIFACT_BASE="${ARTIFACT_BASE%-OpenRedirect-Test}"
+    echo "ARTIFACT_BASE=$ARTIFACT_BASE" >> "${GITHUB_ENV:-/dev/null}"
+  fi
+  if [[ -n "${FILE_NAME:-}" ]]; then
+    FILE_NAME="${FILE_NAME%-OpenRedirect-Test}"
+    echo "FILE_NAME=$FILE_NAME" >> "${GITHUB_ENV:-/dev/null}"
+  fi
+fi
+
 # dedup fragment: last-wins per CONFIG_ key
 tac "$FRAGMENT_DST" | awk -F= '/^CONFIG_/{if(seen[$1]++)next} {print}' | tac > "${FRAGMENT_DST}.tmp"
 mv "${FRAGMENT_DST}.tmp" "$FRAGMENT_DST"
 
+if $ADD_SUSFS; then
+  grep -qx 'CONFIG_KSU_SUSFS_OPEN_REDIRECT=y' "$FRAGMENT_DST" || {
+    echo "::error::Open Redirect was not retained in the assembled fragment"
+    exit 1
+  }
+fi
+
 if $USE_KLEAF; then
-  # Kleaf applies fragment via --defconfig_fragment; don't touch gki_defconfig
-  # Convert =n to "# is not set" format (Kleaf can't match =n against savedefconfig)
   sed -i 's/^\(CONFIG_[A-Za-z0-9_]*\)=n$/# \1 is not set/' "$FRAGMENT_DST"
 else
-  # Legacy build.sh doesn't merge fragments — configs must be in gki_defconfig
   grep '=n$' "$FRAGMENT_DST" >> "$DEFCONFIG" 2>/dev/null || true
   sed -i '/=n$/d' "$FRAGMENT_DST"
   cat "$FRAGMENT_DST" >> "$DEFCONFIG"
