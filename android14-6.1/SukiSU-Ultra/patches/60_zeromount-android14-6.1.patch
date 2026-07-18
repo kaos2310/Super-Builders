@@ -186,7 +186,7 @@
  		dev = inode->i_sb->s_dev;
  		ino = inode->i_ino;
 +#ifdef CONFIG_ZEROMOUNT
-+		zeromount_spoof_mmap_metadata(inode, &dev, &ino);
++		zeromount_spoof_mmap_metadata(file_inode(file), &dev, &ino);
 +#endif
  #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
  bypass_orig_flow:
