@@ -40,6 +40,9 @@ on:
       add_kpm:
         type: boolean
         default: false
+      susfs_open_redirect:
+        type: boolean
+        default: false
       add_ptrace_fix:
         type: boolean
         default: true
@@ -172,6 +175,7 @@ jobs:
     - name: Extract Sublevel
       env:
         INPUT_SUB_LEVEL: ${{ inputs.sub_level }}
+        SUSFS_OPEN_REDIRECT_TEST: ${{ inputs.susfs_open_redirect }}
       run: |
         SUBLEVEL="$INPUT_SUB_LEVEL"
         if [[ -f "$KERNEL_ROOT/common/Makefile" ]]; then
@@ -180,6 +184,7 @@ jobs:
         fi
 
         ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-SukiSU-${SUKISU_VERSION_LABEL}"
+        [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]] && ARTIFACT_BASE+="-OpenRedirect-Test"
         {
           echo "SUBLEVEL=$SUBLEVEL"
           echo "ARTIFACT_BASE=$ARTIFACT_BASE"
@@ -363,9 +368,16 @@ jobs:
         ADD_OVERLAYFS: ${{ inputs.add_overlayfs_support }}
         ADD_ZRAM: ${{ inputs.add_zram }}
         ADD_KPM: ${{ inputs.add_kpm }}
+        SUSFS_OPEN_REDIRECT_TEST: ${{ inputs.susfs_open_redirect }}
       run: |
         FRAGMENT="$GITHUB_WORKSPACE/$VERSION_DIR/defconfig.fragment"
         HELPERS="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers"
+
+        if [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]]; then
+          [[ "$ADD_SUSFS" == "true" ]] || { echo "::error::Open Redirect requires SUSFS"; exit 1; }
+          [[ "$ANDROID_VER" == "android14" && "$KERNEL_VER" == "6.1" ]] || { echo "::error::Open Redirect test is validated only for android14-6.1"; exit 1; }
+          sed -i 's/^CONFIG_KSU_SUSFS_OPEN_REDIRECT=.*/CONFIG_KSU_SUSFS_OPEN_REDIRECT=y/' "$FRAGMENT"
+        fi
 
         ASSEMBLE_FLAGS=""
         [[ "$ADD_SUSFS" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --susfs"
@@ -390,6 +402,11 @@ jobs:
 
         if [[ "$ADD_SUSFS" == "true" ]]; then
           grep -qx 'CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y' "$DEFCONFIG_FRAGMENT"
+        fi
+
+        if [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]]; then
+          grep -Rqx 'config KSU_SUSFS_OPEN_REDIRECT' common/ "$KSU_DIR/" --include='Kconfig*'
+          grep -qx 'CONFIG_KSU_SUSFS_OPEN_REDIRECT=y' "$DEFCONFIG_FRAGMENT"
         fi
 
         bash "$HELPERS/bypass-abi-check.sh" . "$ANDROID_VER" "$KERNEL_VER"
@@ -581,6 +598,7 @@ jobs:
         ADD_BBG: ${{ inputs.add_bbg }}
         ADD_OVERLAYFS: ${{ inputs.add_overlayfs_support }}
         ADD_KPM: ${{ inputs.add_kpm }}
+        SUSFS_OPEN_REDIRECT_TEST: ${{ inputs.susfs_open_redirect }}
       run: |
         S() { [[ "$1" == "true" ]] && echo "Enabled" || echo "Disabled"; }
         {
@@ -592,6 +610,7 @@ jobs:
           echo "| **Android** | ${ANDROID_VER} |"
           echo "| **OS Patch Level** | ${OS_PATCH} |"
           echo "| **Enhanced SUSFS** | $(S "$ADD_SUSFS") |"
+          echo "| **SUSFS Open Redirect (Test)** | $(S "$SUSFS_OPEN_REDIRECT_TEST") |"
           echo "| **ZeroMount** | $(S "$ADD_ZEROMOUNT") |"
           echo "| **Droidspaces 6_7_8** | $(S "$ADD_DROIDSPACES") |"
           echo "| **ZRAM (LZ4K/LZ4KD)** | $(S "$ADD_ZRAM") |"
