@@ -376,6 +376,10 @@ jobs:
           sed -i '/^CONFIG_KSU_SUSFS_/d' "$DEFCONFIG_FRAGMENT" "$DEFCONFIG"
         fi
 
+        if [[ "$ADD_SUSFS" == "true" ]]; then
+          grep -qx 'CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y' "$DEFCONFIG_FRAGMENT"
+        fi
+
         bash "$HELPERS/bypass-abi-check.sh" . "$ANDROID_VER" "$KERNEL_VER"
 
     - name: Clean Module Lists
