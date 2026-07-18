@@ -61,6 +61,17 @@ jobs:
     env:
       KSU_VARIANT: SukiSU
       KSU_DIR: KernelSU
+      # SukiSU communicates its manager version as an integer.  The fixed
+      # full-version label keeps this build identifiable as 40837-2.
+      SUKISU_VERSION_CODE: "40837"
+      SUKISU_VERSION_LABEL: "40837-2"
+      SUSFS_REPOSITORY: https://gitlab.com/simonpunk/susfs4ksu.git
+      SUSFS_BRANCH: gki-android14-6.1
+      SUSFS_COMMIT: 8199bb6534174117ad907f726231484872ac345a
+      # Pinned SukiSU-specific reconciliation for the upstream v2.2.0 patch.
+      # The checksum prevents executing a changed remote script.
+      SUKISU_SUSFS_PORT_COMMIT: c849c753ea801269c3243a441beef9e6b4f89e20
+      SUKISU_SUSFS_PORT_SHA256: d5052739443be6367b86ced7f0b7baad2b16fc76e46fb33c6565a00b50b60278
 
     steps:
     - name: Checkout Repository
@@ -166,7 +177,7 @@ jobs:
           [[ -n "$EXTRACTED" ]] && SUBLEVEL="$EXTRACTED"
         fi
 
-        ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-SukiSU"
+        ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-SukiSU-${SUKISU_VERSION_LABEL}"
         {
           echo "SUBLEVEL=$SUBLEVEL"
           echo "ARTIFACT_BASE=$ARTIFACT_BASE"
@@ -189,6 +200,37 @@ jobs:
           echo "Pinned SukiSU to $(git rev-parse --short=7 HEAD)"
         fi
 
+        # The upstream build derives its numeric manager protocol version from
+        # the current remote main-branch commit count.  Pin both the numeric
+        # value and the human-readable build label so 40837-2 stays stable.
+        python3 - "$KERNEL_ROOT/$KSU_DIR/kernel/Kbuild" "$SUKISU_VERSION_CODE" "$SUKISU_VERSION_LABEL" <<'PY'
+        from pathlib import Path
+        import re
+        import sys
+
+        path = Path(sys.argv[1])
+        version_code, version_label = sys.argv[2:]
+        text = path.read_text()
+        text, code_count = re.subn(
+            r'^KSU_VERSION\s*:=.*$',
+            f'KSU_VERSION := {version_code}',
+            text,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        text, label_count = re.subn(
+            r'^KSU_VERSION_FULL\s*:=.*$',
+            f'KSU_VERSION_FULL := {version_label}',
+            text,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        if code_count != 1 or label_count != 1:
+            raise SystemExit(f'Could not pin SukiSU version in {path}')
+        path.write_text(text)
+        PY
+        echo "Pinned SukiSU version: ${SUKISU_VERSION_LABEL}"
+
         cd "$KERNEL_ROOT/common"
 
         SUPERCALLS="drivers/kernelsu/supercalls.c"
@@ -205,47 +247,47 @@ jobs:
         FIX_SCRIPT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/fix-old-kernel-compat.sh"
         [ -f "$FIX_SCRIPT" ] && bash "$FIX_SCRIPT" "$KERNEL_ROOT/common" "$SUBLEVEL" || true
 
-    # SukiSU's pinned source is still based on the pre-2.2 KernelSU hook API.
-    # The upstream SUSFS v2.2 patch expects the newer API and fails at link time
-    # with unresolved ksu_* hook symbols.  Keep this variant on its maintained
-    # SukiSU-specific stack; the generic v2.2 action is used by compatible KSU
-    # variants in their respective workflows.
-    - name: Apply SukiSU-compatible SUSFS stack
+    - name: Apply SUSFS v2.2.0 to SukiSU
       if: inputs.add_susfs
-      working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |
         set -euo pipefail
-        patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/50_add_susfs_in_gki-${ANDROID_VER}-${KERNEL_VER}.patch"
-        patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/51_enhanced_susfs-${ANDROID_VER}-${KERNEL_VER}.patch"
+        SUSFS_DIR="$RUNNER_TEMP/susfs4ksu"
+        PORT_SCRIPT="$RUNNER_TEMP/apply-sukisu-susfs-v2.2.sh"
+        ARTIFACTS_DIR="$RUNNER_TEMP/sukisu-susfs-artifacts"
 
-    - name: Apply SukiSU SUSFS safety patch
-      if: inputs.add_susfs
-      working-directory: ${{ env.KERNEL_ROOT }}/${{ env.KSU_DIR }}
-      run: |
-        set -euo pipefail
-        PATCH="$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/70_ksu_safety-sukisu-${KERNEL_VER}.patch"
-        if [ -s "$PATCH" ]; then
-          if ! patch -p1 --no-backup-if-mismatch < "$PATCH"; then
-            echo "::warning::SukiSU safety patch is not needed for this pinned source"
-          fi
-        fi
+        git clone --depth=1 --branch "$SUSFS_BRANCH" "$SUSFS_REPOSITORY" "$SUSFS_DIR"
+        test "$(git -C "$SUSFS_DIR" rev-parse HEAD)" = "$SUSFS_COMMIT"
+        grep -qx '#define SUSFS_VERSION "v2.2.0"' "$SUSFS_DIR/kernel_patches/include/linux/susfs.h"
 
-    - name: Apply ZeroMount
+        curl --fail --location --proto '=https' --tlsv1.2 --retry 3 --retry-all-errors \
+          "https://raw.githubusercontent.com/Bouteillepleine/SukiSu_Ultra_Oneplus-/${SUKISU_SUSFS_PORT_COMMIT}/configs/apply_susfs_patches.sh" \
+          -o "$PORT_SCRIPT"
+        echo "${SUKISU_SUSFS_PORT_SHA256}  ${PORT_SCRIPT}" | sha256sum --check --status
+        chmod +x "$PORT_SCRIPT"
+        mkdir -p "$ARTIFACTS_DIR"
+
+        export KERNEL_PLATFORM_FOLDER="$KERNEL_ROOT"
+        export COMMON_KERNEL_FOLDER="$KERNEL_ROOT/common"
+        export SUSFS_FOLDER="$SUSFS_DIR"
+        export ARTIFACTS_FOLDER="$ARTIFACTS_DIR"
+        export OP_MODEL="SukiSU"
+        export OP_OS_VERSION="$SUKISU_VERSION_LABEL"
+        export KSU_FOLDER="$KERNEL_ROOT/$KSU_DIR"
+        export ANDROID_VER_LOCAL="$ANDROID_VER"
+        export KERNEL_VER_LOCAL="$KERNEL_VER"
+        export KSUVER="$SUKISU_VERSION_CODE"
+        bash "$PORT_SCRIPT"
+
+        grep -qx '#define SUSFS_VERSION "v2.2.0"' "$KERNEL_ROOT/common/include/linux/susfs.h"
+        grep -qx 'config KSU_SUSFS' "$KERNEL_ROOT/$KSU_DIR/kernel/Kconfig"
+        test -f "$KERNEL_ROOT/common/fs/susfs.c"
+
+    - name: Apply ZeroMount to SUSFS v2.2.0
       if: inputs.add_susfs && inputs.add_zeromount
       working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |
         set -euo pipefail
         patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/60_zeromount-${ANDROID_VER}-${KERNEL_VER}.patch"
-
-    - name: Apply SukiSU SUSFS compatibility fixes
-      if: inputs.add_susfs
-      working-directory: ${{ env.KERNEL_ROOT }}/common
-      run: |
-        set -euo pipefail
-        if ! bash "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/fix-susfs-compat.sh" \
-          . "$SUBLEVEL" "$ANDROID_VER" "$KERNEL_VER" "$KERNEL_PATCHES"; then
-          echo "::warning::SukiSU SUSFS compatibility helper reported a non-fatal issue"
-        fi
 
     - name: Apply Droidspaces 6_7_8 patches
       if: inputs.add_droidspaces
