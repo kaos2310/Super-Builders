@@ -52,57 +52,63 @@ apply_targeted_patch() {
   extract_file_patch "$source_patch" "$target_path" "$temp_patch"
 
   if [[ ! -s "$temp_patch" ]]; then
-    echo "::error::No patch section found for $target_path"
+    echo "::error::No patch section found for $target_path in $(basename "$source_patch")"
     return 1
   fi
 
   if patch -d "$common_tree" -p1 -F3 --dry-run --batch < "$temp_patch" >/dev/null 2>&1; then
-    echo "Applying targeted SUSFS fix: $target_path"
+    echo "Applying official SUSFS base hooks: $target_path"
     patch -d "$common_tree" -p1 -F3 --batch --no-backup-if-mismatch < "$temp_patch"
     return 0
   fi
 
   if patch -d "$common_tree" -R -p1 -F3 --dry-run --batch < "$temp_patch" >/dev/null 2>&1; then
-    echo "Targeted SUSFS fix already present: $target_path"
+    echo "Official SUSFS base hooks already present: $target_path"
     return 0
   fi
 
-  echo "::error::Targeted SUSFS fix for $target_path neither applies cleanly nor is fully present"
+  echo "::error::Official SUSFS base hooks for $target_path neither apply cleanly nor are fully present"
   return 1
 }
 
 if $ADD_SUSFS; then
   VERSION_DIR="$(cd "$(dirname "$FRAGMENT_SRC")" && pwd)"
   COMMON_TREE="$(cd "$(dirname "$DEFCONFIG")/../../.." && pwd)"
-  FOLLOWUP_PATCH="$VERSION_DIR/SukiSU-Ultra/patches/51_enhanced_susfs-android14-6.1.patch"
+  SUSFS_CLONE="${RUNNER_TEMP:-/tmp}/susfs4ksu"
   VERIFY_SCRIPT="$VERSION_DIR/build-helpers/verify-susfs-v2.2-procfs.sh"
   AUDIT_DIR="${RUNNER_TEMP:-/tmp}/sukisu-susfs-artifacts"
   TARGETED_DIR="${RUNNER_TEMP:-/tmp}/susfs-targeted-fixes"
 
-  [[ -f "$FOLLOWUP_PATCH" ]] || {
-    echo "::error::Missing SUSFS follow-up patch: $FOLLOWUP_PATCH"
-    exit 1
-  }
   [[ -f "$VERIFY_SCRIPT" ]] || {
     echo "::error::Missing SUSFS Procfs verifier: $VERIFY_SCRIPT"
     exit 1
   }
 
+  UPSTREAM_PATCH="$(find "$SUSFS_CLONE/kernel_patches" -maxdepth 1 -type f \
+    \( -name '50_add_susfs_in_kernel-6.1.patch' \
+       -o -name '50_add_susfs_in_gki-android14-6.1.patch' \
+       -o -name '50_add_susfs_in_kernel*6.1*.patch' \) \
+    -print -quit 2>/dev/null || true)"
+
+  [[ -n "$UPSTREAM_PATCH" && -f "$UPSTREAM_PATCH" ]] || {
+    echo "::error::Official Android 14 / 6.1 SUSFS base patch was not found under $SUSFS_CLONE/kernel_patches"
+    find "$SUSFS_CLONE/kernel_patches" -maxdepth 2 -type f -name '*.patch' -print 2>/dev/null || true
+    exit 1
+  }
+
+  echo "Using official SUSFS base patch: $UPSTREAM_PATCH"
   mkdir -p "$TARGETED_DIR" "$AUDIT_DIR"
 
-  # The SukiSU reconciliation installs SUSFS core files and registration paths,
-  # but its current script does not install all Android 14 / 6.1 Procfs readers
-  # or the complete Open Redirect lookup path. Applying the entire enhanced
-  # patch collides with unrelated namespace and hardening changes, so import
-  # only the four source-file sections required by the runtime failures.
-  apply_targeted_patch "$COMMON_TREE" "$FOLLOWUP_PATCH" \
-    'fs/proc/task_mmu.c' "$TARGETED_DIR/task_mmu.patch"
-  apply_targeted_patch "$COMMON_TREE" "$FOLLOWUP_PATCH" \
-    'fs/proc/base.c' "$TARGETED_DIR/proc-base.patch"
-  apply_targeted_patch "$COMMON_TREE" "$FOLLOWUP_PATCH" \
-    'fs/namei.c' "$TARGETED_DIR/namei.patch"
-  apply_targeted_patch "$COMMON_TREE" "$FOLLOWUP_PATCH" \
-    'fs/susfs.c' "$TARGETED_DIR/susfs.patch"
+  # The previous follow-up patch only modified hooks that should already have
+  # existed, so it could not apply to this partially reconciled SukiSU tree.
+  # Import the original upstream insertion hunks instead. These are the actual
+  # hooks for maps/smaps/pagemap, map_files/remote-memory and open redirect.
+  apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
+    'fs/proc/task_mmu.c' "$TARGETED_DIR/task_mmu-base.patch"
+  apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
+    'fs/proc/base.c' "$TARGETED_DIR/proc-base-base.patch"
+  apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
+    'fs/namei.c' "$TARGETED_DIR/namei-base.patch"
 
   chmod +x "$VERIFY_SCRIPT"
   "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit.txt"
