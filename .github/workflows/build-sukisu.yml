@@ -205,21 +205,47 @@ jobs:
         FIX_SCRIPT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/fix-old-kernel-compat.sh"
         [ -f "$FIX_SCRIPT" ] && bash "$FIX_SCRIPT" "$KERNEL_ROOT/common" "$SUBLEVEL" || true
 
-    - name: Apply SUSFS v2.2.0
+    # SukiSU's pinned source is still based on the pre-2.2 KernelSU hook API.
+    # The upstream SUSFS v2.2 patch expects the newer API and fails at link time
+    # with unresolved ksu_* hook symbols.  Keep this variant on its maintained
+    # SukiSU-specific stack; the generic v2.2 action is used by compatible KSU
+    # variants in their respective workflows.
+    - name: Apply SukiSU-compatible SUSFS stack
       if: inputs.add_susfs
-      uses: ./.github/actions/susfs-v2.2
-      with:
-        android_version: ${{ inputs.android_version }}
-        kernel_version: ${{ inputs.kernel_version }}
-        sub_level: ${{ env.SUBLEVEL }}
-        os_patch_level: ${{ inputs.os_patch_level }}
+      working-directory: ${{ env.KERNEL_ROOT }}/common
+      run: |
+        set -euo pipefail
+        patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/50_add_susfs_in_gki-${ANDROID_VER}-${KERNEL_VER}.patch"
+        patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/51_enhanced_susfs-${ANDROID_VER}-${KERNEL_VER}.patch"
+
+    - name: Apply SukiSU SUSFS safety patch
+      if: inputs.add_susfs
+      working-directory: ${{ env.KERNEL_ROOT }}/${{ env.KSU_DIR }}
+      run: |
+        set -euo pipefail
+        PATCH="$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/70_ksu_safety-sukisu-${KERNEL_VER}.patch"
+        if [ -s "$PATCH" ]; then
+          if ! patch -p1 --no-backup-if-mismatch < "$PATCH"; then
+            echo "::warning::SukiSU safety patch is not needed for this pinned source"
+          fi
+        fi
 
     - name: Apply ZeroMount
       if: inputs.add_susfs && inputs.add_zeromount
-      uses: ./.github/actions/zeromount-v2.2
-      with:
-        android_version: ${{ inputs.android_version }}
-        kernel_version: ${{ inputs.kernel_version }}
+      working-directory: ${{ env.KERNEL_ROOT }}/common
+      run: |
+        set -euo pipefail
+        patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/60_zeromount-${ANDROID_VER}-${KERNEL_VER}.patch"
+
+    - name: Apply SukiSU SUSFS compatibility fixes
+      if: inputs.add_susfs
+      working-directory: ${{ env.KERNEL_ROOT }}/common
+      run: |
+        set -euo pipefail
+        if ! bash "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/fix-susfs-compat.sh" \
+          . "$SUBLEVEL" "$ANDROID_VER" "$KERNEL_VER" "$KERNEL_PATCHES"; then
+          echo "::warning::SukiSU SUSFS compatibility helper reported a non-fatal issue"
+        fi
 
     - name: Apply Droidspaces 6_7_8 patches
       if: inputs.add_droidspaces
