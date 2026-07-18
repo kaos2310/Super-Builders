@@ -289,7 +289,17 @@ jobs:
       working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |
         set -euo pipefail
-        patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/60_zeromount-${ANDROID_VER}-${KERNEL_VER}.patch"
+        PATCH="$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/60_zeromount-${ANDROID_VER}-${KERNEL_VER}.patch"
+        FILTERED_PATCH="$RUNNER_TEMP/zeromount-${ANDROID_VER}-${KERNEL_VER}-without-task-mmu.patch"
+        # SUSFS v2.2 already modifies show_map_vma().  The legacy ZeroMount
+        # metadata hook overlaps that code and caused an Oops while apexd read
+        # /proc/*/maps on SM-S928B.  Keep the remaining ZeroMount facilities.
+        awk '
+          /^--- a\/fs\/proc\/task_mmu\.c/ { skip = 1; next }
+          skip && /^--- a\// { skip = 0 }
+          !skip { print }
+        ' "$PATCH" > "$FILTERED_PATCH"
+        patch -p1 -F3 --no-backup-if-mismatch < "$FILTERED_PATCH"
 
     - name: Apply Droidspaces 6_7_8 patches
       if: inputs.add_droidspaces
