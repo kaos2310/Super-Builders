@@ -61,10 +61,12 @@ jobs:
     env:
       KSU_VARIANT: SukiSU
       KSU_DIR: KernelSU
-      # SukiSU communicates its manager version as an integer.  The fixed
-      # full-version label keeps this build identifiable as 40837-2.
+      # SukiSU communicates its manager version as an integer.  Keep the
+      # artifact label concise, but give the kernel a semantic full version:
+      # the manager uses it for its minimum-version compatibility check.
       SUKISU_VERSION_CODE: "40837"
       SUKISU_VERSION_LABEL: "40837-2"
+      SUKISU_VERSION_FULL: "v4.1.3-40837-2"
       SUSFS_REPOSITORY: https://gitlab.com/simonpunk/susfs4ksu.git
       SUSFS_BRANCH: gki-android14-6.1
       SUSFS_COMMIT: 8199bb6534174117ad907f726231484872ac345a
@@ -201,9 +203,9 @@ jobs:
         fi
 
         # The upstream build derives its numeric manager protocol version from
-        # the current remote main-branch commit count.  Pin both the numeric
-        # value and the human-readable build label so 40837-2 stays stable.
-        python3 - "$KERNEL_ROOT/$KSU_DIR/kernel/Kbuild" "$SUKISU_VERSION_CODE" "$SUKISU_VERSION_LABEL" <<'PY'
+        # the current remote main-branch commit count.  Pin the numeric
+        # manager protocol value and a semantic full version independently.
+        python3 - "$KERNEL_ROOT/$KSU_DIR/kernel/Kbuild" "$SUKISU_VERSION_CODE" "$SUKISU_VERSION_FULL" <<'PY'
         from pathlib import Path
         import re
         import sys
