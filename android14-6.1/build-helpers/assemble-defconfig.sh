@@ -129,7 +129,7 @@ apply_optional_targeted_patch() {
   local hunk_pattern="${5:-}"
 
   if [[ -z "$source_patch" || ! -f "$source_patch" ]]; then
-    echo "::warning::Skip optional hook recovery for $target_path (missing patch: $source_patch)"
+    echo "::warning::Skip optional hunk recovery for $target_path (missing patch: $source_patch)"
     return 0
   fi
 
@@ -137,7 +137,7 @@ apply_optional_targeted_patch() {
     return 0
   fi
 
-  echo "::warning::Optional hook recovery failed for $target_path from $(basename "$source_patch")"
+  echo "::warning::Optional hunk recovery failed for $target_path from $(basename "$source_patch")"
   return 0
 }
 
@@ -188,7 +188,7 @@ if $ADD_SUSFS; then
 
   chmod +x "$VERIFY_SCRIPT"
   if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
-    echo "::warning::Initial SUSFS source audit failed; retrying with targeted hook recovery"
+    echo "::warning::Initial SUSFS source audit failed; retrying with targeted hunk recovery"
     [[ -n "$UPSTREAM_PATCH" ]] || {
       echo "::error::Missing upstream SUSFS patch path for recovery (UPSTREAM_PATCH is empty)"
       exit 1
@@ -216,7 +216,7 @@ if $ADD_SUSFS; then
     fi
 
     if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
-      echo "::error::SUSFS source audit still failing after targeted hook recovery"
+      echo "::error::SUSFS source audit still failing after targeted hunk recovery"
       exit 1
     fi
   fi
