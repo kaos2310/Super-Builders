@@ -147,6 +147,7 @@ if $ADD_SUSFS; then
   SUSFS_CLONE="${RUNNER_TEMP:-/tmp}/susfs4ksu"
   VERIFY_SCRIPT="$VERSION_DIR/build-helpers/verify-susfs-v2.2-procfs.sh"
   AUDIT_DIR="${RUNNER_TEMP:-/tmp}/sukisu-susfs-artifacts"
+  AUDIT_FILE="$AUDIT_DIR/susfs-v2.2-procfs-audit.txt"
   TARGETED_DIR="${RUNNER_TEMP:-/tmp}/susfs-targeted-fixes"
 
   [[ -f "$VERIFY_SCRIPT" ]] || {
@@ -181,11 +182,10 @@ if $ADD_SUSFS; then
     'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path'
 
   chmod +x "$VERIFY_SCRIPT"
-  if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit.txt"; then
+  if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
     echo "::warning::Initial SUSFS source audit failed; retrying with targeted hook recovery"
     ENHANCED_PATCH="$(find "$VERSION_DIR/SukiSU-Ultra/patches" -maxdepth 1 -type f \
       \( -name '51_enhanced_susfs-android14-6.1.patch' \
-         -o -name '51_enhanced_susfs-android14-6.1*.patch' \
          -o -name '51_enhanced_susfs-*.patch' \) \
       -print -quit 2>/dev/null || true)"
 
@@ -203,7 +203,7 @@ if $ADD_SUSFS; then
       'fs/namei.c' "$TARGETED_DIR/namei-open-redirect-enhanced.patch" \
       'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path|fake_pathname|set_nameidata'
 
-    if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit-retry.txt"; then
+    if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
       echo "::error::SUSFS source audit still failing after targeted hook recovery"
       exit 1
     fi
