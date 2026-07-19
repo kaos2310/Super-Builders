@@ -147,10 +147,10 @@ if $ADD_SUSFS; then
   SUSFS_CLONE="${RUNNER_TEMP:-/tmp}/susfs4ksu"
   VERIFY_SCRIPT="$VERSION_DIR/build-helpers/verify-susfs-v2.2-procfs.sh"
   AUDIT_DIR="${RUNNER_TEMP:-/tmp}/sukisu-susfs-artifacts"
-  AUDIT_FILE="$AUDIT_DIR/susfs-v2.2-procfs-audit.txt"
+  AUDIT_FILE="$AUDIT_DIR/susfs-procfs-audit.txt"
   TARGETED_DIR="${RUNNER_TEMP:-/tmp}/susfs-targeted-fixes"
   ENHANCED_PATCH_DIR="$VERSION_DIR/SukiSU-Ultra/patches"
-  ENHANCED_PATCH_GLOB='51_enhanced_susfs-*.patch'
+  ENHANCED_PATCH_GLOB='*enhanced_susfs-*.patch'
   OPEN_REDIRECT_PATCH_PATTERN='susfs_get_redirected_path|open_redirect'
   BASE_SUS_MAP_RECOVERY_PATTERN='proc_map_files_readdir|AS_FLAGS_SUS_MAP|SUSFS_IS_INODE_SUS_MAP|susfs_is_current_proc_umounted_app'
   NAMEI_OPEN_REDIRECT_RECOVERY_PATTERN='CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path|fake_pathname|set_nameidata'
@@ -194,7 +194,7 @@ if $ADD_SUSFS; then
       exit 1
     }
     ENHANCED_PATCH="$(find "$ENHANCED_PATCH_DIR" -maxdepth 1 -type f \
-      -name "$ENHANCED_PATCH_GLOB" -print -quit 2>/dev/null || true)"
+      -name "$ENHANCED_PATCH_GLOB" -print 2>/dev/null | LC_ALL=C sort | head -n 1)"
     [[ -n "$ENHANCED_PATCH" ]] || {
       echo "::warning::Enhanced SUSFS patch was not found; using upstream-only recovery"
     }
