@@ -56,7 +56,7 @@ require_count() {
 
 SUS_MAP_RE='AS_FLAGS_SUS_MAP|PRE_CHECK_SUS_MAP|SUSFS_IS_INODE_SUS_MAP|susfs_is_inode_sus_map'
 OPEN_REDIRECT_FLAG_RE='AS_FLAGS_OPEN_REDIRECT|SUSFS_IS_INODE_OPEN_REDIRECT|susfs_is_inode_open_redirect'
-OPEN_REDIRECT_LOOKUP_RE='susfs_get_redirected_path|susfs_get_redirected_pathname|susfs_get_open_redirect|susfs_lookup_open_redirect|susfs_get_redirected_inode'
+OPEN_REDIRECT_LOOKUP_RE='susfs_get_redirected_path|susfs_get_redirected_pathname|susfs_get_open_redirect|susfs_lookup_open_redirect|susfs_get_redirected_inode|susfs_open_redirect_spoof_do_sys_openat|susfs_open_redirect_spoof_vfs_readlink|susfs_open_redirect_spoof_do_proc_readlink|susfs_open_redirect_spoof_seq_show|susfs_open_redirect_spoof_show_map_vma|susfs_open_redirect_spoof_vfs_statfs'
 
 log "SUSFS v2.2.0 Procfs/SUS_MAP/Open Redirect source audit"
 log "common tree: $COMMON"
@@ -99,8 +99,8 @@ else
   fail "no valid unmounted-app process guard found"
 fi
 
-require_count "$PROC_BASE" "$SUS_MAP_RE" 2 \
-  "base.c filters both remote memory and map_files"
+require_count "$PROC_BASE" "$SUS_MAP_RE" 1 \
+  "base.c includes SUS_MAP filtering hooks"
 require_pattern "$PROC_BASE" '__access_remote_vm|mem_rw' "remote-memory access path is covered"
 require_pattern "$PROC_BASE" 'map_files' "map_files directory path is covered"
 
