@@ -37,7 +37,7 @@ else
     else
         # Find and add the inode variable declaration after fake_pathname
         if grep -q 'struct filename \*fake_pathname;' "$NAMEI_C"; then
-            python3 << 'PYEOF'
+            python3 - "$NAMEI_C" << 'PYEOF'
 import sys, re
 path = sys.argv[1]
 with open(path) as f:
@@ -55,15 +55,13 @@ if new_content != content:
 else:
     print("✗ namei.c: Could not find inode insertion point")
 PYEOF
-            NAMEI_C
         fi
-    fi
 
     # Fix 1b: Replace Open Redirect check to use inode with null safety
     if grep -q 'test_bit(AS_FLAGS_OPEN_REDIRECT, &inode->i_mapping->flags)' "$NAMEI_C"; then
         log "namei.c: Open Redirect inode checks already fixed"
     else
-        python3 << 'PYEOF'
+        python3 - "$NAMEI_C" << 'PYEOF'
 import sys, re
 path = sys.argv[1]
 with open(path) as f:
@@ -102,9 +100,7 @@ if modified:
 else:
     print("✗ namei.c: Open Redirect pattern not found (may already be fixed)")
 PYEOF
-            NAMEI_C
         fi
-    fi
 fi
 
 # ============================================================================
@@ -121,7 +117,7 @@ else
         log "task_mmu.c: SUS_MAP null checks already present"
     else
         log "task_mmu.c: Adding null safety checks"
-        python3 << 'PYEOF'
+        python3 - "$TASK_MMU_C" << 'PYEOF'
 import sys
 path = sys.argv[1]
 with open(path) as f:
@@ -157,9 +153,7 @@ if count > 0:
 else:
     print("✗ task_mmu.c: No SUS_MAP patterns found to fix")
 PYEOF
-            TASK_MMU_C
         fi
-    fi
 fi
 
 # ============================================================================
@@ -176,7 +170,7 @@ else
         log "base.c: map_files SUS_MAP filter already present"
     else
         log "base.c: Adding SUS_MAP filter to map_files (inode null safety)"
-        python3 << 'PYEOF'
+        python3 - "$BASE_C" << 'PYEOF'
 import sys
 path = sys.argv[1]
 with open(path) as f:
@@ -206,9 +200,7 @@ if new_content != content:
 else:
     print("✗ base.c: map_files pattern not found (may already be fixed)")
 PYEOF
-            BASE_C
         fi
-    fi
 fi
 
 # ============================================================================
@@ -221,7 +213,7 @@ if [ -f "$BASE_C" ]; then
     if grep -q 'CONFIG_KSU_SUSFS_HIDDEN_NAME' "$BASE_C"; then
         log "base.c: HIDDEN_NAME filter already present"
     else
-        python3 << 'PYEOF'
+        python3 - "$BASE_C" << 'PYEOF'
 import sys
 path = sys.argv[1]
 with open(path) as f:
@@ -270,7 +262,6 @@ if insert_pos is not None:
 else:
     print("✗ base.c: Could not find insertion point for HIDDEN_NAME filter")
 PYEOF
-            BASE_C
         fi
     fi
 fi

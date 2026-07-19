@@ -146,6 +146,7 @@ if $ADD_SUSFS; then
   COMMON_TREE="$(cd "$(dirname "$DEFCONFIG")/../../.." && pwd)"
   SUSFS_CLONE="${RUNNER_TEMP:-/tmp}/susfs4ksu"
   VERIFY_SCRIPT="$VERSION_DIR/build-helpers/verify-susfs-v2.2-procfs.sh"
+  TARGETED_FIX_SCRIPT="$VERSION_DIR/build-helpers/apply-susfs-targeted.sh"
   AUDIT_DIR="${RUNNER_TEMP:-/tmp}/sukisu-susfs-artifacts"
   AUDIT_FILE="$AUDIT_DIR/susfs-procfs-audit.txt"
   TARGETED_DIR="${RUNNER_TEMP:-/tmp}/susfs-targeted-fixes"
@@ -220,8 +221,16 @@ if $ADD_SUSFS; then
     fi
 
     if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
-      echo "::error::SUSFS source audit still failing after targeted hunk recovery. Check $AUDIT_FILE for details."
-      exit 1
+      if [[ -f "$TARGETED_FIX_SCRIPT" ]]; then
+        echo "::warning::Applying script-based SUSFS targeted recovery: $TARGETED_FIX_SCRIPT"
+        chmod +x "$TARGETED_FIX_SCRIPT"
+        "$TARGETED_FIX_SCRIPT" "$COMMON_TREE" || true
+      fi
+
+      if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
+        echo "::error::SUSFS source audit still failing after targeted hunk recovery. Check $AUDIT_FILE for details."
+        exit 1
+      fi
     fi
   fi
 fi
