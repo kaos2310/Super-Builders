@@ -152,6 +152,8 @@ if $ADD_SUSFS; then
   ENHANCED_PATCH_DIR="$VERSION_DIR/SukiSU-Ultra/patches"
   ENHANCED_PATCH_GLOB='51_enhanced_susfs-*.patch'
   OPEN_REDIRECT_PATCH_PATTERN='susfs_get_redirected_path|open_redirect'
+  BASE_SUS_MAP_RECOVERY_PATTERN='proc_map_files_readdir|AS_FLAGS_SUS_MAP|SUSFS_IS_INODE_SUS_MAP|susfs_is_current_proc_umounted_app'
+  NAMEI_OPEN_REDIRECT_RECOVERY_PATTERN='CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path|fake_pathname|set_nameidata'
 
   [[ -f "$VERIFY_SCRIPT" ]] || {
     echo "::error::Missing SUSFS Procfs verifier: $VERIFY_SCRIPT"
@@ -188,7 +190,7 @@ if $ADD_SUSFS; then
   if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
     echo "::warning::Initial SUSFS source audit failed; retrying with targeted hook recovery"
     [[ -n "$UPSTREAM_PATCH" ]] || {
-      echo "::error::Missing upstream SUSFS patch path for recovery"
+      echo "::error::Missing upstream SUSFS patch path for recovery (UPSTREAM_PATCH is empty)"
       exit 1
     }
     ENHANCED_PATCH="$(find "$ENHANCED_PATCH_DIR" -maxdepth 1 -type f \
@@ -204,12 +206,14 @@ if $ADD_SUSFS; then
       'include/linux/susfs.h' "$TARGETED_DIR/susfs-h-open-redirect.patch" \
       "$OPEN_REDIRECT_PATCH_PATTERN"
 
-    apply_optional_targeted_patch "$COMMON_TREE" "$ENHANCED_PATCH" \
-      'fs/proc/base.c' "$TARGETED_DIR/proc-base-enhanced.patch" \
-      'proc_map_files_readdir|AS_FLAGS_SUS_MAP|SUSFS_IS_INODE_SUS_MAP|susfs_is_current_proc_umounted_app'
-    apply_optional_targeted_patch "$COMMON_TREE" "$ENHANCED_PATCH" \
-      'fs/namei.c' "$TARGETED_DIR/namei-open-redirect-enhanced.patch" \
-      'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path|fake_pathname|set_nameidata'
+    if [[ -n "$ENHANCED_PATCH" ]]; then
+      apply_optional_targeted_patch "$COMMON_TREE" "$ENHANCED_PATCH" \
+        'fs/proc/base.c' "$TARGETED_DIR/proc-base-enhanced.patch" \
+        "$BASE_SUS_MAP_RECOVERY_PATTERN"
+      apply_optional_targeted_patch "$COMMON_TREE" "$ENHANCED_PATCH" \
+        'fs/namei.c' "$TARGETED_DIR/namei-open-redirect-enhanced.patch" \
+        "$NAMEI_OPEN_REDIRECT_RECOVERY_PATTERN"
+    fi
 
     if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
       echo "::error::SUSFS source audit still failing after targeted hook recovery"
