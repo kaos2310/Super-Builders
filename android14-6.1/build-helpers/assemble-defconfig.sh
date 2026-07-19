@@ -121,13 +121,39 @@ apply_targeted_patch() {
   return 1
 }
 
+apply_optional_targeted_patch() {
+  local common_tree_path="$1"
+  local source_patch="$2"
+  local target_path="$3"
+  local temp_patch="$4"
+  local hunk_pattern="${5:-}"
+
+  if [[ -z "$source_patch" || ! -f "$source_patch" ]]; then
+    echo "::warning::Skip optional hunk recovery for $target_path (missing patch: $source_patch)"
+    return 0
+  fi
+
+  if apply_targeted_patch "$common_tree_path" "$source_patch" "$target_path" "$temp_patch" "$hunk_pattern"; then
+    return 0
+  fi
+
+  echo "::warning::Optional hunk recovery failed for $target_path from $(basename "$source_patch")"
+  return 0
+}
+
 if $ADD_SUSFS; then
   VERSION_DIR="$(cd "$(dirname "$FRAGMENT_SRC")" && pwd)"
   COMMON_TREE="$(cd "$(dirname "$DEFCONFIG")/../../.." && pwd)"
   SUSFS_CLONE="${RUNNER_TEMP:-/tmp}/susfs4ksu"
   VERIFY_SCRIPT="$VERSION_DIR/build-helpers/verify-susfs-v2.2-procfs.sh"
   AUDIT_DIR="${RUNNER_TEMP:-/tmp}/sukisu-susfs-artifacts"
+  AUDIT_FILE="$AUDIT_DIR/susfs-procfs-audit.txt"
   TARGETED_DIR="${RUNNER_TEMP:-/tmp}/susfs-targeted-fixes"
+  ENHANCED_PATCH_DIR="$VERSION_DIR/SukiSU-Ultra/patches"
+  ENHANCED_PATCH_GLOB='*enhanced_susfs-*.patch'
+  OPEN_REDIRECT_RECOVERY_PATTERN='susfs_get_redirected_path|open_redirect'
+  BASE_SUS_MAP_RECOVERY_PATTERN='proc_map_files_readdir|AS_FLAGS_SUS_MAP|SUSFS_IS_INODE_SUS_MAP|susfs_is_current_proc_umounted_app'
+  NAMEI_OPEN_REDIRECT_RECOVERY_PATTERN='CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path|fake_pathname|set_nameidata'
 
   [[ -f "$VERIFY_SCRIPT" ]] || {
     echo "::error::Missing SUSFS Procfs verifier: $VERIFY_SCRIPT"
@@ -161,7 +187,43 @@ if $ADD_SUSFS; then
     'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path'
 
   chmod +x "$VERIFY_SCRIPT"
-  "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit.txt"
+  if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
+    echo "::warning::Initial SUSFS source audit failed; retrying with targeted hunk recovery"
+    [[ -n "$UPSTREAM_PATCH" ]] || {
+      echo "::error::Missing upstream SUSFS patch path for recovery (UPSTREAM_PATCH is empty)"
+      exit 1
+    }
+    mapfile -t ENHANCED_PATCHES < <(find "$ENHANCED_PATCH_DIR" -maxdepth 1 -type f \
+      -name "$ENHANCED_PATCH_GLOB" -print 2>/dev/null | LC_ALL=C sort)
+    ENHANCED_PATCH="${ENHANCED_PATCHES[0]:-}"
+    if (( ${#ENHANCED_PATCHES[@]} > 1 )); then
+      echo "::warning::Multiple enhanced SUSFS patches detected; using first match: ${ENHANCED_PATCH##*/}"
+    fi
+    [[ -n "$ENHANCED_PATCH" ]] || {
+      echo "::warning::Enhanced SUSFS patch was not found; using upstream-only recovery"
+    }
+
+    apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
+      'fs/susfs.c' "$TARGETED_DIR/susfs-open-redirect.patch" \
+      "$OPEN_REDIRECT_RECOVERY_PATTERN"
+    apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
+      'include/linux/susfs.h' "$TARGETED_DIR/susfs-h-open-redirect.patch" \
+      "$OPEN_REDIRECT_RECOVERY_PATTERN"
+
+    if [[ -n "$ENHANCED_PATCH" ]]; then
+      apply_optional_targeted_patch "$COMMON_TREE" "$ENHANCED_PATCH" \
+        'fs/proc/base.c' "$TARGETED_DIR/proc-base-enhanced.patch" \
+        "$BASE_SUS_MAP_RECOVERY_PATTERN"
+      apply_optional_targeted_patch "$COMMON_TREE" "$ENHANCED_PATCH" \
+        'fs/namei.c' "$TARGETED_DIR/namei-open-redirect-enhanced.patch" \
+        "$NAMEI_OPEN_REDIRECT_RECOVERY_PATTERN"
+    fi
+
+    if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
+      echo "::error::SUSFS source audit still failing after targeted hunk recovery. Check $AUDIT_FILE for details."
+      exit 1
+    fi
+  fi
 fi
 
 extract_section "base" >> "$FRAGMENT_DST"
