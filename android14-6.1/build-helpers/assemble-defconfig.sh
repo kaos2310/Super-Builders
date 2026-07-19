@@ -122,18 +122,18 @@ apply_targeted_patch() {
 }
 
 apply_optional_targeted_patch() {
-  local common_tree="$1"
+  local common_tree_path="$1"
   local source_patch="$2"
   local target_path="$3"
   local temp_patch="$4"
   local hunk_pattern="${5:-}"
 
-  if [[ ! -f "$source_patch" ]]; then
+  if [[ -z "$source_patch" || ! -f "$source_patch" ]]; then
     echo "::warning::Skip optional hook recovery for $target_path (missing patch: $source_patch)"
     return 0
   fi
 
-  if apply_targeted_patch "$common_tree" "$source_patch" "$target_path" "$temp_patch" "$hunk_pattern"; then
+  if apply_targeted_patch "$common_tree_path" "$source_patch" "$target_path" "$temp_patch" "$hunk_pattern"; then
     return 0
   fi
 
@@ -149,6 +149,8 @@ if $ADD_SUSFS; then
   AUDIT_DIR="${RUNNER_TEMP:-/tmp}/sukisu-susfs-artifacts"
   AUDIT_FILE="$AUDIT_DIR/susfs-v2.2-procfs-audit.txt"
   TARGETED_DIR="${RUNNER_TEMP:-/tmp}/susfs-targeted-fixes"
+  ENHANCED_PATCH_DIR="$VERSION_DIR/SukiSU-Ultra/patches"
+  ENHANCED_PATCH_GLOB='51_enhanced_susfs-*.patch'
   OPEN_REDIRECT_PATCH_PATTERN='susfs_get_redirected_path|open_redirect'
 
   [[ -f "$VERIFY_SCRIPT" ]] || {
@@ -189,8 +191,8 @@ if $ADD_SUSFS; then
       echo "::error::Missing upstream SUSFS patch path for recovery"
       exit 1
     }
-    ENHANCED_PATCH="$(find "$VERSION_DIR/SukiSU-Ultra/patches" -maxdepth 1 -type f \
-      -name '51_enhanced_susfs-*.patch' -print -quit 2>/dev/null || true)"
+    ENHANCED_PATCH="$(find "$ENHANCED_PATCH_DIR" -maxdepth 1 -type f \
+      -name "$ENHANCED_PATCH_GLOB" -print -quit 2>/dev/null || true)"
     [[ -n "$ENHANCED_PATCH" ]] || {
       echo "::warning::Enhanced SUSFS patch was not found; using upstream-only recovery"
     }
