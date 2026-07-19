@@ -184,7 +184,10 @@ if $ADD_SUSFS; then
   if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit.txt"; then
     echo "::warning::Initial SUSFS source audit failed; retrying with targeted hook recovery"
     ENHANCED_PATCH="$(find "$VERSION_DIR/SukiSU-Ultra/patches" -maxdepth 1 -type f \
-      -name '51_enhanced_susfs-android14-6.1.patch' -print -quit 2>/dev/null || true)"
+      \( -name '51_enhanced_susfs-android14-6.1.patch' \
+         -o -name '51_enhanced_susfs-android14-6.1*.patch' \
+         -o -name '51_enhanced_susfs-*.patch' \) \
+      -print -quit 2>/dev/null || true)"
 
     try_apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
       'fs/susfs.c' "$TARGETED_DIR/susfs-open-redirect.patch" \
@@ -198,9 +201,12 @@ if $ADD_SUSFS; then
       'proc_map_files_readdir|AS_FLAGS_SUS_MAP|SUSFS_IS_INODE_SUS_MAP|susfs_is_current_proc_umounted_app'
     try_apply_targeted_patch "$COMMON_TREE" "$ENHANCED_PATCH" \
       'fs/namei.c' "$TARGETED_DIR/namei-open-redirect-enhanced.patch" \
-      'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path|fake_pathname|set_nameidata\(&nd'
+      'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path|fake_pathname|set_nameidata'
 
-    "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit-retry.txt"
+    if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit-retry.txt"; then
+      echo "::error::SUSFS source audit still failing after targeted hook recovery"
+      exit 1
+    fi
   fi
 fi
 
