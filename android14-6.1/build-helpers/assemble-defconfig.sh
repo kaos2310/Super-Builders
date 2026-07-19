@@ -185,8 +185,15 @@ if $ADD_SUSFS; then
   chmod +x "$VERIFY_SCRIPT"
   if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
     echo "::warning::Initial SUSFS source audit failed; retrying with targeted hook recovery"
+    [[ -n "$UPSTREAM_PATCH" ]] || {
+      echo "::error::Missing upstream SUSFS patch path for recovery"
+      exit 1
+    }
     ENHANCED_PATCH="$(find "$VERSION_DIR/SukiSU-Ultra/patches" -maxdepth 1 -type f \
       -name '51_enhanced_susfs-*.patch' -print -quit 2>/dev/null || true)"
+    [[ -n "$ENHANCED_PATCH" ]] || {
+      echo "::warning::Enhanced SUSFS patch was not found; using upstream-only recovery"
+    }
 
     apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
       'fs/susfs.c' "$TARGETED_DIR/susfs-open-redirect.patch" \
