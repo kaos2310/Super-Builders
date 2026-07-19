@@ -151,7 +151,7 @@ if $ADD_SUSFS; then
   TARGETED_DIR="${RUNNER_TEMP:-/tmp}/susfs-targeted-fixes"
   ENHANCED_PATCH_DIR="$VERSION_DIR/SukiSU-Ultra/patches"
   ENHANCED_PATCH_GLOB='*enhanced_susfs-*.patch'
-  OPEN_REDIRECT_PATCH_PATTERN='susfs_get_redirected_path|open_redirect'
+  OPEN_REDIRECT_RECOVERY_PATTERN='susfs_get_redirected_path|open_redirect'
   BASE_SUS_MAP_RECOVERY_PATTERN='proc_map_files_readdir|AS_FLAGS_SUS_MAP|SUSFS_IS_INODE_SUS_MAP|susfs_is_current_proc_umounted_app'
   NAMEI_OPEN_REDIRECT_RECOVERY_PATTERN='CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path|fake_pathname|set_nameidata'
 
@@ -193,18 +193,22 @@ if $ADD_SUSFS; then
       echo "::error::Missing upstream SUSFS patch path for recovery (UPSTREAM_PATCH is empty)"
       exit 1
     }
-    ENHANCED_PATCH="$(find "$ENHANCED_PATCH_DIR" -maxdepth 1 -type f \
-      -name "$ENHANCED_PATCH_GLOB" -print 2>/dev/null | LC_ALL=C sort | head -n 1)"
+    mapfile -t ENHANCED_PATCHES < <(find "$ENHANCED_PATCH_DIR" -maxdepth 1 -type f \
+      -name "$ENHANCED_PATCH_GLOB" -print 2>/dev/null | LC_ALL=C sort)
+    ENHANCED_PATCH="${ENHANCED_PATCHES[0]:-}"
+    if (( ${#ENHANCED_PATCHES[@]} > 1 )); then
+      echo "::warning::Multiple enhanced SUSFS patches detected; using first match: ${ENHANCED_PATCH##*/}"
+    fi
     [[ -n "$ENHANCED_PATCH" ]] || {
       echo "::warning::Enhanced SUSFS patch was not found; using upstream-only recovery"
     }
 
     apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
       'fs/susfs.c' "$TARGETED_DIR/susfs-open-redirect.patch" \
-      "$OPEN_REDIRECT_PATCH_PATTERN"
+      "$OPEN_REDIRECT_RECOVERY_PATTERN"
     apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
       'include/linux/susfs.h' "$TARGETED_DIR/susfs-h-open-redirect.patch" \
-      "$OPEN_REDIRECT_PATCH_PATTERN"
+      "$OPEN_REDIRECT_RECOVERY_PATTERN"
 
     if [[ -n "$ENHANCED_PATCH" ]]; then
       apply_optional_targeted_patch "$COMMON_TREE" "$ENHANCED_PATCH" \
@@ -216,7 +220,7 @@ if $ADD_SUSFS; then
     fi
 
     if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
-      echo "::error::SUSFS source audit still failing after targeted hunk recovery"
+      echo "::error::SUSFS source audit still failing after targeted hunk recovery. Check $AUDIT_FILE for details."
       exit 1
     fi
   fi
