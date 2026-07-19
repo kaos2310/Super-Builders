@@ -121,6 +121,26 @@ apply_targeted_patch() {
   return 1
 }
 
+try_apply_targeted_patch() {
+  local common_tree="$1"
+  local source_patch="$2"
+  local target_path="$3"
+  local temp_patch="$4"
+  local hunk_pattern="${5:-}"
+
+  if [[ ! -f "$source_patch" ]]; then
+    echo "::warning::Skip optional hook recovery for $target_path (missing patch: $source_patch)"
+    return 0
+  fi
+
+  if apply_targeted_patch "$common_tree" "$source_patch" "$target_path" "$temp_patch" "$hunk_pattern"; then
+    return 0
+  fi
+
+  echo "::warning::Optional hook recovery failed for $target_path from $(basename "$source_patch")"
+  return 0
+}
+
 if $ADD_SUSFS; then
   VERSION_DIR="$(cd "$(dirname "$FRAGMENT_SRC")" && pwd)"
   COMMON_TREE="$(cd "$(dirname "$DEFCONFIG")/../../.." && pwd)"
@@ -161,7 +181,27 @@ if $ADD_SUSFS; then
     'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path'
 
   chmod +x "$VERIFY_SCRIPT"
-  "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit.txt"
+  if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit.txt"; then
+    echo "::warning::Initial SUSFS source audit failed; retrying with targeted hook recovery"
+    ENHANCED_PATCH="$(find "$VERSION_DIR/SukiSU-Ultra/patches" -maxdepth 1 -type f \
+      -name '51_enhanced_susfs-android14-6.1.patch' -print -quit 2>/dev/null || true)"
+
+    try_apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
+      'fs/susfs.c' "$TARGETED_DIR/susfs-open-redirect.patch" \
+      'susfs_get_redirected_path|open_redirect'
+    try_apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
+      'include/linux/susfs.h' "$TARGETED_DIR/susfs-h-open-redirect.patch" \
+      'susfs_get_redirected_path|open_redirect'
+
+    try_apply_targeted_patch "$COMMON_TREE" "$ENHANCED_PATCH" \
+      'fs/proc/base.c' "$TARGETED_DIR/proc-base-enhanced.patch" \
+      'proc_map_files_readdir|AS_FLAGS_SUS_MAP|SUSFS_IS_INODE_SUS_MAP|susfs_is_current_proc_umounted_app'
+    try_apply_targeted_patch "$COMMON_TREE" "$ENHANCED_PATCH" \
+      'fs/namei.c' "$TARGETED_DIR/namei-open-redirect-enhanced.patch" \
+      'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path|fake_pathname|set_nameidata\(&nd'
+
+    "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_DIR/susfs-v2.2-procfs-audit-retry.txt"
+  fi
 fi
 
 extract_section "base" >> "$FRAGMENT_DST"
