@@ -275,6 +275,10 @@ jobs:
         chmod +x "$PORT_SCRIPT"
         mkdir -p "$ARTIFACTS_DIR"
 
+        KSU_ENABLE_PATCH="$SUSFS_DIR/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
+        python3 "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/filter-sukisu-susfs-init-hunks.py" \
+          "$KSU_ENABLE_PATCH"
+
         export KERNEL_PLATFORM_FOLDER="$KERNEL_ROOT"
         export COMMON_KERNEL_FOLDER="$KERNEL_ROOT/common"
         export SUSFS_FOLDER="$SUSFS_DIR"
