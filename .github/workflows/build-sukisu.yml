@@ -404,6 +404,21 @@ jobs:
 
         if [[ "$ADD_SUSFS" == "true" ]]; then
           grep -qx 'CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y' "$DEFCONFIG_FRAGMENT"
+
+          for symbol in \
+            CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT \
+            CONFIG_KSU_SUSFS_UNICODE_FILTER \
+            CONFIG_KSU_SUSFS_HIDDEN_NAME; do
+            kconfig_symbol="${symbol#CONFIG_}"
+            grep -Rqx "config ${kconfig_symbol}" common/ "$KSU_DIR/" --include='Kconfig*' 2>/dev/null || {
+              echo "::error::Required SUSFS Kconfig symbol is missing: ${symbol}"
+              exit 1
+            }
+            grep -qx "${symbol}=y" "$DEFCONFIG_FRAGMENT" || {
+              echo "::error::Required SUSFS option was not retained: ${symbol}=y"
+              exit 1
+            }
+          done
         fi
 
         if [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]]; then
