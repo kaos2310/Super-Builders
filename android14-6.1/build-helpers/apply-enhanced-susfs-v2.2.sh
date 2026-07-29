@@ -104,8 +104,307 @@ apply_required_hunks 'fs/open.c' \
   'KSU_SUSFS_HIDDEN_NAME|KSU_SUSFS_UNICODE_FILTER|susfs_is_hidden_name|susfs_check_unicode_bypass'
 apply_required_hunks 'fs/stat.c' \
   'KSU_SUSFS_HIDDEN_NAME|KSU_SUSFS_UNICODE_FILTER|susfs_is_hidden_name|susfs_check_unicode_bypass'
-apply_required_hunks 'fs/susfs.c' \
-  'KSU_SUSFS_UNICODE_FILTER|susfs_check_unicode_bypass|struct susfs_hidden_name_entry|susfs_try_register_hidden_name|KSU_SUSFS_SUS_KSTAT_REDIRECT|susfs_add_sus_kstat_redirect'
+
+# fs/susfs.c in the pinned v2.2.0 tree has moved from spinlocks to mutexes and
+# no longer matches the older enhanced-feature patch context.  GNU patch can
+# otherwise accept the legacy hunks with fuzz and place top-level helpers
+# inside susfs_run_sus_path_loop(), which only fails much later at compile
+# time.  Port the feature blocks using v2.2-specific structural anchors.
+python3 - "$SOURCE_PATCH" "$COMMON/fs/susfs.c" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+patch_path, source_path = map(Path, sys.argv[1:])
+patch_lines = patch_path.read_text(encoding="utf-8").splitlines(keepends=True)
+source = source_path.read_text(encoding="utf-8")
+
+
+def patch_section(target):
+    start = next(
+        (
+            index
+            for index, line in enumerate(patch_lines)
+            if line.startswith("--- ")
+            and re.search(rf"/{re.escape(target)}(?:\t|\r?\n$)", line)
+        ),
+        None,
+    )
+    if start is None:
+        raise SystemExit(f"No patch section found for {target}")
+
+    end = next(
+        (
+            index
+            for index in range(start + 1, len(patch_lines))
+            if patch_lines[index].startswith("diff ")
+        ),
+        len(patch_lines),
+    )
+    section = patch_lines[start:end]
+    first_hunk = next(
+        (index for index, line in enumerate(section) if line.startswith("@@")),
+        None,
+    )
+    if first_hunk is None:
+        raise SystemExit(f"No hunks found for {target}")
+
+    hunks = []
+    current = []
+    for line in section[first_hunk:]:
+        if line.startswith("@@"):
+            if current:
+                hunks.append(current)
+            current = [line]
+        else:
+            current.append(line)
+    if current:
+        hunks.append(current)
+    return hunks
+
+
+def added_text_containing(hunks, token):
+    matches = [
+        "".join(
+            line[1:]
+            for line in hunk[1:]
+            if line.startswith("+") and not line.startswith("+++")
+        )
+        for hunk in hunks
+        if token in "".join(hunk)
+    ]
+    if len(matches) != 1:
+        raise SystemExit(
+            f"Expected one fs/susfs.c hunk containing {token!r}, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def preprocessor_block(text, marker):
+    lines = text.splitlines(keepends=True)
+    start = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if marker in line and re.match(r"^\s*#\s*if", line)
+        ),
+        None,
+    )
+    if start is None:
+        raise SystemExit(f"Cannot find preprocessor block for {marker}")
+
+    depth = 0
+    for index in range(start, len(lines)):
+        line = lines[index]
+        if re.match(r"^\s*#\s*(?:if|ifdef|ifndef)\b", line):
+            depth += 1
+        elif re.match(r"^\s*#\s*endif\b", line):
+            depth -= 1
+            if depth == 0:
+                return "".join(lines[start : index + 1])
+    raise SystemExit(f"Unterminated preprocessor block for {marker}")
+
+
+def replace_once(text, old, new, label):
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"Expected one {label} anchor, found {count}")
+    return text.replace(old, new, 1)
+
+
+markers = (
+    "bool susfs_check_unicode_bypass(",
+    "struct susfs_hidden_name_entry {",
+    "void susfs_add_sus_kstat_redirect(",
+    "CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT\\n\", buf_ptr",
+)
+present = tuple(marker in source for marker in markers)
+if all(present):
+    print("Enhanced SUSFS v2.2 source features already present: fs/susfs.c")
+    raise SystemExit(0)
+if any(present):
+    raise SystemExit("Partial enhanced SUSFS v2.2 source port detected in fs/susfs.c")
+
+hunks = patch_section("fs/susfs.c")
+
+for include in (
+    "#include <linux/hashtable.h>\n",
+    "#include <linux/pagemap.h>\n",
+    "#include <linux/limits.h>\n",
+    "#include <linux/spinlock.h>\n",
+):
+    if include not in source:
+        source = replace_once(
+            source,
+            '#include "mount.h"\n',
+            '#include "mount.h"\n' + include,
+            "include",
+        )
+
+unicode_added = added_text_containing(hunks, "has_suspicious_unicode")
+# The Unicode hunk reuses the old log-config #endif as its own closing
+# directive, so that final line is patch context rather than an added line.
+unicode_added += "#endif\n"
+unicode_block = preprocessor_block(
+    unicode_added, "CONFIG_KSU_SUSFS_UNICODE_FILTER"
+)
+source = replace_once(
+    source,
+    "\n/* sus_path */\n",
+    "\n" + unicode_block + "\n\n/* sus_path */\n",
+    "sus_path section",
+)
+
+hidden_added = added_text_containing(hunks, "struct susfs_hidden_name_entry")
+hidden_block = preprocessor_block(hidden_added, "CONFIG_KSU_SUSFS_HIDDEN_NAME")
+hidden_lock = "static DEFINE_SPINLOCK(susfs_hidden_inos_lock);\n"
+hidden_register = r'''
+
+static void susfs_register_hidden_ino(struct inode *inode)
+{
+	struct susfs_hidden_ino_entry *entry;
+	struct susfs_hidden_ino_entry *existing;
+	u32 key;
+
+	if (!inode || !inode->i_sb)
+		return;
+
+	entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+	if (!entry)
+		return;
+	entry->ino = inode->i_ino;
+	entry->sb = inode->i_sb;
+	key = hash_long(entry->ino ^ (unsigned long)entry->sb, 10);
+
+	spin_lock(&susfs_hidden_inos_lock);
+	hash_for_each_possible(susfs_hidden_inos, existing, node, key) {
+		if (existing->ino == entry->ino && existing->sb == entry->sb) {
+			spin_unlock(&susfs_hidden_inos_lock);
+			kfree(entry);
+			return;
+		}
+	}
+	hash_add_rcu(susfs_hidden_inos, &entry->node, key);
+	spin_unlock(&susfs_hidden_inos_lock);
+}
+'''.lstrip("\n")
+if hidden_lock not in hidden_block:
+    raise SystemExit("Hidden-inode lock is missing from the enhanced patch")
+hidden_block = hidden_block.replace(
+    hidden_lock, hidden_lock + "\n" + hidden_register, 1
+)
+
+hidden_anchor = re.search(
+    r"^const struct qstr susfs_fake_qstr_name[^\n]*\n", source, re.MULTILINE
+)
+if not hidden_anchor:
+    raise SystemExit("Cannot locate SUSFS fake-qstr anchor")
+source = (
+    source[: hidden_anchor.end()]
+    + "\n"
+    + hidden_block
+    + "\n"
+    + source[hidden_anchor.end() :]
+)
+
+rewritten = []
+registered_fuse = 0
+registered_inode = 0
+for line in source.splitlines(keepends=True):
+    rewritten.append(line)
+    indent = re.match(r"^(\s*)", line).group(1)
+    if "set_bit(AS_FLAGS_SUS_PATH, &fi->inode.i_mapping->flags);" in line:
+        rewritten.extend(
+            (
+                "#ifdef CONFIG_KSU_SUSFS_HIDDEN_NAME\n",
+                f"{indent}susfs_register_hidden_ino(&fi->inode);\n",
+                "#endif\n",
+            )
+        )
+        registered_fuse += 1
+    elif "set_bit(AS_FLAGS_SUS_PATH, &inode->i_mapping->flags);" in line:
+        rewritten.extend(
+            (
+                "#ifdef CONFIG_KSU_SUSFS_HIDDEN_NAME\n",
+                f"{indent}susfs_register_hidden_ino(inode);\n",
+                "#endif\n",
+            )
+        )
+        registered_inode += 1
+source = "".join(rewritten)
+if registered_fuse < 1 or registered_inode < 1:
+    raise SystemExit(
+        "Could not wire hidden-inode registration into the SUS_PATH code"
+    )
+
+hidden_name_anchor = (
+    '\tSUSFS_LOGI("CMD_SUSFS_ADD_SUS_PATH -> ret: %d\\n", info.err);\n'
+)
+hidden_name_call = (
+    "#ifdef CONFIG_KSU_SUSFS_HIDDEN_NAME\n"
+    "\tif (!info.err)\n"
+    "\t\tsusfs_try_register_hidden_name(info.target_pathname);\n"
+    "#endif\n"
+)
+source = replace_once(
+    source,
+    hidden_name_anchor,
+    hidden_name_call + hidden_name_anchor,
+    "SUS_PATH result",
+)
+
+redirect_added = added_text_containing(hunks, "void susfs_add_sus_kstat_redirect")
+redirect_block = preprocessor_block(
+    redirect_added, "CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT"
+)
+redirect_block = redirect_block.replace(
+    "spin_lock(&susfs_spin_lock_sus_kstat);",
+    "mutex_lock(&susfs_mutex_lock_sus_kstat);",
+).replace(
+    "spin_unlock(&susfs_spin_lock_sus_kstat);",
+    "mutex_unlock(&susfs_mutex_lock_sus_kstat);",
+)
+kstat_end = (
+    "#endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT\n\n"
+    "/* spoof_uname */"
+)
+source = replace_once(
+    source,
+    kstat_end,
+    redirect_block + "\n" + kstat_end,
+    "SUS_KSTAT section end",
+)
+
+report_block = added_text_containing(
+    hunks, 'copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT'
+).strip("\n")
+feature_start = source.find("void susfs_get_enabled_features(")
+if feature_start < 0:
+    raise SystemExit("Cannot locate susfs_get_enabled_features()")
+report_anchor = "\n\tinfo->err = 0;\nout_copy_to_user:"
+report_at = source.find(report_anchor, feature_start)
+if report_at < 0:
+    raise SystemExit("Cannot locate enabled-features result anchor")
+source = (
+    source[:report_at]
+    + "\n"
+    + report_block
+    + "\n"
+    + source[report_at:]
+)
+
+if "spin_lock(&susfs_spin_lock_sus_kstat)" in redirect_block:
+    raise SystemExit("Legacy SUS_KSTAT redirect spinlock remains")
+for marker in markers:
+    if marker not in source:
+        raise SystemExit(f"Missing enhanced SUSFS source marker: {marker}")
+
+source_path.write_text(source, encoding="utf-8")
+print(
+    "Applied v2.2-specific fs/susfs.c port "
+    f"(hidden inode anchors: fuse={registered_fuse}, inode={registered_inode})"
+)
+PY
 
 python3 - "$KSU_ROOT" "$COMMON" <<'PY'
 import pathlib
