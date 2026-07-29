@@ -30,3 +30,4 @@ jobs:
       add_kpm: true
       susfs_open_redirect: true
       sukisu_commit: ""
+# Trigger: validate SUSFS v2.2.0 init hunk filter (2026-07-29)
