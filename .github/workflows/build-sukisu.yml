@@ -291,33 +291,14 @@ jobs:
         grep -qx 'config KSU_SUSFS' "$KERNEL_ROOT/$KSU_DIR/kernel/Kconfig"
         test -f "$KERNEL_ROOT/common/fs/susfs.c"
 
-    - name: Apply Enhanced SUSFS features
+    - name: Apply Enhanced SUSFS v2.2 features
       if: inputs.add_susfs
-      working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |
         set -euo pipefail
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-enhanced-susfs-v2.2.sh"
         PATCH="$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/51_enhanced_susfs-${ANDROID_VER}-${KERNEL_VER}.patch"
-        test -s "$PATCH"
-
-        if patch -p1 -F3 --forward --batch --dry-run < "$PATCH" >/dev/null; then
-          patch -p1 -F3 --forward --batch --no-backup-if-mismatch < "$PATCH"
-        elif patch -R -p1 -F3 --forward --batch --dry-run < "$PATCH" >/dev/null; then
-          echo "Enhanced SUSFS patch is already present"
-        else
-          echo "::error::Enhanced SUSFS patch does not apply cleanly: $PATCH"
-          patch -p1 -F3 --forward --batch --dry-run < "$PATCH" || true
-          exit 1
-        fi
-
-        for symbol in \
-          KSU_SUSFS_SUS_KSTAT_REDIRECT \
-          KSU_SUSFS_UNICODE_FILTER \
-          KSU_SUSFS_HIDDEN_NAME; do
-          grep -Rqx "config ${symbol}" . --include='Kconfig*' || {
-            echo "::error::Enhanced SUSFS patch did not define ${symbol}"
-            exit 1
-          }
-        done
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common" "$KERNEL_ROOT/$KSU_DIR" "$PATCH"
 
     - name: Apply ZeroMount to SUSFS v2.2.0
       if: inputs.add_susfs && inputs.add_zeromount
