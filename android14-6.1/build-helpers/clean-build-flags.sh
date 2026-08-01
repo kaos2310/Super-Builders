@@ -31,28 +31,59 @@ SUSFS_FRAGMENT="./common/arch/arm64/configs/sukisu_gki.fragment"
 if [ -f "$SUSFS_SOURCE" ]; then
   python3 - "$SUSFS_SOURCE" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
-upstream = "bool susfs_is_log_enabled __read_mostly = true;"
-default_off = "bool susfs_is_log_enabled __read_mostly = false;"
 
-if upstream in text:
-    text = text.replace(upstream, default_off, 1)
-elif default_off not in text:
-    raise SystemExit("SUSFS logging default declaration was not found")
-
-required = (
-    default_off,
-    "void susfs_set_log(bool enabled)",
-    "susfs_is_log_enabled = enabled;",
+# SUSFS revisions differ in whether this global is static, __read_mostly,
+# explicitly initialized, or relies on zero-initialization. Match only the
+# actual definition in fs/susfs.c, never an extern declaration.
+declaration = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<prefix>(?:static[ \t]+)?bool[ \t]+"
+    r"susfs_is_log_enabled(?:[ \t]+__read_mostly)?)"
+    r"[ \t]*(?:=[ \t]*(?:true|false|0|1))?[ \t]*;[ \t]*$",
+    re.MULTILINE,
 )
-missing = [item for item in required if item not in text]
-if missing:
-    raise SystemExit(f"SUSFS runtime logging toggle verification failed: {missing}")
+
+matches = list(declaration.finditer(text))
+if len(matches) != 1:
+    candidates = [
+        f"{line_no}: {line}"
+        for line_no, line in enumerate(text.splitlines(), 1)
+        if "susfs_is_log_enabled" in line
+    ]
+    detail = "\n".join(candidates) if candidates else "<no symbol occurrences>"
+    raise SystemExit(
+        "Expected exactly one SUSFS logging-state definition, "
+        f"found {len(matches)}:\n{detail}"
+    )
+
+match = matches[0]
+default_off = f"{match.group('indent')}{match.group('prefix')} = false;"
+text = text[: match.start()] + default_off + text[match.end() :]
+
+setter = re.compile(
+    r"\bvoid[ \t\r\n]+susfs_set_log[ \t]*\([ \t\r\n]*"
+    r"bool[ \t]+enabled[ \t\r\n]*\)"
+)
+assignment = re.compile(
+    r"\bsusfs_is_log_enabled[ \t]*=[ \t]*enabled[ \t]*;"
+)
+if not setter.search(text) or not assignment.search(text):
+    raise SystemExit(
+        "SUSFS runtime logging toggle is incomplete: "
+        "susfs_set_log(bool enabled) or its assignment is missing"
+    )
+
+verified = list(declaration.finditer(text))
+if len(verified) != 1 or "= false;" not in verified[0].group(0):
+    raise SystemExit("SUSFS logging default-off rewrite verification failed")
 
 path.write_text(text, encoding="utf-8")
+print(f"SUSFS logging default set to off: {default_off.strip()}")
+print("SUSFS runtime toggle retained: enable_log 1 / enable_log 0")
 PY
 fi
 
