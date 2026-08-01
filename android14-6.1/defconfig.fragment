@@ -91,6 +91,11 @@ CONFIG_ZRAM_DEF_COMP_LZ4KD=y
 CONFIG_TMPFS_XATTR=y
 CONFIG_TMPFS_POSIX_ACL=y
 
+# [daily]
+# KFENCE is a development memory-corruption detector. Keep it compiled out
+# of the daily kernel to eliminate its periodic sampling timer and wakeups.
+# CONFIG_KFENCE is not set
+
 # [performance]
 # Disable kernel debug features if enabled in base MTK config.
 # These are NOT in gki_defconfig — may be set by vendor config.
