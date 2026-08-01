@@ -18,6 +18,50 @@ jobs:
         git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 --depth=1
         rm -rf AnyKernel3/.git
 
+    - name: Remove forced S928B performance governor
+      run: |
+        AK3="AnyKernel3/anykernel.sh"
+        [ -f "$AK3" ] || { echo "::error::AnyKernel3 anykernel.sh not found"; exit 1; }
+
+        python3 - "$AK3" <<'PY'
+        from pathlib import Path
+        import sys
+
+        path = Path(sys.argv[1])
+        text = path.read_text()
+        marker = '# S928B daily: remove forced early performance governor'
+
+        if marker not in text:
+            needle = 'split_boot\n'
+            if needle not in text:
+                raise SystemExit('split_boot call not found in anykernel.sh')
+
+            patch = '''split_boot
+
+# S928B daily: remove forced early performance governor
+# The runtime governor remains under Samsung PowerHAL/WALT control.
+if [ "$(getprop ro.product.model 2>/dev/null)" = "SM-S928B" ] || \
+   [ "$(getprop ro.product.device 2>/dev/null)" = "e3q" ]; then
+    patch_cmdline "cpufreq.default_governor" ""
+    ui_print "  -> Removed cpufreq.default_governor=performance"
+fi
+'''
+            text = text.replace(needle, patch, 1)
+            path.write_text(text)
+
+        required = [
+            marker,
+            'patch_cmdline "cpufreq.default_governor" ""',
+            'SM-S928B',
+            'e3q',
+        ]
+        missing = [item for item in required if item not in path.read_text()]
+        if missing:
+            raise SystemExit(f'AnyKernel governor patch verification failed: {missing}')
+        PY
+
+        grep -n -A8 -B2 'S928B daily' "$AK3"
+
     - name: Clone Kernel Patches
       run: git clone https://github.com/WildKernels/kernel_patches.git --depth=1
 
