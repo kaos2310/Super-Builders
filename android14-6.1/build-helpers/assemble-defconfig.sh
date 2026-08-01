@@ -144,7 +144,7 @@ apply_optional_targeted_patch() {
 if $ADD_SUSFS; then
   VERSION_DIR="$(cd "$(dirname "$FRAGMENT_SRC")" && pwd)"
   COMMON_TREE="$(cd "$(dirname "$DEFCONFIG")/../../.." && pwd)"
-  SUSFS_CLONE="${RUNNER_TEMP:-/tmp}/susfs4ksu"
+  SUSFS_CLONE="${SUSFS_FOLDER:-${RUNNER_TEMP:-/tmp}/susfs4ksu}"
   VERIFY_SCRIPT="$VERSION_DIR/build-helpers/verify-susfs-v2.2-procfs.sh"
   TARGETED_FIX_SCRIPT="$VERSION_DIR/build-helpers/apply-susfs-targeted.sh"
   AUDIT_DIR="${RUNNER_TEMP:-/tmp}/sukisu-susfs-artifacts"

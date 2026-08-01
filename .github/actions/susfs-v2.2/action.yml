@@ -42,7 +42,7 @@ runs:
 
         KERNEL_COMMON="${KERNEL_ROOT:?KERNEL_ROOT is not set}/common"
         SUSFS_DIR="$RUNNER_TEMP/susfs4ksu-$TARGET"
-        trap 'rm -rf "$SUSFS_DIR"' EXIT
+        rm -rf "$SUSFS_DIR"
 
         git clone --branch "gki-$TARGET" \
           https://gitlab.com/simonpunk/susfs4ksu.git "$SUSFS_DIR"
@@ -99,6 +99,11 @@ runs:
           apply_compat_commit 8d2420be13e43d4cc0d80215d08ed475081a1404
           apply_compat_commit ee71ca33d08710d686f2bdba27cacefe9e615fb9
         fi
+
+        # Later defconfig reconciliation needs the exact pinned patch tree.
+        # Keep it until the ephemeral runner is torn down and publish its path
+        # for subsequent workflow steps instead of guessing a temp directory.
+        echo "SUSFS_FOLDER=$SUSFS_DIR" >> "$GITHUB_ENV"
 
         cd "$KERNEL_COMMON"
         cp "$SUSFS_DIR/kernel_patches/fs/"* fs/
