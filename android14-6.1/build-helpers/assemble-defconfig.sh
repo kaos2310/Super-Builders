@@ -141,7 +141,10 @@ apply_optional_targeted_patch() {
   return 0
 }
 
-if $ADD_SUSFS; then
+# The targeted Procfs reconciliation below is specific to the enhanced
+# SukiSU patch stack. ReSukiSU already receives the complete pinned SUSFS
+# patch in its composite action, so replaying SukiSU hunks corrupts detection.
+if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" == "SukiSU" ]]; then
   VERSION_DIR="$(cd "$(dirname "$FRAGMENT_SRC")" && pwd)"
   COMMON_TREE="$(cd "$(dirname "$DEFCONFIG")/../../.." && pwd)"
   SUSFS_CLONE="${SUSFS_FOLDER:-${RUNNER_TEMP:-/tmp}/susfs4ksu}"
