@@ -47,7 +47,7 @@
     "source_repo": "WildKernels/Samsung_Kernels",
     "source_branch": "SM-S928B-Oneui8.5",
     "common_path": "kernel_platform/common",
-    "build_command": "./build_kernel_GKI.sh",
+    "build_command": "./kernel_platform/common/scripts/config --file ./kernel_platform/common/arch/arm64/configs/gki_defconfig --set-str LOCALVERSION '' --disable LOCALVERSION_AUTO && KBUILD_BUILD_USER=android-build KBUILD_BUILD_HOST=abfarm KBUILD_BUILD_TIMESTAMP='Fri Jul 3 05:32:51 UTC 2026' KBUILD_BUILD_VERSION=1 LOCALVERSION='-33419968-abS928BXXS6DZG1' ./build_kernel_GKI.sh",
     "lto_default": "default",
     "image_path": "kernel_platform/sec/dist/Image",
     "fix_patches_dir": "SM-S928B",
