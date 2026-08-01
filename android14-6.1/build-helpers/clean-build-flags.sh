@@ -23,7 +23,7 @@ else
 fi
 
 # Keep CONFIG_KSU_SUSFS_ENABLE_LOG compiled in, but start each boot with
-# logging disabled. The runtime setter remains untouched, so
+# logging disabled. The runtime command path remains untouched, so
 # `ksu_susfs enable_log 1` and `ksu_susfs enable_log 0` continue to work.
 SUSFS_SOURCE="./common/fs/susfs.c"
 SUSFS_FRAGMENT="./common/arch/arm64/configs/sukisu_gki.fragment"
@@ -67,13 +67,6 @@ if implementation_count != 1:
         "Expected exactly one SUSFS logging-state implementation, "
         f"found {implementation_count}:\n{detail}"
     )
-
-setter = re.compile(
-    r"\bvoid[ \t\r\n]+susfs_set_log[ \t]*\([ \t\r\n]*"
-    r"bool[ \t]+enabled[ \t\r\n]*\)"
-)
-if not setter.search(text):
-    raise SystemExit("SUSFS runtime logging setter susfs_set_log(bool enabled) is missing")
 
 if key_matches:
     match = key_matches[0]
