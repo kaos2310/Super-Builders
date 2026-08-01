@@ -3,11 +3,6 @@ run-name: "Enhanced SukiSU SUSFS — 6.1.145-android14-11-33419968-abS928BXXS6DZ
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - agent/susfs-2.2.0
-    paths:
-      - .github/trigger/rebuild-20260801-1929.txt
 
 permissions:
   contents: write
@@ -32,4 +27,4 @@ jobs:
       add_kpm: true
       susfs_open_redirect: true
       sukisu_commit: ""
-# Temporary one-file push trigger; removed immediately after dispatch.
+# Manual start only after the one-time rebuild trigger.
