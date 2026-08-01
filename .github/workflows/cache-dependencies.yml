@@ -62,6 +62,63 @@ fi
 
         grep -n -A8 -B2 'S928B daily' "$AK3"
 
+    - name: Keep SUSFS logging switchable but default off
+      run: |
+        AK3="AnyKernel3/anykernel.sh"
+        [ -f "$AK3" ] || { echo "::error::AnyKernel3 anykernel.sh not found"; exit 1; }
+
+        python3 - "$AK3" <<'PY'
+        from pathlib import Path
+        import sys
+
+        path = Path(sys.argv[1])
+        text = path.read_text()
+        marker = '# S928B daily: keep SUSFS logging runtime-switchable'
+
+        if marker not in text:
+            needle = '''    ui_print "  -> Removed cpufreq.default_governor=performance"
+fi
+'''
+            if needle not in text:
+                raise SystemExit('S928B governor block not found in anykernel.sh')
+
+            replacement = '''    ui_print "  -> Removed cpufreq.default_governor=performance"
+
+    # S928B daily: keep SUSFS logging runtime-switchable.
+    # Start each installed build with logging disabled; users may later run
+    # ksu_susfs enable_log 1 and disable it again with enable_log 0.
+    if [ -d /data/adb ]; then
+        SUSFS_CFG=/data/adb/susfs4ksu/config.sh
+        mkdir -p /data/adb/susfs4ksu
+        if [ -f "$SUSFS_CFG" ] && grep -q '^susfs_log=' "$SUSFS_CFG"; then
+            sed -i 's/^susfs_log=.*/susfs_log=0/' "$SUSFS_CFG"
+        else
+            echo 'susfs_log=0' >> "$SUSFS_CFG"
+        fi
+
+        if [ -x /data/adb/ksu/bin/ksu_susfs ]; then
+            /data/adb/ksu/bin/ksu_susfs enable_log 0 >/dev/null 2>&1 || true
+        fi
+        ui_print "  -> SUSFS logging default: off; runtime toggle retained"
+    fi
+fi
+'''
+            text = text.replace(needle, replacement, 1)
+            path.write_text(text)
+
+        required = [
+            marker,
+            "echo 'susfs_log=0'",
+            'ksu_susfs enable_log 0',
+            'runtime toggle retained',
+        ]
+        missing = [item for item in required if item not in path.read_text()]
+        if missing:
+            raise SystemExit(f'SUSFS logging default-off patch verification failed: {missing}')
+        PY
+
+        grep -n -A24 -B3 'keep SUSFS logging runtime-switchable' "$AK3"
+
     - name: Clone Kernel Patches
       run: git clone https://github.com/WildKernels/kernel_patches.git --depth=1
 
