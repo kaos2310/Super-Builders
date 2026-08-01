@@ -2,14 +2,7 @@ name: Run Enhanced SukiSU SUSFS Once
 run-name: "Enhanced SukiSU SUSFS — 6.1.145-android14-11-33419968-abS928BXXS6DZG1"
 
 on:
-  push:
-    branches:
-      - agent/susfs-2.2.0
-    paths:
-      - .github/workflows/run-susfs-enhanced-once.yml
-      - .github/workflows/build-sukisu.yml
-      - android14-6.1/defconfig.fragment
-      - device-profiles.json
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -34,4 +27,4 @@ jobs:
       add_kpm: true
       susfs_open_redirect: true
       sukisu_commit: ""
-# Trigger: build S928B stock-compatible Linux identity (2026-08-01)
+# Manual start only: run after all kernel adjustments are complete.
