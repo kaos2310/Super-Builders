@@ -340,7 +340,17 @@ jobs:
       if: inputs.add_zeromount && inputs.add_susfs
       working-directory: ${{ env.KERNEL_COMMON }}
       run: |
-        patch -p1 -F3 --no-backup-if-mismatch < "$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/60_zeromount-${GKI_TAG}.patch"
+        PATCH="$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/60_zeromount-${GKI_TAG}.patch"
+        FILTERED_PATCH="$RUNNER_TEMP/zeromount-${GKI_TAG}-without-task-mmu.patch"
+        # SUSFS v2.2 already modifies show_map_vma().  The legacy ZeroMount
+        # metadata hook overlaps that code and caused an Oops while apexd read
+        # /proc/*/maps on SM-S928B.  Keep the remaining ZeroMount facilities.
+        awk '
+          /^--- a\/fs\/proc\/task_mmu\.c/ { skip = 1; next }
+          skip && /^--- a\// { skip = 0 }
+          !skip { print }
+        ' "$PATCH" > "$FILTERED_PATCH"
+        patch -p1 -F3 --no-backup-if-mismatch < "$FILTERED_PATCH"
 
     - name: Fix SUSFS Compatibility
       if: inputs.add_susfs

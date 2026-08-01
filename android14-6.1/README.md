@@ -59,6 +59,7 @@ This file gets merged on top of the stock GKI defconfig at build time. Each sect
 | Toggle | Default | Purpose |
 |--------|---------|---------|
 | `CONFIG_KSU` | y | KernelSU root framework. Everything depends on this. |
+| `CONFIG_SECCOMP` + `CONFIG_SECCOMP_FILTER` | y | Keeps seccomp support compiled into the kernel. |
 | `CONFIG_UAPI_HEADER_TEST` | n | **5.4 only.** Disables header test that fails with prebuilt clang. Absent on 5.10+. |
 | `CONFIG_TCP_CONG_BBR` | y | BBR congestion control. Better throughput on lossy networks. |
 | `CONFIG_TCP_CONG_CUBIC` | y | CUBIC congestion control. Linux default. |
