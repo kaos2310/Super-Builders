@@ -6,6 +6,8 @@ on:
       - agent/susfs-2.2.0
     paths:
       - .github/workflows/run-susfs-enhanced-once.yml
+      - .github/workflows/build-sukisu.yml
+      - android14-6.1/defconfig.fragment
 
 permissions:
   contents: write
@@ -30,4 +32,4 @@ jobs:
       add_kpm: true
       susfs_open_redirect: true
       sukisu_commit: ""
-# Trigger: validate SUSFS v2.2.0 init hunk filter (2026-07-29)
+# Trigger: validate S928B Droidspaces and memory diagnostics (2026-08-01)
