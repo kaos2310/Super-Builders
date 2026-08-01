@@ -1,5 +1,20 @@
 {
   "devices": {
+    "e3q": {
+      "name": "Samsung Galaxy S24 Ultra",
+      "codename": "e3q",
+      "android_version": "android14",
+      "kernel_version": "6.1",
+      "sub_level": "145",
+      "os_patch_level": "2025-09",
+      "stock_kernel": {
+        "release": "-android14-11-33419968-abS928BXXS6DZG1",
+        "version_string": "#1 SMP PREEMPT Fri Jul 3 05:32:51 UTC 2026",
+        "build_user": "android-build",
+        "build_host": "abfarm",
+        "compiler_info": "Android (10087095, +pgo, +bolt, +lto, -mlgo, based on r487747c) clang version 17.0.2"
+      }
+    },
     "lake": {
       "name": "Xiaomi Redmi 14C",
       "codename": "lake",
