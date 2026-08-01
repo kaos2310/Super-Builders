@@ -23,7 +23,7 @@ else
 fi
 
 # Keep CONFIG_KSU_SUSFS_ENABLE_LOG compiled in, but start each boot with
-# logging disabled. susfs_set_log(bool enabled) remains untouched, so
+# logging disabled. The runtime setter remains untouched, so
 # `ksu_susfs enable_log 1` and `ksu_susfs enable_log 0` continue to work.
 SUSFS_SOURCE="./common/fs/susfs.c"
 SUSFS_FRAGMENT="./common/arch/arm64/configs/sukisu_gki.fragment"
@@ -37,18 +37,26 @@ import sys
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 
-# SUSFS revisions differ in whether this global is static, __read_mostly,
-# explicitly initialized, or relies on zero-initialization. Match only the
-# actual definition in fs/susfs.c, never an extern declaration.
-declaration = re.compile(
+# SUSFS revisions use either a normal bool or a jump-label static key for the
+# runtime logging state. Support both implementations and change only the
+# boot default; never remove the runtime enable/disable path.
+bool_declaration = re.compile(
     r"^(?P<indent>[ \t]*)(?P<prefix>(?:static[ \t]+)?bool[ \t]+"
     r"susfs_is_log_enabled(?:[ \t]+__read_mostly)?)"
     r"[ \t]*(?:=[ \t]*(?:true|false|0|1))?[ \t]*;[ \t]*$",
     re.MULTILINE,
 )
+static_key_declaration = re.compile(
+    r"^(?P<indent>[ \t]*)DEFINE_STATIC_KEY_(?P<state>TRUE|FALSE)"
+    r"\([ \t]*susfs_is_log_enabled[ \t]*\)[ \t]*;[ \t]*$",
+    re.MULTILINE,
+)
 
-matches = list(declaration.finditer(text))
-if len(matches) != 1:
+bool_matches = list(bool_declaration.finditer(text))
+key_matches = list(static_key_declaration.finditer(text))
+implementation_count = len(bool_matches) + len(key_matches)
+
+if implementation_count != 1:
     candidates = [
         f"{line_no}: {line}"
         for line_no, line in enumerate(text.splitlines(), 1)
@@ -56,33 +64,64 @@ if len(matches) != 1:
     ]
     detail = "\n".join(candidates) if candidates else "<no symbol occurrences>"
     raise SystemExit(
-        "Expected exactly one SUSFS logging-state definition, "
-        f"found {len(matches)}:\n{detail}"
+        "Expected exactly one SUSFS logging-state implementation, "
+        f"found {implementation_count}:\n{detail}"
     )
-
-match = matches[0]
-default_off = f"{match.group('indent')}{match.group('prefix')} = false;"
-text = text[: match.start()] + default_off + text[match.end() :]
 
 setter = re.compile(
     r"\bvoid[ \t\r\n]+susfs_set_log[ \t]*\([ \t\r\n]*"
     r"bool[ \t]+enabled[ \t\r\n]*\)"
 )
-assignment = re.compile(
-    r"\bsusfs_is_log_enabled[ \t]*=[ \t]*enabled[ \t]*;"
-)
-if not setter.search(text) or not assignment.search(text):
-    raise SystemExit(
-        "SUSFS runtime logging toggle is incomplete: "
-        "susfs_set_log(bool enabled) or its assignment is missing"
-    )
+if not setter.search(text):
+    raise SystemExit("SUSFS runtime logging setter susfs_set_log(bool enabled) is missing")
 
-verified = list(declaration.finditer(text))
-if len(verified) != 1 or "= false;" not in verified[0].group(0):
-    raise SystemExit("SUSFS logging default-off rewrite verification failed")
+if key_matches:
+    match = key_matches[0]
+    default_off = (
+        f"{match.group('indent')}"
+        "DEFINE_STATIC_KEY_FALSE(susfs_is_log_enabled);"
+    )
+    text = text[: match.start()] + default_off + text[match.end() :]
+
+    enable_call = re.compile(
+        r"\bstatic_branch_enable[ \t]*\([ \t]*"
+        r"&susfs_is_log_enabled[ \t]*\)[ \t]*;"
+    )
+    disable_call = re.compile(
+        r"\bstatic_branch_disable[ \t]*\([ \t]*"
+        r"&susfs_is_log_enabled[ \t]*\)[ \t]*;"
+    )
+    if not enable_call.search(text) or not disable_call.search(text):
+        raise SystemExit(
+            "SUSFS static-key runtime toggle is incomplete: "
+            "static_branch_enable/disable is missing"
+        )
+
+    verified = list(static_key_declaration.finditer(text))
+    if len(verified) != 1 or verified[0].group("state") != "FALSE":
+        raise SystemExit("SUSFS static-key default-off verification failed")
+    implementation = "static key"
+else:
+    match = bool_matches[0]
+    default_off = f"{match.group('indent')}{match.group('prefix')} = false;"
+    text = text[: match.start()] + default_off + text[match.end() :]
+
+    assignment = re.compile(
+        r"\bsusfs_is_log_enabled[ \t]*=[ \t]*enabled[ \t]*;"
+    )
+    if not assignment.search(text):
+        raise SystemExit(
+            "SUSFS bool runtime toggle is incomplete: "
+            "susfs_is_log_enabled = enabled is missing"
+        )
+
+    verified = list(bool_declaration.finditer(text))
+    if len(verified) != 1 or "= false;" not in verified[0].group(0):
+        raise SystemExit("SUSFS bool default-off verification failed")
+    implementation = "bool"
 
 path.write_text(text, encoding="utf-8")
-print(f"SUSFS logging default set to off: {default_off.strip()}")
+print(f"SUSFS logging default set to off ({implementation}): {default_off.strip()}")
 print("SUSFS runtime toggle retained: enable_log 1 / enable_log 0")
 PY
 fi
