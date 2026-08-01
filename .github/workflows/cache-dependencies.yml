@@ -38,14 +38,14 @@ jobs:
 
             patch = '''split_boot
 
-# S928B daily: remove forced early performance governor
-# The runtime governor remains under Samsung PowerHAL/WALT control.
-if [ "$(getprop ro.product.model 2>/dev/null)" = "SM-S928B" ] || \
-   [ "$(getprop ro.product.device 2>/dev/null)" = "e3q" ]; then
-    patch_cmdline "cpufreq.default_governor" ""
-    ui_print "  -> Removed cpufreq.default_governor=performance"
-fi
-'''
+        # S928B daily: remove forced early performance governor
+        # The runtime governor remains under Samsung PowerHAL/WALT control.
+        if [ "$(getprop ro.product.model 2>/dev/null)" = "SM-S928B" ] || \
+           [ "$(getprop ro.product.device 2>/dev/null)" = "e3q" ]; then
+            patch_cmdline "cpufreq.default_governor" ""
+            ui_print "  -> Removed cpufreq.default_governor=performance"
+        fi
+        '''
             text = text.replace(needle, patch, 1)
             path.write_text(text)
 
@@ -77,32 +77,32 @@ fi
 
         if marker not in text:
             needle = '''    ui_print "  -> Removed cpufreq.default_governor=performance"
-fi
-'''
+        fi
+        '''
             if needle not in text:
                 raise SystemExit('S928B governor block not found in anykernel.sh')
 
             replacement = '''    ui_print "  -> Removed cpufreq.default_governor=performance"
 
-    # S928B daily: keep SUSFS logging runtime-switchable.
-    # Start each installed build with logging disabled; users may later run
-    # ksu_susfs enable_log 1 and disable it again with enable_log 0.
-    if [ -d /data/adb ]; then
-        SUSFS_CFG=/data/adb/susfs4ksu/config.sh
-        mkdir -p /data/adb/susfs4ksu
-        if [ -f "$SUSFS_CFG" ] && grep -q '^susfs_log=' "$SUSFS_CFG"; then
-            sed -i 's/^susfs_log=.*/susfs_log=0/' "$SUSFS_CFG"
-        else
-            echo 'susfs_log=0' >> "$SUSFS_CFG"
-        fi
+            # S928B daily: keep SUSFS logging runtime-switchable.
+            # Start each installed build with logging disabled; users may later run
+            # ksu_susfs enable_log 1 and disable it again with enable_log 0.
+            if [ -d /data/adb ]; then
+                SUSFS_CFG=/data/adb/susfs4ksu/config.sh
+                mkdir -p /data/adb/susfs4ksu
+                if [ -f "$SUSFS_CFG" ] && grep -q '^susfs_log=' "$SUSFS_CFG"; then
+                    sed -i 's/^susfs_log=.*/susfs_log=0/' "$SUSFS_CFG"
+                else
+                    echo 'susfs_log=0' >> "$SUSFS_CFG"
+                fi
 
-        if [ -x /data/adb/ksu/bin/ksu_susfs ]; then
-            /data/adb/ksu/bin/ksu_susfs enable_log 0 >/dev/null 2>&1 || true
+                if [ -x /data/adb/ksu/bin/ksu_susfs ]; then
+                    /data/adb/ksu/bin/ksu_susfs enable_log 0 >/dev/null 2>&1 || true
+                fi
+                ui_print "  -> SUSFS logging default: off; runtime toggle retained"
+            fi
         fi
-        ui_print "  -> SUSFS logging default: off; runtime toggle retained"
-    fi
-fi
-'''
+        '''
             text = text.replace(needle, replacement, 1)
             path.write_text(text)
 
