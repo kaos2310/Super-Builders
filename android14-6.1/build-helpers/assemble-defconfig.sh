@@ -141,28 +141,34 @@ apply_optional_targeted_patch() {
   return 0
 }
 
+# Paths shared by both SukiSU reconciliation and the ReSukiSU verification-only
+# path. They must exist before the permanent Open Redirect checks below.
+if $ADD_SUSFS; then
+  VERSION_DIR="$(cd "$(dirname "$FRAGMENT_SRC")" && pwd)"
+  COMMON_TREE="$(cd "$(dirname "$DEFCONFIG")/../../.." && pwd)"
+  VERIFY_SCRIPT="$VERSION_DIR/build-helpers/verify-susfs-v2.2-procfs.sh"
+  AUDIT_DIR="${RUNNER_TEMP:-/tmp}/sukisu-susfs-artifacts"
+  AUDIT_FILE="$AUDIT_DIR/susfs-procfs-audit.txt"
+  mkdir -p "$AUDIT_DIR"
+
+  [[ -f "$VERIFY_SCRIPT" ]] || {
+    echo "::error::Missing SUSFS Procfs verifier: $VERIFY_SCRIPT"
+    exit 1
+  }
+fi
+
 # The targeted Procfs reconciliation below is specific to the enhanced
 # SukiSU patch stack. ReSukiSU already receives the complete pinned SUSFS
 # patch in its composite action, so replaying SukiSU hunks corrupts detection.
 if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" == "SukiSU" ]]; then
-  VERSION_DIR="$(cd "$(dirname "$FRAGMENT_SRC")" && pwd)"
-  COMMON_TREE="$(cd "$(dirname "$DEFCONFIG")/../../.." && pwd)"
   SUSFS_CLONE="${SUSFS_FOLDER:-${RUNNER_TEMP:-/tmp}/susfs4ksu}"
-  VERIFY_SCRIPT="$VERSION_DIR/build-helpers/verify-susfs-v2.2-procfs.sh"
   TARGETED_FIX_SCRIPT="$VERSION_DIR/build-helpers/apply-susfs-targeted.sh"
-  AUDIT_DIR="${RUNNER_TEMP:-/tmp}/sukisu-susfs-artifacts"
-  AUDIT_FILE="$AUDIT_DIR/susfs-procfs-audit.txt"
   TARGETED_DIR="${RUNNER_TEMP:-/tmp}/susfs-targeted-fixes"
   ENHANCED_PATCH_DIR="$VERSION_DIR/SukiSU-Ultra/patches"
   ENHANCED_PATCH_GLOB='*enhanced_susfs-*.patch'
   OPEN_REDIRECT_RECOVERY_PATTERN='susfs_get_redirected_path|open_redirect'
   BASE_SUS_MAP_RECOVERY_PATTERN='proc_map_files_readdir|AS_FLAGS_SUS_MAP|SUSFS_IS_INODE_SUS_MAP|susfs_is_current_proc_umounted_app'
   NAMEI_OPEN_REDIRECT_RECOVERY_PATTERN='CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path|fake_pathname|set_nameidata'
-
-  [[ -f "$VERIFY_SCRIPT" ]] || {
-    echo "::error::Missing SUSFS Procfs verifier: $VERIFY_SCRIPT"
-    exit 1
-  }
 
   UPSTREAM_PATCH="$(find "$SUSFS_CLONE/kernel_patches" -maxdepth 1 -type f \
     \( -name '50_add_susfs_in_kernel-6.1.patch' \
@@ -177,7 +183,7 @@ if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" == "SukiSU" ]]; then
   }
 
   echo "Using official SUSFS base patch: $UPSTREAM_PATCH"
-  mkdir -p "$TARGETED_DIR" "$AUDIT_DIR"
+  mkdir -p "$TARGETED_DIR"
 
   apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
     'fs/proc/task_mmu.c' "$TARGETED_DIR/task_mmu-base.patch"
@@ -235,6 +241,17 @@ if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" == "SukiSU" ]]; then
         exit 1
       fi
     fi
+  fi
+fi
+
+# ReSukiSU must not replay the SukiSU reconciliation patch, but it must still
+# prove that the pinned SUSFS action installed the complete functional hook set.
+if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" != "SukiSU" ]]; then
+  chmod +x "$VERIFY_SCRIPT"
+  echo "Verifying pinned SUSFS v2.2.0 hooks for ${KSU_VARIANT:-ReSukiSU}"
+  if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
+    echo "::error::Pinned SUSFS v2.2.0 source audit failed for ${KSU_VARIANT:-ReSukiSU}. Check $AUDIT_FILE"
+    exit 1
   fi
 fi
 
