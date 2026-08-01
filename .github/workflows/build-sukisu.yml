@@ -328,6 +328,13 @@ jobs:
         android_version: ${{ inputs.android_version }}
         kernel_version: ${{ inputs.kernel_version }}
 
+    - name: Keep CGROUP_PIDS compatible with Samsung e3q WALT
+      if: inputs.add_droidspaces && inputs.device_codename == 'e3q'
+      run: |
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-e3q-cgroup-pids-compat.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common"
+
     - name: Warn about SUSFS mount hiding
       if: inputs.add_susfs && inputs.add_droidspaces
       run: echo "::warning::Droidspaces requires SUSFS Hide SUS Mounts for All Processes to remain disabled at runtime."
