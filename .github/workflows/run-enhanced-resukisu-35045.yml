@@ -1,0 +1,50 @@
+name: Enhanced ReSukiSU v4.1.0-35045
+run-name: "Enhanced ReSukiSU v4.1.0-35045 — 6.1.145-android14-11-33419968-abS928BXXS6DZG1"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/resukisu-v4.1.0-35045
+    paths:
+      - '.github/workflows/run-enhanced-resukisu-35045.yml'
+      - '.github/workflows/kernel-custom.yml'
+      - '.github/workflows/build-resukisu.yml'
+      - '.github/workflows/cache-dependencies.yml'
+      - '.github/actions/susfs-v2.2/**'
+      - '.github/actions/zeromount-v2.2/**'
+      - '.github/actions/droidspaces-678/**'
+      - 'android14-6.1/defconfig.fragment'
+      - 'android14-6.1/build-helpers/**'
+      - 'android14-6.1/SukiSU-Ultra/patches/**'
+      - 'android14-6.1/resukisu-pin.txt'
+      - 'device-profiles.json'
+      - 'zram/**'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: enhanced-resukisu-35045-e3q
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/kernel-custom.yml
+    permissions:
+      contents: write
+      actions: write
+    with:
+      kernel_target: "android14-6.1.145 (2025-09)"
+      quick_target: ""
+      ksu_variant: "ReSukiSU"
+      add_susfs: true
+      add_zeromount: true
+      add_droidspaces: true
+      add_zram: true
+      add_bbg: true
+      add_overlayfs_support: true
+      add_kpm: true
+      susfs_open_redirect: true
+      sukisu_commit: "47167aa71e1d3d29c15fa7bff762ee9d9940e72f"
