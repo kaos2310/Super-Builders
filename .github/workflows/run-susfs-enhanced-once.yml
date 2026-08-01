@@ -1,0 +1,30 @@
+name: "Run S24 Ultra SUSFS Enhanced Once"
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: s24-ultra-susfs-enhanced-once
+  cancel-in-progress: false
+
+jobs:
+  build-s24-ultra-oneui8:
+    name: "S24 Ultra One UI 8.5 — SukiSU/SUSFS/ZeroMount"
+    uses: ./.github/workflows/build-samsung-sukisu.yml
+    with:
+      device: samsung_s24_ultra_oneui8
+      add_susfs: true
+      add_zeromount: true
+      add_kpm: true
+      add_zram: true
+      add_bbg: true
+      add_ptrace_fix: true
+      add_perf_patches: true
+      lto_mode: thin
+      susfs_branch: ""
+      sukisu_commit: ""
+    secrets: inherit
