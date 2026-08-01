@@ -561,6 +561,61 @@ jobs:
           fi
         fi
 
+    - name: Verify Android 14 6.1 feature config
+      if: inputs.android_version == 'android14' && inputs.kernel_version == '6.1'
+      working-directory: ${{ env.KERNEL_ROOT }}
+      env:
+        ADD_DROIDSPACES: ${{ inputs.add_droidspaces }}
+        ADD_ZRAM: ${{ inputs.add_zram }}
+      run: |
+        CONFIG_FILE="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/common/.config"
+        if [ ! -f "$CONFIG_FILE" ]; then
+          CONFIG_FILE=$(find "$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}" "$KERNEL_ROOT/bazel-out" \
+            -type f -name .config -print 2>/dev/null | head -1)
+        fi
+        [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ] || {
+          echo "::error::Final kernel .config was not found"
+          exit 1
+        }
+
+        REQUIRED=(CONFIG_SECCOMP CONFIG_SECCOMP_FILTER)
+        if [ "$ADD_DROIDSPACES" = "true" ]; then
+          REQUIRED+=(
+            CONFIG_NAMESPACES CONFIG_UTS_NS CONFIG_IPC_NS CONFIG_PID_NS
+            CONFIG_NET_NS CONFIG_USER_NS CONFIG_CGROUPS CONFIG_CGROUP_BPF
+            CONFIG_CGROUP_PIDS CONFIG_ANDROID_BINDERFS CONFIG_SYSVIPC
+            CONFIG_POSIX_MQUEUE
+          )
+        fi
+        if [ "$ADD_ZRAM" = "true" ]; then
+          REQUIRED+=(
+            CONFIG_ZSMALLOC CONFIG_ZSMALLOC_STAT CONFIG_ZRAM
+            CONFIG_ZRAM_WRITEBACK CONFIG_ZRAM_MEMORY_TRACKING
+            CONFIG_LRU_GEN CONFIG_LRU_GEN_STATS
+          )
+        fi
+
+        MISSING=()
+        for SYMBOL in "${REQUIRED[@]}"; do
+          grep -qx "${SYMBOL}=y" "$CONFIG_FILE" || MISSING+=("$SYMBOL")
+        done
+        if (("${#MISSING[@]}" > 0)); then
+          printf '::error::Required final config options missing: %s\n' "${MISSING[*]}"
+          exit 1
+        fi
+
+        if grep -qx 'CONFIG_LOCALVERSION_AUTO=y' "$CONFIG_FILE"; then
+          echo "::error::CONFIG_LOCALVERSION_AUTO must stay disabled for stable kernelrelease metadata"
+          exit 1
+        fi
+
+        {
+          echo "## Android 14 / 6.1 config verification"
+          echo ""
+          echo "Verified ${#REQUIRED[@]} required options in \`${CONFIG_FILE#"$KERNEL_ROOT/"}\`."
+          echo "CONFIG_LOCALVERSION_AUTO is disabled."
+        } >> "$GITHUB_STEP_SUMMARY"
+
     - name: Dump Build Errors
       if: failure()
       run: |
