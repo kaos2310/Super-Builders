@@ -570,11 +570,23 @@ jobs:
       run: |
         CONFIG_FILE="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/common/.config"
         if [ ! -f "$CONFIG_FILE" ]; then
-          CONFIG_FILE=$(find "$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}" "$KERNEL_ROOT/bazel-out" \
-            -type f -name .config -print 2>/dev/null | head -1)
+          CONFIG_FILE=""
+          for ROOT in "$KERNEL_ROOT/bazel-bin/common" "$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}"; do
+            [ -e "$ROOT" ] || continue
+            while IFS= read -r CANDIDATE; do
+              if grep -qx 'CONFIG_ARM64=y' "$CANDIDATE" 2>/dev/null; then
+                CONFIG_FILE="$CANDIDATE"
+                break 2
+              fi
+            done < <(find -L "$ROOT" -type f \
+              \( -name .config -o -name '*kernel*aarch64*config*' -o -name defconfig \) \
+              -print 2>/dev/null)
+          done
         fi
         [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ] || {
-          echo "::error::Final kernel .config was not found"
+          echo "::error::Final kernel .config was not found in legacy or Kleaf outputs"
+          find -L "$KERNEL_ROOT/bazel-bin/common" -maxdepth 3 -type f \
+            \( -name .config -o -name '*config*' \) -print 2>/dev/null | head -50 || true
           exit 1
         }
 
