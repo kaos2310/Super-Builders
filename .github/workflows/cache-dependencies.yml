@@ -43,13 +43,35 @@ jobs:
         # Samsung PowerHAL/WALT selects the runtime governor after boot.
         patch_cmdline "cpufreq.default_governor" ""
         ui_print "  -> Removed forced CPUFreq default governor"
+
+        # Android 14/6.1 GKI requires kasan_flag_enabled in its stable KMI.
+        # Keep HW-tag KASAN compiled for ABI compatibility, but never run it.
+        patch_cmdline "kasan" "off"
+        ui_print "  -> KASAN HW-tags retained for GKI ABI; runtime disabled"
         '''
             text = text.replace(needle, patch, 1)
+            path.write_text(text)
+
+        kasan_cmdline = 'patch_cmdline "kasan" "off"'
+        if kasan_cmdline not in text:
+            needle = '''ui_print "  -> Removed forced CPUFreq default governor"
+        '''
+            if needle not in text:
+                raise SystemExit('S928B governor block not found while adding KASAN fallback')
+            replacement = '''ui_print "  -> Removed forced CPUFreq default governor"
+
+        # Android 14/6.1 GKI requires kasan_flag_enabled in its stable KMI.
+        # Keep HW-tag KASAN compiled for ABI compatibility, but never run it.
+        patch_cmdline "kasan" "off"
+        ui_print "  -> KASAN HW-tags retained for GKI ABI; runtime disabled"
+        '''
+            text = text.replace(needle, replacement, 1)
             path.write_text(text)
 
         required = [
             marker,
             'patch_cmdline "cpufreq.default_governor" ""',
+            'patch_cmdline "kasan" "off"',
             'Samsung PowerHAL/WALT selects the runtime governor',
         ]
         missing = [item for item in required if item not in path.read_text()]
@@ -126,6 +148,7 @@ jobs:
           exit 1
         fi
         grep -R -n -I 'patch_cmdline "cpufreq.default_governor" ""' AnyKernel3
+        grep -R -n -I 'patch_cmdline "kasan" "off"' AnyKernel3
         grep -R -n -I 'susfs_log=0' AnyKernel3
 
     - name: Clone Kernel Patches

@@ -619,25 +619,17 @@ jobs:
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
-        BUILD_RC=0
         LTO_MODE=thin
         [[ "$ANDROID_VER" == android16* || "$KERNEL_VER" == "6.12" ]] && LTO_MODE=none
         if [ -f "build/build.sh" ]; then
-          KMI_SYMBOL_LIST_STRICT_MODE=0 HOSTLD=/usr/bin/ld.lld GKI_DEFCONFIG_FRAGMENT="$DEFCONFIG_FRAGMENT" LTO=$LTO_MODE BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh || BUILD_RC=$?
+          KMI_SYMBOL_LIST_STRICT_MODE=0 HOSTLD=/usr/bin/ld.lld GKI_DEFCONFIG_FRAGMENT="$DEFCONFIG_FRAGMENT" LTO=$LTO_MODE BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
         else
           # Prebuilt clang sysroot lacks glibc 2.39 C23 symbols — link against system libc
           if [ -f common/tools/bpf/resolve_btfids/Makefile ]; then
             echo 'override KBUILD_HOSTLDFLAGS += --sysroot=/' >> common/tools/bpf/resolve_btfids/Makefile
             echo 'override LDFLAGS += --sysroot=/' >> common/tools/bpf/resolve_btfids/Makefile
           fi
-          tools/bazel build --config=fast --lto=$LTO_MODE --defconfig_fragment=//common:arch/arm64/configs/sukisu_gki.fragment //common:kernel_aarch64_dist || BUILD_RC=$?
-        fi
-        if [ "$BUILD_RC" -ne 0 ]; then
-          if find . -name "Image" -type f 2>/dev/null | grep -q .; then
-            echo "::warning::Build exited $BUILD_RC but Image exists (likely depmod failure)"
-          else
-            exit "$BUILD_RC"
-          fi
+          tools/bazel build --config=fast --lto=$LTO_MODE --defconfig_fragment=//common:arch/arm64/configs/sukisu_gki.fragment //common:kernel_aarch64_dist
         fi
 
     - name: Verify Android 14 6.1 feature config
@@ -714,7 +706,7 @@ jobs:
           echo ""
           echo "Verified ${#REQUIRED[@]} required options in \`${CONFIG_FILE#"$KERNEL_ROOT/"}\`."
           echo "CONFIG_LOCALVERSION_AUTO is disabled."
-          [ "$DEVICE_CODENAME" != "e3q" ] || echo "S928B daily sanitizer and feature audit passed."
+          [ "$DEVICE_CODENAME" != "e3q" ] || echo "S928B daily feature and GKI KASAN-fallback audit passed."
         } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Dump Build Errors
@@ -760,7 +752,12 @@ jobs:
           exit 1
         fi
         grep -qF 'patch_cmdline "cpufreq.default_governor" ""' "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'patch_cmdline "kasan" "off"' "$ANYKERNEL3/anykernel.sh"
         grep -qF "echo 'susfs_log=0'" "$ANYKERNEL3/anykernel.sh"
+        grep -aqF 'kasan_flag_enabled' "$ANYKERNEL3/Image" || {
+          echo "::error::Kernel image is missing the GKI-required kasan_flag_enabled export"
+          exit 1
+        }
 
         IKCONFIG="$RUNNER_TEMP/s928b-final-ikconfig"
         "$KERNEL_ROOT/common/scripts/extract-ikconfig" "$ANYKERNEL3/Image" > "$IKCONFIG"
@@ -783,6 +780,7 @@ jobs:
         (cd "$ANYKERNEL3" && zip -qr "$ANYKERNEL_ZIP" .)
         unzip -l "$ANYKERNEL_ZIP"
         unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'susfs_log=0'
+        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "kasan" "off"'
         if unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'performance'; then
           echo "::error::Audited AnyKernel ZIP still contains a forced performance policy"
           exit 1

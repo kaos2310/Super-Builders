@@ -45,6 +45,8 @@ REQUIRED=(
   CONFIG_LRU_GEN_STATS
   CONFIG_CFI_CLANG
   CONFIG_SHADOW_CALL_STACK
+  CONFIG_KASAN
+  CONFIG_KASAN_HW_TAGS
 )
 
 missing=()
@@ -56,19 +58,27 @@ if ((${#missing[@]})); then
   exit 1
 fi
 
-for symbol in KFENCE KASAN UBSAN; do
+for symbol in KFENCE UBSAN; do
   grep -qx "# CONFIG_${symbol} is not set" "$CONFIG_FILE" || {
     echo "::error::CONFIG_${symbol} is active or absent from the final config"
     exit 1
   }
 done
 
-if grep -Eq '^CONFIG_(KFENCE|KASAN(_GENERIC|_SW_TAGS|_HW_TAGS)?|UBSAN(_TRAP|_BOUNDS|_LOCAL_BOUNDS)?)=y$' "$CONFIG_FILE"; then
+for symbol in KASAN_GENERIC KASAN_SW_TAGS; do
+  grep -qx "# CONFIG_${symbol} is not set" "$CONFIG_FILE" || {
+    echo "::error::CONFIG_${symbol} must stay disabled in the HW-tags fallback"
+    exit 1
+  }
+done
+
+if grep -Eq '^CONFIG_(KFENCE|KASAN_GENERIC|KASAN_SW_TAGS|UBSAN(_TRAP|_BOUNDS|_LOCAL_BOUNDS)?)=y$' "$CONFIG_FILE"; then
   echo "::error::Final kernel config still enables a daily-build sanitizer"
   grep -E '^CONFIG_(KFENCE|KASAN|UBSAN)' "$CONFIG_FILE" || true
   exit 1
 fi
 
 echo "Verified ${#REQUIRED[@]} S928B daily features in $CONFIG_FILE"
-echo "Verified CONFIG_KFENCE=n, CONFIG_KASAN=n and CONFIG_UBSAN=n"
+echo "Verified CONFIG_KFENCE=n and CONFIG_UBSAN=n"
+echo "Verified GKI KMI fallback CONFIG_KASAN=y and CONFIG_KASAN_HW_TAGS=y"
 echo "Verified CONFIG_CFI_CLANG=y and CONFIG_SHADOW_CALL_STACK=y"
