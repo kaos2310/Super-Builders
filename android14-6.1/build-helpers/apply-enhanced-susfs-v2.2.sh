@@ -433,23 +433,42 @@ for candidate in candidates:
         handled += 1
         continue
 
-    pattern = re.compile(
+    braced_pattern = re.compile(
+        r"(?P<indent>^[ \t]*)case CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY: \{\n"
+        r"(?P=indent)[ \t]+susfs_add_sus_kstat\(arg\);\n"
+        r"(?P=indent)[ \t]+return 0;\n"
+        r"(?P=indent)\}\n",
+        re.MULTILINE,
+    )
+    plain_pattern = re.compile(
         r"(?P<indent>^[ \t]*)case CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY:\n"
         r"(?P=indent)[ \t]+susfs_add_sus_kstat\(arg\);\n"
         r"(?P=indent)[ \t]+return 0;\n",
         re.MULTILINE,
     )
-    match = pattern.search(text)
+    match = braced_pattern.search(text)
+    braced = match is not None
+    if not match:
+        match = plain_pattern.search(text)
     if not match:
         raise SystemExit(f"Cannot locate SUSFS kstat dispatch block in {candidate}")
 
     indent = match.group("indent")
+    redirect_case = f"{indent}case CMD_SUSFS_ADD_SUS_KSTAT_REDIRECT:"
+    if braced:
+        redirect_case += " {\n"
+    else:
+        redirect_case += "\n"
+    redirect_case += (
+        f"{indent}    susfs_add_sus_kstat_redirect(arg);\n"
+        f"{indent}    return 0;\n"
+    )
+    if braced:
+        redirect_case += f"{indent}}}\n"
     block = (
         match.group(0)
         + "#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT\n"
-        + f"{indent}case CMD_SUSFS_ADD_SUS_KSTAT_REDIRECT:\n"
-        + f"{indent}    susfs_add_sus_kstat_redirect(arg);\n"
-        + f"{indent}    return 0;\n"
+        + redirect_case
         + "#endif // CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT\n"
     )
     candidate.write_text(text[:match.start()] + block + text[match.end():], encoding="utf-8")
