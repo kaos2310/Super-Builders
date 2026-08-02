@@ -94,13 +94,23 @@ apply "$COMMON/silence_system_logspam.patch"
 apply "$COMMON/use_unlikely_wrap_cpufreq.patch"
 
 if [ -f "$COMMON/unicode_bypass_fix_6.1+.patch" ]; then
-  if [ "$MAJOR" -gt 6 ] || { [ "$MAJOR" -eq 6 ] && [ "$MINOR" -ge 1 ]; }; then
+  if [ "$TARGET" = "android14-6.1" ]; then
+    apply_required "$COMMON/unicode_bypass_fix_6.1+.patch"
+    grep -Fq "*LEAF_STR(leaf) == '\\0'" fs/unicode/utf8-norm.c
+  elif [ "$MAJOR" -gt 6 ] || { [ "$MAJOR" -eq 6 ] && [ "$MINOR" -ge 1 ]; }; then
     apply "$COMMON/unicode_bypass_fix_6.1+.patch"
   else
     apply "$COMMON/unicode_bypass_fix_6.1-.patch"
   fi
 fi
 
-[ -f "$COMMON/IPv6_NAT_FIX.patch" ] && apply "$COMMON/IPv6_NAT_FIX.patch"
+if [ -f "$COMMON/IPv6_NAT_FIX.patch" ]; then
+  if [ "$TARGET" = "android14-6.1" ]; then
+    apply_required "$COMMON/IPv6_NAT_FIX.patch"
+    grep -q 'define config_fix' kernel/Makefile
+  else
+    apply "$COMMON/IPv6_NAT_FIX.patch"
+  fi
+fi
 
 echo "apply-kernel-patches: done"
