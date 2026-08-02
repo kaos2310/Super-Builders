@@ -33,8 +33,21 @@ if [ "$ADD_PTRACE" = "true" ] && [ -f "$PATCHES_DIR/gki_ptrace.patch" ]; then
   fi
 fi
 
-[ "$ADD_PERF" != "true" ] && exit 0
 [ ! -d "$COMMON" ] && { echo "apply-kernel-patches: $COMMON not found"; exit 0; }
+
+if [ "$TARGET" = "android14-6.1" ]; then
+  apply_required "$COMMON/ntsync/ntsync_base.patch"
+  apply_required "$COMMON/ntsync/ntsync_compat_android14-6.1.patch"
+  apply_required "$COMMON/bbrv3/0001-net-tcp-backport-BBRv3-to-android14-6.1.patch"
+
+  test -f drivers/misc/ntsync.c
+  grep -qx 'config NTSYNC' drivers/misc/Kconfig
+  test -f net/ipv4/tcp_bbr3.c
+  grep -qx 'config TCP_CONG_BBR3' net/ipv4/Kconfig
+  echo "apply-kernel-patches: r6 NTSYNC and BBRv3 sources applied"
+fi
+
+[ "$ADD_PERF" != "true" ] && exit 0
 
 apply "$COMMON/optimized_mem_operations.patch"
 apply "$COMMON/file_struct_8bytes_align.patch"
