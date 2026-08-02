@@ -657,6 +657,11 @@ jobs:
           exit 1
         fi
 
+        grep -qx 'CONFIG_IP6_NF_NAT=y' "$CONFIG_FILE" || {
+          echo "::error::CONFIG_IP6_NF_NAT must be enabled in the real final build config"
+          exit 1
+        }
+
         if grep -qx 'CONFIG_LOCALVERSION_AUTO=y' "$CONFIG_FILE"; then
           echo "::error::CONFIG_LOCALVERSION_AUTO must stay disabled for stable kernelrelease metadata"
           exit 1
@@ -750,6 +755,18 @@ jobs:
         DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
         chmod +x "$DAILY_AUDIT"
         "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER"
+        grep -qx 'CONFIG_IP6_NF_NAT=n' "$IKCONFIG" || {
+          echo "::error::Embedded IKCONFIG did not receive the IPv6 NAT masking patch"
+          exit 1
+        }
+        grep -aF 'tcp_bbr3' "$ANYKERNEL3/Image" >/dev/null || {
+          echo "::error::BBRv3 code is missing from the kernel image"
+          exit 1
+        }
+        grep -aF '/dev/ntsync' "$ANYKERNEL3/Image" >/dev/null || {
+          echo "::error::NTSYNC code is missing from the kernel image"
+          exit 1
+        }
         if [[ "$REQUIRE_CUSTOM_MANAGER" == "true" ]]; then
           grep -aF "$EXPECTED_MANAGER_HASH" "$ANYKERNEL3/Image" >/dev/null || {
             echo "::error::Paired manager certificate hash is missing from the kernel image"
