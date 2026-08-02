@@ -69,11 +69,12 @@ REQUIRED=(
 if [[ "$REQUIRE_KPM" == "true" ]]; then
   REQUIRED+=(CONFIG_KPM)
 fi
+
 missing=()
 for symbol in "${REQUIRED[@]}"; do
   grep -qx "${symbol}=y" "$CONFIG_FILE" || missing+=("$symbol")
 done
-if ((${#missing[@]})); then
+if (("${#missing[@]}")); then
   printf '::error::Required S928B daily options missing: %s\n' "${missing[*]}"
   exit 1
 fi
@@ -92,6 +93,9 @@ for symbol in KFENCE KASAN UBSAN; do
   }
 done
 
+# Child KASAN modes can be omitted from a normalized .config when their parent
+# is disabled. Either an explicit "not set" line or dependency-driven absence
+# is n; any assigned value is rejected.
 for symbol in KASAN_HW_TAGS KASAN_SW_TAGS KASAN_GENERIC; do
   if grep -qx "# CONFIG_${symbol} is not set" "$CONFIG_FILE"; then
     continue
@@ -104,7 +108,7 @@ for symbol in KASAN_HW_TAGS KASAN_SW_TAGS KASAN_GENERIC; do
   echo "CONFIG_${symbol}=n (dependency-disabled; omitted by Kconfig)"
 done
 
-if grep -Eq '^CONFIG_(KFENCE|KASAN(_[A-Z0-9_]+)?|UBSAN(_TRAP|_BOUNDS|_LOCAL_BOUNDS)?)=y
+if grep -Eq '^CONFIG_(KFENCE|KASAN(_[A-Z0-9_]+)?|UBSAN(_TRAP|_BOUNDS|_LOCAL_BOUNDS)?)=y$' "$CONFIG_FILE"; then
   echo "::error::Final kernel config still enables a daily-build sanitizer"
   grep -E '^CONFIG_(KFENCE|KASAN|UBSAN)' "$CONFIG_FILE" || true
   exit 1
@@ -113,18 +117,6 @@ fi
 echo "Verified ${#REQUIRED[@]} S928B daily features in $CONFIG_FILE"
 echo "Verified CONFIG_KFENCE=n, CONFIG_KASAN=n and CONFIG_UBSAN=n"
 echo "Verified no KASAN implementation is enabled; KMI is supplied by the inactive stub"
-echo "Verified CONFIG_CFI_CLANG=y and CONFIG_SHADOW_CALL_STACK=y"
-echo "Verified KStack offset randomization is enabled by default"
-echo "Verified KVM is compiled; /dev/kvm additionally requires EL2/HYP from the bootloader"
- "$CONFIG_FILE"; then
-  echo "::error::Final kernel config still enables a daily-build sanitizer"
-  grep -E '^CONFIG_(KFENCE|KASAN|UBSAN)' "$CONFIG_FILE" || true
-  exit 1
-fi
-
-echo "Verified ${#REQUIRED[@]} S928B daily features in $CONFIG_FILE"
-echo "Verified CONFIG_KFENCE=n and CONFIG_UBSAN=n"
-echo "Verified GKI KMI fallback CONFIG_KASAN=y and CONFIG_KASAN_HW_TAGS=y"
 echo "Verified CONFIG_CFI_CLANG=y and CONFIG_SHADOW_CALL_STACK=y"
 echo "Verified KStack offset randomization is enabled by default"
 echo "Verified KVM is compiled; /dev/kvm additionally requires EL2/HYP from the bootloader"
