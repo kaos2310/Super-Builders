@@ -54,10 +54,10 @@ on:
         default: ""
       resukisu_source_branch:
         type: string
-        default: "main"
+        default: "dev"
       resukisu_version_code:
         type: string
-        default: "35046"
+        default: "35047"
       resukisu_expected_size:
         type: string
         default: ""
