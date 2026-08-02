@@ -321,6 +321,13 @@ jobs:
         ' "$PATCH" > "$FILTERED_PATCH"
         patch -p1 -F3 --no-backup-if-mismatch < "$FILTERED_PATCH"
 
+    - name: Keep SUSFS logging switchable and default off
+      if: inputs.add_susfs
+      run: |
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/configure-susfs-log-default.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common"
+
     - name: Apply Droidspaces 6_7_8 patches
       if: inputs.add_droidspaces
       uses: ./.github/actions/droidspaces-678
@@ -332,6 +339,13 @@ jobs:
       if: inputs.add_droidspaces && inputs.device_codename == 'e3q'
       run: |
         HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-e3q-cgroup-pids-compat.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common"
+
+    - name: Leave e3q CPUFreq policy to Samsung PowerHAL
+      if: inputs.device_codename == 'e3q'
+      run: |
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-e3q-cmdline-governor-compat.sh"
         chmod +x "$HELPER"
         "$HELPER" "$KERNEL_ROOT/common"
 
@@ -391,6 +405,7 @@ jobs:
         ADD_ZRAM: ${{ inputs.add_zram }}
         ADD_KPM: ${{ inputs.add_kpm }}
         SUSFS_OPEN_REDIRECT_TEST: ${{ inputs.susfs_open_redirect }}
+        DEVICE_CODENAME: ${{ inputs.device_codename }}
       run: |
         FRAGMENT="$GITHUB_WORKSPACE/$VERSION_DIR/defconfig.fragment"
         HELPERS="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers"
@@ -411,6 +426,14 @@ jobs:
         [ ! -f "$KERNEL_ROOT/build/build.sh" ] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --kleaf"
 
         bash "$HELPERS/assemble-defconfig.sh" "$FRAGMENT" "$DEFCONFIG_FRAGMENT" "$DEFCONFIG" $ASSEMBLE_FLAGS
+
+        if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
+          BUILD_MODE=legacy
+          [ ! -f "$KERNEL_ROOT/build/build.sh" ] && BUILD_MODE=kleaf
+          DAILY_CONFIG="$HELPERS/enforce-s928b-daily-config.sh"
+          chmod +x "$DAILY_CONFIG"
+          "$DAILY_CONFIG" "$KERNEL_ROOT/common" "$DEFCONFIG_FRAGMENT" "$DEFCONFIG" "$BUILD_MODE"
+        fi
 
         while IFS='=' read -r cfg _; do
           symbol="${cfg#CONFIG_}"
@@ -447,6 +470,34 @@ jobs:
         fi
 
         bash "$HELPERS/bypass-abi-check.sh" . "$ANDROID_VER" "$KERNEL_VER"
+
+    - name: Verify SukiSU Ultra build identity
+      if: inputs.device_codename == 'e3q'
+      run: |
+        set -euo pipefail
+        test "$KSU_VARIANT" = "SukiSU"
+
+        PIN=$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/sukisu-pin.txt")
+        test "$(git -C "$KERNEL_ROOT/$KSU_DIR" rev-parse HEAD)" = "$PIN"
+        grep -Eq "^KSU_VERSION[[:space:]]*:=[[:space:]]*${SUKISU_VERSION_CODE}$" \
+          "$KERNEL_ROOT/$KSU_DIR/kernel/Kbuild"
+        grep -Eq "^KSU_VERSION_FULL[[:space:]]*:=[[:space:]]*${SUKISU_VERSION_FULL}$" \
+          "$KERNEL_ROOT/$KSU_DIR/kernel/Kbuild"
+
+        SEARCH_PATHS=("$KERNEL_ROOT/$KSU_DIR/kernel")
+        [ -d "$KERNEL_ROOT/$KSU_DIR/userspace" ] && SEARCH_PATHS+=("$KERNEL_ROOT/$KSU_DIR/userspace")
+        grep -Rqs "$SUKISU_VERSION_CODE" "${SEARCH_PATHS[@]}"
+
+        grep -qx '#define SUSFS_VERSION "v2.2.0"' "$KERNEL_ROOT/common/include/linux/susfs.h"
+        grep -qx 'CONFIG_ZEROMOUNT=y' "$DEFCONFIG_FRAGMENT"
+        grep -qx 'CONFIG_KPM=y' "$DEFCONFIG_FRAGMENT"
+        test -f "$KERNEL_ROOT/common/fs/zeromount.c"
+
+        echo "SukiSU Ultra: ${SUKISU_VERSION_FULL}"
+        echo "SUKISU_VERSION_CODE=${SUKISU_VERSION_CODE}"
+        echo "SUSFS_VERSION=v2.2.0"
+        echo "ZeroMount enabled"
+        echo "KPM enabled"
 
     - name: Clean Module Lists
       if: inputs.add_zram
@@ -506,6 +557,7 @@ jobs:
 
         STOCK_RELEASE=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.release" "$PROFILE_FILE")
         STOCK_VERSION=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.version_string" "$PROFILE_FILE")
+        STOCK_BUILD_TIMESTAMP=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.build_timestamp // empty" "$PROFILE_FILE")
         STOCK_BUILD_USER=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.build_user" "$PROFILE_FILE")
         STOCK_BUILD_HOST=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.build_host" "$PROFILE_FILE")
         STOCK_COMPILER=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.compiler_info // empty" "$PROFILE_FILE")
@@ -527,8 +579,21 @@ jobs:
         sed -i "s|RELEASE_OUTPUT_PLACEHOLDER|${RELEASE_OUTPUT}|g" scripts/setlocalversion
         chmod +x scripts/setlocalversion
 
+        [ -n "$STOCK_BUILD_TIMESTAMP" ] || {
+          echo "::error::Stock build timestamp is missing for $DEVICE_CODENAME"
+          exit 1
+        }
+
+        # Android 6.1 generates UTS_VERSION in init/Makefile. Patching
+        # scripts/mkcompile_h cannot affect uname or /proc/version on this tree.
+        grep -q '^build-timestamp = ' init/Makefile || {
+          echo "::error::Android 6.1 build-timestamp assignment was not found"
+          exit 1
+        }
+        sed -i "s|^build-timestamp = .*|build-timestamp = ${STOCK_BUILD_TIMESTAMP}|" init/Makefile
+        grep -qxF "build-timestamp = ${STOCK_BUILD_TIMESTAMP}" init/Makefile
+
         if [ -f "scripts/mkcompile_h" ]; then
-          sed -i "s|UTS_VERSION=.*|UTS_VERSION=\"${STOCK_VERSION}\"|" scripts/mkcompile_h
           if grep -q "LINUX_COMPILE_BY=" scripts/mkcompile_h; then
             sed -i "s|LINUX_COMPILE_BY=.*|LINUX_COMPILE_BY=\"${STOCK_BUILD_USER}\"|" scripts/mkcompile_h
             sed -i "s|LINUX_COMPILE_HOST=.*|LINUX_COMPILE_HOST=\"${STOCK_BUILD_HOST}\"|" scripts/mkcompile_h
@@ -541,6 +606,13 @@ jobs:
         {
           echo "KBUILD_BUILD_USER=$STOCK_BUILD_USER"
           echo "KBUILD_BUILD_HOST=$STOCK_BUILD_HOST"
+          echo "KBUILD_BUILD_TIMESTAMP=$STOCK_BUILD_TIMESTAMP"
+          echo "STOCK_RELEASE_EXPECTED=$STOCK_RELEASE"
+          echo "STOCK_VERSION_EXPECTED=$STOCK_VERSION"
+          echo "STOCK_BUILD_TIMESTAMP_EXPECTED=$STOCK_BUILD_TIMESTAMP"
+          echo "STOCK_BUILD_USER_EXPECTED=$STOCK_BUILD_USER"
+          echo "STOCK_BUILD_HOST_EXPECTED=$STOCK_BUILD_HOST"
+          echo "DEVICE_CODENAME=$DEVICE_CODENAME"
           echo "IDENTITY_STATUS=Applied ($DEVICE_CODENAME)"
         } >> "$GITHUB_ENV"
 
@@ -574,6 +646,7 @@ jobs:
       env:
         ADD_DROIDSPACES: ${{ inputs.add_droidspaces }}
         ADD_ZRAM: ${{ inputs.add_zram }}
+        DEVICE_CODENAME: ${{ inputs.device_codename }}
       run: |
         CONFIG_FILE="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/common/.config"
         if [ ! -f "$CONFIG_FILE" ]; then
@@ -628,11 +701,20 @@ jobs:
           exit 1
         fi
 
+        if [ "$DEVICE_CODENAME" = "e3q" ]; then
+          DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
+          chmod +x "$DAILY_AUDIT"
+          "$DAILY_AUDIT" "$CONFIG_FILE"
+        fi
+
+        echo "FINAL_CONFIG_FILE=$CONFIG_FILE" >> "$GITHUB_ENV"
+
         {
           echo "## Android 14 / 6.1 config verification"
           echo ""
           echo "Verified ${#REQUIRED[@]} required options in \`${CONFIG_FILE#"$KERNEL_ROOT/"}\`."
           echo "CONFIG_LOCALVERSION_AUTO is disabled."
+          [ "$DEVICE_CODENAME" != "e3q" ] || echo "S928B daily sanitizer and feature audit passed."
         } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Dump Build Errors
@@ -655,6 +737,57 @@ jobs:
           find "$KERNEL_ROOT" -name "Image" -type f 2>/dev/null
           exit 1
         fi
+
+    - name: Audit S928B daily AnyKernel3
+      if: inputs.device_codename == 'e3q'
+      run: |
+        set -euo pipefail
+        test -f "$ANYKERNEL3/Image"
+
+        IMAGE_COUNT=$(find "$ANYKERNEL3" -maxdepth 1 -type f \
+          \( -name Image -o -name Image.gz -o -name Image.lz4 \) | wc -l)
+        test "$IMAGE_COUNT" -eq 1 || {
+          echo "::error::AnyKernel3 must contain exactly one kernel image"
+          exit 1
+        }
+
+        if grep -R -n -I --exclude='Image*' 'performance' "$ANYKERNEL3"; then
+          echo "::error::AnyKernel3 text files still contain a forced performance policy"
+          exit 1
+        fi
+        if grep -aF 'cpufreq.default_governor=performance' "$ANYKERNEL3/Image"; then
+          echo "::error::Kernel image still contains the forbidden CPUFreq assignment"
+          exit 1
+        fi
+        grep -qF 'patch_cmdline "cpufreq.default_governor" ""' "$ANYKERNEL3/anykernel.sh"
+        grep -qF "echo 'susfs_log=0'" "$ANYKERNEL3/anykernel.sh"
+
+        IKCONFIG="$RUNNER_TEMP/s928b-final-ikconfig"
+        "$KERNEL_ROOT/common/scripts/extract-ikconfig" "$ANYKERNEL3/Image" > "$IKCONFIG"
+        test -s "$IKCONFIG"
+        DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
+        chmod +x "$DAILY_AUDIT"
+        "$DAILY_AUDIT" "$IKCONFIG"
+
+        IMAGE_STRINGS="$RUNNER_TEMP/s928b-image-strings"
+        strings "$ANYKERNEL3/Image" > "$IMAGE_STRINGS"
+        grep -qF "${KERNEL_VER}.${SUBLEVEL}${STOCK_RELEASE_EXPECTED}" "$IMAGE_STRINGS"
+        grep -qF "$STOCK_VERSION_EXPECTED" "$IMAGE_STRINGS"
+        grep -qF "${STOCK_BUILD_USER_EXPECTED}@${STOCK_BUILD_HOST_EXPECTED}" "$IMAGE_STRINGS"
+        if grep -qF 'Thu Jan  1 00:00:00 UTC 1970' "$IMAGE_STRINGS"; then
+          echo "::error::Kernel image still contains the zero-epoch UTS timestamp"
+          exit 1
+        fi
+
+        ANYKERNEL_ZIP="$RUNNER_TEMP/${FILE_NAME}-AnyKernel3.zip"
+        (cd "$ANYKERNEL3" && zip -qr "$ANYKERNEL_ZIP" .)
+        unzip -l "$ANYKERNEL_ZIP"
+        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'susfs_log=0'
+        if unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'performance'; then
+          echo "::error::Audited AnyKernel ZIP still contains a forced performance policy"
+          exit 1
+        fi
+        sha256sum "$ANYKERNEL_ZIP" "$ANYKERNEL3/Image"
 
     - name: Scan Patch Rejects
       if: always()

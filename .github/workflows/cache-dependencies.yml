@@ -18,7 +18,7 @@ jobs:
         git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 --depth=1
         rm -rf AnyKernel3/.git
 
-    - name: Remove forced S928B performance governor
+    - name: Remove forced S928B CPUFreq governor
       run: |
         AK3="AnyKernel3/anykernel.sh"
         [ -f "$AK3" ] || { echo "::error::AnyKernel3 anykernel.sh not found"; exit 1; }
@@ -29,7 +29,7 @@ jobs:
 
         path = Path(sys.argv[1])
         text = path.read_text()
-        marker = '# S928B daily: remove forced early performance governor'
+        marker = '# S928B daily: remove forced CPUFreq governor policy'
 
         if marker not in text:
             needle = 'split_boot\n'
@@ -38,13 +38,11 @@ jobs:
 
             patch = '''split_boot
 
-        # S928B daily: remove forced early performance governor
-        # The runtime governor remains under Samsung PowerHAL/WALT control.
-        if [ "$(getprop ro.product.model 2>/dev/null)" = "SM-S928B" ] || \
-           [ "$(getprop ro.product.device 2>/dev/null)" = "e3q" ]; then
-            patch_cmdline "cpufreq.default_governor" ""
-            ui_print "  -> Removed cpufreq.default_governor=performance"
-        fi
+        # S928B daily: remove forced CPUFreq governor policy.
+        # This artifact is e3q-specific; do not rely on recovery properties.
+        # Samsung PowerHAL/WALT selects the runtime governor after boot.
+        patch_cmdline "cpufreq.default_governor" ""
+        ui_print "  -> Removed forced CPUFreq default governor"
         '''
             text = text.replace(needle, patch, 1)
             path.write_text(text)
@@ -52,15 +50,14 @@ jobs:
         required = [
             marker,
             'patch_cmdline "cpufreq.default_governor" ""',
-            'SM-S928B',
-            'e3q',
+            'Samsung PowerHAL/WALT selects the runtime governor',
         ]
         missing = [item for item in required if item not in path.read_text()]
         if missing:
             raise SystemExit(f'AnyKernel governor patch verification failed: {missing}')
         PY
 
-        grep -n -A8 -B2 'S928B daily' "$AK3"
+        grep -n -A7 -B2 'S928B daily' "$AK3"
 
     - name: Keep SUSFS logging switchable but default off
       run: |
@@ -76,31 +73,29 @@ jobs:
         marker = '# S928B daily: keep SUSFS logging runtime-switchable'
 
         if marker not in text:
-            needle = '''    ui_print "  -> Removed cpufreq.default_governor=performance"
-        fi
+            needle = '''ui_print "  -> Removed forced CPUFreq default governor"
         '''
             if needle not in text:
                 raise SystemExit('S928B governor block not found in anykernel.sh')
 
-            replacement = '''    ui_print "  -> Removed cpufreq.default_governor=performance"
+            replacement = '''ui_print "  -> Removed forced CPUFreq default governor"
 
-            # S928B daily: keep SUSFS logging runtime-switchable.
-            # Start each installed build with logging disabled; users may later run
-            # ksu_susfs enable_log 1 and disable it again with enable_log 0.
-            if [ -d /data/adb ]; then
-                SUSFS_CFG=/data/adb/susfs4ksu/config.sh
-                mkdir -p /data/adb/susfs4ksu
-                if [ -f "$SUSFS_CFG" ] && grep -q '^susfs_log=' "$SUSFS_CFG"; then
-                    sed -i 's/^susfs_log=.*/susfs_log=0/' "$SUSFS_CFG"
-                else
-                    echo 'susfs_log=0' >> "$SUSFS_CFG"
-                fi
-
-                if [ -x /data/adb/ksu/bin/ksu_susfs ]; then
-                    /data/adb/ksu/bin/ksu_susfs enable_log 0 >/dev/null 2>&1 || true
-                fi
-                ui_print "  -> SUSFS logging default: off; runtime toggle retained"
+        # S928B daily: keep SUSFS logging runtime-switchable.
+        # Start each installed build with logging disabled; users may later run
+        # ksu_susfs enable_log 1 and disable it again with enable_log 0.
+        if [ -d /data/adb ]; then
+            SUSFS_CFG=/data/adb/susfs4ksu/config.sh
+            mkdir -p /data/adb/susfs4ksu
+            if [ -f "$SUSFS_CFG" ] && grep -q '^susfs_log=' "$SUSFS_CFG"; then
+                sed -i 's/^susfs_log=.*/susfs_log=0/' "$SUSFS_CFG"
+            else
+                echo 'susfs_log=0' >> "$SUSFS_CFG"
             fi
+
+            if [ -x /data/adb/ksu/bin/ksu_susfs ]; then
+                /data/adb/ksu/bin/ksu_susfs enable_log 0 >/dev/null 2>&1 || true
+            fi
+            ui_print "  -> SUSFS logging default: off; runtime toggle retained"
         fi
         '''
             text = text.replace(needle, replacement, 1)
@@ -118,6 +113,20 @@ jobs:
         PY
 
         grep -n -A24 -B3 'keep SUSFS logging runtime-switchable' "$AK3"
+
+    - name: Audit S928B AnyKernel policy
+      run: |
+        set -euo pipefail
+        if grep -R -n -I 'performance' AnyKernel3; then
+          echo "::error::AnyKernel3 still contains a forced performance policy"
+          exit 1
+        fi
+        if grep -R -n -I 'cpufreq.default_governor=performance' AnyKernel3; then
+          echo "::error::AnyKernel3 still contains the forbidden CPUFreq assignment"
+          exit 1
+        fi
+        grep -R -n -I 'patch_cmdline "cpufreq.default_governor" ""' AnyKernel3
+        grep -R -n -I 'susfs_log=0' AnyKernel3
 
     - name: Clone Kernel Patches
       run: git clone https://github.com/WildKernels/kernel_patches.git --depth=1

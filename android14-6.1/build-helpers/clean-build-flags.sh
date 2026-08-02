@@ -22,17 +22,38 @@ else
   perl -pi -e 's/^\s*"protected_exports_list"\s*:\s*"android\/abi_gki_protected_exports_aarch64",\s*$//;' ./common/BUILD.bazel
 fi
 
-# Keep CONFIG_KSU_SUSFS_ENABLE_LOG compiled in. Do not flip the upstream
-# logging static key from TRUE to FALSE here: the SUSFS 2.2 runtime setter
-# calls static_branch_disable() without checking the current state, so a
-# default-FALSE key plus the normal `enable_log 0` boot configuration would
-# unbalance the jump-label reference count. Logging is disabled safely by the
-# runtime configuration installed by AnyKernel3 instead.
+# Keep CONFIG_KSU_SUSFS_ENABLE_LOG compiled in while requiring the S928B daily
+# default-off implementation. The dedicated helper also guards both jump-label
+# transitions so repeated enable_log 0/1 calls cannot unbalance the static key.
+SUSFS_SOURCE="./common/fs/susfs.c"
 SUSFS_FRAGMENT="./common/arch/arm64/configs/sukisu_gki.fragment"
 
 if [ -f "$SUSFS_FRAGMENT" ]; then
   grep -qx 'CONFIG_KSU_SUSFS_ENABLE_LOG=y' "$SUSFS_FRAGMENT" || {
     echo "::error::CONFIG_KSU_SUSFS_ENABLE_LOG must remain enabled"
+    exit 1
+  }
+fi
+
+if [ -f "$SUSFS_SOURCE" ]; then
+  grep -qx 'DEFINE_STATIC_KEY_FALSE(susfs_is_log_enabled);' "$SUSFS_SOURCE" || {
+    echo "::error::SUSFS logging static key must default to FALSE"
+    exit 1
+  }
+  grep -qF 'if (!static_key_enabled(&susfs_is_log_enabled))' "$SUSFS_SOURCE" || {
+    echo "::error::SUSFS logging enable transition is not guarded"
+    exit 1
+  }
+  grep -qF 'if (static_key_enabled(&susfs_is_log_enabled))' "$SUSFS_SOURCE" || {
+    echo "::error::SUSFS logging disable transition is not guarded"
+    exit 1
+  }
+  grep -qF 'mutex_lock(&susfs_mutex_enable_log);' "$SUSFS_SOURCE" || {
+    echo "::error::SUSFS logging transitions are not serialized"
+    exit 1
+  }
+  grep -qF 'mutex_unlock(&susfs_mutex_enable_log);' "$SUSFS_SOURCE" || {
+    echo "::error::SUSFS logging transition mutex is not released"
     exit 1
   }
 fi
