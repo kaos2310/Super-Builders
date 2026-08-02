@@ -3,6 +3,7 @@ set -euo pipefail
 
 CONFIG_FILE="${1:?final kernel config}"
 REQUIRE_KPM="${2:-true}"
+REQUIRE_CUSTOM_MANAGER="${3:-false}"
 [[ -f "$CONFIG_FILE" ]] || {
   echo "::error::Kernel config not found: $CONFIG_FILE"
   exit 1
@@ -50,6 +51,9 @@ REQUIRED=(
 )
 if [[ "$REQUIRE_KPM" == "true" ]]; then
   REQUIRED+=(CONFIG_KPM)
+fi
+if [[ "$REQUIRE_CUSTOM_MANAGER" == "true" ]]; then
+  REQUIRED+=(CONFIG_KSU_MULTI_MANAGER_SUPPORT)
 fi
 
 missing=()

@@ -52,6 +52,18 @@ on:
       sukisu_commit:
         type: string
         default: ""
+      resukisu_source_branch:
+        type: string
+        default: "main"
+      resukisu_version_code:
+        type: string
+        default: "35046"
+      resukisu_expected_size:
+        type: string
+        default: ""
+      resukisu_expected_hash:
+        type: string
+        default: ""
       device_codename:
         type: string
         default: ""
@@ -64,9 +76,9 @@ jobs:
     env:
       KSU_VARIANT: ReSukiSU
       KSU_DIR: KernelSU
-      RESUKISU_VERSION_CODE: "35045"
-      RESUKISU_VERSION_LABEL: "35045"
-      RESUKISU_VERSION_FULL: "v4.1.0-35045"
+      RESUKISU_VERSION_CODE: ${{ inputs.resukisu_version_code }}
+      RESUKISU_VERSION_LABEL: ${{ inputs.resukisu_version_code }}
+      RESUKISU_VERSION_FULL: v4.1.0-${{ inputs.resukisu_version_code }}
 
     steps:
     - name: Checkout Repository
@@ -185,6 +197,10 @@ jobs:
       working-directory: ${{ env.KERNEL_ROOT }}
       env:
         SUKISU_COMMIT: ${{ inputs.sukisu_commit }}
+        SOURCE_BRANCH: ${{ inputs.resukisu_source_branch }}
+        TARGET_VERSION_CODE: ${{ inputs.resukisu_version_code }}
+        MANAGER_CERT_SIZE: ${{ inputs.resukisu_expected_size }}
+        MANAGER_CERT_HASH: ${{ inputs.resukisu_expected_hash }}
       run: |
         PIN="${SUKISU_COMMIT:-$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/resukisu-pin.txt" 2>/dev/null || true)}"
         [ -n "$PIN" ] || { echo "::error::ReSukiSU commit pin is required"; exit 1; }
@@ -195,20 +211,18 @@ jobs:
           cd "$KERNEL_ROOT/$KSU_DIR"
           git fetch origin "$PIN"
           git checkout --detach "$PIN"
+          git fetch origin "$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
           ACTUAL_PIN=$(git rev-parse HEAD)
           [ "$ACTUAL_PIN" = "$PIN" ] || {
             echo "::error::ReSukiSU pin mismatch: expected $PIN, got $ACTUAL_PIN"
             exit 1
           }
-          COMMIT_COUNT=$(git rev-list --count HEAD)
-          VERSION_CODE=$((30700 + COMMIT_COUNT))
-          [ "$VERSION_CODE" = "$RESUKISU_VERSION_CODE" ] || {
-            echo "::error::ReSukiSU version mismatch: expected $RESUKISU_VERSION_CODE, got $VERSION_CODE"
-            exit 1
-          }
           echo "Pinned ReSukiSU to $ACTUAL_PIN"
-          echo "ReSukiSU version code: $VERSION_CODE"
         fi
+
+        RELEASE_CONFIG="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/configure-resukisu-release.sh"
+        bash "$RELEASE_CONFIG" "$KERNEL_ROOT/$KSU_DIR" "$SOURCE_BRANCH" "$PIN" \
+          "$TARGET_VERSION_CODE" "$MANAGER_CERT_SIZE" "$MANAGER_CERT_HASH"
 
         cd "$KERNEL_ROOT/common"
 
@@ -415,6 +429,10 @@ jobs:
       if: inputs.device_codename == 'e3q'
       env:
         EXPECTED_PIN: ${{ inputs.sukisu_commit }}
+        EXPECTED_BRANCH: ${{ inputs.resukisu_source_branch }}
+        EXPECTED_VERSION_CODE: ${{ inputs.resukisu_version_code }}
+        EXPECTED_MANAGER_SIZE: ${{ inputs.resukisu_expected_size }}
+        EXPECTED_MANAGER_HASH: ${{ inputs.resukisu_expected_hash }}
         ADD_KPM: ${{ inputs.add_kpm }}
       run: |
         set -euo pipefail
@@ -423,9 +441,9 @@ jobs:
         PIN="${EXPECTED_PIN:-$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/resukisu-pin.txt")}"
         test "$(git -C "$KERNEL_ROOT/$KSU_DIR" rev-parse HEAD)" = "$PIN"
 
-        COMMIT_COUNT=$(git -C "$KERNEL_ROOT/$KSU_DIR" rev-list --count HEAD)
-        VERSION_CODE=$((30700 + COMMIT_COUNT))
-        test "$VERSION_CODE" = "$RESUKISU_VERSION_CODE"
+        RELEASE_CONFIG="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/configure-resukisu-release.sh"
+        bash "$RELEASE_CONFIG" "$KERNEL_ROOT/$KSU_DIR" "$EXPECTED_BRANCH" "$PIN" \
+          "$EXPECTED_VERSION_CODE" "$EXPECTED_MANAGER_SIZE" "$EXPECTED_MANAGER_HASH"
 
         grep -qx '#define SUSFS_VERSION "v2.2.0"' "$KERNEL_ROOT/common/include/linux/susfs.h"
         grep -qx 'CONFIG_ZEROMOUNT=y' "$DEFCONFIG_FRAGMENT"
@@ -438,10 +456,11 @@ jobs:
 
         echo "ReSukiSU: ${RESUKISU_VERSION_FULL}"
         echo "RESUKISU_VERSION_CODE=${RESUKISU_VERSION_CODE}"
+        echo "RESUKISU_SOURCE_BRANCH=${EXPECTED_BRANCH}"
         echo "RESUKISU_COMMIT=$PIN"
         echo "SUSFS_VERSION=v2.2.0"
         echo "ZeroMount enabled"
-        [[ "$ADD_KPM" == "true" ]] && echo "KPM enabled" || echo "KPM unavailable in ReSukiSU 35045"
+        [[ "$ADD_KPM" == "true" ]] && echo "KPM enabled" || echo "KPM unavailable in ReSukiSU ${RESUKISU_VERSION_CODE}"
 
     - name: Clean Module Lists
       if: inputs.add_zram
@@ -583,6 +602,7 @@ jobs:
         ADD_DROIDSPACES: ${{ inputs.add_droidspaces }}
         ADD_ZRAM: ${{ inputs.add_zram }}
         ADD_KPM: ${{ inputs.add_kpm }}
+        REQUIRE_CUSTOM_MANAGER: ${{ inputs.resukisu_expected_hash != '' }}
         DEVICE_CODENAME: ${{ inputs.device_codename }}
       run: |
         CONFIG_FILE="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/common/.config"
@@ -641,7 +661,7 @@ jobs:
         if [ "$DEVICE_CODENAME" = "e3q" ]; then
           DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
           chmod +x "$DAILY_AUDIT"
-          "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM"
+          "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER"
         fi
 
         echo "FINAL_CONFIG_FILE=$CONFIG_FILE" >> "$GITHUB_ENV"
@@ -679,6 +699,8 @@ jobs:
       if: inputs.device_codename == 'e3q'
       env:
         ADD_KPM: ${{ inputs.add_kpm }}
+        REQUIRE_CUSTOM_MANAGER: ${{ inputs.resukisu_expected_hash != '' }}
+        EXPECTED_MANAGER_HASH: ${{ inputs.resukisu_expected_hash }}
       run: |
         set -euo pipefail
         test -f "$ANYKERNEL3/Image"
@@ -711,7 +733,13 @@ jobs:
         test -s "$IKCONFIG"
         DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
         chmod +x "$DAILY_AUDIT"
-        "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM"
+        "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER"
+        if [[ "$REQUIRE_CUSTOM_MANAGER" == "true" ]]; then
+          grep -aF "$EXPECTED_MANAGER_HASH" "$ANYKERNEL3/Image" >/dev/null || {
+            echo "::error::Paired manager certificate hash is missing from the kernel image"
+            exit 1
+          }
+        fi
 
         IMAGE_STRINGS="$RUNNER_TEMP/s928b-image-strings"
         strings "$ANYKERNEL3/Image" > "$IMAGE_STRINGS"
