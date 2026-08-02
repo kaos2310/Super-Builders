@@ -141,16 +141,21 @@ EXPORT_CLASS="$(awk '{
 }
 
 ABI_MATCHES=()
+# AOSP names Samsung-family lists "galaxy" and "exynos" on this branch; some
+# downstream trees instead use "samsung". Check the base list and every
+# Samsung-family spelling without weakening the actual symbol requirement.
 for abi_file in \
   "$COMMON_TREE/android/abi_gki_aarch64" \
-  "$COMMON_TREE/android/abi_gki_aarch64_samsung"; do
+  "$COMMON_TREE/android/abi_gki_aarch64_samsung" \
+  "$COMMON_TREE/android/abi_gki_aarch64_galaxy" \
+  "$COMMON_TREE/android/abi_gki_aarch64_exynos"; do
   [[ -f "$abi_file" ]] || continue
   if grep -qw 'kasan_flag_enabled' "$abi_file"; then
     ABI_MATCHES+=("$abi_file")
   fi
 done
 [[ "${#ABI_MATCHES[@]}" -gt 0 ]] || {
-  echo "::error::kasan_flag_enabled is absent from the Android/Samsung GKI symbol lists"
+  echo "::error::kasan_flag_enabled is absent from the Android/Samsung-family GKI symbol lists"
   exit 1
 }
 
