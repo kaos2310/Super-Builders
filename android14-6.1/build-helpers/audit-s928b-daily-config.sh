@@ -65,8 +65,6 @@ REQUIRED=(
   CONFIG_UNMAP_KERNEL_AT_EL0
   CONFIG_VIRTUALIZATION
   CONFIG_KVM
-  CONFIG_KASAN
-  CONFIG_KASAN_HW_TAGS
 )
 if [[ "$REQUIRE_KPM" == "true" ]]; then
   REQUIRED+=(CONFIG_KPM)
@@ -87,21 +85,38 @@ grep -Eq '^CONFIG_IP6_NF_NAT=(y|n)$' "$CONFIG_FILE" || {
   exit 1
 }
 
-for symbol in KFENCE UBSAN; do
+for symbol in KFENCE KASAN UBSAN; do
   grep -qx "# CONFIG_${symbol} is not set" "$CONFIG_FILE" || {
     echo "::error::CONFIG_${symbol} is active or absent from the final config"
     exit 1
   }
 done
 
-for symbol in KASAN_GENERIC KASAN_SW_TAGS; do
-  grep -qx "# CONFIG_${symbol} is not set" "$CONFIG_FILE" || {
-    echo "::error::CONFIG_${symbol} must stay disabled in the HW-tags fallback"
+for symbol in KASAN_HW_TAGS KASAN_SW_TAGS KASAN_GENERIC; do
+  if grep -qx "# CONFIG_${symbol} is not set" "$CONFIG_FILE"; then
+    continue
+  fi
+  if grep -q "^CONFIG_${symbol}=" "$CONFIG_FILE"; then
+    echo "::error::CONFIG_${symbol} has an unexpected value"
+    grep "^CONFIG_${symbol}=" "$CONFIG_FILE"
     exit 1
-  }
+  fi
+  echo "CONFIG_${symbol}=n (dependency-disabled; omitted by Kconfig)"
 done
 
-if grep -Eq '^CONFIG_(KFENCE|KASAN_GENERIC|KASAN_SW_TAGS|UBSAN(_TRAP|_BOUNDS|_LOCAL_BOUNDS)?)=y$' "$CONFIG_FILE"; then
+if grep -Eq '^CONFIG_(KFENCE|KASAN(_[A-Z0-9_]+)?|UBSAN(_TRAP|_BOUNDS|_LOCAL_BOUNDS)?)=y
+  echo "::error::Final kernel config still enables a daily-build sanitizer"
+  grep -E '^CONFIG_(KFENCE|KASAN|UBSAN)' "$CONFIG_FILE" || true
+  exit 1
+fi
+
+echo "Verified ${#REQUIRED[@]} S928B daily features in $CONFIG_FILE"
+echo "Verified CONFIG_KFENCE=n, CONFIG_KASAN=n and CONFIG_UBSAN=n"
+echo "Verified no KASAN implementation is enabled; KMI is supplied by the inactive stub"
+echo "Verified CONFIG_CFI_CLANG=y and CONFIG_SHADOW_CALL_STACK=y"
+echo "Verified KStack offset randomization is enabled by default"
+echo "Verified KVM is compiled; /dev/kvm additionally requires EL2/HYP from the bootloader"
+ "$CONFIG_FILE"; then
   echo "::error::Final kernel config still enables a daily-build sanitizer"
   grep -E '^CONFIG_(KFENCE|KASAN|UBSAN)' "$CONFIG_FILE" || true
   exit 1
