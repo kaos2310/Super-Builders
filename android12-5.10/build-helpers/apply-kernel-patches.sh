@@ -12,7 +12,17 @@ MAJOR="${KERNEL_VER%%.*}"
 MINOR="${KERNEL_VER#*.}"
 COMMON="$PATCHES_DIR/common"
 
+TARGET="${ANDROID_VER:-unknown}-${KERNEL_VER}"
+
 apply() { patch -p1 -F3 --forward < "$1" || true; }
+apply_required() {
+  local patch_file="$1"
+  test -s "$patch_file" || {
+    echo "::error::Required kernel patch is missing: $patch_file"
+    exit 1
+  }
+  patch -p1 --no-backup-if-mismatch < "$patch_file"
+}
 
 cd "$KERNEL_DIR"
 
