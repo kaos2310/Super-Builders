@@ -49,10 +49,10 @@ jobs:
         patch_cmdline "kpti" ""
         ui_print "  -> Removed explicit kpti=0 override"
 
-        # Android 14/6.1 GKI requires kasan_flag_enabled in its stable KMI.
-        # Keep HW-tag KASAN compiled for ABI compatibility, but never run it.
+        # KASAN is compiled out; retain cmdline cleanup for older boot images.
+        # kasan_flag_enabled is supplied by an inactive ABI-compatible stub.
         patch_cmdline "kasan" "off"
-        ui_print "  -> KASAN HW-tags retained for GKI ABI; runtime disabled"
+        ui_print "  -> KASAN compiled out; inactive GKI KMI stub retained"
         '''
             text = text.replace(needle, patch, 1)
             path.write_text(text)
@@ -62,13 +62,13 @@ jobs:
             needle = '''ui_print "  -> Removed forced CPUFreq default governor"
         '''
             if needle not in text:
-                raise SystemExit('S928B governor block not found while adding KASAN fallback')
+                raise SystemExit('S928B governor block not found while adding KASAN cmdline cleanup')
             replacement = '''ui_print "  -> Removed forced CPUFreq default governor"
 
-        # Android 14/6.1 GKI requires kasan_flag_enabled in its stable KMI.
-        # Keep HW-tag KASAN compiled for ABI compatibility, but never run it.
+        # KASAN is compiled out; retain cmdline cleanup for older boot images.
+        # kasan_flag_enabled is supplied by an inactive ABI-compatible stub.
         patch_cmdline "kasan" "off"
-        ui_print "  -> KASAN HW-tags retained for GKI ABI; runtime disabled"
+        ui_print "  -> KASAN compiled out; inactive GKI KMI stub retained"
         '''
             text = text.replace(needle, replacement, 1)
             path.write_text(text)
