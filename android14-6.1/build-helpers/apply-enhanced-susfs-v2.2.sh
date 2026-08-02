@@ -543,7 +543,7 @@ struct ksu_susfs_legacy_path {
 static int ksu_susfs_dispatch_path_compat(void __user **arg, bool loop)
 {
     struct ksu_susfs_legacy_path legacy = { 0 };
-    struct ksu_susfs_current_path current = { 0 };
+    struct ksu_susfs_current_path v2_path = { 0 };
     char current_first = 0;
     char legacy_first = 0;
 
@@ -559,10 +559,10 @@ static int ksu_susfs_dispatch_path_compat(void __user **arg, bool loop)
 
     if (copy_from_user(&legacy, *arg, sizeof(legacy)))
         return -EFAULT;
-    strscpy(current.target_pathname, legacy.target_pathname,
-            sizeof(current.target_pathname));
-    current.err = legacy.err;
-    if (copy_to_user(*arg, &current, sizeof(current)))
+    strscpy(v2_path.target_pathname, legacy.target_pathname,
+            sizeof(v2_path.target_pathname));
+    v2_path.err = legacy.err;
+    if (copy_to_user(*arg, &v2_path, sizeof(v2_path)))
         return -EFAULT;
 
     if (loop)
@@ -570,10 +570,10 @@ static int ksu_susfs_dispatch_path_compat(void __user **arg, bool loop)
     else
         susfs_add_sus_path(arg);
 
-    if (copy_from_user(&current, *arg, sizeof(current)))
+    if (copy_from_user(&v2_path, *arg, sizeof(v2_path)))
         legacy.err = -EFAULT;
     else
-        legacy.err = current.err;
+        legacy.err = v2_path.err;
     if (copy_to_user(*arg, &legacy, sizeof(legacy)))
         return -EFAULT;
     return 0;
