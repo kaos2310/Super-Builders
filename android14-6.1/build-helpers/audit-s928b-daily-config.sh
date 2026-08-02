@@ -82,32 +82,7 @@ fi
 
 # IPv6_NAT_FIX deliberately rewrites only the embedded IKCONFIG copy from y to
 # n. The final build .config is checked strictly before packaging.
-grep -Eq '^CONFIG_IP6_NF_NAT=(y|n)  grep -qx "# CONFIG_${symbol} is not set" "$CONFIG_FILE" || {
-    echo "::error::CONFIG_${symbol} is active or absent from the final config"
-    exit 1
-  }
-done
-
-for symbol in KASAN_GENERIC KASAN_SW_TAGS; do
-  grep -qx "# CONFIG_${symbol} is not set" "$CONFIG_FILE" || {
-    echo "::error::CONFIG_${symbol} must stay disabled in the HW-tags fallback"
-    exit 1
-  }
-done
-
-if grep -Eq '^CONFIG_(KFENCE|KASAN_GENERIC|KASAN_SW_TAGS|UBSAN(_TRAP|_BOUNDS|_LOCAL_BOUNDS)?)=y$' "$CONFIG_FILE"; then
-  echo "::error::Final kernel config still enables a daily-build sanitizer"
-  grep -E '^CONFIG_(KFENCE|KASAN|UBSAN)' "$CONFIG_FILE" || true
-  exit 1
-fi
-
-echo "Verified ${#REQUIRED[@]} S928B daily features in $CONFIG_FILE"
-echo "Verified CONFIG_KFENCE=n and CONFIG_UBSAN=n"
-echo "Verified GKI KMI fallback CONFIG_KASAN=y and CONFIG_KASAN_HW_TAGS=y"
-echo "Verified CONFIG_CFI_CLANG=y and CONFIG_SHADOW_CALL_STACK=y"
-echo "Verified KStack offset randomization is enabled by default"
-echo "Verified KVM is compiled; /dev/kvm additionally requires EL2/HYP from the bootloader"
- "$CONFIG_FILE" || {
+grep -Eq '^CONFIG_IP6_NF_NAT=(y|n)$' "$CONFIG_FILE" || {
   echo "::error::CONFIG_IP6_NF_NAT is absent from the final or embedded config"
   exit 1
 }
