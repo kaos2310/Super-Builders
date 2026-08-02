@@ -349,6 +349,14 @@ jobs:
         [ -f "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4kd.patch" ] && patch -p1 -F3 < "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4kd.patch" || true
         [ -f "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch" ] && patch -p1 -F3 < "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch" || true
 
+    - name: Install KASAN-off KMI compatibility stub
+      if: inputs.android_version == 'android14' && inputs.kernel_version == '6.1' && inputs.device_codename == 'e3q'
+      run: |
+        set -euo pipefail
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-kasan-kmi-stub.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common"
+
     - name: Configure Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
       env:
@@ -586,6 +594,7 @@ jobs:
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
+        set -euo pipefail
         LTO_MODE=thin
         [[ "$ANDROID_VER" == android16* || "$KERNEL_VER" == "6.12" ]] && LTO_MODE=none
         if [ -f "build/build.sh" ]; then
@@ -598,6 +607,8 @@ jobs:
           fi
           tools/bazel build --config=fast --lto=$LTO_MODE --defconfig_fragment=//common:arch/arm64/configs/sukisu_gki.fragment //common:kernel_aarch64_dist
         fi
+        echo "KERNEL_BUILD_EXIT_CODE=0" >> "$GITHUB_ENV"
+        echo "Kernel build command completed with exit code 0"
 
     - name: Verify Android 14 6.1 feature config
       if: inputs.android_version == 'android14' && inputs.kernel_version == '6.1'
@@ -671,6 +682,10 @@ jobs:
           DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
           chmod +x "$DAILY_AUDIT"
           "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER"
+
+          KASAN_KMI_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/verify-kasan-kmi-stub.sh"
+          chmod +x "$KASAN_KMI_AUDIT"
+          "$KASAN_KMI_AUDIT" "$KERNEL_ROOT" "$KERNEL_ROOT/common" "$CONFIG_FILE"
         fi
 
         echo "FINAL_CONFIG_FILE=$CONFIG_FILE" >> "$GITHUB_ENV"
@@ -681,7 +696,7 @@ jobs:
           echo "Verified ${#REQUIRED[@]} required options in \`${CONFIG_FILE#"$KERNEL_ROOT/"}\`."
           echo "CONFIG_LOCALVERSION_AUTO is disabled."
           if [ "$DEVICE_CODENAME" = "e3q" ]; then
-            echo "S928B daily feature, KStack-default, KVM-config and GKI KASAN-fallback audit passed."
+            echo "S928B daily feature, KStack-default, KVM-config and KASAN-off KMI-stub audit passed."
             echo "Kernel-side KVM is present; functional /dev/kvm still requires EL2/HYP handoff by the Samsung bootloader."
           fi
         } >> "$GITHUB_STEP_SUMMARY"
@@ -869,6 +884,8 @@ jobs:
           echo "| **Unicode Filter** | Enabled |"
           echo "| **Baseband Guard** | $(S "$ADD_BBG") |"
           echo "| **KPM** | $(S "$ADD_KPM") |"
+          echo "| **KASAN** | Disabled; inactive KMI static-key stub retained |"
+          echo "| **Kernel build exit** | ${KERNEL_BUILD_EXIT_CODE:-not-recorded} |"
           echo "| **Device Profile** | ${IDENTITY_STATUS:-Generic} |"
           echo "| **Rejects** | ${REJ_COUNT:-0} |"
           echo "| **Artifact** | ${FILE_NAME} |"
