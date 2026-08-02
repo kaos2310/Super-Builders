@@ -92,9 +92,19 @@ CONFIG_TMPFS_XATTR=y
 CONFIG_TMPFS_POSIX_ACL=y
 
 # [daily]
-# KFENCE is a development memory-corruption detector. Keep it compiled out
-# of the daily kernel to eliminate its periodic sampling timer and wakeups.
+# KFENCE and UBSAN stay out of the daily kernel. Android 14/6.1 GKI keeps
+# kasan_flag_enabled in its required KMI, so retain HW-tag KASAN for ABI
+# compatibility and force it off at runtime from AnyKernel3. CFI and Shadow
+# Call Stack remain enabled and are audited against the final config.
 # CONFIG_KFENCE is not set
+CONFIG_KASAN=y
+# CONFIG_KASAN_GENERIC is not set
+# CONFIG_KASAN_SW_TAGS is not set
+CONFIG_KASAN_HW_TAGS=y
+# CONFIG_UBSAN is not set
+# CONFIG_UBSAN_TRAP is not set
+# CONFIG_UBSAN_BOUNDS is not set
+# CONFIG_UBSAN_LOCAL_BOUNDS is not set
 
 # [performance]
 # Disable kernel debug features if enabled in base MTK config.

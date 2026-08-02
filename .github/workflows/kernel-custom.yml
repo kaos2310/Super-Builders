@@ -177,7 +177,7 @@ on:
         type: boolean
         default: false
       susfs_open_redirect:
-        description: "Enable experimental SUSFS Open Redirect (SukiSU test build only)"
+        description: "Enable experimental SUSFS Open Redirect (SukiSU/ReSukiSU test builds)"
         type: boolean
         default: false
       sukisu_commit:
@@ -500,6 +500,7 @@ jobs:
       add_bbg: ${{ inputs.add_bbg }}
       add_overlayfs_support: ${{ inputs.add_overlayfs_support }}
       add_kpm: ${{ inputs.add_kpm }}
+      susfs_open_redirect: ${{ inputs.susfs_open_redirect }}
       sukisu_commit: ${{ inputs.sukisu_commit }}
       device_codename: ${{ needs.resolve.outputs.device_codename }}
 

@@ -40,6 +40,9 @@ on:
       add_kpm:
         type: boolean
         default: false
+      susfs_open_redirect:
+        type: boolean
+        default: false
       add_ptrace_fix:
         type: boolean
         default: true
@@ -61,6 +64,9 @@ jobs:
     env:
       KSU_VARIANT: ReSukiSU
       KSU_DIR: KernelSU
+      RESUKISU_VERSION_CODE: "35045"
+      RESUKISU_VERSION_LABEL: "35045"
+      RESUKISU_VERSION_FULL: "v4.1.0-35045"
 
     steps:
     - name: Checkout Repository
@@ -159,6 +165,7 @@ jobs:
     - name: Extract Sublevel
       env:
         INPUT_SUB_LEVEL: ${{ inputs.sub_level }}
+        SUSFS_OPEN_REDIRECT_TEST: ${{ inputs.susfs_open_redirect }}
       run: |
         SUBLEVEL="$INPUT_SUB_LEVEL"
         if [[ -f "$KERNEL_ROOT/common/Makefile" ]]; then
@@ -166,7 +173,8 @@ jobs:
           [[ -n "$EXTRACTED" ]] && SUBLEVEL="$EXTRACTED"
         fi
 
-        ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-ReSukiSU"
+        ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-ReSukiSU-${RESUKISU_VERSION_LABEL}"
+        [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]] && ARTIFACT_BASE+="-OpenRedirect-Test"
         {
           echo "SUBLEVEL=$SUBLEVEL"
           echo "ARTIFACT_BASE=$ARTIFACT_BASE"
@@ -178,15 +186,28 @@ jobs:
       env:
         SUKISU_COMMIT: ${{ inputs.sukisu_commit }}
       run: |
-        curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s susfs-ksud
+        PIN="${SUKISU_COMMIT:-$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/resukisu-pin.txt" 2>/dev/null || true)}"
+        [ -n "$PIN" ] || { echo "::error::ReSukiSU commit pin is required"; exit 1; }
+        curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/${PIN}/kernel/setup.sh" | bash -s "$PIN"
         [ -d "$KERNEL_ROOT/$KSU_DIR" ] || { echo "FATAL: $KSU_DIR not created by setup.sh"; exit 1; }
 
-        PIN="${SUKISU_COMMIT:-$(cat "$GITHUB_WORKSPACE/$VERSION_DIR/resukisu-pin.txt" 2>/dev/null || true)}"
         if [ -n "$PIN" ]; then
           cd "$KERNEL_ROOT/$KSU_DIR"
-          git fetch origin
-          git checkout "$PIN"
-          echo "Pinned ReSukiSU to $(git rev-parse --short=7 HEAD)"
+          git fetch origin "$PIN"
+          git checkout --detach "$PIN"
+          ACTUAL_PIN=$(git rev-parse HEAD)
+          [ "$ACTUAL_PIN" = "$PIN" ] || {
+            echo "::error::ReSukiSU pin mismatch: expected $PIN, got $ACTUAL_PIN"
+            exit 1
+          }
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          VERSION_CODE=$((30700 + COMMIT_COUNT))
+          [ "$VERSION_CODE" = "$RESUKISU_VERSION_CODE" ] || {
+            echo "::error::ReSukiSU version mismatch: expected $RESUKISU_VERSION_CODE, got $VERSION_CODE"
+            exit 1
+          }
+          echo "Pinned ReSukiSU to $ACTUAL_PIN"
+          echo "ReSukiSU version code: $VERSION_CODE"
         fi
 
         cd "$KERNEL_ROOT/common"
@@ -214,12 +235,38 @@ jobs:
         sub_level: ${{ env.SUBLEVEL }}
         os_patch_level: ${{ inputs.os_patch_level }}
 
-    - name: Apply ZeroMount
+    - name: Apply Enhanced SUSFS v2.2 features
+      if: inputs.add_susfs
+      run: |
+        set -euo pipefail
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-enhanced-susfs-v2.2.sh"
+        PATCH="$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/51_enhanced_susfs-${ANDROID_VER}-${KERNEL_VER}.patch"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common" "$KERNEL_ROOT/$KSU_DIR" "$PATCH"
+
+    - name: Apply ZeroMount to SUSFS v2.2.0
       if: inputs.add_susfs && inputs.add_zeromount
-      uses: ./.github/actions/zeromount-v2.2
-      with:
-        android_version: ${{ inputs.android_version }}
-        kernel_version: ${{ inputs.kernel_version }}
+      working-directory: ${{ env.KERNEL_ROOT }}/common
+      run: |
+        set -euo pipefail
+        PATCH="$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/60_zeromount-${ANDROID_VER}-${KERNEL_VER}.patch"
+        FILTERED_PATCH="$RUNNER_TEMP/zeromount-${ANDROID_VER}-${KERNEL_VER}-without-task-mmu.patch"
+        # SUSFS v2.2 already modifies show_map_vma(). The legacy ZeroMount
+        # metadata hook overlaps that code and caused an Oops while apexd read
+        # /proc/*/maps on SM-S928B. Keep the remaining ZeroMount facilities.
+        awk '
+          /^--- a\/fs\/proc\/task_mmu\.c/ { skip = 1; next }
+          skip && /^--- a\// { skip = 0 }
+          !skip { print }
+        ' "$PATCH" > "$FILTERED_PATCH"
+        patch -p1 -F3 --no-backup-if-mismatch < "$FILTERED_PATCH"
+
+    - name: Keep SUSFS logging switchable and default off
+      if: inputs.add_susfs
+      run: |
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/configure-susfs-log-default.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common"
 
     - name: Apply Droidspaces 6_7_8 patches
       if: inputs.add_droidspaces
@@ -227,6 +274,20 @@ jobs:
       with:
         android_version: ${{ inputs.android_version }}
         kernel_version: ${{ inputs.kernel_version }}
+
+    - name: Keep CGROUP_PIDS compatible with Samsung e3q WALT
+      if: inputs.add_droidspaces && inputs.device_codename == 'e3q'
+      run: |
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-e3q-cgroup-pids-compat.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common"
+
+    - name: Leave e3q CPUFreq policy to Samsung PowerHAL
+      if: inputs.device_codename == 'e3q'
+      run: |
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-e3q-cmdline-governor-compat.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common"
 
     - name: Warn about SUSFS mount hiding
       if: inputs.add_susfs && inputs.add_droidspaces
@@ -283,9 +344,17 @@ jobs:
         ADD_OVERLAYFS: ${{ inputs.add_overlayfs_support }}
         ADD_ZRAM: ${{ inputs.add_zram }}
         ADD_KPM: ${{ inputs.add_kpm }}
+        SUSFS_OPEN_REDIRECT_TEST: ${{ inputs.susfs_open_redirect }}
+        DEVICE_CODENAME: ${{ inputs.device_codename }}
       run: |
         FRAGMENT="$GITHUB_WORKSPACE/$VERSION_DIR/defconfig.fragment"
         HELPERS="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers"
+
+        if [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]]; then
+          [[ "$ADD_SUSFS" == "true" ]] || { echo "::error::Open Redirect requires SUSFS"; exit 1; }
+          [[ "$ANDROID_VER" == "android14" && "$KERNEL_VER" == "6.1" ]] || { echo "::error::Open Redirect test is validated only for android14-6.1"; exit 1; }
+          sed -i 's/^CONFIG_KSU_SUSFS_OPEN_REDIRECT=.*/CONFIG_KSU_SUSFS_OPEN_REDIRECT=y/' "$FRAGMENT"
+        fi
 
         ASSEMBLE_FLAGS=""
         [[ "$ADD_SUSFS" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --susfs"
@@ -298,6 +367,14 @@ jobs:
 
         bash "$HELPERS/assemble-defconfig.sh" "$FRAGMENT" "$DEFCONFIG_FRAGMENT" "$DEFCONFIG" $ASSEMBLE_FLAGS
 
+        if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
+          BUILD_MODE=legacy
+          [ ! -f "$KERNEL_ROOT/build/build.sh" ] && BUILD_MODE=kleaf
+          DAILY_CONFIG="$HELPERS/enforce-s928b-daily-config.sh"
+          chmod +x "$DAILY_CONFIG"
+          "$DAILY_CONFIG" "$KERNEL_ROOT/common" "$DEFCONFIG_FRAGMENT" "$DEFCONFIG" "$BUILD_MODE"
+        fi
+
         while IFS='=' read -r cfg _; do
           symbol="${cfg#CONFIG_}"
           grep -Rqx "config ${symbol}" common/ ${KSU_DIR:+$KSU_DIR/} --include='Kconfig*' 2>/dev/null && continue
@@ -308,7 +385,63 @@ jobs:
           sed -i '/^CONFIG_KSU_SUSFS_/d' "$DEFCONFIG_FRAGMENT" "$DEFCONFIG"
         fi
 
+        if [[ "$ADD_SUSFS" == "true" ]]; then
+          grep -qx 'CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y' "$DEFCONFIG_FRAGMENT"
+
+          for symbol in \
+            CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT \
+            CONFIG_KSU_SUSFS_UNICODE_FILTER \
+            CONFIG_KSU_SUSFS_HIDDEN_NAME; do
+            kconfig_symbol="${symbol#CONFIG_}"
+            grep -Rqx "config ${kconfig_symbol}" common/ "$KSU_DIR/" --include='Kconfig*' 2>/dev/null || {
+              echo "::error::Required SUSFS Kconfig symbol is missing: ${symbol}"
+              exit 1
+            }
+            grep -qx "${symbol}=y" "$DEFCONFIG_FRAGMENT" || {
+              echo "::error::Required SUSFS option was not retained: ${symbol}=y"
+              exit 1
+            }
+          done
+        fi
+
+        if [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]]; then
+          grep -Rqx 'config KSU_SUSFS_OPEN_REDIRECT' common/ "$KSU_DIR/" --include='Kconfig*'
+          grep -qx 'CONFIG_KSU_SUSFS_OPEN_REDIRECT=y' "$DEFCONFIG_FRAGMENT"
+        fi
+
         bash "$HELPERS/bypass-abi-check.sh" . "$ANDROID_VER" "$KERNEL_VER"
+
+    - name: Verify ReSukiSU build identity
+      if: inputs.device_codename == 'e3q'
+      env:
+        EXPECTED_PIN: ${{ inputs.sukisu_commit }}
+        ADD_KPM: ${{ inputs.add_kpm }}
+      run: |
+        set -euo pipefail
+        test "$KSU_VARIANT" = "ReSukiSU"
+
+        PIN="${EXPECTED_PIN:-$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/resukisu-pin.txt")}"
+        test "$(git -C "$KERNEL_ROOT/$KSU_DIR" rev-parse HEAD)" = "$PIN"
+
+        COMMIT_COUNT=$(git -C "$KERNEL_ROOT/$KSU_DIR" rev-list --count HEAD)
+        VERSION_CODE=$((30700 + COMMIT_COUNT))
+        test "$VERSION_CODE" = "$RESUKISU_VERSION_CODE"
+
+        grep -qx '#define SUSFS_VERSION "v2.2.0"' "$KERNEL_ROOT/common/include/linux/susfs.h"
+        grep -qx 'CONFIG_ZEROMOUNT=y' "$DEFCONFIG_FRAGMENT"
+        test -f "$KERNEL_ROOT/common/fs/zeromount.c"
+        if [[ "$ADD_KPM" == "true" ]]; then
+          grep -qx 'CONFIG_KPM=y' "$DEFCONFIG_FRAGMENT"
+        else
+          ! grep -Rqx 'config KPM' "$KERNEL_ROOT/$KSU_DIR" --include='Kconfig*'
+        fi
+
+        echo "ReSukiSU: ${RESUKISU_VERSION_FULL}"
+        echo "RESUKISU_VERSION_CODE=${RESUKISU_VERSION_CODE}"
+        echo "RESUKISU_COMMIT=$PIN"
+        echo "SUSFS_VERSION=v2.2.0"
+        echo "ZeroMount enabled"
+        [[ "$ADD_KPM" == "true" ]] && echo "KPM enabled" || echo "KPM unavailable in ReSukiSU 35045"
 
     - name: Clean Module Lists
       if: inputs.add_zram
@@ -368,6 +501,7 @@ jobs:
 
         STOCK_RELEASE=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.release" "$PROFILE_FILE")
         STOCK_VERSION=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.version_string" "$PROFILE_FILE")
+        STOCK_BUILD_TIMESTAMP=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.build_timestamp // empty" "$PROFILE_FILE")
         STOCK_BUILD_USER=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.build_user" "$PROFILE_FILE")
         STOCK_BUILD_HOST=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.build_host" "$PROFILE_FILE")
         STOCK_COMPILER=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.compiler_info // empty" "$PROFILE_FILE")
@@ -389,8 +523,21 @@ jobs:
         sed -i "s|RELEASE_OUTPUT_PLACEHOLDER|${RELEASE_OUTPUT}|g" scripts/setlocalversion
         chmod +x scripts/setlocalversion
 
+        [ -n "$STOCK_BUILD_TIMESTAMP" ] || {
+          echo "::error::Stock build timestamp is missing for $DEVICE_CODENAME"
+          exit 1
+        }
+
+        # Android 6.1 generates UTS_VERSION in init/Makefile. Patching
+        # scripts/mkcompile_h cannot affect uname or /proc/version on this tree.
+        grep -q '^build-timestamp = ' init/Makefile || {
+          echo "::error::Android 6.1 build-timestamp assignment was not found"
+          exit 1
+        }
+        sed -i "s|^build-timestamp = .*|build-timestamp = ${STOCK_BUILD_TIMESTAMP}|" init/Makefile
+        grep -qxF "build-timestamp = ${STOCK_BUILD_TIMESTAMP}" init/Makefile
+
         if [ -f "scripts/mkcompile_h" ]; then
-          sed -i "s|UTS_VERSION=.*|UTS_VERSION=\"${STOCK_VERSION}\"|" scripts/mkcompile_h
           if grep -q "LINUX_COMPILE_BY=" scripts/mkcompile_h; then
             sed -i "s|LINUX_COMPILE_BY=.*|LINUX_COMPILE_BY=\"${STOCK_BUILD_USER}\"|" scripts/mkcompile_h
             sed -i "s|LINUX_COMPILE_HOST=.*|LINUX_COMPILE_HOST=\"${STOCK_BUILD_HOST}\"|" scripts/mkcompile_h
@@ -403,32 +550,109 @@ jobs:
         {
           echo "KBUILD_BUILD_USER=$STOCK_BUILD_USER"
           echo "KBUILD_BUILD_HOST=$STOCK_BUILD_HOST"
+          echo "KBUILD_BUILD_TIMESTAMP=$STOCK_BUILD_TIMESTAMP"
+          echo "STOCK_RELEASE_EXPECTED=$STOCK_RELEASE"
+          echo "STOCK_VERSION_EXPECTED=$STOCK_VERSION"
+          echo "STOCK_BUILD_TIMESTAMP_EXPECTED=$STOCK_BUILD_TIMESTAMP"
+          echo "STOCK_BUILD_USER_EXPECTED=$STOCK_BUILD_USER"
+          echo "STOCK_BUILD_HOST_EXPECTED=$STOCK_BUILD_HOST"
+          echo "DEVICE_CODENAME=$DEVICE_CODENAME"
           echo "IDENTITY_STATUS=Applied ($DEVICE_CODENAME)"
         } >> "$GITHUB_ENV"
 
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
-        BUILD_RC=0
         LTO_MODE=thin
         [[ "$ANDROID_VER" == android16* || "$KERNEL_VER" == "6.12" ]] && LTO_MODE=none
         if [ -f "build/build.sh" ]; then
-          KMI_SYMBOL_LIST_STRICT_MODE=0 HOSTLD=/usr/bin/ld.lld GKI_DEFCONFIG_FRAGMENT="$DEFCONFIG_FRAGMENT" LTO=$LTO_MODE BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh || BUILD_RC=$?
+          KMI_SYMBOL_LIST_STRICT_MODE=0 HOSTLD=/usr/bin/ld.lld GKI_DEFCONFIG_FRAGMENT="$DEFCONFIG_FRAGMENT" LTO=$LTO_MODE BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
         else
           # Prebuilt clang sysroot lacks glibc 2.39 C23 symbols — link against system libc
           if [ -f common/tools/bpf/resolve_btfids/Makefile ]; then
             echo 'override KBUILD_HOSTLDFLAGS += --sysroot=/' >> common/tools/bpf/resolve_btfids/Makefile
             echo 'override LDFLAGS += --sysroot=/' >> common/tools/bpf/resolve_btfids/Makefile
           fi
-          tools/bazel build --config=fast --lto=$LTO_MODE --defconfig_fragment=//common:arch/arm64/configs/sukisu_gki.fragment //common:kernel_aarch64_dist || BUILD_RC=$?
+          tools/bazel build --config=fast --lto=$LTO_MODE --defconfig_fragment=//common:arch/arm64/configs/sukisu_gki.fragment //common:kernel_aarch64_dist
         fi
-        if [ "$BUILD_RC" -ne 0 ]; then
-          if find . -name "Image" -type f 2>/dev/null | grep -q .; then
-            echo "::warning::Build exited $BUILD_RC but Image exists (likely depmod failure)"
-          else
-            exit "$BUILD_RC"
-          fi
+
+    - name: Verify Android 14 6.1 feature config
+      if: inputs.android_version == 'android14' && inputs.kernel_version == '6.1'
+      working-directory: ${{ env.KERNEL_ROOT }}
+      env:
+        ADD_DROIDSPACES: ${{ inputs.add_droidspaces }}
+        ADD_ZRAM: ${{ inputs.add_zram }}
+        ADD_KPM: ${{ inputs.add_kpm }}
+        DEVICE_CODENAME: ${{ inputs.device_codename }}
+      run: |
+        CONFIG_FILE="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/common/.config"
+        if [ ! -f "$CONFIG_FILE" ]; then
+          CONFIG_FILE=""
+          for ROOT in "$KERNEL_ROOT/bazel-bin/common" "$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}"; do
+            [ -e "$ROOT" ] || continue
+            while IFS= read -r CANDIDATE; do
+              if grep -qx 'CONFIG_ARM64=y' "$CANDIDATE" 2>/dev/null; then
+                CONFIG_FILE="$CANDIDATE"
+                break 2
+              fi
+            done < <(find -L "$ROOT" -type f \
+              \( -name .config -o -name '*kernel*aarch64*config*' -o -name defconfig \) \
+              -print 2>/dev/null)
+          done
         fi
+        [ -n "$CONFIG_FILE" ] && [ -f "$CONFIG_FILE" ] || {
+          echo "::error::Final kernel .config was not found in legacy or Kleaf outputs"
+          find -L "$KERNEL_ROOT/bazel-bin/common" -maxdepth 3 -type f \
+            \( -name .config -o -name '*config*' \) -print 2>/dev/null | head -50 || true
+          exit 1
+        }
+
+        REQUIRED=(CONFIG_SECCOMP CONFIG_SECCOMP_FILTER)
+        if [ "$ADD_DROIDSPACES" = "true" ]; then
+          REQUIRED+=(
+            CONFIG_NAMESPACES CONFIG_UTS_NS CONFIG_IPC_NS CONFIG_PID_NS
+            CONFIG_NET_NS CONFIG_USER_NS CONFIG_CGROUPS CONFIG_CGROUP_BPF
+            CONFIG_CGROUP_PIDS CONFIG_ANDROID_BINDERFS CONFIG_SYSVIPC
+            CONFIG_POSIX_MQUEUE
+          )
+        fi
+        if [ "$ADD_ZRAM" = "true" ]; then
+          REQUIRED+=(
+            CONFIG_ZSMALLOC CONFIG_ZSMALLOC_STAT CONFIG_ZRAM
+            CONFIG_ZRAM_WRITEBACK CONFIG_ZRAM_MEMORY_TRACKING
+            CONFIG_LRU_GEN CONFIG_LRU_GEN_STATS
+          )
+        fi
+
+        MISSING=()
+        for SYMBOL in "${REQUIRED[@]}"; do
+          grep -qx "${SYMBOL}=y" "$CONFIG_FILE" || MISSING+=("$SYMBOL")
+        done
+        if (("${#MISSING[@]}" > 0)); then
+          printf '::error::Required final config options missing: %s\n' "${MISSING[*]}"
+          exit 1
+        fi
+
+        if grep -qx 'CONFIG_LOCALVERSION_AUTO=y' "$CONFIG_FILE"; then
+          echo "::error::CONFIG_LOCALVERSION_AUTO must stay disabled for stable kernelrelease metadata"
+          exit 1
+        fi
+
+        if [ "$DEVICE_CODENAME" = "e3q" ]; then
+          DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
+          chmod +x "$DAILY_AUDIT"
+          "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM"
+        fi
+
+        echo "FINAL_CONFIG_FILE=$CONFIG_FILE" >> "$GITHUB_ENV"
+
+        {
+          echo "## Android 14 / 6.1 config verification"
+          echo ""
+          echo "Verified ${#REQUIRED[@]} required options in \`${CONFIG_FILE#"$KERNEL_ROOT/"}\`."
+          echo "CONFIG_LOCALVERSION_AUTO is disabled."
+          [ "$DEVICE_CODENAME" != "e3q" ] || echo "S928B daily feature and GKI KASAN-fallback audit passed."
+        } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Dump Build Errors
       if: failure()
@@ -450,6 +674,65 @@ jobs:
           find "$KERNEL_ROOT" -name "Image" -type f 2>/dev/null
           exit 1
         fi
+
+    - name: Audit S928B daily AnyKernel3
+      if: inputs.device_codename == 'e3q'
+      env:
+        ADD_KPM: ${{ inputs.add_kpm }}
+      run: |
+        set -euo pipefail
+        test -f "$ANYKERNEL3/Image"
+
+        IMAGE_COUNT=$(find "$ANYKERNEL3" -maxdepth 1 -type f \
+          \( -name Image -o -name Image.gz -o -name Image.lz4 \) | wc -l)
+        test "$IMAGE_COUNT" -eq 1 || {
+          echo "::error::AnyKernel3 must contain exactly one kernel image"
+          exit 1
+        }
+
+        if grep -R -n -I --exclude='Image*' 'performance' "$ANYKERNEL3"; then
+          echo "::error::AnyKernel3 text files still contain a forced performance policy"
+          exit 1
+        fi
+        if grep -aF 'cpufreq.default_governor=performance' "$ANYKERNEL3/Image"; then
+          echo "::error::Kernel image still contains the forbidden CPUFreq assignment"
+          exit 1
+        fi
+        grep -qF 'patch_cmdline "cpufreq.default_governor" ""' "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'patch_cmdline "kasan" "off"' "$ANYKERNEL3/anykernel.sh"
+        grep -qF "echo 'susfs_log=0'" "$ANYKERNEL3/anykernel.sh"
+        grep -aqF 'kasan_flag_enabled' "$ANYKERNEL3/Image" || {
+          echo "::error::Kernel image is missing the GKI-required kasan_flag_enabled export"
+          exit 1
+        }
+
+        IKCONFIG="$RUNNER_TEMP/s928b-final-ikconfig"
+        "$KERNEL_ROOT/common/scripts/extract-ikconfig" "$ANYKERNEL3/Image" > "$IKCONFIG"
+        test -s "$IKCONFIG"
+        DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
+        chmod +x "$DAILY_AUDIT"
+        "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM"
+
+        IMAGE_STRINGS="$RUNNER_TEMP/s928b-image-strings"
+        strings "$ANYKERNEL3/Image" > "$IMAGE_STRINGS"
+        grep -qF "${KERNEL_VER}.${SUBLEVEL}${STOCK_RELEASE_EXPECTED}" "$IMAGE_STRINGS"
+        grep -qF "$STOCK_VERSION_EXPECTED" "$IMAGE_STRINGS"
+        grep -qF "${STOCK_BUILD_USER_EXPECTED}@${STOCK_BUILD_HOST_EXPECTED}" "$IMAGE_STRINGS"
+        if grep -qF 'Thu Jan  1 00:00:00 UTC 1970' "$IMAGE_STRINGS"; then
+          echo "::error::Kernel image still contains the zero-epoch UTS timestamp"
+          exit 1
+        fi
+
+        ANYKERNEL_ZIP="$RUNNER_TEMP/${FILE_NAME}-AnyKernel3.zip"
+        (cd "$ANYKERNEL3" && zip -qr "$ANYKERNEL_ZIP" .)
+        unzip -l "$ANYKERNEL_ZIP"
+        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'susfs_log=0'
+        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "kasan" "off"'
+        if unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'performance'; then
+          echo "::error::Audited AnyKernel ZIP still contains a forced performance policy"
+          exit 1
+        fi
+        sha256sum "$ANYKERNEL_ZIP" "$ANYKERNEL3/Image"
 
     - name: Scan Patch Rejects
       if: always()
@@ -497,6 +780,7 @@ jobs:
         ADD_BBG: ${{ inputs.add_bbg }}
         ADD_OVERLAYFS: ${{ inputs.add_overlayfs_support }}
         ADD_KPM: ${{ inputs.add_kpm }}
+        SUSFS_OPEN_REDIRECT_TEST: ${{ inputs.susfs_open_redirect }}
       run: |
         S() { [[ "$1" == "true" ]] && echo "Enabled" || echo "Disabled"; }
         {
@@ -508,6 +792,7 @@ jobs:
           echo "| **Android** | ${ANDROID_VER} |"
           echo "| **OS Patch Level** | ${OS_PATCH} |"
           echo "| **Enhanced SUSFS** | $(S "$ADD_SUSFS") |"
+          echo "| **SUSFS Open Redirect (Test)** | $(S "$SUSFS_OPEN_REDIRECT_TEST") |"
           echo "| **ZeroMount** | $(S "$ADD_ZEROMOUNT") |"
           echo "| **Droidspaces 6_7_8** | $(S "$ADD_DROIDSPACES") |"
           echo "| **ZRAM (LZ4K/LZ4KD)** | $(S "$ADD_ZRAM") |"

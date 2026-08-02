@@ -45,6 +45,7 @@ jobs:
       add_zram: true
       add_bbg: true
       add_overlayfs_support: true
-      add_kpm: true
+      # ReSukiSU removed KPM upstream in faac3098; 35045 cannot provide it.
+      add_kpm: false
       susfs_open_redirect: true
-      sukisu_commit: "47167aa71e1d3d29c15fa7bff762ee9d9940e72f"
+      sukisu_commit: "73533390e6e02571014f0ee77ca233b99f57ab7a"
