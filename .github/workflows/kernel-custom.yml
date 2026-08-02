@@ -187,11 +187,11 @@ on:
       resukisu_source_branch:
         description: "ReSukiSU source branch containing the pinned commit"
         type: string
-        default: "main"
+        default: "dev"
       resukisu_version_code:
         description: "ReSukiSU version code override"
         type: string
-        default: "35046"
+        default: "35047"
       resukisu_expected_size:
         description: "Optional paired manager certificate size"
         type: string
@@ -240,10 +240,10 @@ on:
         default: ""
       resukisu_source_branch:
         type: string
-        default: "main"
+        default: "dev"
       resukisu_version_code:
         type: string
-        default: "35046"
+        default: "35047"
       resukisu_expected_size:
         type: string
         default: ""
