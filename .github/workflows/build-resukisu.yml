@@ -446,6 +446,9 @@ jobs:
           "$EXPECTED_VERSION_CODE" "$EXPECTED_MANAGER_SIZE" "$EXPECTED_MANAGER_HASH"
 
         grep -qx '#define SUSFS_VERSION "v2.2.0"' "$KERNEL_ROOT/common/include/linux/susfs.h"
+        grep -q 'ksu_susfs_dispatch_path_compat' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
+        grep -q 'case CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH:' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
+        grep -q 'case CMD_SUSFS_SET_SDCARD_ROOT_PATH:' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
         grep -qx 'CONFIG_ZEROMOUNT=y' "$DEFCONFIG_FRAGMENT"
         test -f "$KERNEL_ROOT/common/fs/zeromount.c"
         if [[ "$ADD_KPM" == "true" ]]; then
@@ -460,6 +463,7 @@ jobs:
         echo "RESUKISU_COMMIT=$PIN"
         echo "SUSFS_VERSION=v2.2.0"
         echo "ZeroMount enabled"
+        echo "ZeroMount SUSFS v2.2 dual-ABI compatibility enabled"
         [[ "$ADD_KPM" == "true" ]] && echo "KPM enabled" || echo "KPM unavailable in ReSukiSU ${RESUKISU_VERSION_CODE}"
 
     - name: Clean Module Lists
@@ -671,7 +675,10 @@ jobs:
           echo ""
           echo "Verified ${#REQUIRED[@]} required options in \`${CONFIG_FILE#"$KERNEL_ROOT/"}\`."
           echo "CONFIG_LOCALVERSION_AUTO is disabled."
-          [ "$DEVICE_CODENAME" != "e3q" ] || echo "S928B daily feature and GKI KASAN-fallback audit passed."
+          if [ "$DEVICE_CODENAME" = "e3q" ]; then
+            echo "S928B daily feature, KStack-default, KVM-config and GKI KASAN-fallback audit passed."
+            echo "Kernel-side KVM is present; functional /dev/kvm still requires EL2/HYP handoff by the Samsung bootloader."
+          fi
         } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Dump Build Errors
@@ -720,9 +727,18 @@ jobs:
           echo "::error::Kernel image still contains the forbidden CPUFreq assignment"
           exit 1
         fi
+        if grep -qF 'patch_cmdline "kpti" "0"' "$ANYKERNEL3/anykernel.sh"; then
+          echo "::error::AnyKernel3 still forces kpti=0"
+          exit 1
+        fi
         grep -qF 'patch_cmdline "cpufreq.default_governor" ""' "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'patch_cmdline "kpti" ""' "$ANYKERNEL3/anykernel.sh"
         grep -qF 'patch_cmdline "kasan" "off"' "$ANYKERNEL3/anykernel.sh"
-        grep -qF "echo 'susfs_log=0'" "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'susfs_log=0' "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'set_shell_value "$SUSFS_CFG" avc_log_spoofing 1' "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'set_shell_value "$SUSFS_CFG" hide_sus_mnts_for_all_or_non_su_procs 0' "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'set_json_bool "$NATIVE_SUSFS_JSON" enabled false' "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'set_toml_bool "$ZEROMOUNT_CFG" hide_sus_mounts false' "$ANYKERNEL3/anykernel.sh"
         grep -aqF 'kasan_flag_enabled' "$ANYKERNEL3/Image" || {
           echo "::error::Kernel image is missing the GKI-required kasan_flag_enabled export"
           exit 1
@@ -740,6 +756,10 @@ jobs:
             exit 1
           }
         fi
+        grep -aF 'd3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64' "$ANYKERNEL3/Image" >/dev/null || {
+          echo "::error::Official ReSukiSU manager certificate hash is missing from the kernel image"
+          exit 1
+        }
 
         IMAGE_STRINGS="$RUNNER_TEMP/s928b-image-strings"
         strings "$ANYKERNEL3/Image" > "$IMAGE_STRINGS"
@@ -755,7 +775,10 @@ jobs:
         (cd "$ANYKERNEL3" && zip -qr "$ANYKERNEL_ZIP" .)
         unzip -l "$ANYKERNEL_ZIP"
         unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'susfs_log=0'
+        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "kpti" ""'
         unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "kasan" "off"'
+        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'avc_log_spoofing 1'
+        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'hide_sus_mnts_for_all_or_non_su_procs 0'
         if unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'performance'; then
           echo "::error::Audited AnyKernel ZIP still contains a forced performance policy"
           exit 1

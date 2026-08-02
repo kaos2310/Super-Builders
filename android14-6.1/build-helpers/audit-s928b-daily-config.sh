@@ -11,6 +11,7 @@ REQUIRE_CUSTOM_MANAGER="${3:-false}"
 
 REQUIRED=(
   CONFIG_KSU
+  CONFIG_KSU_MULTI_MANAGER_SUPPORT
   CONFIG_KSU_SUSFS
   CONFIG_KSU_SUSFS_SUS_PATH
   CONFIG_KSU_SUSFS_SUS_MOUNT
@@ -46,16 +47,17 @@ REQUIRED=(
   CONFIG_LRU_GEN_STATS
   CONFIG_CFI_CLANG
   CONFIG_SHADOW_CALL_STACK
+  CONFIG_RANDOMIZE_KSTACK_OFFSET
+  CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT
+  CONFIG_UNMAP_KERNEL_AT_EL0
+  CONFIG_VIRTUALIZATION
+  CONFIG_KVM
   CONFIG_KASAN
   CONFIG_KASAN_HW_TAGS
 )
 if [[ "$REQUIRE_KPM" == "true" ]]; then
   REQUIRED+=(CONFIG_KPM)
 fi
-if [[ "$REQUIRE_CUSTOM_MANAGER" == "true" ]]; then
-  REQUIRED+=(CONFIG_KSU_MULTI_MANAGER_SUPPORT)
-fi
-
 missing=()
 for symbol in "${REQUIRED[@]}"; do
   grep -qx "${symbol}=y" "$CONFIG_FILE" || missing+=("$symbol")
@@ -89,3 +91,5 @@ echo "Verified ${#REQUIRED[@]} S928B daily features in $CONFIG_FILE"
 echo "Verified CONFIG_KFENCE=n and CONFIG_UBSAN=n"
 echo "Verified GKI KMI fallback CONFIG_KASAN=y and CONFIG_KASAN_HW_TAGS=y"
 echo "Verified CONFIG_CFI_CLANG=y and CONFIG_SHADOW_CALL_STACK=y"
+echo "Verified KStack offset randomization is enabled by default"
+echo "Verified KVM is compiled; /dev/kvm additionally requires EL2/HYP from the bootloader"

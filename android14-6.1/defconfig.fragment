@@ -97,6 +97,11 @@ CONFIG_TMPFS_POSIX_ACL=y
 # kasan_flag_enabled in its required KMI, so retain HW-tag KASAN for ABI
 # compatibility and force it off at runtime from AnyKernel3. CFI and Shadow
 # Call Stack remain enabled and are audited against the final config.
+CONFIG_RANDOMIZE_KSTACK_OFFSET=y
+CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT=y
+CONFIG_UNMAP_KERNEL_AT_EL0=y
+CONFIG_VIRTUALIZATION=y
+CONFIG_KVM=y
 # CONFIG_KFENCE is not set
 CONFIG_KASAN=y
 # CONFIG_KASAN_GENERIC is not set

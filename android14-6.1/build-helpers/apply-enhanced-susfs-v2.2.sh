@@ -479,6 +479,187 @@ if handled == 0:
     raise SystemExit("No SukiSU SUSFS dispatch source was found")
 PY
 
+# SUSFS 2.2 retains the two external-directory command IDs as deprecated
+# compatibility calls, while ReSukiSU's new dispatcher no longer acknowledges
+# them. ZeroMount also still sends the pre-v2.2 SUS_PATH structure. Add a small
+# dual-layout adapter around the current SUSFS functions so both the current
+# ksu_susfs tool and ZeroMount remain supported. No legacy path implementation
+# or overlapping filesystem hooks are reintroduced.
+python3 - "$KSU_ROOT" "$COMMON" <<'PY'
+import pathlib
+import re
+import sys
+
+ksu_root = pathlib.Path(sys.argv[1])
+common = pathlib.Path(sys.argv[2])
+candidates = [
+    ksu_root / "kernel/supercall/dispatch.c",
+    common / "drivers/kernelsu/supercall/dispatch.c",
+]
+helper_markers = (
+    "ksu_susfs_ack_deprecated_external_dir",
+    "ksu_susfs_dispatch_path_compat",
+)
+command_markers = (
+    "case CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH:",
+    "case CMD_SUSFS_SET_SDCARD_ROOT_PATH:",
+)
+seen = set()
+handled = 0
+
+for candidate in candidates:
+    if not candidate.exists():
+        continue
+    resolved = candidate.resolve()
+    if resolved in seen:
+        continue
+    seen.add(resolved)
+
+    text = candidate.read_text(encoding="utf-8")
+    present = tuple(marker in text for marker in helper_markers + command_markers)
+    if all(present):
+        handled += 1
+        print(f"ZeroMount external-dir compatibility already present: {candidate}")
+        continue
+    if any(present):
+        raise SystemExit(f"Partial ZeroMount external-dir compatibility in {candidate}")
+
+    dispatch_anchor = "int ksu_handle_susfs_cmd(unsigned int cmd, void __user **arg)\n"
+    if text.count(dispatch_anchor) != 1:
+        raise SystemExit(f"Expected one SUSFS dispatcher anchor in {candidate}")
+
+    helper = r'''struct ksu_susfs_current_path {
+    char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+    int err;
+};
+
+struct ksu_susfs_legacy_path {
+    unsigned long target_ino;
+    char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+    unsigned int i_uid;
+    int err;
+};
+
+static int ksu_susfs_dispatch_path_compat(void __user **arg, bool loop)
+{
+    struct ksu_susfs_legacy_path legacy = { 0 };
+    struct ksu_susfs_current_path current = { 0 };
+    char current_first = 0;
+    char legacy_first = 0;
+
+    if (get_user(current_first, (char __user *)*arg))
+        return -EFAULT;
+    if (current_first == '/')
+        goto dispatch_current;
+    if (get_user(legacy_first,
+                 (char __user *)*arg + sizeof(legacy.target_ino)))
+        return -EFAULT;
+    if (legacy_first != '/')
+        goto dispatch_current;
+
+    if (copy_from_user(&legacy, *arg, sizeof(legacy)))
+        return -EFAULT;
+    strscpy(current.target_pathname, legacy.target_pathname,
+            sizeof(current.target_pathname));
+    current.err = legacy.err;
+    if (copy_to_user(*arg, &current, sizeof(current)))
+        return -EFAULT;
+
+    if (loop)
+        susfs_add_sus_path_loop(arg);
+    else
+        susfs_add_sus_path(arg);
+
+    if (copy_from_user(&current, *arg, sizeof(current)))
+        legacy.err = -EFAULT;
+    else
+        legacy.err = current.err;
+    if (copy_to_user(*arg, &legacy, sizeof(legacy)))
+        return -EFAULT;
+    return 0;
+
+dispatch_current:
+    if (loop)
+        susfs_add_sus_path_loop(arg);
+    else
+        susfs_add_sus_path(arg);
+    return 0;
+}
+
+struct ksu_susfs_compat_external_dir {
+    char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+    bool is_inited;
+    int cmd;
+    int err;
+};
+
+static int ksu_susfs_ack_deprecated_external_dir(void __user **arg,
+                                                  unsigned int cmd)
+{
+    struct ksu_susfs_compat_external_dir info = { 0 };
+
+    if (copy_from_user(&info, *arg, sizeof(info)))
+        return -EFAULT;
+    if (info.cmd != (int)cmd)
+        return -EINVAL;
+
+    info.err = 0;
+    if (copy_to_user(
+            &((struct ksu_susfs_compat_external_dir __user *)*arg)->err,
+            &info.err, sizeof(info.err)))
+        return -EFAULT;
+    return 0;
+}
+
+'''
+    text = text.replace(dispatch_anchor, helper + dispatch_anchor, 1)
+
+    path_cases = (
+        ("CMD_SUSFS_ADD_SUS_PATH", "susfs_add_sus_path", "false"),
+        ("CMD_SUSFS_ADD_SUS_PATH_LOOP", "susfs_add_sus_path_loop", "true"),
+    )
+    for command, function, loop in path_cases:
+        pattern = re.compile(
+            rf"(?P<indent>^[ \t]*)case {command}: \{{\n"
+            rf"(?P=indent)[ \t]+{function}\(arg\);\n"
+            rf"(?P=indent)[ \t]+return 0;\n"
+            rf"(?P=indent)\}}\n",
+            re.MULTILINE,
+        )
+        match = pattern.search(text)
+        if not match:
+            raise SystemExit(f"Cannot locate {command} dispatch in {candidate}")
+        indent = match.group("indent")
+        replacement = (
+            f"{indent}case {command}: {{\n"
+            f"{indent}    return ksu_susfs_dispatch_path_compat(arg, {loop});\n"
+            f"{indent}}}\n"
+        )
+        text = text[:match.start()] + replacement + text[match.end():]
+
+    path_loop_pattern = re.compile(
+        r"(?P<indent>^[ \t]*)case CMD_SUSFS_ADD_SUS_PATH_LOOP: \{\n",
+        re.MULTILINE,
+    )
+    match = path_loop_pattern.search(text)
+    if not match:
+        raise SystemExit(f"Cannot locate SUSFS path-loop dispatch in {candidate}")
+    indent = match.group("indent")
+    cases = (
+        f"{indent}case CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH:\n"
+        f"{indent}    return ksu_susfs_ack_deprecated_external_dir(arg, cmd);\n"
+        f"{indent}case CMD_SUSFS_SET_SDCARD_ROOT_PATH:\n"
+        f"{indent}    return ksu_susfs_ack_deprecated_external_dir(arg, cmd);\n"
+    )
+    text = text[:match.start()] + cases + text[match.start():]
+    candidate.write_text(text, encoding="utf-8")
+    handled += 1
+    print(f"Added ZeroMount external-dir compatibility: {candidate}")
+
+if handled == 0:
+    raise SystemExit("No ReSukiSU SUSFS dispatch source was found")
+PY
+
 for symbol in \
   KSU_SUSFS_SUS_KSTAT_REDIRECT \
   KSU_SUSFS_UNICODE_FILTER \
@@ -496,6 +677,14 @@ grep -q 'susfs_check_unicode_bypass' "$COMMON/fs/namei.c"
 grep -q 'susfs_is_hidden_name' "$COMMON/fs/open.c"
 grep -q 'susfs_is_hidden_name' "$COMMON/fs/stat.c"
 grep -Rq 'case CMD_SUSFS_ADD_SUS_KSTAT_REDIRECT:' \
+  "$KSU_ROOT/kernel" "$COMMON/drivers/kernelsu" 2>/dev/null
+grep -Rq 'ksu_susfs_ack_deprecated_external_dir' \
+  "$KSU_ROOT/kernel" "$COMMON/drivers/kernelsu" 2>/dev/null
+grep -Rq 'ksu_susfs_dispatch_path_compat' \
+  "$KSU_ROOT/kernel" "$COMMON/drivers/kernelsu" 2>/dev/null
+grep -Rq 'case CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH:' \
+  "$KSU_ROOT/kernel" "$COMMON/drivers/kernelsu" 2>/dev/null
+grep -Rq 'case CMD_SUSFS_SET_SDCARD_ROOT_PATH:' \
   "$KSU_ROOT/kernel" "$COMMON/drivers/kernelsu" 2>/dev/null
 
 echo "Enhanced SUSFS v2.2 features applied and audited."

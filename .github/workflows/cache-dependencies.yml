@@ -18,7 +18,7 @@ jobs:
         git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 --depth=1
         rm -rf AnyKernel3/.git
 
-    - name: Remove forced S928B CPUFreq governor
+    - name: Harden S928B kernel command line
       run: |
         AK3="AnyKernel3/anykernel.sh"
         [ -f "$AK3" ] || { echo "::error::AnyKernel3 anykernel.sh not found"; exit 1; }
@@ -44,6 +44,11 @@ jobs:
         patch_cmdline "cpufreq.default_governor" ""
         ui_print "  -> Removed forced CPUFreq default governor"
 
+        # Do not preserve Samsung's explicit KPTI disable. With
+        # CONFIG_UNMAP_KERNEL_AT_EL0=y the kernel selects its safe default.
+        patch_cmdline "kpti" ""
+        ui_print "  -> Removed explicit kpti=0 override"
+
         # Android 14/6.1 GKI requires kasan_flag_enabled in its stable KMI.
         # Keep HW-tag KASAN compiled for ABI compatibility, but never run it.
         patch_cmdline "kasan" "off"
@@ -68,9 +73,26 @@ jobs:
             text = text.replace(needle, replacement, 1)
             path.write_text(text)
 
+        kpti_cmdline = 'patch_cmdline "kpti" ""'
+        if kpti_cmdline not in text:
+            needle = '''ui_print "  -> Removed forced CPUFreq default governor"
+        '''
+            if needle not in text:
+                raise SystemExit('S928B governor block not found while adding KPTI hardening')
+            replacement = '''ui_print "  -> Removed forced CPUFreq default governor"
+
+        # Do not preserve Samsung's explicit KPTI disable. With
+        # CONFIG_UNMAP_KERNEL_AT_EL0=y the kernel selects its safe default.
+        patch_cmdline "kpti" ""
+        ui_print "  -> Removed explicit kpti=0 override"
+        '''
+            text = text.replace(needle, replacement, 1)
+            path.write_text(text)
+
         required = [
             marker,
             'patch_cmdline "cpufreq.default_governor" ""',
+            'patch_cmdline "kpti" ""',
             'patch_cmdline "kasan" "off"',
             'Samsung PowerHAL/WALT selects the runtime governor',
         ]
@@ -102,22 +124,73 @@ jobs:
 
             replacement = '''ui_print "  -> Removed forced CPUFreq default governor"
 
-        # S928B daily: keep SUSFS logging runtime-switchable.
-        # Start each installed build with logging disabled; users may later run
-        # ksu_susfs enable_log 1 and disable it again with enable_log 0.
+        # S928B daily: keep SUSFS logging runtime-switchable and use exactly one
+        # persistent controller. If SUSFS4KSU is installed it owns runtime
+        # policy; ReSukiSU's native JSON stays disabled so it cannot overwrite
+        # the module later in boot. Mount hiding stays off for Droidspaces.
         if [ -d /data/adb ]; then
             SUSFS_CFG=/data/adb/susfs4ksu/config.sh
-            mkdir -p /data/adb/susfs4ksu
-            if [ -f "$SUSFS_CFG" ] && grep -q '^susfs_log=' "$SUSFS_CFG"; then
-                sed -i 's/^susfs_log=.*/susfs_log=0/' "$SUSFS_CFG"
-            else
-                echo 'susfs_log=0' >> "$SUSFS_CFG"
+            NATIVE_SUSFS_JSON=/data/adb/ksu/.susfs.json
+            ZEROMOUNT_CFG=/data/adb/zeromount/config.toml
+            EXTERNAL_SUSFS=0
+
+            set_shell_value() {
+                cfg_file="$1"
+                cfg_key="$2"
+                cfg_value="$3"
+                if grep -q "^${cfg_key}=" "$cfg_file"; then
+                    sed -i "s/^${cfg_key}=.*/${cfg_key}=${cfg_value}/" "$cfg_file"
+                else
+                    echo "${cfg_key}=${cfg_value}" >> "$cfg_file"
+                fi
+            }
+            set_json_bool() {
+                cfg_file="$1"
+                cfg_key="$2"
+                cfg_value="$3"
+                dq='"'
+                sed -i "s/${dq}${cfg_key}${dq}[[:space:]]*:[[:space:]]*[a-z]*/${dq}${cfg_key}${dq}: ${cfg_value}/" "$cfg_file"
+            }
+            set_toml_bool() {
+                cfg_file="$1"
+                cfg_key="$2"
+                cfg_value="$3"
+                if grep -q "^${cfg_key}[[:space:]]*=" "$cfg_file"; then
+                    sed -i "s/^${cfg_key}[[:space:]]*=.*/${cfg_key} = ${cfg_value}/" "$cfg_file"
+                fi
+            }
+
+            if [ -d /data/adb/modules/susfs4ksu ] || [ -f "$SUSFS_CFG" ]; then
+                EXTERNAL_SUSFS=1
+                mkdir -p /data/adb/susfs4ksu
+                touch "$SUSFS_CFG"
+                # Persistent module policy: susfs_log=0, avc_log_spoofing=1.
+                set_shell_value "$SUSFS_CFG" susfs_log 0
+                set_shell_value "$SUSFS_CFG" avc_log_spoofing 1
+                set_shell_value "$SUSFS_CFG" hide_sus_mnts_for_all_or_non_su_procs 0
+            fi
+
+            if [ -f "$NATIVE_SUSFS_JSON" ]; then
+                if [ "$EXTERNAL_SUSFS" = 1 ]; then
+                    set_json_bool "$NATIVE_SUSFS_JSON" enabled false
+                else
+                    set_json_bool "$NATIVE_SUSFS_JSON" enabled true
+                fi
+                set_json_bool "$NATIVE_SUSFS_JSON" logging false
+                set_json_bool "$NATIVE_SUSFS_JSON" avc_log_spoofing true
+                set_json_bool "$NATIVE_SUSFS_JSON" hide_sus_mnts_for_non_su_procs false
+            fi
+
+            if [ -f "$ZEROMOUNT_CFG" ]; then
+                set_toml_bool "$ZEROMOUNT_CFG" avc_log_spoofing true
+                set_toml_bool "$ZEROMOUNT_CFG" hide_sus_mounts false
+                set_toml_bool "$ZEROMOUNT_CFG" hide_sus_mounts_off_after_boot false
             fi
 
             if [ -x /data/adb/ksu/bin/ksu_susfs ]; then
                 /data/adb/ksu/bin/ksu_susfs enable_log 0 >/dev/null 2>&1 || true
             fi
-            ui_print "  -> SUSFS logging default: off; runtime toggle retained"
+            ui_print "  -> SUSFS logging off; AVC spoofing on; Droidspaces mount hiding off"
         fi
         '''
             text = text.replace(needle, replacement, 1)
@@ -125,9 +198,14 @@ jobs:
 
         required = [
             marker,
-            "echo 'susfs_log=0'",
+            'set_shell_value "$SUSFS_CFG" susfs_log 0',
+            'set_shell_value "$SUSFS_CFG" avc_log_spoofing 1',
+            'hide_sus_mnts_for_all_or_non_su_procs 0',
+            'set_json_bool "$NATIVE_SUSFS_JSON" enabled false',
+            'set_json_bool "$NATIVE_SUSFS_JSON" avc_log_spoofing true',
+            'set_toml_bool "$ZEROMOUNT_CFG" hide_sus_mounts false',
             'ksu_susfs enable_log 0',
-            'runtime toggle retained',
+            'AVC spoofing on; Droidspaces mount hiding off',
         ]
         missing = [item for item in required if item not in path.read_text()]
         if missing:
@@ -147,9 +225,18 @@ jobs:
           echo "::error::AnyKernel3 still contains the forbidden CPUFreq assignment"
           exit 1
         fi
+        if grep -R -n -I 'patch_cmdline "kpti" "0"' AnyKernel3; then
+          echo "::error::AnyKernel3 still forces kpti=0"
+          exit 1
+        fi
         grep -R -n -I 'patch_cmdline "cpufreq.default_governor" ""' AnyKernel3
+        grep -R -n -I 'patch_cmdline "kpti" ""' AnyKernel3
         grep -R -n -I 'patch_cmdline "kasan" "off"' AnyKernel3
         grep -R -n -I 'susfs_log=0' AnyKernel3
+        grep -R -n -I 'avc_log_spoofing 1' AnyKernel3
+        grep -R -n -I 'hide_sus_mnts_for_all_or_non_su_procs 0' AnyKernel3
+        grep -R -n -I 'set_json_bool "$NATIVE_SUSFS_JSON" enabled false' AnyKernel3
+        grep -R -n -I 'set_toml_bool "$ZEROMOUNT_CFG" hide_sus_mounts false' AnyKernel3
 
     - name: Clone Kernel Patches
       run: git clone https://github.com/WildKernels/kernel_patches.git --depth=1
