@@ -238,8 +238,15 @@ jobs:
         grep -R -n -I 'set_json_bool "$NATIVE_SUSFS_JSON" enabled false' AnyKernel3
         grep -R -n -I 'set_toml_bool "$ZEROMOUNT_CFG" hide_sus_mounts false' AnyKernel3
 
-    - name: Clone Kernel Patches
-      run: git clone https://github.com/WildKernels/kernel_patches.git --depth=1
+    - name: Clone pinned Kernel Patches
+      run: |
+        KERNEL_PATCHES_PIN=ef2fff764581f30d066ad77bf9a311cbbec82da9
+        git init kernel_patches
+        git -C kernel_patches remote add origin https://github.com/WildKernels/kernel_patches.git
+        git -C kernel_patches fetch --depth=1 origin "$KERNEL_PATCHES_PIN"
+        git -C kernel_patches checkout --detach FETCH_HEAD
+        test "$(git -C kernel_patches rev-parse HEAD)" = "$KERNEL_PATCHES_PIN"
+        echo "Pinned WildKernels/kernel_patches to $KERNEL_PATCHES_PIN"
 
     - name: Clone SukiSU Patch
       run: git clone https://github.com/ShirkNeko/SukiSU_patch.git --depth=1
