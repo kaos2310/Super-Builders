@@ -1,0 +1,38 @@
+name: ReSukiSU KMI Module Loader Audit
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  push:
+    branches:
+      - agent/kmi-module-loader-audit
+    paths:
+      - .github/workflows/run-kmi-module-loader-audit.yml
+
+jobs:
+  dependencies:
+    uses: ./.github/workflows/cache-dependencies.yml
+
+  build:
+    needs: dependencies
+    uses: ./.github/workflows/build-resukisu.yml
+    with:
+      android_version: android14
+      kernel_version: "6.1"
+      sub_level: "145"
+      os_patch_level: "2025-09"
+      add_susfs: true
+      add_zeromount: true
+      add_droidspaces: true
+      add_zram: true
+      add_bbg: true
+      add_overlayfs_support: true
+      add_kpm: false
+      susfs_open_redirect: false
+      add_ptrace_fix: true
+      add_perf_patches: true
+      resukisu_source_branch: dev
+      resukisu_version_code: "35047"
+      device_codename: e3q
