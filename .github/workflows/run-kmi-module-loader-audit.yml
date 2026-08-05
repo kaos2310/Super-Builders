@@ -12,7 +12,7 @@ on:
     paths:
       - .github/workflows/run-kmi-module-loader-audit.yml
 
-# Retry 2: keep the diagnostic report outside AnyKernel3 policy scans.
+# Retry 3: use the current upstream ReSukiSU main branch for ancestry checks.
 jobs:
   dependencies:
     uses: ./.github/workflows/cache-dependencies.yml
@@ -35,6 +35,6 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      resukisu_source_branch: dev
+      resukisu_source_branch: main
       resukisu_version_code: "35047"
       device_codename: e3q
