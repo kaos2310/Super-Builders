@@ -60,10 +60,10 @@ fi
 
 # Capture the exact module-version loader state after the workflow's
 # "Apply Module Check Bypass" step and before the generated source commit.
-# The report is copied into AnyKernel3, which the workflow already uploads.
+# Keep the diagnostic outside AnyKernel3: the S928B packaging audit scans all
+# AnyKernel text files for forbidden boot-policy strings.
 AUDIT_ROOT="${GITHUB_WORKSPACE:-$KERNEL_ROOT}"
 AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
-ARTIFACT_AUDIT="$AUDIT_ROOT/AnyKernel3/kmi-module-loader-audit.txt"
 
 if [[ "$KERNEL_VER" == "6.1" || "$KERNEL_VER" == "6.6" || "$KERNEL_VER" == "6.12" ]]; then
   MODULE_VERSION_FILE="$KERNEL_ROOT/common/kernel/module/version.c"
@@ -165,16 +165,13 @@ fi
 } > "$AUDIT_FILE" 2>&1
 
 cat "$AUDIT_FILE"
-mkdir -p "$(dirname "$ARTIFACT_AUDIT")"
-cp "$AUDIT_FILE" "$ARTIFACT_AUDIT"
-echo "KMI audit saved to: $AUDIT_FILE"
-echo "KMI audit included in AnyKernel artifact: $ARTIFACT_AUDIT"
+echo "KMI audit saved outside AnyKernel3: $AUDIT_FILE"
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "## KMI module-loader audit"
     echo
-    echo "The post-bypass source audit is included as \`kmi-module-loader-audit.txt\` in the AnyKernel3 artifact."
+    echo "The post-bypass source audit was written to the runner workspace and printed in the Clean Build Flags log."
     if grep -q '^\[WARN\] bad_version path returns success' "$AUDIT_FILE"; then
       echo
       echo "⚠️ The current workflow changes the \`bad_version\` path to return success, so CRC mismatches are accepted after being logged."
