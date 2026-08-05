@@ -8,9 +8,9 @@ SUFFIX="${3:-SukiSU}"
 cd "$KERNEL_ROOT"
 
 if [[ "$KERNEL_VER" == "5."* ]] || [[ "$KERNEL_VER" == "6.1" ]]; then
-  perl -i -0777 -pe "s/(.*)echo \"\$res\"/$1echo \"\$res-${SUFFIX}\"/s" ./common/scripts/setlocalversion
+  perl -i -0777 -pe "s/(.*)echo \"\\\$res\"/\$1echo \"\\\$res-${SUFFIX}\"/s" ./common/scripts/setlocalversion
 else
-  perl -i -0777 -pe "s/(.*)echo \"\${KERNELVERSION}\${file_localversion}\${config_localversion}\${LOCALVERSION}\${scm_version}\"/$1echo \"\${KERNELVERSION}\${file_localversion}\${config_localversion}\${LOCALVERSION}-${SUFFIX}\${scm_version}\"/s" ./common/scripts/setlocalversion
+  perl -i -0777 -pe "s/(.*)echo \"\\\$\\{KERNELVERSION\\}\\\$\\{file_localversion\\}\\\$\\{config_localversion\\}\\\$\\{LOCALVERSION\\}\\\$\\{scm_version\\}\"/\$1echo \"\\\${KERNELVERSION}\\\${file_localversion}\\\${config_localversion}\\\${LOCALVERSION}-${SUFFIX}\\\${scm_version}\"/s" ./common/scripts/setlocalversion
 fi
 
 if [ -f "build/build.sh" ]; then
