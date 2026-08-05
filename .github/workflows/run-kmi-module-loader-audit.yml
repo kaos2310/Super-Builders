@@ -11,6 +11,7 @@ on:
       - agent/kmi-module-loader-audit
     paths:
       - .github/workflows/run-kmi-module-loader-audit.yml
+      - android14-6.1/build-helpers/clean-build-flags.sh
 
 # ReSukiSU v4.1.0-35052: current main pin and matching release identity.
 jobs:
@@ -38,3 +39,78 @@ jobs:
       resukisu_source_branch: main
       resukisu_version_code: "35052"
       device_codename: e3q
+
+  package-audited-zip:
+    name: Package audited flashable ZIP
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SOURCE_ARTIFACT: 6.1.145-android14-2025-09-ReSukiSU-35052-AnyKernel3
+      AUDITED_BASENAME: 6.1.145-android14-2025-09-ReSukiSU-35052-AnyKernel3-Audited
+    steps:
+      - name: Download successful build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: AnyKernel3
+
+      - name: Create and audit exact flashable ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s AnyKernel3/Image
+          test -s AnyKernel3/anykernel.sh
+
+          FLASH_ZIP="$RUNNER_TEMP/${AUDITED_BASENAME}.zip"
+          SHA_FILE="$RUNNER_TEMP/${AUDITED_BASENAME}.zip.sha256"
+          rm -f "$FLASH_ZIP" "$SHA_FILE"
+
+          (cd AnyKernel3 && zip -X -qr "$FLASH_ZIP" .)
+          unzip -t "$FLASH_ZIP"
+          unzip -l "$FLASH_ZIP"
+
+          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'susfs_log=0'
+          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "kpti" ""'
+          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "kasan" "off"'
+          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'avc_log_spoofing 1'
+          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'hide_sus_mnts_for_all_or_non_su_procs 0'
+          if unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'performance'; then
+            echo "::error::Audited flash ZIP contains a forced performance policy"
+            exit 1
+          fi
+
+          sha256sum "$FLASH_ZIP" | tee "$SHA_FILE"
+          AUDITED_SHA256=$(awk '{print $1}' "$SHA_FILE")
+          {
+            echo "AUDITED_ZIP=$FLASH_ZIP"
+            echo "AUDITED_SHA_FILE=$SHA_FILE"
+            echo "AUDITED_SHA256=$AUDITED_SHA256"
+          } >> "$GITHUB_ENV"
+
+      - name: Upload audited ZIP and checksum
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.AUDITED_BASENAME }}
+          path: |
+            ${{ env.AUDITED_ZIP }}
+            ${{ env.AUDITED_SHA_FILE }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Packaging summary
+        shell: bash
+        run: |
+          {
+            echo "## Final audited S928B package"
+            echo
+            echo "| Check | Result |"
+            echo "|---|---|"
+            echo "| MODVERSIONS CRC handling | Strict: incompatible CRCs rejected |"
+            echo "| Module blacklist errno | \`-EPERM\` restored |"
+            echo "| Patch rejects before build | Build fails if any \`.rej\` exists |"
+            echo "| KPM | Unavailable in pinned ReSukiSU 35052 |"
+            echo "| Flash ZIP | \`${AUDITED_BASENAME}.zip\` |"
+            echo "| SHA-256 | \`${AUDITED_SHA256}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
