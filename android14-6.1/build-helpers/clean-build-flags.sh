@@ -58,18 +58,68 @@ if [ -f "$SUSFS_SOURCE" ]; then
   }
 fi
 
-# Capture the exact module-version loader state after the workflow's
-# "Apply Module Check Bypass" step and before the generated source commit.
-# Keep the diagnostic outside AnyKernel3: the S928B packaging audit scans all
-# AnyKernel text files for forbidden boot-policy strings.
-AUDIT_ROOT="${GITHUB_WORKSPACE:-$KERNEL_ROOT}"
-AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
-
 if [[ "$KERNEL_VER" == "6.1" || "$KERNEL_VER" == "6.6" || "$KERNEL_VER" == "6.12" ]]; then
   MODULE_VERSION_FILE="$KERNEL_ROOT/common/kernel/module/version.c"
 else
   MODULE_VERSION_FILE="$KERNEL_ROOT/common/kernel/module.c"
 fi
+MODULE_MAIN_FILE="$KERNEL_ROOT/common/kernel/module/main.c"
+
+# The reusable workflow historically changed bad_version from return 0 to
+# return 1. Restore upstream MODVERSIONS semantics after that step: a CRC
+# mismatch must reject the module instead of merely logging the mismatch.
+python3 - "$MODULE_VERSION_FILE" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+if not path.is_file():
+    raise SystemExit(f"module version source not found: {path}")
+text = path.read_text()
+pattern = re.compile(r"(bad_version:.*?\breturn\s+)1(\s*;)", re.S)
+text, count = pattern.subn(r"\g<1>0\2", text, count=1)
+if count not in (0, 1):
+    raise SystemExit(f"unexpected bad_version replacement count: {count}")
+match = re.search(r"bad_version:(.*?)(?:\n[}\t ]*\n|\Z)", text, re.S)
+if not match:
+    raise SystemExit("bad_version block not found")
+block = match.group(1)
+if re.search(r"\breturn\s+1\s*;", block):
+    raise SystemExit("bad_version still accepts CRC mismatches")
+if not re.search(r"\breturn\s+0\s*;", block):
+    raise SystemExit("bad_version does not reject CRC mismatches with return 0")
+path.write_text(text)
+PY
+
+# ZRAM's third-party patch comments out the blacklist errno on this tree.
+# Restore the contract: a blacklisted module must fail with -EPERM.
+if [ -f "$MODULE_MAIN_FILE" ]; then
+  sed -i -E 's|^([[:space:]]*)//[[:space:]]*err = -EPERM;|\1err = -EPERM;|' "$MODULE_MAIN_FILE"
+  BLACKLIST_BLOCK=$(sed -n '/if (blacklisted(info->name))/,/goto free_copy;/p' "$MODULE_MAIN_FILE")
+  printf '%s\n' "$BLACKLIST_BLOCK"
+  grep -Eq '^[[:space:]]*err = -EPERM;' <<< "$BLACKLIST_BLOCK" || {
+    echo "::error::Blacklisted modules must return -EPERM"
+    exit 1
+  }
+  if grep -Eq '^[[:space:]]*//[[:space:]]*err = -EPERM;' <<< "$BLACKLIST_BLOCK"; then
+    echo "::error::Commented blacklist errno remains"
+    exit 1
+  fi
+fi
+
+# Do not allow any patch failure to be hidden by an earlier `|| true`.
+mapfile -t PATCH_REJECTS < <(find "$KERNEL_ROOT" -type f -name '*.rej' -print)
+if [ "${#PATCH_REJECTS[@]}" -gt 0 ]; then
+  printf '::error::Patch reject found: %s\n' "${PATCH_REJECTS[@]}"
+  exit 1
+fi
+
+# Capture the exact module-loader state after all corrections and before the
+# generated source commit. Keep the diagnostic outside AnyKernel3.
+AUDIT_ROOT="${GITHUB_WORKSPACE:-$KERNEL_ROOT}"
+mkdir -p "$AUDIT_ROOT"
+AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
 
 {
   echo "============================================================"
@@ -94,23 +144,17 @@ fi
   echo "============================================================"
   echo "2. MODULE VERSION SOURCE"
   echo "============================================================"
-  if [ -f "$MODULE_VERSION_FILE" ]; then
-    sed -n '1,280p' "$MODULE_VERSION_FILE"
-  else
-    echo "[ERROR] Module version source not found"
-  fi
+  sed -n '1,280p' "$MODULE_VERSION_FILE"
   echo
 
   echo "============================================================"
   echo "3. BAD_VERSION CONTROL FLOW"
   echo "============================================================"
-  if [ -f "$MODULE_VERSION_FILE" ]; then
-    awk '
-      /bad_version:/ { active=1; remaining=18 }
-      active { print NR ":" $0; remaining-- }
-      active && remaining <= 0 { active=0 }
-    ' "$MODULE_VERSION_FILE"
-  fi
+  awk '
+    /bad_version:/ { active=1; remaining=18 }
+    active { print NR ":" $0; remaining-- }
+    active && remaining <= 0 { active=0 }
+  ' "$MODULE_VERSION_FILE"
   echo
 
   echo "============================================================"
@@ -124,39 +168,33 @@ fi
   echo
 
   echo "============================================================"
-  echo "5. GIT IDENTITY AND HISTORY"
+  echo "5. AUTOMATIC VERDICT"
   echo "============================================================"
-  git -C "$KERNEL_ROOT/common" log -1 \
-    --format='commit=%H%nsubject=%s%nauthor=%an <%ae>%ndate=%ad' \
-    --date=iso 2>/dev/null || true
-  echo
-  git -C "$KERNEL_ROOT/common" log --oneline -n 30 -- \
-    kernel/module/version.c \
-    kernel/module/main.c \
-    kernel/module/internal.h \
-    kernel/module.c 2>/dev/null || true
-  echo
-
-  echo "============================================================"
-  echo "6. AUTOMATIC VERDICT"
-  echo "============================================================"
-  if [ -f "$MODULE_VERSION_FILE" ] && awk '
+  if awk '
       /bad_version:/ { active=1; remaining=18; next }
-      active && /return[[:space:]]+1[[:space:]]*;/ { found=1 }
+      active && /return[[:space:]]+0[[:space:]]*;/ { found=1 }
+      active && /return[[:space:]]+1[[:space:]]*;/ { bypass=1 }
       active { remaining-- }
       active && remaining <= 0 { active=0 }
-      END { exit(found ? 0 : 1) }
+      END { exit(found && !bypass ? 0 : 1) }
     ' "$MODULE_VERSION_FILE"; then
-    echo "[WARN] bad_version path returns success (return 1)."
-    echo "[WARN] MODVERSIONS CRC mismatches are logged but accepted."
+    echo "[OK] bad_version rejects CRC mismatches with return 0."
   else
-    echo "[OK] No return-1 bypass found near bad_version."
+    echo "[ERROR] bad_version is not strict."
+    exit 1
   fi
 
-  if grep -q 'CONFIG_MODULE_FORCE_LOAD=y' "$KERNEL_ROOT/common/arch/arm64/configs/sukisu_gki.fragment" 2>/dev/null; then
+  if [ -f "$MODULE_MAIN_FILE" ] && sed -n '/if (blacklisted(info->name))/,/goto free_copy;/p' "$MODULE_MAIN_FILE" | grep -Eq '^[[:space:]]*err = -EPERM;'; then
+    echo "[OK] Blacklisted modules return -EPERM."
+  else
+    echo "[ERROR] Module blacklist errno propagation is invalid."
+    exit 1
+  fi
+
+  if grep -q 'CONFIG_MODULE_FORCE_LOAD=y' "$SUSFS_FRAGMENT" 2>/dev/null; then
     echo "[WARN] CONFIG_MODULE_FORCE_LOAD is requested in the fragment."
   else
-    echo "[INFO] CONFIG_MODULE_FORCE_LOAD is not requested in the fragment."
+    echo "[OK] CONFIG_MODULE_FORCE_LOAD is not requested in the fragment."
   fi
 
   echo "============================================================"
@@ -171,11 +209,9 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "## KMI module-loader audit"
     echo
-    echo "The post-bypass source audit was written to the runner workspace and printed in the Clean Build Flags log."
-    if grep -q '^\[WARN\] bad_version path returns success' "$AUDIT_FILE"; then
-      echo
-      echo "⚠️ The current workflow changes the \`bad_version\` path to return success, so CRC mismatches are accepted after being logged."
-    fi
+    echo "- ✅ MODVERSIONS CRC mismatches are rejected with \`return 0\`."
+    echo "- ✅ Blacklisted modules propagate \`-EPERM\`."
+    echo "- ✅ No patch reject files were found before compilation."
   } >> "$GITHUB_STEP_SUMMARY"
 fi
 
