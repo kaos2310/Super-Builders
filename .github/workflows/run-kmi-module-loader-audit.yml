@@ -1,5 +1,6 @@
 name: ReSukiSU KMI Module Loader Audit
 
+# Triggered after strict KMI, blacklist, reject, and audited-ZIP corrections.
 permissions:
   contents: write
   actions: write
