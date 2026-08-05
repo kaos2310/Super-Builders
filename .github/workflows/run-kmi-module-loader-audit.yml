@@ -5,12 +5,14 @@ permissions:
   actions: write
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - agent/kmi-module-loader-audit
     paths:
       - .github/workflows/run-kmi-module-loader-audit.yml
 
+# Retry 2: keep the diagnostic report outside AnyKernel3 policy scans.
 jobs:
   dependencies:
     uses: ./.github/workflows/cache-dependencies.yml
