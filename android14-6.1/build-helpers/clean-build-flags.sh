@@ -22,9 +22,7 @@ else
   perl -pi -e 's/^\s*"protected_exports_list"\s*:\s*"android\/abi_gki_protected_exports_aarch64",\s*$//;' ./common/BUILD.bazel
 fi
 
-# Keep CONFIG_KSU_SUSFS_ENABLE_LOG compiled in while requiring the S928B daily
-# default-off implementation. The dedicated helper also guards both jump-label
-# transitions so repeated enable_log 0/1 calls cannot unbalance the static key.
+# Keep SUSFS logging compiled in, default-off, serialized and safely toggleable.
 SUSFS_SOURCE="./common/fs/susfs.c"
 SUSFS_FRAGMENT="./common/arch/arm64/configs/sukisu_gki.fragment"
 
@@ -65,9 +63,10 @@ else
 fi
 MODULE_MAIN_FILE="$KERNEL_ROOT/common/kernel/module/main.c"
 
-# The reusable workflow historically changed bad_version from return 0 to
-# return 1. Restore upstream MODVERSIONS semantics after that step: a CRC
-# mismatch must reject the module instead of merely logging the mismatch.
+# Runtime recovery for Samsung vendor/DLKM modules:
+# keep the mismatch warning, but accept a CRC mismatch. The preceding workflow
+# step already applies this mode; enforce and audit it here so a later patch
+# cannot silently restore strict rejection and reproduce the S928B bootloop.
 python3 - "$MODULE_VERSION_FILE" <<'PY'
 from pathlib import Path
 import re
@@ -76,24 +75,28 @@ import sys
 path = Path(sys.argv[1])
 if not path.is_file():
     raise SystemExit(f"module version source not found: {path}")
+
 text = path.read_text()
-pattern = re.compile(r"(bad_version:.*?\breturn\s+)1(\s*;)", re.S)
-text, count = pattern.subn(r"\g<1>0\2", text, count=1)
-if count not in (0, 1):
+pattern = re.compile(r"(bad_version:.*?\breturn\s+)[01](\s*;)", re.S)
+text, count = pattern.subn(r"\g<1>1\2", text, count=1)
+if count != 1:
     raise SystemExit(f"unexpected bad_version replacement count: {count}")
+
 match = re.search(r"bad_version:(.*?)(?:\n[}\t ]*\n|\Z)", text, re.S)
 if not match:
     raise SystemExit("bad_version block not found")
 block = match.group(1)
-if re.search(r"\breturn\s+1\s*;", block):
-    raise SystemExit("bad_version still accepts CRC mismatches")
-if not re.search(r"\breturn\s+0\s*;", block):
-    raise SystemExit("bad_version does not reject CRC mismatches with return 0")
+if not re.search(r"\breturn\s+1\s*;", block):
+    raise SystemExit("bad_version does not accept logged CRC mismatches")
+if re.search(r"\breturn\s+0\s*;", block):
+    raise SystemExit("bad_version still rejects CRC mismatches")
+if "disagrees about version of symbol" not in block:
+    raise SystemExit("CRC mismatch warning was removed")
+
 path.write_text(text)
 PY
 
-# ZRAM's third-party patch comments out the blacklist errno on this tree.
-# Restore the contract: a blacklisted module must fail with -EPERM.
+# A real module blacklist match must still fail with -EPERM.
 if [ -f "$MODULE_MAIN_FILE" ]; then
   sed -i -E 's|^([[:space:]]*)//[[:space:]]*err = -EPERM;|\1err = -EPERM;|' "$MODULE_MAIN_FILE"
   BLACKLIST_BLOCK=$(sed -n '/if (blacklisted(info->name))/,/goto free_copy;/p' "$MODULE_MAIN_FILE")
@@ -108,22 +111,20 @@ if [ -f "$MODULE_MAIN_FILE" ]; then
   fi
 fi
 
-# Do not allow any patch failure to be hidden by an earlier `|| true`.
+# Never hide patch failures behind an earlier `|| true`.
 mapfile -t PATCH_REJECTS < <(find "$KERNEL_ROOT" -type f -name '*.rej' -print)
 if [ "${#PATCH_REJECTS[@]}" -gt 0 ]; then
   printf '::error::Patch reject found: %s\n' "${PATCH_REJECTS[@]}"
   exit 1
 fi
 
-# Capture the exact module-loader state after all corrections and before the
-# generated source commit. Keep the diagnostic outside AnyKernel3.
 AUDIT_ROOT="${GITHUB_WORKSPACE:-$KERNEL_ROOT}"
 mkdir -p "$AUDIT_ROOT"
 AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
 
 {
   echo "============================================================"
-  echo "KMI MODULE LOADER SOURCE AUDIT"
+  echo "KMI MODULE LOADER RUNTIME-COMPAT AUDIT"
   echo "============================================================"
   echo "UTC: $(date -u '+%Y-%m-%d %H:%M:%S')"
   echo "Kernel root: $KERNEL_ROOT"
@@ -142,13 +143,7 @@ AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
   echo
 
   echo "============================================================"
-  echo "2. MODULE VERSION SOURCE"
-  echo "============================================================"
-  sed -n '1,280p' "$MODULE_VERSION_FILE"
-  echo
-
-  echo "============================================================"
-  echo "3. BAD_VERSION CONTROL FLOW"
+  echo "2. BAD_VERSION CONTROL FLOW"
   echo "============================================================"
   awk '
     /bad_version:/ { active=1; remaining=18 }
@@ -158,7 +153,7 @@ AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
   echo
 
   echo "============================================================"
-  echo "4. UNCOMMITTED MODULE-LOADER DIFF"
+  echo "3. MODULE-LOADER DIFF"
   echo "============================================================"
   git -C "$KERNEL_ROOT/common" diff -- \
     kernel/module/version.c \
@@ -168,24 +163,31 @@ AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
   echo
 
   echo "============================================================"
-  echo "5. AUTOMATIC VERDICT"
+  echo "4. AUTOMATIC VERDICT"
   echo "============================================================"
   if awk '
       /bad_version:/ { active=1; remaining=18; next }
-      active && /return[[:space:]]+0[[:space:]]*;/ { found=1 }
-      active && /return[[:space:]]+1[[:space:]]*;/ { bypass=1 }
+      active && /return[[:space:]]+1[[:space:]]*;/ { accept=1 }
+      active && /return[[:space:]]+0[[:space:]]*;/ { reject=1 }
       active { remaining-- }
       active && remaining <= 0 { active=0 }
-      END { exit(found && !bypass ? 0 : 1) }
+      END { exit(accept && !reject ? 0 : 1) }
     ' "$MODULE_VERSION_FILE"; then
-    echo "[OK] bad_version rejects CRC mismatches with return 0."
+    echo "[OK] CRC mismatches are logged and accepted for Samsung KMI compatibility."
   else
-    echo "[ERROR] bad_version is not strict."
+    echo "[ERROR] bad_version is not in runtime-compat mode."
+    exit 1
+  fi
+
+  if grep -qF 'disagrees about version of symbol' "$MODULE_VERSION_FILE"; then
+    echo "[OK] CRC mismatch diagnostics remain enabled."
+  else
+    echo "[ERROR] CRC mismatch diagnostics are missing."
     exit 1
   fi
 
   if [ -f "$MODULE_MAIN_FILE" ] && sed -n '/if (blacklisted(info->name))/,/goto free_copy;/p' "$MODULE_MAIN_FILE" | grep -Eq '^[[:space:]]*err = -EPERM;'; then
-    echo "[OK] Blacklisted modules return -EPERM."
+    echo "[OK] Blacklisted modules still return -EPERM."
   else
     echo "[ERROR] Module blacklist errno propagation is invalid."
     exit 1
@@ -203,14 +205,14 @@ AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
 } > "$AUDIT_FILE" 2>&1
 
 cat "$AUDIT_FILE"
-echo "KMI audit saved outside AnyKernel3: $AUDIT_FILE"
+echo "KMI runtime-compat audit saved outside AnyKernel3: $AUDIT_FILE"
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
-    echo "## KMI module-loader audit"
+    echo "## KMI module-loader runtime compatibility"
     echo
-    echo "- ✅ MODVERSIONS CRC mismatches are rejected with \`return 0\`."
-    echo "- ✅ Blacklisted modules propagate \`-EPERM\`."
+    echo "- ✅ CRC mismatches remain visible in dmesg but are accepted to preserve Samsung DLKM boot compatibility."
+    echo "- ✅ Real module blacklist matches still propagate \`-EPERM\`."
     echo "- ✅ No patch reject files were found before compilation."
   } >> "$GITHUB_STEP_SUMMARY"
 fi
