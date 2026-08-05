@@ -1,0 +1,238 @@
+name: Apply KMI build fixes
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/kmi-module-loader-audit
+    paths:
+      - .github/workflows/apply-kmi-build-fixes.yml
+
+jobs:
+  patch:
+    name: Patch reusable ReSukiSU workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/kmi-module-loader-audit
+          fetch-depth: 0
+
+      - name: Apply audited workflow fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PATCH_PY'
+          from pathlib import Path
+          from textwrap import dedent, indent
+
+          path = Path('.github/workflows/build-resukisu.yml')
+          text = path.read_text()
+
+          def block(value: str, spaces: int) -> str:
+              normalized = dedent(value).lstrip('\n')
+              return indent(normalized, ' ' * spaces).replace('@@', '$' + '{{')
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              text = text.replace(old, new, 1)
+
+          old_module_bypass = block(r'''
+          - name: Apply Module Check Bypass
+            working-directory: @@ env.KERNEL_ROOT }}
+            env:
+              KERNEL_VER: @@ inputs.kernel_version }}
+            run: |
+              if [[ "$KERNEL_VER" == "6.1" || "$KERNEL_VER" == "6.6" || "$KERNEL_VER" == "6.12" ]]; then
+                TARGET_FILE="$KERNEL_ROOT/common/kernel/module/version.c"
+              else
+                TARGET_FILE="$KERNEL_ROOT/common/kernel/module.c"
+              fi
+              sed -i '/bad_version:/{:a;n;/return 0;/{s/return 0;/return 1;/;b};ba}' "$TARGET_FILE"
+          ''', 4)
+          new_module_check = block(r'''
+          - name: Enforce strict module version checks
+            working-directory: @@ env.KERNEL_ROOT }}
+            env:
+              KERNEL_VER: @@ inputs.kernel_version }}
+            run: |
+              set -euo pipefail
+              if [[ "$KERNEL_VER" == "6.1" || "$KERNEL_VER" == "6.6" || "$KERNEL_VER" == "6.12" ]]; then
+                TARGET_FILE="$KERNEL_ROOT/common/kernel/module/version.c"
+              else
+                TARGET_FILE="$KERNEL_ROOT/common/kernel/module.c"
+              fi
+              test -f "$TARGET_FILE"
+              BAD_VERSION_BLOCK=$(sed -n '/bad_version:/,/^[[:space:]]*}/p' "$TARGET_FILE")
+              printf '%s\n' "$BAD_VERSION_BLOCK"
+              grep -q 'return 0;' <<< "$BAD_VERSION_BLOCK" || {
+                echo "::error::bad_version must reject MODVERSIONS CRC mismatches with return 0"
+                exit 1
+              }
+              if grep -q 'return 1;' <<< "$BAD_VERSION_BLOCK"; then
+                echo "::error::bad_version still accepts incompatible module CRCs"
+                exit 1
+              fi
+          ''', 4)
+          replace_once(old_module_bypass, new_module_check, 'strict MODVERSIONS replacement')
+
+          old_upgrade_lz4 = block(r'''
+          if [ -d "$ZRAM_DIR" ]; then
+            rm -f lib/lz4/lz4_compress.c lib/lz4/lz4_decompress.c lib/lz4/lz4defs.h lib/lz4/lz4hc_compress.c
+            cp -r "$ZRAM_DIR/lz4/"* ./lib/lz4/ 2>/dev/null || true
+            cp -r "$ZRAM_DIR/include/linux/"* ./include/linux/ 2>/dev/null || true
+            [ -f "$ZRAM_DIR/$KERNEL_VER/lz4_1.10.0.patch" ] && patch -p1 -F3 < "$ZRAM_DIR/$KERNEL_VER/lz4_1.10.0.patch" || true
+          fi
+          ''', 8)
+          new_upgrade_lz4 = block(r'''
+          if [ -d "$ZRAM_DIR" ]; then
+            rm -f lib/lz4/lz4_compress.c lib/lz4/lz4_decompress.c lib/lz4/lz4defs.h lib/lz4/lz4hc_compress.c
+            cp -r "$ZRAM_DIR/lz4/"* ./lib/lz4/ 2>/dev/null || true
+            cp -r "$ZRAM_DIR/include/linux/"* ./include/linux/ 2>/dev/null || true
+            if [ -f "$ZRAM_DIR/$KERNEL_VER/lz4_1.10.0.patch" ]; then
+              patch -p1 -F3 --no-backup-if-mismatch < "$ZRAM_DIR/$KERNEL_VER/lz4_1.10.0.patch"
+            fi
+          fi
+          ''', 8)
+          replace_once(old_upgrade_lz4, new_upgrade_lz4, 'LZ4 patch failure handling')
+
+          old_zram_patches = block(r'''
+          [ -f "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4kd.patch" ] && patch -p1 -F3 < "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4kd.patch" || true
+          [ -f "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch" ] && patch -p1 -F3 < "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch" || true
+          ''', 8)
+          new_zram_patches = block(r'''
+          if [ -f "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4kd.patch" ]; then
+            patch -p1 -F3 --no-backup-if-mismatch < "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4kd.patch"
+          fi
+          if [ -f "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch" ]; then
+            patch -p1 -F3 --no-backup-if-mismatch < "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch"
+          fi
+          ''', 8)
+          replace_once(old_zram_patches, new_zram_patches, 'ZRAM patch failure handling')
+
+          kasan_marker = '    - name: Install KASAN-off KMI compatibility stub\n'
+          blacklist_step = block(r'''
+          - name: Restore module blacklist error propagation
+            if: inputs.add_zram
+            working-directory: @@ env.KERNEL_ROOT }}/common
+            run: |
+              set -euo pipefail
+              TARGET_FILE="kernel/module/main.c"
+              test -f "$TARGET_FILE"
+              sed -i -E 's|^([[:space:]]*)//[[:space:]]*err = -EPERM;|\1err = -EPERM;|' "$TARGET_FILE"
+              BLACKLIST_BLOCK=$(sed -n '/if (blacklisted(info->name))/,/goto free_copy;/p' "$TARGET_FILE")
+              printf '%s\n' "$BLACKLIST_BLOCK"
+              grep -Eq '^[[:space:]]*err = -EPERM;' <<< "$BLACKLIST_BLOCK" || {
+                echo "::error::Blacklisted modules must return -EPERM"
+                exit 1
+              }
+              if grep -Eq '^[[:space:]]*//[[:space:]]*err = -EPERM;' <<< "$BLACKLIST_BLOCK"; then
+                echo "::error::Commented blacklist errno remains"
+                exit 1
+              fi
+
+          ''', 4)
+          replace_once(kasan_marker, blacklist_step + kasan_marker, 'blacklist error propagation insertion')
+
+          old_hash = '        sha256sum "$ANYKERNEL_ZIP" "$ANYKERNEL3/Image"\n'
+          new_hash = block(r'''
+          test -s "$ANYKERNEL_ZIP"
+          AUDITED_ZIP_SHA256=$(sha256sum "$ANYKERNEL_ZIP" | awk '{print $1}')
+          sha256sum "$ANYKERNEL_ZIP" "$ANYKERNEL3/Image"
+          {
+            echo "AUDITED_ZIP_PATH=$ANYKERNEL_ZIP"
+            echo "AUDITED_ZIP_SHA256=$AUDITED_ZIP_SHA256"
+          } >> "$GITHUB_ENV"
+          ''', 8)
+          replace_once(old_hash, new_hash, 'audited ZIP metadata export')
+
+          old_upload = block(r'''
+          - name: Upload Artifact
+            uses: actions/upload-artifact@v7
+            with:
+              name: @@ env.FILE_NAME }}-AnyKernel3
+              path: ./AnyKernel3/**
+              if-no-files-found: error
+              compression-level: 9
+          ''', 4)
+          new_upload = block(r'''
+          - name: Upload audited flashable ZIP
+            uses: actions/upload-artifact@v7
+            with:
+              name: @@ env.FILE_NAME }}-AnyKernel3
+              path: @@ runner.temp }}/@@ env.FILE_NAME }}-AnyKernel3.zip
+              if-no-files-found: error
+              compression-level: 0
+              retention-days: 7
+          ''', 4)
+          replace_once(old_upload, new_upload, 'audited ZIP upload')
+
+          old_summary_start = block(r'''
+          run: |
+            S() { [[ "$1" == "true" ]] && echo "Enabled" || echo "Disabled"; }
+            {
+          ''', 6)
+          new_summary_start = block(r'''
+          run: |
+            S() { [[ "$1" == "true" ]] && echo "Enabled" || echo "Disabled"; }
+            if [[ "$ADD_KPM" == "true" ]]; then
+              KPM_STATUS="Enabled"
+            else
+              KPM_STATUS="Unavailable in pinned ReSukiSU ${RESUKISU_VERSION_CODE}"
+            fi
+            {
+          ''', 6)
+          replace_once(old_summary_start, new_summary_start, 'KPM summary status')
+
+          replace_once(
+              '          echo "| **KPM** | $(S "$ADD_KPM") |"\n',
+              '          echo "| **KPM** | ${KPM_STATUS} |"\n',
+              'KPM summary row',
+          )
+          replace_once(
+              '          echo "| **Artifact** | ${FILE_NAME} |"\n',
+              '          echo "| **Artifact** | ${FILE_NAME}-AnyKernel3.zip (audited inner ZIP) |"\n'
+              '          echo "| **Audited ZIP SHA-256** | ${AUDITED_ZIP_SHA256:-not-recorded} |"\n',
+              'artifact summary rows',
+          )
+
+          path.write_text(text)
+          PATCH_PY
+
+      - name: Validate patched workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=.github/workflows/build-resukisu.yml
+          git diff --check -- "$FILE"
+          grep -q 'name: Enforce strict module version checks' "$FILE"
+          ! grep -q 'name: Apply Module Check Bypass' "$FILE"
+          ! grep -q "s/return 0;/return 1;/" "$FILE"
+          grep -q 'name: Restore module blacklist error propagation' "$FILE"
+          grep -Eq 'path: .*runner\.temp.*FILE_NAME.*AnyKernel3\.zip' "$FILE"
+          grep -q 'AUDITED_ZIP_SHA256' "$FILE"
+          grep -q 'Unavailable in pinned ReSukiSU' "$FILE"
+          ruby -e 'require "yaml"; YAML.load_file(ARGV.fetch(0), aliases: true)' "$FILE"
+
+      - name: Commit fixes and trigger build
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/build-resukisu.yml
+          if git diff --cached --quiet; then
+            echo "No workflow changes were required."
+            exit 0
+          fi
+          git commit -m "fix: enforce strict KMI module validation"
+          git push origin HEAD:agent/kmi-module-loader-audit
