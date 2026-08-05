@@ -12,7 +12,7 @@ on:
     paths:
       - .github/workflows/run-kmi-module-loader-audit.yml
 
-# Retry 4: bind the release ancestry check to the immutable pinned commit.
+# ReSukiSU v4.1.0-35052: current main pin and matching release identity.
 jobs:
   dependencies:
     uses: ./.github/workflows/cache-dependencies.yml
@@ -35,6 +35,6 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      resukisu_source_branch: "390f611616089c2079a29559b66e87b37df610cb"
-      resukisu_version_code: "35047"
+      resukisu_source_branch: main
+      resukisu_version_code: "35052"
       device_codename: e3q
