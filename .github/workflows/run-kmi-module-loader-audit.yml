@@ -14,7 +14,7 @@ on:
       - .github/workflows/run-kmi-module-loader-audit.yml
       - android14-6.1/build-helpers/clean-build-flags.sh
 
-# ReSukiSU v4.1.0-35052 with Samsung DLKM runtime compatibility.
+# ReSukiSU v4.1.0-35054 with Samsung DLKM runtime compatibility.
 jobs:
   dependencies:
     uses: ./.github/workflows/cache-dependencies.yml
@@ -38,7 +38,7 @@ jobs:
       add_ptrace_fix: true
       add_perf_patches: true
       resukisu_source_branch: main
-      resukisu_version_code: "35052"
+      resukisu_version_code: "35054"
       device_codename: e3q
 
   package-runtime-compat-zip:
@@ -47,8 +47,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      SOURCE_ARTIFACT: 6.1.145-android14-2025-09-ReSukiSU-35052-AnyKernel3
-      OUTPUT_BASENAME: 6.1.145-android14-2025-09-ReSukiSU-35052-AnyKernel3-KMICompat-Log4M-Audited
+      SOURCE_ARTIFACT: 6.1.145-android14-2025-09-ReSukiSU-35054-AnyKernel3
+      OUTPUT_BASENAME: 6.1.145-android14-2025-09-ReSukiSU-35054-AnyKernel3-KMICompat-Log4M-Audited
     steps:
       - name: Download successful build artifact
         uses: actions/download-artifact@v8
@@ -152,6 +152,7 @@ jobs:
             echo
             echo "| Check | Result |"
             echo "|---|---|"
+            echo "| ReSukiSU | v4.1.0-35054 pinned at f56219d2998dc00aa2a80eda8c2280b1455a3519 |"
             echo "| MODVERSIONS CRC handling | Mismatches logged and accepted for Samsung DLKM compatibility |"
             echo "| bad_version | \`return 1\` required by build audit |"
             echo "| Module blacklist errno | Genuine blacklist matches return \`-EPERM\` |"
@@ -159,7 +160,7 @@ jobs:
             echo "| KASAN | Disabled; compatibility stub retained where required |"
             echo "| SUSFS logging | Compiled in, runtime default OFF |"
             echo "| Kernel log buffer | AnyKernel forces \`log_buf_len=4M\` |"
-            echo "| KPM | Unavailable in pinned ReSukiSU 35052 |"
+            echo "| KPM | Disabled for this build |"
             echo "| Flash ZIP | \`${OUTPUT_BASENAME}.zip\` |"
             echo "| SHA-256 | \`${OUTPUT_SHA256}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
