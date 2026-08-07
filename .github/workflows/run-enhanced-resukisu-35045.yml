@@ -1,5 +1,5 @@
-name: Enhanced ReSukiSU v4.1.0-35046
-run-name: "Enhanced ReSukiSU v4.1.0-35046 + Official Spoofed Manager support — 6.1.145-android14-11-33419968-abS928BXXS6DZG1"
+name: Enhanced ReSukiSU v4.1.0-35054
+run-name: "Enhanced ReSukiSU v4.1.0-35054 + Official Spoofed Manager support — 6.1.145-android14-11-33419968-abS928BXXS6DZG1"
 
 on:
   workflow_dispatch:
@@ -26,7 +26,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: enhanced-resukisu-35046-e3q
+  group: enhanced-resukisu-35054-e3q
   cancel-in-progress: true
 
 jobs:
@@ -48,9 +48,9 @@ jobs:
       # ReSukiSU removed KPM upstream in faac3098; current main cannot provide it.
       add_kpm: false
       susfs_open_redirect: true
-      sukisu_commit: "59c99fdf1735c37681ff18c7ffd7834741dcccbf"
+      sukisu_commit: "f56219d2998dc00aa2a80eda8c2280b1455a3519"
       resukisu_source_branch: "main"
-      resukisu_version_code: "35046"
+      resukisu_version_code: "35054"
 
   official-manager:
     name: Official ReSukiSU Manager reference
