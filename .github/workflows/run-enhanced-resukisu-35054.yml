@@ -79,4 +79,4 @@ jobs:
             echo "The kernel audit requires the official certificate hash and multi-manager support."
           } >> "$GITHUB_STEP_SUMMARY"
 
-# Manual build trigger: 2026-08-07T19:38+02:00
+# Manual build trigger: 2026-08-07T22:17+02:00 — CONFIG_LOG_BUF_SHIFT=22
