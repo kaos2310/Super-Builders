@@ -45,6 +45,11 @@ for target in "${TARGETS[@]}"; do
     "$CONFIG_TOOL" --file "$target" --enable "$symbol"
   done
 
+  # Samsung's very verbose production drivers can overwrite the stock 128 KiB
+  # printk ring buffer within minutes. Keep a deterministic 4 MiB buffer in the
+  # kernel config instead of relying on a boot-cmdline log_buf_len override.
+  "$CONFIG_TOOL" --file "$target" --set-val LOG_BUF_SHIFT 22
+
   for symbol in "${DISABLED[@]}"; do
     grep -qx "# CONFIG_${symbol} is not set" "$target" || {
       echo "::error::CONFIG_${symbol} was not disabled in $target"
@@ -57,10 +62,15 @@ for target in "${TARGETS[@]}"; do
       exit 1
     }
   done
+  grep -qx 'CONFIG_LOG_BUF_SHIFT=22' "$target" || {
+    echo "::error::CONFIG_LOG_BUF_SHIFT=22 was not retained in $target"
+    exit 1
+  }
 done
 
 echo "S928B daily debug sanitizers fully disabled in the final build input:"
 printf '  CONFIG_%s=n\n' "${DISABLED[@]}"
+echo "S928B printk ring buffer fixed at 4 MiB: CONFIG_LOG_BUF_SHIFT=22"
 echo "S928B KMI compatibility is supplied by the always-built inactive kasan_flag_enabled stub."
 echo "S928B hardening and kernel-side virtualization support retained:"
 printf '  CONFIG_%s=y\n' "${REQUIRED_HARDENING[@]}"
