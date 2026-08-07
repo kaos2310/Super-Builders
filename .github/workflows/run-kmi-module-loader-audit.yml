@@ -42,19 +42,41 @@ jobs:
       device_codename: e3q
 
   package-runtime-compat-zip:
-    name: Package KMI-compatible flashable ZIP
+    name: Package KMI-compatible Log4M flashable ZIP
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       SOURCE_ARTIFACT: 6.1.145-android14-2025-09-ReSukiSU-35052-AnyKernel3
-      OUTPUT_BASENAME: 6.1.145-android14-2025-09-ReSukiSU-35052-AnyKernel3-KMICompat-Audited
+      OUTPUT_BASENAME: 6.1.145-android14-2025-09-ReSukiSU-35052-AnyKernel3-KMICompat-Log4M-Audited
     steps:
       - name: Download successful build artifact
         uses: actions/download-artifact@v8
         with:
           name: ${{ env.SOURCE_ARTIFACT }}
           path: AnyKernel3
+
+      - name: Set 4M kernel log buffer in flash package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s AnyKernel3/Image
+          test -s AnyKernel3/anykernel.sh
+
+          # Keep the compiled kernel identity unchanged. AnyKernel patches the
+          # boot cmdline at flash time so early Samsung DLKM/KMI diagnostics
+          # survive long enough to be captured over ADB.
+          if grep -qE '^[[:space:]]*patch_cmdline "log_buf_len" ' AnyKernel3/anykernel.sh; then
+            sed -i -E 's|^[[:space:]]*patch_cmdline "log_buf_len" "[^"]*"|patch_cmdline "log_buf_len" "4M"|' AnyKernel3/anykernel.sh
+          else
+            sed -i '/patch_cmdline "kasan" "off"/a patch_cmdline "log_buf_len" "4M"' AnyKernel3/anykernel.sh
+          fi
+
+          grep -qF 'patch_cmdline "log_buf_len" "4M"' AnyKernel3/anykernel.sh
+          if grep -qF 'patch_cmdline "log_buf_len" "256K"' AnyKernel3/anykernel.sh; then
+            echo "::error::AnyKernel3 still requests log_buf_len=256K"
+            exit 1
+          fi
 
       - name: Create and audit exact flashable ZIP
         shell: bash
@@ -69,6 +91,10 @@ jobs:
           MODVERSIONS CRC mismatches remain visible in dmesg but are accepted
           so Samsung vendor/DLKM modules can load during early boot.
           Genuine module blacklist matches still fail with -EPERM.
+          Patch reject files remain fatal before compilation.
+          KASAN remains disabled.
+          SUSFS logging remains compiled in but runtime-default OFF.
+          AnyKernel sets log_buf_len=4M for early-boot diagnostics.
           This replaces the strict-CRC audited build that caused a bootloop.
           EOF
 
@@ -83,11 +109,19 @@ jobs:
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'susfs_log=0'
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "kpti" ""'
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "kasan" "off"'
+          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len" "4M"'
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'avc_log_spoofing 1'
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'hide_sus_mnts_for_all_or_non_su_procs 0'
           unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'CRC mismatches remain visible'
+          unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'runtime-default OFF'
+          unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'log_buf_len=4M'
+
           if unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'performance'; then
             echo "::error::Flash ZIP contains a forced performance policy"
+            exit 1
+          fi
+          if unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len" "256K"'; then
+            echo "::error::Flash ZIP still contains log_buf_len=256K"
             exit 1
           fi
 
@@ -114,13 +148,17 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## S928B KMI runtime compatibility package"
+            echo "## S928B KMI runtime compatibility Log4M package"
             echo
             echo "| Check | Result |"
             echo "|---|---|"
             echo "| MODVERSIONS CRC handling | Mismatches logged and accepted for Samsung DLKM compatibility |"
+            echo "| bad_version | \`return 1\` required by build audit |"
             echo "| Module blacklist errno | Genuine blacklist matches return \`-EPERM\` |"
             echo "| Patch rejects before build | Build fails if any \`.rej\` exists |"
+            echo "| KASAN | Disabled; compatibility stub retained where required |"
+            echo "| SUSFS logging | Compiled in, runtime default OFF |"
+            echo "| Kernel log buffer | AnyKernel forces \`log_buf_len=4M\` |"
             echo "| KPM | Unavailable in pinned ReSukiSU 35052 |"
             echo "| Flash ZIP | \`${OUTPUT_BASENAME}.zip\` |"
             echo "| SHA-256 | \`${OUTPUT_SHA256}\` |"
