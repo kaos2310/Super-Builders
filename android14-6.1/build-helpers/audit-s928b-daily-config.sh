@@ -79,6 +79,16 @@ if (("${#missing[@]}")); then
   exit 1
 fi
 
+# The S928B production kernel is extremely chatty. The old 128 KiB default
+# (CONFIG_LOG_BUF_SHIFT=17) loses early boot diagnostics quickly. Require the
+# intended 4 MiB printk ring buffer in both the final .config and extracted
+# IKCONFIG; this helper is called for both stages.
+grep -qx 'CONFIG_LOG_BUF_SHIFT=22' "$CONFIG_FILE" || {
+  echo "::error::S928B requires CONFIG_LOG_BUF_SHIFT=22 (4 MiB printk ring buffer)"
+  grep -E '^CONFIG_LOG_BUF_SHIFT=' "$CONFIG_FILE" || true
+  exit 1
+}
+
 # IPv6_NAT_FIX deliberately rewrites only the embedded IKCONFIG copy from y to
 # n. The final build .config is checked strictly before packaging.
 grep -Eq '^CONFIG_IP6_NF_NAT=(y|n)$' "$CONFIG_FILE" || {
@@ -115,6 +125,7 @@ if grep -Eq '^CONFIG_(KFENCE|KASAN(_[A-Z0-9_]+)?|UBSAN(_TRAP|_BOUNDS|_LOCAL_BOUN
 fi
 
 echo "Verified ${#REQUIRED[@]} S928B daily features in $CONFIG_FILE"
+echo "Verified CONFIG_LOG_BUF_SHIFT=22 (4 MiB printk ring buffer)"
 echo "Verified CONFIG_KFENCE=n, CONFIG_KASAN=n and CONFIG_UBSAN=n"
 echo "Verified no KASAN implementation is enabled; KMI is supplied by the inactive stub"
 echo "Verified CONFIG_CFI_CLANG=y and CONFIG_SHADOW_CALL_STACK=y"
