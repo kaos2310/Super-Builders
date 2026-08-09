@@ -135,6 +135,21 @@ test_kleaf_kmi_flags() {
 
 test_kleaf_kmi_flags
 
+test_strict_anykernel_gate() {
+  grep -qF 'package_strict_anykernel:' "$BUILD_WORKFLOW"
+  grep -qF 'Strict AnyKernel packaging requires kmi_mode=strict' "$BUILD_WORKFLOW"
+  grep -qF 'Strict AnyKernel packaging is restricted to kmi_profile=full-strict' "$BUILD_WORKFLOW"
+  grep -qF 'Strict AnyKernel packaging is restricted to device_codename=e3q' "$BUILD_WORKFLOW"
+  grep -qF 'test "$SAMSUNG_DLKM_EXACT_COUNT" = "2474"' "$BUILD_WORKFLOW"
+  grep -qF 'test "$SAMSUNG_DLKM_COMPATIBLE_COUNT" = "0"' "$BUILD_WORKFLOW"
+  grep -qF 'test "$SAMSUNG_DLKM_UNEXPECTED_COUNT" = "0"' "$BUILD_WORKFLOW"
+  grep -qF 'test "$SAMSUNG_DLKM_MISSING_COUNT" = "0"' "$BUILD_WORKFLOW"
+  grep -qF 'test "$SAMSUNG_DLKM_RUNTIME_FALLBACK" = "strict-rejection"' "$BUILD_WORKFLOW"
+  grep -qF 'Upload exact flashable Strict KMI ZIP' "$BUILD_WORKFLOW"
+}
+
+test_strict_anykernel_gate
+
 test_kasan_kmi_layout() {
   local fixture="$TMP_DIR/kasan-kmi-layout"
   mkdir -p "$fixture/mm/kasan" "$fixture/include/linux"

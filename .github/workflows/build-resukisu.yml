@@ -57,7 +57,7 @@ on:
         default: "dev"
       resukisu_version_code:
         type: string
-        default: "35055"
+        default: "35056"
       resukisu_expected_size:
         type: string
         default: ""
@@ -77,6 +77,10 @@ on:
         default: "full"
       kmi_minimal_config:
         description: "Use only the minimum ReSukiSU config for CRC attribution"
+        type: boolean
+        default: false
+      package_strict_anykernel:
+        description: "Package the exact e3q full-strict KMI gate as a flashable AnyKernel ZIP"
         type: boolean
         default: false
 
@@ -101,6 +105,8 @@ jobs:
         KMI_MODE: ${{ inputs.kmi_mode }}
         KMI_PROFILE: ${{ inputs.kmi_profile }}
         KMI_MINIMAL_CONFIG: ${{ inputs.kmi_minimal_config }}
+        PACKAGE_STRICT_ANYKERNEL: ${{ inputs.package_strict_anykernel }}
+        DEVICE_CODENAME: ${{ inputs.device_codename }}
       run: |
         set -euo pipefail
         case "$KMI_MODE" in
@@ -114,6 +120,24 @@ jobs:
         if [[ "$KMI_MODE" == "runtime-compat" && "$KMI_MINIMAL_CONFIG" == "true" ]]; then
           echo "::error::Minimal config is diagnostic-only"
           exit 1
+        fi
+        if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
+          [[ "$KMI_MODE" == "strict" ]] || {
+            echo "::error::Strict AnyKernel packaging requires kmi_mode=strict"
+            exit 1
+          }
+          [[ "$KMI_PROFILE" == "full-strict" ]] || {
+            echo "::error::Strict AnyKernel packaging is restricted to kmi_profile=full-strict"
+            exit 1
+          }
+          [[ "$KMI_MINIMAL_CONFIG" == "false" ]] || {
+            echo "::error::Strict AnyKernel packaging cannot use the diagnostic minimal config"
+            exit 1
+          }
+          [[ "$DEVICE_CODENAME" == "e3q" ]] || {
+            echo "::error::Strict AnyKernel packaging is restricted to device_codename=e3q"
+            exit 1
+          }
         fi
 
     - name: Free Disk Space
@@ -877,8 +901,11 @@ jobs:
         done
 
     - name: Prepare AnyKernel3
-      if: inputs.kmi_mode == 'runtime-compat'
+      if: inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel
+      env:
+        PACKAGE_STRICT_ANYKERNEL: ${{ inputs.package_strict_anykernel }}
       run: |
+        set -euo pipefail
         if [ -f "$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/dist/Image" ]; then
           cp "$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/dist/Image" "$ANYKERNEL3/Image"
         elif [ -f "$KERNEL_ROOT/bazel-bin/common/kernel_aarch64/Image" ]; then
@@ -889,12 +916,37 @@ jobs:
           exit 1
         fi
 
+        if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
+          if grep -qE '^[[:space:]]*patch_cmdline "log_buf_len" ' "$ANYKERNEL3/anykernel.sh"; then
+            sed -i -E 's|^[[:space:]]*patch_cmdline "log_buf_len" "[^"]*"|patch_cmdline "log_buf_len" "4M"|' \
+              "$ANYKERNEL3/anykernel.sh"
+          else
+            sed -i '/patch_cmdline "kasan" "off"/a patch_cmdline "log_buf_len" "4M"' \
+              "$ANYKERNEL3/anykernel.sh"
+          fi
+
+          cat > "$ANYKERNEL3/STRICT-KMI.txt" <<EOF
+        S928B strict Samsung DLKM KMI build
+        ===================================
+        ReSukiSU: ${RESUKISU_VERSION_FULL}
+        KMI profile: full-strict
+        All 2474 live Samsung DLKM symbols must match exactly.
+        CRC mismatches are rejected by the module loader.
+        CONFIG_CGROUP_PIDS and CONFIG_LRU_GEN_STATS are disabled to retain
+        the stock Samsung structure layouts; CONFIG_LRU_GEN remains enabled.
+        KASAN is disabled and the inactive KMI compatibility layout is retained.
+        AnyKernel requests log_buf_len=4M for early-boot diagnostics.
+        EOF
+        fi
+
     - name: Audit S928B daily AnyKernel3
-      if: inputs.device_codename == 'e3q' && inputs.kmi_mode == 'runtime-compat'
+      if: inputs.device_codename == 'e3q' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
       env:
         ADD_KPM: ${{ inputs.add_kpm }}
         REQUIRE_CUSTOM_MANAGER: ${{ inputs.resukisu_expected_hash != '' }}
         EXPECTED_MANAGER_HASH: ${{ inputs.resukisu_expected_hash }}
+        KMI_MODE: ${{ inputs.kmi_mode }}
+        PACKAGE_STRICT_ANYKERNEL: ${{ inputs.package_strict_anykernel }}
       run: |
         set -euo pipefail
         test -f "$ANYKERNEL3/Image"
@@ -936,7 +988,7 @@ jobs:
         test -s "$IKCONFIG"
         DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
         chmod +x "$DAILY_AUDIT"
-        "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER"
+        "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE"
         grep -qx 'CONFIG_IP6_NF_NAT=n' "$IKCONFIG" || {
           echo "::error::Embedded IKCONFIG did not receive the IPv6 NAT masking patch"
           exit 1
@@ -960,6 +1012,21 @@ jobs:
           exit 1
         }
 
+        if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
+          test "$SAMSUNG_DLKM_BASELINE_COUNT" = "2474"
+          test "$SAMSUNG_DLKM_EXACT_COUNT" = "2474"
+          test "$SAMSUNG_DLKM_COMPATIBLE_COUNT" = "0"
+          test "$SAMSUNG_DLKM_UNEXPECTED_COUNT" = "0"
+          test "$SAMSUNG_DLKM_MISSING_COUNT" = "0"
+          test "$SAMSUNG_DLKM_RUNTIME_FALLBACK" = "strict-rejection"
+          grep -qx '# CONFIG_CGROUP_PIDS is not set' "$IKCONFIG"
+          grep -qx '# CONFIG_LRU_GEN_STATS is not set' "$IKCONFIG"
+          grep -qx 'CONFIG_LRU_GEN=y' "$IKCONFIG"
+          grep -qF 'patch_cmdline "log_buf_len" "4M"' "$ANYKERNEL3/anykernel.sh"
+          grep -qF 'All 2474 live Samsung DLKM symbols must match exactly.' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'CRC mismatches are rejected by the module loader.' "$ANYKERNEL3/STRICT-KMI.txt"
+        fi
+
         IMAGE_STRINGS="$RUNNER_TEMP/s928b-image-strings"
         strings "$ANYKERNEL3/Image" > "$IMAGE_STRINGS"
         grep -qF "${KERNEL_VER}.${SUBLEVEL}${STOCK_RELEASE_EXPECTED}" "$IMAGE_STRINGS"
@@ -971,7 +1038,7 @@ jobs:
         fi
 
         ANYKERNEL_ZIP="$RUNNER_TEMP/${FILE_NAME}-AnyKernel3.zip"
-        (cd "$ANYKERNEL3" && zip -qr "$ANYKERNEL_ZIP" .)
+        (cd "$ANYKERNEL3" && zip -X -qr "$ANYKERNEL_ZIP" .)
         unzip -l "$ANYKERNEL_ZIP"
         unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'susfs_log=0'
         unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "kpti" ""'
@@ -981,6 +1048,14 @@ jobs:
         if unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'performance'; then
           echo "::error::Audited AnyKernel ZIP still contains a forced performance policy"
           exit 1
+        fi
+        if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
+          unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len" "4M"'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'All 2474 live Samsung DLKM symbols must match exactly.'
+          mkdir -p "$GITHUB_WORKSPACE/strict-flash"
+          cp "$ANYKERNEL_ZIP" "$GITHUB_WORKSPACE/strict-flash/"
+          sha256sum "$GITHUB_WORKSPACE/strict-flash/$(basename "$ANYKERNEL_ZIP")" \
+            > "$GITHUB_WORKSPACE/strict-flash/$(basename "$ANYKERNEL_ZIP").sha256"
         fi
         sha256sum "$ANYKERNEL_ZIP" "$ANYKERNEL3/Image"
 
@@ -1004,13 +1079,23 @@ jobs:
         fi
 
     - name: Upload Artifact
-      if: inputs.kmi_mode == 'runtime-compat'
+      if: inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel
       uses: actions/upload-artifact@v7
       with:
         name: ${{ env.FILE_NAME }}-AnyKernel3
         path: ./AnyKernel3/**
         if-no-files-found: error
         compression-level: 9
+
+    - name: Upload exact flashable Strict KMI ZIP
+      if: inputs.package_strict_anykernel
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ env.FILE_NAME }}-Strict-AnyKernel3-Flash
+        path: strict-flash/
+        if-no-files-found: error
+        compression-level: 0
+        retention-days: 7
 
     - name: Upload Rejects
       if: always() && env.REJ_COUNT > 0
@@ -1060,7 +1145,7 @@ jobs:
           echo "| **Kernel build exit** | ${KERNEL_BUILD_EXIT_CODE:-not-recorded} |"
           echo "| **Device Profile** | ${IDENTITY_STATUS:-Generic} |"
           echo "| **Rejects** | ${REJ_COUNT:-0} |"
-          if [[ "$KMI_MODE" == "runtime-compat" ]]; then
+          if [[ "$KMI_MODE" == "runtime-compat" || "${{ inputs.package_strict_anykernel }}" == "true" ]]; then
             echo "| **Artifact** | ${FILE_NAME} |"
           else
             echo "| **Artifact** | Non-flashable KMI diagnostics only |"

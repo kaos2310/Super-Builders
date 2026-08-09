@@ -1,11 +1,11 @@
 name: S928B Strict KMI Symtypes Investigation
-run-name: "S928B Samsung DLKM CRC attribution — GKI to ReSukiSU 35055"
+run-name: "S928B Samsung DLKM CRC attribution — GKI to ReSukiSU 35056"
 
 on:
   workflow_dispatch:
     inputs:
       run_strict_gate:
-        description: "Run the full strict build gate after reviewing the non-flashable diagnostics"
+        description: "Run and package the exact full-strict build after reviewing the diagnostics"
         type: boolean
         default: false
       run_attribution_matrix:
@@ -218,9 +218,9 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: ${{ matrix.ptrace }}
       add_perf_patches: ${{ matrix.perf }}
-      sukisu_commit: beaaea0eb895dc41e7b9bf5e3f39e57aa9635bab
+      sukisu_commit: ca62a37fc328e6cb836ea6d77b7eab0c073104a6
       resukisu_source_branch: main
-      resukisu_version_code: "35055"
+      resukisu_version_code: "35056"
       device_codename: e3q
       kmi_mode: symtypes
       kmi_profile: ${{ matrix.profile }}
@@ -290,10 +290,11 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: beaaea0eb895dc41e7b9bf5e3f39e57aa9635bab
+      sukisu_commit: ca62a37fc328e6cb836ea6d77b7eab0c073104a6
       resukisu_source_branch: main
-      resukisu_version_code: "35055"
+      resukisu_version_code: "35056"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
       kmi_minimal_config: false
+      package_strict_anykernel: true

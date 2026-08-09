@@ -18,7 +18,7 @@ on:
       - android14-6.1/samsung-e3q-dlkm-crc-baseline.tsv
       - android14-6.1/resukisu-pin.txt
 
-# ReSukiSU v4.1.0-35055 with Samsung DLKM runtime compatibility.
+# ReSukiSU v4.1.0-35056 with Samsung DLKM runtime compatibility.
 jobs:
   dependencies:
     uses: ./.github/workflows/cache-dependencies.yml
@@ -41,9 +41,9 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: beaaea0eb895dc41e7b9bf5e3f39e57aa9635bab
+      sukisu_commit: ca62a37fc328e6cb836ea6d77b7eab0c073104a6
       resukisu_source_branch: main
-      resukisu_version_code: "35055"
+      resukisu_version_code: "35056"
       device_codename: e3q
 
   package-runtime-compat-zip:
@@ -52,8 +52,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      SOURCE_ARTIFACT: 6.1.145-android14-2025-09-ReSukiSU-35055-AnyKernel3
-      OUTPUT_BASENAME: 6.1.145-android14-2025-09-ReSukiSU-35055-AnyKernel3-KMICompat-Log4M-Audited
+      SOURCE_ARTIFACT: 6.1.145-android14-2025-09-ReSukiSU-35056-AnyKernel3
+      OUTPUT_BASENAME: 6.1.145-android14-2025-09-ReSukiSU-35056-AnyKernel3-KMICompat-Log4M-Audited
     steps:
       - name: Download successful build artifact
         uses: actions/download-artifact@v8
@@ -160,7 +160,7 @@ jobs:
             echo
             echo "| Check | Result |"
             echo "|---|---|"
-            echo "| ReSukiSU | v4.1.0-35055 pinned at beaaea0eb895dc41e7b9bf5e3f39e57aa9635bab |"
+            echo "| ReSukiSU | v4.1.0-35056 pinned at ca62a37fc328e6cb836ea6d77b7eab0c073104a6 |"
             echo "| Samsung DLKM CRC gate | 2474 live device/build CRC pairs pinned; missing or unexpected values fail |"
             echo "| Known Samsung/GKI differences | 795 accepted only with audited \`bad_version: return 1\` fallback |"
             echo "| Module blacklist errno | Genuine blacklist matches return \`-EPERM\` |"

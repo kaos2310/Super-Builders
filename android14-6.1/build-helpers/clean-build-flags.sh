@@ -75,8 +75,9 @@ fi
 MODULE_MAIN_FILE="$KERNEL_ROOT/common/kernel/module/main.c"
 
 # Runtime recovery accepts CRC mismatches only in the proven bootsafe build.
-# Symtypes and strict modes retain the upstream return 0 rejection path and are
-# deliberately never packaged as flashable artifacts.
+# Symtypes and strict modes retain the upstream return 0 rejection path. The
+# reusable workflow may package only the exact full-strict e3q gate after all
+# 2474 live Samsung DLKM CRCs have converged; other diagnostics stay unflashable.
 "$PYTHON_BIN" - "$MODULE_VERSION_FILE" "$KMI_MODE" <<'PY'
 from pathlib import Path
 import re
@@ -195,7 +196,7 @@ AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
     if [[ "$KMI_MODE" == "runtime-compat" ]]; then
       echo "[OK] CRC mismatches are logged and accepted for Samsung KMI compatibility."
     else
-      echo "[OK] CRC mismatches are logged and strictly rejected in diagnostic mode."
+      echo "[OK] CRC mismatches are logged and strictly rejected."
     fi
   else
     echo "[ERROR] bad_version is not in runtime-compat mode."
@@ -237,7 +238,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     if [[ "$KMI_MODE" == "runtime-compat" ]]; then
       echo "- CRC mismatches remain visible in dmesg and are accepted only in the proven recovery build."
     else
-      echo "- CRC mismatches remain visible and are strictly rejected; this build is diagnostic-only."
+      echo "- CRC mismatches remain visible and are strictly rejected."
     fi
     echo "- ✅ Real module blacklist matches still propagate \`-EPERM\`."
     echo "- ✅ No patch reject files were found before compilation."
