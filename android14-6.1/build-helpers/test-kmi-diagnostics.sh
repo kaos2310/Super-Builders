@@ -249,11 +249,7 @@ EOF
     }
     END { if (!active) exit 1 }
   ' "$fixture/common/kernel/module/version.c"
-  if [[ "$mode" == "strict" ]]; then
-    grep -q 'protected_exports_list' "$fixture/common/BUILD.bazel"
-  else
-    ! grep -q 'protected_exports_list' "$fixture/common/BUILD.bazel"
-  fi
+  ! grep -q 'protected_exports_list' "$fixture/common/BUILD.bazel"
 }
 
 test_clean_flags_mode symtypes 0

@@ -25,12 +25,14 @@ if [ -f "build/build.sh" ]; then
 else
   sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" ./build/kernel/kleaf/impl/stamp.bzl
   sed -i 's/-dirty//' ./common/scripts/setlocalversion
-  if [[ "$KMI_MODE" != "strict" ]]; then
-    rm -rf ./common/android/abi_gki_protected_exports_*
-    perl -pi -e 's/^\s*"protected_exports_list"\s*:\s*"android\/abi_gki_protected_exports_aarch64",\s*$//;' ./common/BUILD.bazel
-  else
-    echo "Strict KMI mode retains the protected-exports list and build checks."
-  fi
+  # Samsung vendor_dlkm modules import exported symbols outside Google's
+  # protected-export allowlist (including rfkill_*, usbnet_* and vendor XHCI
+  # tracepoints). Remove only that export filter in every mode. Strict mode
+  # independently retains the Kleaf symbol-list/violation checks, build-time
+  # ABI checks and the module loader's CRC rejection path.
+  rm -rf ./common/android/abi_gki_protected_exports_*
+  perl -pi -e 's/^\s*"protected_exports_list"\s*:\s*"android\/abi_gki_protected_exports_aarch64",\s*$//;' ./common/BUILD.bazel
+  echo "Removed the protected-exports filter; KMI mode ${KMI_MODE} retains its independent symbol and CRC policy."
 fi
 
 # Keep SUSFS logging compiled in, default-off, serialized and safely toggleable.
