@@ -550,6 +550,20 @@ jobs:
           echo "Strict Samsung KMI config: CGROUP_PIDS=n and LRU_GEN_STATS=n"
         fi
 
+        if [ ! -f "$KERNEL_ROOT/build/build.sh" ]; then
+          # The pinned SukiSU SUSFS reconciliation writes a small set of KSU
+          # options to gki_defconfig. Kleaf validates that base defconfig with
+          # savedefconfig before applying its fragments, so all KSU settings
+          # must live exclusively in sukisu_gki.fragment.
+          grep -qx 'CONFIG_KSU=y' "$DEFCONFIG_FRAGMENT"
+          sed -i -E \
+            -e '/^CONFIG_KSU(=|_)/d' \
+            -e '/^# CONFIG_KSU( is not set|_[A-Za-z0-9_]+ is not set)$/d' \
+            "$DEFCONFIG"
+          ! grep -Eq '^(CONFIG_KSU(=|_)|# CONFIG_KSU( is not set|_[A-Za-z0-9_]+ is not set)$)' "$DEFCONFIG"
+          echo "Kleaf config: SukiSU options isolated in sukisu_gki.fragment"
+        fi
+
         while IFS='=' read -r cfg _; do
           symbol="${cfg#CONFIG_}"
           grep -Rqx "config ${symbol}" common/ ${KSU_DIR:+$KSU_DIR/} --include='Kconfig*' 2>/dev/null && continue

@@ -168,6 +168,8 @@ test_sukisu_ultra_identity() {
   grep -qF 'sukisu_commit: 35467545b2826e3acfc88699755981a889956b1a' "$runner"
   grep -qF 'sukisu_version_code: "40856"' "$runner"
   grep -qF 'package_strict_anykernel: true' "$runner"
+  grep -qF 'Kleaf config: SukiSU options isolated in sukisu_gki.fragment' \
+    "$SUKISU_BUILD_WORKFLOW"
   ! grep -qi 'resukisu' "$SUKISU_BUILD_WORKFLOW" "$runner"
 }
 
