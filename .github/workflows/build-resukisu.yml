@@ -430,6 +430,7 @@ jobs:
           cat > "$DEFCONFIG_FRAGMENT" <<'EOF'
         CONFIG_KSU=y
         CONFIG_KSU_MULTI_MANAGER_SUPPORT=y
+        # CONFIG_LOCALVERSION_AUTO is not set
         EOF
         else
           ASSEMBLE_FLAGS=""

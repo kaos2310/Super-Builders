@@ -22,7 +22,9 @@ preferred_order = [
     "resukisu-minimal",
     "resukisu-base",
     "resukisu-susfs",
+    "resukisu-zeromount",
     "resukisu-zeromount-droidspaces",
+    "resukisu-platform-features",
     "full",
 ]
 

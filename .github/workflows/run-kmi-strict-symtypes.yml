@@ -153,6 +153,16 @@ jobs:
             overlayfs: false
             ptrace: false
             perf: false
+          - profile: resukisu-zeromount
+            minimal: false
+            susfs: true
+            zeromount: true
+            droidspaces: false
+            zram: false
+            bbg: false
+            overlayfs: false
+            ptrace: false
+            perf: false
           - profile: resukisu-zeromount-droidspaces
             minimal: false
             susfs: true
@@ -161,6 +171,16 @@ jobs:
             zram: false
             bbg: false
             overlayfs: false
+            ptrace: false
+            perf: false
+          - profile: resukisu-platform-features
+            minimal: false
+            susfs: true
+            zeromount: true
+            droidspaces: true
+            zram: true
+            bbg: true
+            overlayfs: true
             ptrace: false
             perf: false
           - profile: full
