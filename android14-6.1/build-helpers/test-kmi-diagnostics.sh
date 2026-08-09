@@ -1,0 +1,157 @@
+#!/bin/bash
+set -euo pipefail
+
+HELPERS_DIR="$(cd "$(dirname "$0")" && pwd)"
+VERSION_DIR="$(cd "$HELPERS_DIR/.." && pwd)"
+BASELINE="$VERSION_DIR/samsung-e3q-dlkm-crc-baseline.tsv"
+AUDITOR="$HELPERS_DIR/verify-samsung-dlkm-crcs.sh"
+COMPARATOR="$HELPERS_DIR/compare-kmi-variants.sh"
+COLLECTOR="$HELPERS_DIR/collect-kmi-symtypes.sh"
+CLEAN_FLAGS="$HELPERS_DIR/clean-build-flags.sh"
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+KERNEL_ROOT="$TMP_DIR/kernel"
+SYMVERS_DIR="$KERNEL_ROOT/bazel-bin/common/kernel_aarch64"
+VERSION_SOURCE="$KERNEL_ROOT/common/kernel/module/version.c"
+mkdir -p "$SYMVERS_DIR" "$(dirname "$VERSION_SOURCE")"
+
+awk '!/^#/ && NF >= 3 {
+  print $3 "\t" $1 "\tvmlinux\tEXPORT_SYMBOL"
+}' "$BASELINE" > "$SYMVERS_DIR/Module.symvers"
+
+write_loader_policy() {
+  local value="$1"
+  cat > "$VERSION_SOURCE" <<EOF
+static int check_version(void)
+{
+bad_version:
+  pr_warn("disagrees about version of symbol");
+  return $value;
+}
+EOF
+}
+
+write_loader_policy 0
+mkdir -p "$SYMVERS_DIR/symtypes/kernel/module"
+cat > "$SYMVERS_DIR/.config" <<'EOF'
+CONFIG_ARM64=y
+CONFIG_MODVERSIONS=y
+EOF
+cat > "$SYMVERS_DIR/symtypes/kernel/module/version.symtypes" <<'EOF'
+check_version int check_version ( void )
+EOF
+git -C "$KERNEL_ROOT/common" init --quiet
+git -C "$KERNEL_ROOT/common" config user.name test
+git -C "$KERNEL_ROOT/common" config user.email test@example.invalid
+git -C "$KERNEL_ROOT/common" add .
+git -C "$KERNEL_ROOT/common" commit --quiet -m fixture
+
+"$AUDITOR" "$KERNEL_ROOT" "$BASELINE" "$TMP_DIR/symtypes" symtypes full
+grep -qx 'EXACT_COUNT=1679' "$TMP_DIR/symtypes/summary.env"
+grep -qx 'REFERENCE_COUNT=795' "$TMP_DIR/symtypes/summary.env"
+grep -qx 'VARIANT_COUNT=0' "$TMP_DIR/symtypes/summary.env"
+grep -qx 'MISSING_COUNT=0' "$TMP_DIR/symtypes/summary.env"
+"$COLLECTOR" "$KERNEL_ROOT" "$TMP_DIR/symtypes" full symtypes
+grep -qx 'SYMTYPES_COUNT=1' "$TMP_DIR/symtypes/summary.env"
+tar -tzf "$TMP_DIR/symtypes/symtypes.tar.gz" | grep -qx \
+  'bazel-bin/common/kernel_aarch64/symtypes/kernel/module/version.symtypes'
+
+if "$AUDITOR" "$KERNEL_ROOT" "$BASELINE" "$TMP_DIR/strict" strict full-strict; then
+  echo "Strict audit unexpectedly accepted 795 CRC differences" >&2
+  exit 1
+fi
+
+write_loader_policy 1
+"$AUDITOR" "$KERNEL_ROOT" "$BASELINE" "$TMP_DIR/runtime" runtime-compat full
+
+awk 'BEGIN { changed=0 }
+  !changed && $2 == "___pskb_trim" { $1="0xdeadbeef"; changed=1 }
+  { print }
+' OFS='\t' "$SYMVERS_DIR/Module.symvers" > "$SYMVERS_DIR/Module.symvers.new"
+mv "$SYMVERS_DIR/Module.symvers.new" "$SYMVERS_DIR/Module.symvers"
+
+write_loader_policy 0
+"$AUDITOR" "$KERNEL_ROOT" "$BASELINE" "$TMP_DIR/variant" symtypes gki-control
+grep -qx 'VARIANT_COUNT=1' "$TMP_DIR/variant/summary.env"
+
+if "$AUDITOR" "$KERNEL_ROOT" "$BASELINE" "$TMP_DIR/runtime-mutated" runtime-compat full; then
+  echo "Runtime audit unexpectedly accepted an unpinned build CRC" >&2
+  exit 1
+fi
+
+mkdir -p "$TMP_DIR/artifacts/gki" "$TMP_DIR/artifacts/full"
+cp "$TMP_DIR/variant/summary.env" "$TMP_DIR/variant/Module.symvers" "$TMP_DIR/artifacts/gki/"
+cp "$TMP_DIR/symtypes/summary.env" "$TMP_DIR/symtypes/Module.symvers" "$TMP_DIR/artifacts/full/"
+"$COMPARATOR" "$BASELINE" "$TMP_DIR/artifacts" "$TMP_DIR/comparison"
+grep -q $'^gki-control\t1679\t794\t1\t0\tno\t' "$TMP_DIR/comparison/variant-summary.tsv"
+grep -q $'^full\t1679\t795\t0\t0\tno\t' "$TMP_DIR/comparison/variant-summary.tsv"
+
+test_clean_flags_mode() {
+  local mode="$1"
+  local expected_return="$2"
+  local fixture="$TMP_DIR/clean-$mode"
+  mkdir -p \
+    "$fixture/common/scripts" \
+    "$fixture/common/kernel/module" \
+    "$fixture/common/arch/arm64/configs" \
+    "$fixture/build/kernel/kleaf/impl"
+
+  cat > "$fixture/common/scripts/setlocalversion" <<'EOF'
+#!/bin/sh
+res=test
+echo "$res"
+EOF
+  cat > "$fixture/build/kernel/kleaf/impl/stamp.bzl" <<'EOF'
+stable_scmversion_cmd = "-maybe-dirty"
+EOF
+  cat > "$fixture/common/BUILD.bazel" <<'EOF'
+kernel_build(
+    name = "kernel_aarch64",
+    "protected_exports_list": "android/abi_gki_protected_exports_aarch64",
+)
+EOF
+  cat > "$fixture/common/kernel/module/version.c" <<'EOF'
+static int check_version(void)
+{
+bad_version:
+  pr_warn("disagrees about version of symbol");
+  return 0;
+}
+EOF
+  cat > "$fixture/common/kernel/module/main.c" <<'EOF'
+if (blacklisted(info->name)) {
+  err = -EPERM;
+  goto free_copy;
+}
+EOF
+  cat > "$fixture/common/arch/arm64/configs/sukisu_gki.fragment" <<'EOF'
+CONFIG_KSU=y
+EOF
+
+  git -C "$fixture/common" init --quiet
+  git -C "$fixture/common" config user.name test
+  git -C "$fixture/common" config user.email test@example.invalid
+  git -C "$fixture/common" add .
+  git -C "$fixture/common" commit --quiet -m fixture
+
+  GITHUB_WORKSPACE="$fixture/audit" "$CLEAN_FLAGS" "$fixture" 6.1 ReSukiSU "$mode"
+  awk -v expected="$expected_return" '
+    /bad_version:/ { active=1; next }
+    active && /return[[:space:]]+[01];/ {
+      exit($0 ~ ("return[[:space:]]+" expected ";") ? 0 : 1)
+    }
+    END { if (!active) exit 1 }
+  ' "$fixture/common/kernel/module/version.c"
+  if [[ "$mode" == "strict" ]]; then
+    grep -q 'protected_exports_list' "$fixture/common/BUILD.bazel"
+  else
+    ! grep -q 'protected_exports_list' "$fixture/common/BUILD.bazel"
+  fi
+}
+
+test_clean_flags_mode symtypes 0
+test_clean_flags_mode strict 0
+test_clean_flags_mode runtime-compat 1
+
+echo "KMI diagnostics self-test passed."

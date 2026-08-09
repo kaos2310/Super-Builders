@@ -4,6 +4,13 @@ set -euo pipefail
 KERNEL_ROOT="${1:?kernel root}"
 BASELINE="${2:?Samsung DLKM CRC baseline}"
 REPORT_DIR="${3:?report output directory}"
+KMI_MODE="${4:-runtime-compat}"
+KMI_PROFILE="${5:-full}"
+
+case "$KMI_MODE" in
+  runtime-compat|symtypes|strict) ;;
+  *) echo "::error::Unsupported KMI audit mode: $KMI_MODE"; exit 1 ;;
+esac
 
 [[ -f "$BASELINE" ]] || {
   echo "::error::Samsung DLKM CRC baseline is missing: $BASELINE"
@@ -136,41 +143,56 @@ COMPATIBLE_COUNT=$(( $(wc -l < "$REPORT_DIR/compatible-differences.tsv") - 1 ))
 UNEXPECTED_COUNT=$(( $(wc -l < "$REPORT_DIR/unexpected.tsv") - 1 ))
 MISSING_COUNT=$(( $(wc -l < "$REPORT_DIR/missing.tsv") - 1 ))
 SYMVERS_SHA256=$(sha256sum "$SYMVERS" | awk '{print $1}')
+cp "$SYMVERS" "$REPORT_DIR/Module.symvers"
 
-RUNTIME_FALLBACK="not-required"
+RUNTIME_FALLBACK="unavailable"
 VERSION_SOURCE=""
-if (( COMPATIBLE_COUNT > 0 )); then
-  for candidate in \
-    "$KERNEL_ROOT/common/kernel/module/version.c" \
-    "$KERNEL_ROOT/common/kernel/module.c"; do
-    [[ -f "$candidate" ]] || continue
-    VERSION_SOURCE="$candidate"
-    break
-  done
-  [[ -n "$VERSION_SOURCE" ]] || {
-    echo "::error::Kernel module version source was not found"
-    exit 1
-  }
-  BAD_VERSION_RETURN=$(awk '
-    /^[[:space:]]*bad_version:/ { in_bad_version=1; next }
-    in_bad_version && /return[[:space:]]+[01];/ { print; exit }
-  ' "$VERSION_SOURCE")
-  if grep -qE 'return[[:space:]]+1;' <<< "$BAD_VERSION_RETURN"; then
-    RUNTIME_FALLBACK="verified"
-  else
-    RUNTIME_FALLBACK="missing"
-  fi
+for candidate in \
+  "$KERNEL_ROOT/common/kernel/module/version.c" \
+  "$KERNEL_ROOT/common/kernel/module.c"; do
+  [[ -f "$candidate" ]] || continue
+  VERSION_SOURCE="$candidate"
+  break
+done
+[[ -n "$VERSION_SOURCE" ]] || {
+  echo "::error::Kernel module version source was not found"
+  exit 1
+}
+BAD_VERSION_RETURN=$(awk '
+  /^[[:space:]]*bad_version:/ { in_bad_version=1; next }
+  in_bad_version && /return[[:space:]]+[01];/ { print; exit }
+' "$VERSION_SOURCE")
+if grep -qE 'return[[:space:]]+1;' <<< "$BAD_VERSION_RETURN"; then
+  RUNTIME_FALLBACK="accept-mismatch"
+elif grep -qE 'return[[:space:]]+0;' <<< "$BAD_VERSION_RETURN"; then
+  RUNTIME_FALLBACK="strict-rejection"
+else
+  RUNTIME_FALLBACK="unknown"
 fi
+
+cat > "$REPORT_DIR/summary.env" <<EOF
+KMI_PROFILE=$KMI_PROFILE
+KMI_MODE=$KMI_MODE
+BASELINE_COUNT=$BASELINE_COUNT
+EXACT_COUNT=$EXACT_COUNT
+REFERENCE_COUNT=$COMPATIBLE_COUNT
+VARIANT_COUNT=$UNEXPECTED_COUNT
+MISSING_COUNT=$MISSING_COUNT
+RUNTIME_FALLBACK=$RUNTIME_FALLBACK
+SYMVERS_SHA256=$SYMVERS_SHA256
+EOF
 
 cat > "$REPORT_DIR/summary.md" <<EOF
 # Samsung S928B DLKM CRC audit
 
+- KMI profile: **${KMI_PROFILE}**
+- KMI audit mode: **${KMI_MODE}**
 - Baseline symbols: **${BASELINE_COUNT}**
 - Exact Samsung/build CRC matches: **${EXACT_COUNT}**
-- Known Samsung/GKI CRC differences: **${COMPATIBLE_COUNT}**
-- Unexpected build CRCs: **${UNEXPECTED_COUNT}**
+- Current full-build reference CRC matches: **${COMPATIBLE_COUNT}**
+- Variant-specific CRCs: **${UNEXPECTED_COUNT}**
 - Baseline symbols absent from selected Module.symvers: **${MISSING_COUNT}**
-- Runtime bad_version fallback: **${RUNTIME_FALLBACK}**
+- Module-loader CRC policy: **${RUNTIME_FALLBACK}**
 - Module.symvers: \`${SYMVERS#"$KERNEL_ROOT"/}\`
 - Module.symvers SHA-256: \`${SYMVERS_SHA256}\`
 EOF
@@ -191,23 +213,44 @@ if [[ -n "${GITHUB_ENV:-}" ]]; then
   } >> "$GITHUB_ENV"
 fi
 
-if (( UNEXPECTED_COUNT > 0 )); then
-  echo "::error::Unexpected Samsung DLKM build CRCs detected: $UNEXPECTED_COUNT"
-  sed -n '1,31p' "$REPORT_DIR/unexpected.tsv"
-  exit 1
-fi
-if (( MISSING_COUNT > 0 )); then
-  echo "::error::Samsung DLKM baseline symbols are missing from Module.symvers: $MISSING_COUNT"
-  sed -n '1,31p' "$REPORT_DIR/missing.tsv"
-  exit 1
-fi
-if (( EXACT_COUNT + COMPATIBLE_COUNT != BASELINE_COUNT )); then
+if (( EXACT_COUNT + COMPATIBLE_COUNT + UNEXPECTED_COUNT + MISSING_COUNT != BASELINE_COUNT )); then
   echo "::error::Samsung DLKM CRC coverage is incomplete"
   exit 1
 fi
-if (( COMPATIBLE_COUNT > 0 )) && [[ "$RUNTIME_FALLBACK" != "verified" ]]; then
-  echo "::error::Known Samsung/GKI CRC differences require the audited bad_version fallback"
-  exit 1
-fi
 
-echo "Verified $EXACT_COUNT exact Samsung CRCs and $COMPATIBLE_COUNT known Samsung/GKI differences"
+case "$KMI_MODE" in
+  runtime-compat)
+    if (( UNEXPECTED_COUNT > 0 )); then
+      echo "::error::Unexpected Samsung DLKM build CRCs detected: $UNEXPECTED_COUNT"
+      sed -n '1,31p' "$REPORT_DIR/unexpected.tsv"
+      exit 1
+    fi
+    if (( MISSING_COUNT > 0 )); then
+      echo "::error::Samsung DLKM baseline symbols are missing from Module.symvers: $MISSING_COUNT"
+      sed -n '1,31p' "$REPORT_DIR/missing.tsv"
+      exit 1
+    fi
+    if (( COMPATIBLE_COUNT > 0 )) && [[ "$RUNTIME_FALLBACK" != "accept-mismatch" ]]; then
+      echo "::error::Reference CRC differences require the audited bad_version fallback"
+      exit 1
+    fi
+    ;;
+  symtypes)
+    [[ "$RUNTIME_FALLBACK" == "strict-rejection" ]] || {
+      echo "::error::Symtypes diagnostics must retain strict runtime CRC rejection"
+      exit 1
+    }
+    ;;
+  strict)
+    [[ "$RUNTIME_FALLBACK" == "strict-rejection" ]] || {
+      echo "::error::Strict KMI mode does not reject CRC mismatches"
+      exit 1
+    }
+    if (( COMPATIBLE_COUNT + UNEXPECTED_COUNT + MISSING_COUNT > 0 )); then
+      echo "::error::Strict Samsung DLKM KMI gate failed: exact=$EXACT_COUNT reference=$COMPATIBLE_COUNT variant=$UNEXPECTED_COUNT missing=$MISSING_COUNT"
+      exit 1
+    fi
+    ;;
+esac
+
+echo "Audited $EXACT_COUNT exact Samsung CRCs, $COMPATIBLE_COUNT reference CRCs, $UNEXPECTED_COUNT variant CRCs and $MISSING_COUNT missing symbols"

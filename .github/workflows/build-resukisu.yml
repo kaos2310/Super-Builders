@@ -67,6 +67,18 @@ on:
       device_codename:
         type: string
         default: ""
+      kmi_mode:
+        description: "runtime-compat, symtypes, or strict"
+        type: string
+        default: "runtime-compat"
+      kmi_profile:
+        description: "Unique label for a non-flashable KMI diagnostic variant"
+        type: string
+        default: "full"
+      kmi_minimal_config:
+        description: "Use only the minimum ReSukiSU config for CRC attribution"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -83,6 +95,26 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v6
+
+    - name: Validate KMI build mode
+      env:
+        KMI_MODE: ${{ inputs.kmi_mode }}
+        KMI_PROFILE: ${{ inputs.kmi_profile }}
+        KMI_MINIMAL_CONFIG: ${{ inputs.kmi_minimal_config }}
+      run: |
+        set -euo pipefail
+        case "$KMI_MODE" in
+          runtime-compat|symtypes|strict) ;;
+          *) echo "::error::Unsupported KMI mode: $KMI_MODE"; exit 1 ;;
+        esac
+        [[ "$KMI_PROFILE" =~ ^[a-z0-9][a-z0-9-]*$ ]] || {
+          echo "::error::Invalid KMI profile label: $KMI_PROFILE"
+          exit 1
+        }
+        if [[ "$KMI_MODE" == "runtime-compat" && "$KMI_MINIMAL_CONFIG" == "true" ]]; then
+          echo "::error::Minimal config is diagnostic-only"
+          exit 1
+        fi
 
     - name: Free Disk Space
       uses: endersonmenezes/free-disk-space@v3
@@ -187,6 +219,9 @@ jobs:
 
         ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-ReSukiSU-${RESUKISU_VERSION_LABEL}"
         [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]] && ARTIFACT_BASE+="-OpenRedirect-Test"
+        if [[ "${{ inputs.kmi_mode }}" != "runtime-compat" ]]; then
+          ARTIFACT_BASE+="-KMI-${{ inputs.kmi_profile }}-${{ inputs.kmi_mode }}"
+        fi
         {
           echo "SUBLEVEL=$SUBLEVEL"
           echo "ARTIFACT_BASE=$ARTIFACT_BASE"
@@ -350,7 +385,7 @@ jobs:
         [ -f "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch" ] && patch -p1 -F3 < "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch" || true
 
     - name: Install KASAN-off KMI compatibility stub
-      if: inputs.android_version == 'android14' && inputs.kernel_version == '6.1' && inputs.device_codename == 'e3q'
+      if: inputs.android_version == 'android14' && inputs.kernel_version == '6.1' && inputs.device_codename == 'e3q' && !inputs.kmi_minimal_config
       run: |
         set -euo pipefail
         HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-kasan-kmi-stub.sh"
@@ -368,6 +403,9 @@ jobs:
         ADD_KPM: ${{ inputs.add_kpm }}
         SUSFS_OPEN_REDIRECT_TEST: ${{ inputs.susfs_open_redirect }}
         DEVICE_CODENAME: ${{ inputs.device_codename }}
+        KMI_MODE: ${{ inputs.kmi_mode }}
+        KMI_PROFILE: ${{ inputs.kmi_profile }}
+        KMI_MINIMAL_CONFIG: ${{ inputs.kmi_minimal_config }}
       run: |
         FRAGMENT="$GITHUB_WORKSPACE/$VERSION_DIR/defconfig.fragment"
         HELPERS="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers"
@@ -378,18 +416,32 @@ jobs:
           sed -i 's/^CONFIG_KSU_SUSFS_OPEN_REDIRECT=.*/CONFIG_KSU_SUSFS_OPEN_REDIRECT=y/' "$FRAGMENT"
         fi
 
-        ASSEMBLE_FLAGS=""
-        [[ "$ADD_SUSFS" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --susfs"
-        [[ "$ADD_ZEROMOUNT" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --zeromount"
-        [[ "$ADD_DROIDSPACES" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --droidspaces"
-        [[ "$ADD_OVERLAYFS" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --overlayfs"
-        [[ "$ADD_ZRAM" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --zram"
-        [[ "$ADD_KPM" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --kpm"
-        [ ! -f "$KERNEL_ROOT/build/build.sh" ] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --kleaf"
+        if [[ "$KMI_MINIMAL_CONFIG" == "true" ]]; then
+          for optional in "$ADD_SUSFS" "$ADD_ZEROMOUNT" "$ADD_DROIDSPACES" "$ADD_OVERLAYFS" "$ADD_ZRAM" "$ADD_KPM"; do
+            [[ "$optional" == "false" ]] || {
+              echo "::error::Minimal KMI config cannot enable optional feature sections"
+              exit 1
+            }
+          done
+          cat > "$DEFCONFIG_FRAGMENT" <<'EOF'
+        CONFIG_KSU=y
+        CONFIG_KSU_MULTI_MANAGER_SUPPORT=y
+        CONFIG_LOCALVERSION_AUTO=n
+        EOF
+        else
+          ASSEMBLE_FLAGS=""
+          [[ "$ADD_SUSFS" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --susfs"
+          [[ "$ADD_ZEROMOUNT" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --zeromount"
+          [[ "$ADD_DROIDSPACES" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --droidspaces"
+          [[ "$ADD_OVERLAYFS" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --overlayfs"
+          [[ "$ADD_ZRAM" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --zram"
+          [[ "$ADD_KPM" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --kpm"
+          [ ! -f "$KERNEL_ROOT/build/build.sh" ] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --kleaf"
 
-        bash "$HELPERS/assemble-defconfig.sh" "$FRAGMENT" "$DEFCONFIG_FRAGMENT" "$DEFCONFIG" $ASSEMBLE_FLAGS
+          bash "$HELPERS/assemble-defconfig.sh" "$FRAGMENT" "$DEFCONFIG_FRAGMENT" "$DEFCONFIG" $ASSEMBLE_FLAGS
+        fi
 
-        if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
+        if [[ "$DEVICE_CODENAME" == "e3q" && "$KMI_MINIMAL_CONFIG" != "true" ]]; then
           BUILD_MODE=legacy
           [ ! -f "$KERNEL_ROOT/build/build.sh" ] && BUILD_MODE=kleaf
           DAILY_CONFIG="$HELPERS/enforce-s928b-daily-config.sh"
@@ -431,7 +483,11 @@ jobs:
           grep -qx 'CONFIG_KSU_SUSFS_OPEN_REDIRECT=y' "$DEFCONFIG_FRAGMENT"
         fi
 
-        bash "$HELPERS/bypass-abi-check.sh" . "$ANDROID_VER" "$KERNEL_VER"
+        if [[ "$KMI_MODE" != "strict" ]]; then
+          bash "$HELPERS/bypass-abi-check.sh" . "$ANDROID_VER" "$KERNEL_VER"
+        else
+          echo "Strict KMI mode: build-time ABI and defconfig checks remain enabled."
+        fi
 
     - name: Verify ReSukiSU build identity
       if: inputs.device_codename == 'e3q'
@@ -442,6 +498,8 @@ jobs:
         EXPECTED_MANAGER_SIZE: ${{ inputs.resukisu_expected_size }}
         EXPECTED_MANAGER_HASH: ${{ inputs.resukisu_expected_hash }}
         ADD_KPM: ${{ inputs.add_kpm }}
+        ADD_SUSFS: ${{ inputs.add_susfs }}
+        ADD_ZEROMOUNT: ${{ inputs.add_zeromount }}
       run: |
         set -euo pipefail
         test "$KSU_VARIANT" = "ReSukiSU"
@@ -453,12 +511,16 @@ jobs:
         bash "$RELEASE_CONFIG" "$KERNEL_ROOT/$KSU_DIR" "$EXPECTED_BRANCH" "$PIN" \
           "$EXPECTED_VERSION_CODE" "$EXPECTED_MANAGER_SIZE" "$EXPECTED_MANAGER_HASH"
 
-        grep -qx '#define SUSFS_VERSION "v2.2.0"' "$KERNEL_ROOT/common/include/linux/susfs.h"
-        grep -q 'ksu_susfs_dispatch_path_compat' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
-        grep -q 'case CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH:' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
-        grep -q 'case CMD_SUSFS_SET_SDCARD_ROOT_PATH:' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
-        grep -qx 'CONFIG_ZEROMOUNT=y' "$DEFCONFIG_FRAGMENT"
-        test -f "$KERNEL_ROOT/common/fs/zeromount.c"
+        if [[ "$ADD_SUSFS" == "true" ]]; then
+          grep -qx '#define SUSFS_VERSION "v2.2.0"' "$KERNEL_ROOT/common/include/linux/susfs.h"
+          grep -q 'ksu_susfs_dispatch_path_compat' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
+          grep -q 'case CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH:' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
+          grep -q 'case CMD_SUSFS_SET_SDCARD_ROOT_PATH:' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
+        fi
+        if [[ "$ADD_ZEROMOUNT" == "true" ]]; then
+          grep -qx 'CONFIG_ZEROMOUNT=y' "$DEFCONFIG_FRAGMENT"
+          test -f "$KERNEL_ROOT/common/fs/zeromount.c"
+        fi
         if [[ "$ADD_KPM" == "true" ]]; then
           grep -qx 'CONFIG_KPM=y' "$DEFCONFIG_FRAGMENT"
         else
@@ -469,9 +531,8 @@ jobs:
         echo "RESUKISU_VERSION_CODE=${RESUKISU_VERSION_CODE}"
         echo "RESUKISU_SOURCE_BRANCH=${EXPECTED_BRANCH}"
         echo "RESUKISU_COMMIT=$PIN"
-        echo "SUSFS_VERSION=v2.2.0"
-        echo "ZeroMount enabled"
-        echo "ZeroMount SUSFS v2.2 dual-ABI compatibility enabled"
+        [[ "$ADD_SUSFS" == "true" ]] && echo "SUSFS_VERSION=v2.2.0" || echo "SUSFS disabled for KMI attribution"
+        [[ "$ADD_ZEROMOUNT" == "true" ]] && echo "ZeroMount SUSFS v2.2 dual-ABI compatibility enabled" || echo "ZeroMount disabled for KMI attribution"
         [[ "$ADD_KPM" == "true" ]] && echo "KPM enabled" || echo "KPM unavailable in ReSukiSU ${RESUKISU_VERSION_CODE}"
 
     - name: Clean Module Lists
@@ -482,6 +543,7 @@ jobs:
         bash "$HELPERS/clean-module-list.sh" .
 
     - name: Apply Module Check Bypass
+      if: inputs.kmi_mode == 'runtime-compat'
       working-directory: ${{ env.KERNEL_ROOT }}
       env:
         KERNEL_VER: ${{ inputs.kernel_version }}
@@ -497,7 +559,7 @@ jobs:
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
         HELPERS="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers"
-        bash "$HELPERS/clean-build-flags.sh" . "$KERNEL_VER" "ReSukiSU"
+        bash "$HELPERS/clean-build-flags.sh" . "$KERNEL_VER" "ReSukiSU" "${{ inputs.kmi_mode }}"
 
     - name: Set Stock Build Identity
       working-directory: ${{ env.KERNEL_ROOT }}/common
@@ -593,19 +655,28 @@ jobs:
 
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
+      env:
+        KMI_MODE: ${{ inputs.kmi_mode }}
       run: |
         set -euo pipefail
         LTO_MODE=thin
         [[ "$ANDROID_VER" == android16* || "$KERNEL_VER" == "6.12" ]] && LTO_MODE=none
         if [ -f "build/build.sh" ]; then
-          KMI_SYMBOL_LIST_STRICT_MODE=0 HOSTLD=/usr/bin/ld.lld GKI_DEFCONFIG_FRAGMENT="$DEFCONFIG_FRAGMENT" LTO=$LTO_MODE BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
+          SYMTYPES=0
+          STRICT_MODE=0
+          [[ "$KMI_MODE" != "runtime-compat" ]] && SYMTYPES=1
+          [[ "$KMI_MODE" == "strict" ]] && STRICT_MODE=1
+          KBUILD_SYMTYPES=$SYMTYPES KMI_SYMBOL_LIST_STRICT_MODE=$STRICT_MODE HOSTLD=/usr/bin/ld.lld GKI_DEFCONFIG_FRAGMENT="$DEFCONFIG_FRAGMENT" LTO=$LTO_MODE BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
         else
           # Prebuilt clang sysroot lacks glibc 2.39 C23 symbols — link against system libc
           if [ -f common/tools/bpf/resolve_btfids/Makefile ]; then
             echo 'override KBUILD_HOSTLDFLAGS += --sysroot=/' >> common/tools/bpf/resolve_btfids/Makefile
             echo 'override LDFLAGS += --sysroot=/' >> common/tools/bpf/resolve_btfids/Makefile
           fi
-          tools/bazel build --config=fast --lto=$LTO_MODE --defconfig_fragment=//common:arch/arm64/configs/sukisu_gki.fragment //common:kernel_aarch64_dist
+          BAZEL_FLAGS=(build --config=fast --lto="$LTO_MODE")
+          [[ "$KMI_MODE" != "runtime-compat" ]] && BAZEL_FLAGS+=(--kbuild_symtypes)
+          BAZEL_FLAGS+=(--defconfig_fragment=//common:arch/arm64/configs/sukisu_gki.fragment)
+          tools/bazel "${BAZEL_FLAGS[@]}" //common:kernel_aarch64_dist
         fi
         echo "KERNEL_BUILD_EXIT_CODE=0" >> "$GITHUB_ENV"
         echo "Kernel build command completed with exit code 0"
@@ -619,6 +690,9 @@ jobs:
         ADD_KPM: ${{ inputs.add_kpm }}
         REQUIRE_CUSTOM_MANAGER: ${{ inputs.resukisu_expected_hash != '' }}
         DEVICE_CODENAME: ${{ inputs.device_codename }}
+        KMI_MODE: ${{ inputs.kmi_mode }}
+        KMI_PROFILE: ${{ inputs.kmi_profile }}
+        KMI_MINIMAL_CONFIG: ${{ inputs.kmi_minimal_config }}
       run: |
         CONFIG_FILE="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/common/.config"
         if [ ! -f "$CONFIG_FILE" ]; then
@@ -642,21 +716,25 @@ jobs:
           exit 1
         }
 
-        REQUIRED=(CONFIG_SECCOMP CONFIG_SECCOMP_FILTER)
-        if [ "$ADD_DROIDSPACES" = "true" ]; then
-          REQUIRED+=(
-            CONFIG_NAMESPACES CONFIG_UTS_NS CONFIG_IPC_NS CONFIG_PID_NS
-            CONFIG_NET_NS CONFIG_USER_NS CONFIG_CGROUPS CONFIG_CGROUP_BPF
-            CONFIG_CGROUP_PIDS CONFIG_ANDROID_BINDERFS CONFIG_SYSVIPC
-            CONFIG_POSIX_MQUEUE
-          )
-        fi
-        if [ "$ADD_ZRAM" = "true" ]; then
-          REQUIRED+=(
-            CONFIG_ZSMALLOC CONFIG_ZSMALLOC_STAT CONFIG_ZRAM
-            CONFIG_ZRAM_WRITEBACK CONFIG_ZRAM_MEMORY_TRACKING
-            CONFIG_LRU_GEN CONFIG_LRU_GEN_STATS
-          )
+        if [[ "$KMI_MINIMAL_CONFIG" == "true" ]]; then
+          REQUIRED=(CONFIG_KSU CONFIG_KSU_MULTI_MANAGER_SUPPORT)
+        else
+          REQUIRED=(CONFIG_SECCOMP CONFIG_SECCOMP_FILTER)
+          if [ "$ADD_DROIDSPACES" = "true" ]; then
+            REQUIRED+=(
+              CONFIG_NAMESPACES CONFIG_UTS_NS CONFIG_IPC_NS CONFIG_PID_NS
+              CONFIG_NET_NS CONFIG_USER_NS CONFIG_CGROUPS CONFIG_CGROUP_BPF
+              CONFIG_CGROUP_PIDS CONFIG_ANDROID_BINDERFS CONFIG_SYSVIPC
+              CONFIG_POSIX_MQUEUE
+            )
+          fi
+          if [ "$ADD_ZRAM" = "true" ]; then
+            REQUIRED+=(
+              CONFIG_ZSMALLOC CONFIG_ZSMALLOC_STAT CONFIG_ZRAM
+              CONFIG_ZRAM_WRITEBACK CONFIG_ZRAM_MEMORY_TRACKING
+              CONFIG_LRU_GEN CONFIG_LRU_GEN_STATS
+            )
+          fi
         fi
 
         MISSING=()
@@ -668,10 +746,12 @@ jobs:
           exit 1
         fi
 
-        grep -qx 'CONFIG_IP6_NF_NAT=y' "$CONFIG_FILE" || {
-          echo "::error::CONFIG_IP6_NF_NAT must be enabled in the real final build config"
-          exit 1
-        }
+        if [[ "$KMI_MINIMAL_CONFIG" != "true" ]]; then
+          grep -qx 'CONFIG_IP6_NF_NAT=y' "$CONFIG_FILE" || {
+            echo "::error::CONFIG_IP6_NF_NAT must be enabled in the real final build config"
+            exit 1
+          }
+        fi
 
         if grep -qx 'CONFIG_LOCALVERSION_AUTO=y' "$CONFIG_FILE"; then
           echo "::error::CONFIG_LOCALVERSION_AUTO must stay disabled for stable kernelrelease metadata"
@@ -679,19 +759,23 @@ jobs:
         fi
 
         if [ "$DEVICE_CODENAME" = "e3q" ]; then
-          DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
-          chmod +x "$DAILY_AUDIT"
-          "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER"
+          if [[ "$KMI_MINIMAL_CONFIG" != "true" && ( "$KMI_MODE" == "runtime-compat" || "$KMI_PROFILE" == "full" || "$KMI_MODE" == "strict" ) ]]; then
+            DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
+            chmod +x "$DAILY_AUDIT"
+            "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER"
+          fi
 
-          KASAN_KMI_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/verify-kasan-kmi-stub.sh"
-          chmod +x "$KASAN_KMI_AUDIT"
-          "$KASAN_KMI_AUDIT" "$KERNEL_ROOT" "$KERNEL_ROOT/common" "$CONFIG_FILE"
+          if [[ "$KMI_MINIMAL_CONFIG" != "true" ]]; then
+            KASAN_KMI_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/verify-kasan-kmi-stub.sh"
+            chmod +x "$KASAN_KMI_AUDIT"
+            "$KASAN_KMI_AUDIT" "$KERNEL_ROOT" "$KERNEL_ROOT/common" "$CONFIG_FILE"
+          fi
 
           SAMSUNG_DLKM_CRC_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/verify-samsung-dlkm-crcs.sh"
           SAMSUNG_DLKM_CRC_BASELINE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-e3q-dlkm-crc-baseline.tsv"
           chmod +x "$SAMSUNG_DLKM_CRC_AUDIT"
           "$SAMSUNG_DLKM_CRC_AUDIT" "$KERNEL_ROOT" "$SAMSUNG_DLKM_CRC_BASELINE" \
-            "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit"
+            "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit" "$KMI_MODE" "${{ inputs.kmi_profile }}"
         fi
 
         echo "FINAL_CONFIG_FILE=$CONFIG_FILE" >> "$GITHUB_ENV"
@@ -702,10 +786,21 @@ jobs:
           echo "Verified ${#REQUIRED[@]} required options in \`${CONFIG_FILE#"$KERNEL_ROOT/"}\`."
           echo "CONFIG_LOCALVERSION_AUTO is disabled."
           if [ "$DEVICE_CODENAME" = "e3q" ]; then
-            echo "S928B daily feature, KStack-default, KVM-config, KASAN-off KMI-stub and Samsung DLKM CRC audits passed."
+            echo "S928B profile ${KMI_PROFILE}, KMI mode ${KMI_MODE}, config and Samsung DLKM CRC audits completed."
             echo "Kernel-side KVM is present; functional /dev/kvm still requires EL2/HYP handoff by the Samsung bootloader."
           fi
         } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Collect KMI symtypes diagnostics
+      if: always() && inputs.kmi_mode != 'runtime-compat'
+      env:
+        KMI_MODE: ${{ inputs.kmi_mode }}
+        KMI_PROFILE: ${{ inputs.kmi_profile }}
+      run: |
+        COLLECTOR="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/collect-kmi-symtypes.sh"
+        chmod +x "$COLLECTOR"
+        "$COLLECTOR" "$KERNEL_ROOT" "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit" \
+          "$KMI_PROFILE" "$KMI_MODE"
 
     - name: Upload Samsung DLKM CRC audit
       if: always() && inputs.device_codename == 'e3q'
@@ -726,6 +821,7 @@ jobs:
         done
 
     - name: Prepare AnyKernel3
+      if: inputs.kmi_mode == 'runtime-compat'
       run: |
         if [ -f "$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/dist/Image" ]; then
           cp "$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/dist/Image" "$ANYKERNEL3/Image"
@@ -738,7 +834,7 @@ jobs:
         fi
 
     - name: Audit S928B daily AnyKernel3
-      if: inputs.device_codename == 'e3q'
+      if: inputs.device_codename == 'e3q' && inputs.kmi_mode == 'runtime-compat'
       env:
         ADD_KPM: ${{ inputs.add_kpm }}
         REQUIRE_CUSTOM_MANAGER: ${{ inputs.resukisu_expected_hash != '' }}
@@ -852,6 +948,7 @@ jobs:
         fi
 
     - name: Upload Artifact
+      if: inputs.kmi_mode == 'runtime-compat'
       uses: actions/upload-artifact@v7
       with:
         name: ${{ env.FILE_NAME }}-AnyKernel3
@@ -879,6 +976,8 @@ jobs:
         ADD_OVERLAYFS: ${{ inputs.add_overlayfs_support }}
         ADD_KPM: ${{ inputs.add_kpm }}
         SUSFS_OPEN_REDIRECT_TEST: ${{ inputs.susfs_open_redirect }}
+        KMI_MODE: ${{ inputs.kmi_mode }}
+        KMI_PROFILE: ${{ inputs.kmi_profile }}
       run: |
         S() { [[ "$1" == "true" ]] && echo "Enabled" || echo "Disabled"; }
         {
@@ -900,11 +999,16 @@ jobs:
           echo "| **Baseband Guard** | $(S "$ADD_BBG") |"
           echo "| **KPM** | $(S "$ADD_KPM") |"
           echo "| **KASAN** | Disabled; inactive KMI static-key stub retained |"
+          echo "| **KMI mode** | ${KMI_MODE} (${KMI_PROFILE}) |"
           echo "| **Samsung DLKM CRCs** | ${SAMSUNG_DLKM_EXACT_COUNT:-not-recorded} exact, ${SAMSUNG_DLKM_COMPATIBLE_COUNT:-not-recorded} known differences, ${SAMSUNG_DLKM_UNEXPECTED_COUNT:-not-recorded} unexpected |"
           echo "| **Kernel build exit** | ${KERNEL_BUILD_EXIT_CODE:-not-recorded} |"
           echo "| **Device Profile** | ${IDENTITY_STATUS:-Generic} |"
           echo "| **Rejects** | ${REJ_COUNT:-0} |"
-          echo "| **Artifact** | ${FILE_NAME} |"
+          if [[ "$KMI_MODE" == "runtime-compat" ]]; then
+            echo "| **Artifact** | ${FILE_NAME} |"
+          else
+            echo "| **Artifact** | Non-flashable KMI diagnostics only |"
+          fi
         } >> "$GITHUB_STEP_SUMMARY"
         REPORT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/report-config.sh"
         [ -f "$REPORT" ] && bash "$REPORT" "$KERNEL_ROOT" "$ANDROID_VER" "$KERNEL_VER" || true
