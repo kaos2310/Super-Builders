@@ -57,7 +57,7 @@ on:
         default: "dev"
       resukisu_version_code:
         type: string
-        default: "35047"
+        default: "35055"
       resukisu_expected_size:
         type: string
         default: ""
@@ -686,6 +686,12 @@ jobs:
           KASAN_KMI_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/verify-kasan-kmi-stub.sh"
           chmod +x "$KASAN_KMI_AUDIT"
           "$KASAN_KMI_AUDIT" "$KERNEL_ROOT" "$KERNEL_ROOT/common" "$CONFIG_FILE"
+
+          SAMSUNG_DLKM_CRC_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/verify-samsung-dlkm-crcs.sh"
+          SAMSUNG_DLKM_CRC_BASELINE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-e3q-dlkm-crc-baseline.tsv"
+          chmod +x "$SAMSUNG_DLKM_CRC_AUDIT"
+          "$SAMSUNG_DLKM_CRC_AUDIT" "$KERNEL_ROOT" "$SAMSUNG_DLKM_CRC_BASELINE" \
+            "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit"
         fi
 
         echo "FINAL_CONFIG_FILE=$CONFIG_FILE" >> "$GITHUB_ENV"
@@ -696,10 +702,19 @@ jobs:
           echo "Verified ${#REQUIRED[@]} required options in \`${CONFIG_FILE#"$KERNEL_ROOT/"}\`."
           echo "CONFIG_LOCALVERSION_AUTO is disabled."
           if [ "$DEVICE_CODENAME" = "e3q" ]; then
-            echo "S928B daily feature, KStack-default, KVM-config and KASAN-off KMI-stub audit passed."
+            echo "S928B daily feature, KStack-default, KVM-config, KASAN-off KMI-stub and Samsung DLKM CRC audits passed."
             echo "Kernel-side KVM is present; functional /dev/kvm still requires EL2/HYP handoff by the Samsung bootloader."
           fi
         } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload Samsung DLKM CRC audit
+      if: always() && inputs.device_codename == 'e3q'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ env.FILE_NAME }}-Samsung-DLKM-CRC-Audit
+        path: samsung-dlkm-crc-audit/
+        if-no-files-found: warn
+        compression-level: 9
 
     - name: Dump Build Errors
       if: failure()
@@ -885,6 +900,7 @@ jobs:
           echo "| **Baseband Guard** | $(S "$ADD_BBG") |"
           echo "| **KPM** | $(S "$ADD_KPM") |"
           echo "| **KASAN** | Disabled; inactive KMI static-key stub retained |"
+          echo "| **Samsung DLKM CRCs** | ${SAMSUNG_DLKM_MATCHED_COUNT:-not-recorded} exact, ${SAMSUNG_DLKM_MISMATCH_COUNT:-not-recorded} mismatched |"
           echo "| **Kernel build exit** | ${KERNEL_BUILD_EXIT_CODE:-not-recorded} |"
           echo "| **Device Profile** | ${IDENTITY_STATUS:-Generic} |"
           echo "| **Rejects** | ${REJ_COUNT:-0} |"

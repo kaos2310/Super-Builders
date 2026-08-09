@@ -1,5 +1,5 @@
-name: Enhanced ReSukiSU v4.1.0-35054
-run-name: "Enhanced ReSukiSU v4.1.0-35054 + Official Spoofed Manager support — 6.1.145-android14-11-33419968-abS928BXXS6DZG1"
+name: Enhanced ReSukiSU v4.1.0-35055
+run-name: "Enhanced ReSukiSU v4.1.0-35055 + Official Spoofed Manager support — 6.1.145-android14-11-33419968-abS928BXXS6DZG1"
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ on:
     branches:
       - agent/kmi-runtime-compat
     paths:
-      - '.github/workflows/run-enhanced-resukisu-35054.yml'
+      - '.github/workflows/run-enhanced-resukisu-35055.yml'
       - '.github/workflows/kernel-custom.yml'
       - '.github/workflows/build-resukisu.yml'
       - '.github/workflows/cache-dependencies.yml'
@@ -16,6 +16,7 @@ on:
       - '.github/actions/droidspaces-678/**'
       - 'android14-6.1/defconfig.fragment'
       - 'android14-6.1/build-helpers/**'
+      - 'android14-6.1/samsung-e3q-dlkm-crc-baseline.tsv'
       - 'android14-6.1/SukiSU-Ultra/patches/**'
       - 'android14-6.1/resukisu-pin.txt'
       - 'device-profiles.json'
@@ -26,7 +27,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: enhanced-resukisu-35054-e3q
+  group: enhanced-resukisu-35055-e3q
   cancel-in-progress: true
 
 jobs:
@@ -48,9 +49,9 @@ jobs:
       # ReSukiSU removed KPM upstream in faac3098; current main cannot provide it.
       add_kpm: false
       susfs_open_redirect: true
-      sukisu_commit: "f56219d2998dc00aa2a80eda8c2280b1455a3519"
+      sukisu_commit: "beaaea0eb895dc41e7b9bf5e3f39e57aa9635bab"
       resukisu_source_branch: "main"
-      resukisu_version_code: "35054"
+      resukisu_version_code: "35055"
 
   official-manager:
     name: Official ReSukiSU Manager reference

@@ -12,9 +12,13 @@ on:
       - agent/kmi-runtime-compat
     paths:
       - .github/workflows/run-kmi-module-loader-audit.yml
+      - .github/workflows/build-resukisu.yml
       - android14-6.1/build-helpers/clean-build-flags.sh
+      - android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh
+      - android14-6.1/samsung-e3q-dlkm-crc-baseline.tsv
+      - android14-6.1/resukisu-pin.txt
 
-# ReSukiSU v4.1.0-35054 with Samsung DLKM runtime compatibility.
+# ReSukiSU v4.1.0-35055 with Samsung DLKM runtime compatibility.
 jobs:
   dependencies:
     uses: ./.github/workflows/cache-dependencies.yml
@@ -37,8 +41,9 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
+      sukisu_commit: beaaea0eb895dc41e7b9bf5e3f39e57aa9635bab
       resukisu_source_branch: main
-      resukisu_version_code: "35054"
+      resukisu_version_code: "35055"
       device_codename: e3q
 
   package-runtime-compat-zip:
@@ -47,8 +52,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      SOURCE_ARTIFACT: 6.1.145-android14-2025-09-ReSukiSU-35054-AnyKernel3
-      OUTPUT_BASENAME: 6.1.145-android14-2025-09-ReSukiSU-35054-AnyKernel3-KMICompat-Log4M-Audited
+      SOURCE_ARTIFACT: 6.1.145-android14-2025-09-ReSukiSU-35055-AnyKernel3
+      OUTPUT_BASENAME: 6.1.145-android14-2025-09-ReSukiSU-35055-AnyKernel3-KMICompat-Log4M-Audited
     steps:
       - name: Download successful build artifact
         uses: actions/download-artifact@v8
@@ -88,8 +93,10 @@ jobs:
           cat > AnyKernel3/KMI-RUNTIME-COMPAT.txt <<'EOF'
           S928B KMI runtime compatibility build
           =====================================
-          MODVERSIONS CRC mismatches remain visible in dmesg but are accepted
-          so Samsung vendor/DLKM modules can load during early boot.
+          The live S928B ABI-import CRC baseline is checked fail-closed against
+          the build's Module.symvers; any known CRC mismatch fails the build.
+          The legacy bad_version runtime fallback remains for Samsung modules
+          outside the captured persistent vendor_dlkm baseline.
           Genuine module blacklist matches still fail with -EPERM.
           Patch reject files remain fatal before compilation.
           KASAN remains disabled.
@@ -112,7 +119,8 @@ jobs:
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len" "4M"'
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'avc_log_spoofing 1'
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'hide_sus_mnts_for_all_or_non_su_procs 0'
-          unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'CRC mismatches remain visible'
+          unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'known CRC mismatch fails the build'
+          unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'runtime fallback remains'
           unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'runtime-default OFF'
           unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'log_buf_len=4M'
 
@@ -152,9 +160,9 @@ jobs:
             echo
             echo "| Check | Result |"
             echo "|---|---|"
-            echo "| ReSukiSU | v4.1.0-35054 pinned at f56219d2998dc00aa2a80eda8c2280b1455a3519 |"
-            echo "| MODVERSIONS CRC handling | Mismatches logged and accepted for Samsung DLKM compatibility |"
-            echo "| bad_version | \`return 1\` required by build audit |"
+            echo "| ReSukiSU | v4.1.0-35055 pinned at beaaea0eb895dc41e7b9bf5e3f39e57aa9635bab |"
+            echo "| Samsung DLKM CRC gate | Live S928B ABI baseline compared fail-closed with \`Module.symvers\` |"
+            echo "| bad_version fallback | \`return 1\` retained only as runtime compatibility outside the captured baseline |"
             echo "| Module blacklist errno | Genuine blacklist matches return \`-EPERM\` |"
             echo "| Patch rejects before build | Build fails if any \`.rej\` exists |"
             echo "| KASAN | Disabled; compatibility stub retained where required |"
