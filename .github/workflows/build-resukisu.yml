@@ -463,6 +463,15 @@ jobs:
           "$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --disable LRU_GEN_STATS
           grep -qx '# CONFIG_CGROUP_PIDS is not set' "$DEFCONFIG_FRAGMENT"
           grep -qx '# CONFIG_LRU_GEN_STATS is not set' "$DEFCONFIG_FRAGMENT"
+
+          # ZeroMount and BBG are custom fragment options. Keeping duplicate
+          # assignments in the base GKI defconfig makes Kleaf's savedefconfig
+          # normalization fail even though the final values are unchanged.
+          for SYMBOL in ZEROMOUNT BBG; do
+            grep -qx "CONFIG_${SYMBOL}=y" "$DEFCONFIG_FRAGMENT"
+            "$CONFIG_TOOL" --file "$DEFCONFIG" --undefine "$SYMBOL"
+            ! grep -Eq "^(CONFIG_${SYMBOL}=|# CONFIG_${SYMBOL} is not set)" "$DEFCONFIG"
+          done
           echo "Strict Samsung KMI config: CGROUP_PIDS=n and LRU_GEN_STATS=n"
         fi
 

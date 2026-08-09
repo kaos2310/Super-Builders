@@ -128,6 +128,8 @@ test_kleaf_kmi_flags() {
     echo "Strict workflow uses a positive Kleaf flag unsupported by the pinned wrapper" >&2
     exit 1
   fi
+  grep -qF '"$CONFIG_TOOL" --file "$DEFCONFIG" --undefine "$SYMBOL"' "$BUILD_WORKFLOW"
+  grep -qF 'grep -qx "CONFIG_${SYMBOL}=y" "$DEFCONFIG_FRAGMENT"' "$BUILD_WORKFLOW"
 }
 
 test_kleaf_kmi_flags
