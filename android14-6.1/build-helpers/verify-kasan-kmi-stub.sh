@@ -6,6 +6,8 @@ COMMON_TREE="${2:?common kernel tree}"
 CONFIG_FILE="${3:?final kernel config}"
 STUB="$COMMON_TREE/mm/kasan_kmi_compat.c"
 MAKEFILE="$COMMON_TREE/mm/Makefile"
+KASAN_HEADER="$COMMON_TREE/include/linux/kasan.h"
+SLUB_HEADER="$COMMON_TREE/include/linux/slub_def.h"
 
 [[ -f "$CONFIG_FILE" ]] || {
   echo "::error::Final kernel config is missing: $CONFIG_FILE"
@@ -19,6 +21,12 @@ grep -qxF 'obj-y += kasan_kmi_compat.o' "$MAKEFILE"
 grep -qxF '#if !IS_ENABLED(CONFIG_KASAN_HW_TAGS)' "$STUB"
 grep -qxF 'DEFINE_STATIC_KEY_FALSE(kasan_flag_enabled);' "$STUB"
 grep -qxF 'EXPORT_SYMBOL(kasan_flag_enabled);' "$STUB"
+grep -qF 'Samsung KMI: retain the HW-tags kasan_cache layout with KASAN off.' "$KASAN_HEADER"
+grep -qF 'Samsung KMI: layout only; KASAN instrumentation remains disabled.' "$SLUB_HEADER"
+[[ "$(grep -c $'^\tstruct kasan_cache kasan_info;$' "$SLUB_HEADER" || true)" -eq 1 ]] || {
+  echo "::error::Expected exactly one inactive kasan_info layout field in struct kmem_cache"
+  exit 1
+}
 
 grep -qx '# CONFIG_KASAN is not set' "$CONFIG_FILE" || {
   echo "::error::CONFIG_KASAN is not fully disabled in $CONFIG_FILE"
@@ -159,7 +167,7 @@ done
   exit 1
 }
 
-echo "Verified KASAN fully disabled with one ABI-compatible inactive static-key stub"
+echo "Verified KASAN fully disabled with one inactive static-key stub and stock SLUB KMI layout"
 echo "VMLINUX=$VMLINUX"
 printf '%s\n' "$NM_OUTPUT"
 echo "MODULE_SYMVERS=$SYMVERS"
@@ -173,6 +181,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo "- Final config: \`CONFIG_KASAN=n\`; no KASAN implementation enabled"
     echo "- vmlinux: exactly one global \`kasan_flag_enabled\` definition (nm type \`$NM_TYPE\`)"
     echo "- Module.symvers: exactly one normal \`EXPORT_SYMBOL\` entry"
+    echo "- SLUB: inactive \`kasan_info\` layout retained without instrumentation"
     echo "- ABI list: \`${ABI_MATCHES[0]#"$COMMON_TREE/"}\`"
   } >> "$GITHUB_STEP_SUMMARY"
 fi

@@ -8,6 +8,7 @@ AUDITOR="$HELPERS_DIR/verify-samsung-dlkm-crcs.sh"
 COMPARATOR="$HELPERS_DIR/compare-kmi-variants.sh"
 COLLECTOR="$HELPERS_DIR/collect-kmi-symtypes.sh"
 CLEAN_FLAGS="$HELPERS_DIR/clean-build-flags.sh"
+KASAN_STUB_HELPER="$HELPERS_DIR/apply-kasan-kmi-stub.sh"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -86,6 +87,49 @@ cp "$TMP_DIR/symtypes/summary.env" "$TMP_DIR/symtypes/Module.symvers" "$TMP_DIR/
 "$COMPARATOR" "$BASELINE" "$TMP_DIR/artifacts" "$TMP_DIR/comparison"
 grep -q $'^gki-control\t1679\t794\t1\t0\tno\t' "$TMP_DIR/comparison/variant-summary.tsv"
 grep -q $'^full\t1679\t795\t0\t0\tno\t' "$TMP_DIR/comparison/variant-summary.tsv"
+
+test_kasan_kmi_layout() {
+  local fixture="$TMP_DIR/kasan-kmi-layout"
+  mkdir -p "$fixture/mm/kasan" "$fixture/include/linux"
+
+  cat > "$fixture/mm/Makefile" <<'EOF'
+obj-$(CONFIG_KASAN) += kasan/
+EOF
+  cat > "$fixture/mm/kasan/hw_tags.c" <<'EOF'
+DEFINE_STATIC_KEY_FALSE(kasan_flag_enabled);
+EXPORT_SYMBOL(kasan_flag_enabled);
+EOF
+  cat > "$fixture/include/linux/kasan.h" <<'EOF'
+#ifdef CONFIG_KASAN
+struct kasan_cache {
+	bool is_kmalloc;
+};
+#else /* CONFIG_KASAN */
+
+static inline void kasan_unpoison_range(const void *address, size_t size) {}
+#endif /* CONFIG_KASAN */
+EOF
+  cat > "$fixture/include/linux/slub_def.h" <<'EOF'
+struct kmem_cache {
+#ifdef CONFIG_KASAN
+	struct kasan_cache kasan_info;
+#endif
+	unsigned int useroffset;
+};
+EOF
+
+  "$KASAN_STUB_HELPER" "$fixture"
+  "$KASAN_STUB_HELPER" "$fixture"
+  grep -qxF 'obj-y += kasan_kmi_compat.o' "$fixture/mm/Makefile"
+  [[ "$(grep -cF 'Samsung KMI: retain the HW-tags kasan_cache layout with KASAN off.' \
+      "$fixture/include/linux/kasan.h")" -eq 1 ]]
+  [[ "$(grep -cF 'Samsung KMI: layout only; KASAN instrumentation remains disabled.' \
+      "$fixture/include/linux/slub_def.h")" -eq 1 ]]
+  [[ "$(grep -c $'^\tstruct kasan_cache kasan_info;$' \
+      "$fixture/include/linux/slub_def.h")" -eq 1 ]]
+}
+
+test_kasan_kmi_layout
 
 test_clean_flags_mode() {
   local mode="$1"
