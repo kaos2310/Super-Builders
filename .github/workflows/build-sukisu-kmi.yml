@@ -809,6 +809,7 @@ jobs:
         ADD_ZRAM: ${{ inputs.add_zram }}
         ADD_KPM: ${{ inputs.add_kpm }}
         REQUIRE_CUSTOM_MANAGER: "false"
+        REQUIRE_MULTI_MANAGER: "false"
         DEVICE_CODENAME: ${{ inputs.device_codename }}
         KMI_MODE: ${{ inputs.kmi_mode }}
         KMI_PROFILE: ${{ inputs.kmi_profile }}
@@ -837,7 +838,7 @@ jobs:
         }
 
         if [[ "$KMI_MINIMAL_CONFIG" == "true" ]]; then
-          REQUIRED=(CONFIG_KSU CONFIG_KSU_MULTI_MANAGER_SUPPORT)
+          REQUIRED=(CONFIG_KSU)
         else
           REQUIRED=(CONFIG_SECCOMP CONFIG_SECCOMP_FILTER)
           if [ "$ADD_DROIDSPACES" = "true" ]; then
@@ -893,7 +894,7 @@ jobs:
           if [[ "$KMI_MINIMAL_CONFIG" != "true" && ( "$KMI_MODE" == "runtime-compat" || "$KMI_PROFILE" == "full" || "$KMI_MODE" == "strict" ) ]]; then
             DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
             chmod +x "$DAILY_AUDIT"
-            "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE"
+            "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE" "$REQUIRE_MULTI_MANAGER"
           fi
 
           if [[ "$KMI_MINIMAL_CONFIG" != "true" ]]; then
@@ -999,6 +1000,7 @@ jobs:
       env:
         ADD_KPM: ${{ inputs.add_kpm }}
         REQUIRE_CUSTOM_MANAGER: "false"
+        REQUIRE_MULTI_MANAGER: "false"
         KMI_MODE: ${{ inputs.kmi_mode }}
         PACKAGE_STRICT_ANYKERNEL: ${{ inputs.package_strict_anykernel }}
       run: |
@@ -1042,7 +1044,7 @@ jobs:
         test -s "$IKCONFIG"
         DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
         chmod +x "$DAILY_AUDIT"
-        "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE"
+        "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE" "$REQUIRE_MULTI_MANAGER"
         grep -qx 'CONFIG_IP6_NF_NAT=n' "$IKCONFIG" || {
           echo "::error::Embedded IKCONFIG did not receive the IPv6 NAT masking patch"
           exit 1

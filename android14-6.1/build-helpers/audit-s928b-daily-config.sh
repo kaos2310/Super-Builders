@@ -5,6 +5,7 @@ CONFIG_FILE="${1:?final kernel config}"
 REQUIRE_KPM="${2:-true}"
 REQUIRE_CUSTOM_MANAGER="${3:-false}"
 KMI_MODE="${4:-runtime-compat}"
+REQUIRE_MULTI_MANAGER="${5:-true}"
 case "$KMI_MODE" in
   runtime-compat|symtypes|strict) ;;
   *)
@@ -19,7 +20,6 @@ esac
 
 REQUIRED=(
   CONFIG_KSU
-  CONFIG_KSU_MULTI_MANAGER_SUPPORT
   CONFIG_KSU_SUSFS
   CONFIG_KSU_SUSFS_SUS_PATH
   CONFIG_KSU_SUSFS_SUS_MOUNT
@@ -72,6 +72,9 @@ REQUIRED=(
   CONFIG_VIRTUALIZATION
   CONFIG_KVM
 )
+if [[ "$REQUIRE_MULTI_MANAGER" == "true" ]]; then
+  REQUIRED+=(CONFIG_KSU_MULTI_MANAGER_SUPPORT)
+fi
 if [[ "$KMI_MODE" == "strict" ]]; then
   STRICT_KMI_DISABLED=(CONFIG_CGROUP_PIDS CONFIG_LRU_GEN_STATS)
 else
