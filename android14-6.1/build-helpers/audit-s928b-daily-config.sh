@@ -4,6 +4,14 @@ set -euo pipefail
 CONFIG_FILE="${1:?final kernel config}"
 REQUIRE_KPM="${2:-true}"
 REQUIRE_CUSTOM_MANAGER="${3:-false}"
+KMI_MODE="${4:-runtime-compat}"
+case "$KMI_MODE" in
+  runtime-compat|symtypes|strict) ;;
+  *)
+    echo "::error::Unsupported KMI mode for daily config audit: $KMI_MODE"
+    exit 1
+    ;;
+esac
 [[ -f "$CONFIG_FILE" ]] || {
   echo "::error::Kernel config not found: $CONFIG_FILE"
   exit 1
@@ -32,7 +40,6 @@ REQUIRED=(
   CONFIG_PID_NS
   CONFIG_NET_NS
   CONFIG_USER_NS
-  CONFIG_CGROUP_PIDS
   CONFIG_ANDROID_BINDERFS
   CONFIG_SYSVIPC
   CONFIG_POSIX_MQUEUE
@@ -57,7 +64,6 @@ REQUIRED=(
   CONFIG_CRYPTO_LZ4KD
   CONFIG_ZRAM_DEF_COMP_LZ4KD
   CONFIG_LRU_GEN
-  CONFIG_LRU_GEN_STATS
   CONFIG_CFI_CLANG
   CONFIG_SHADOW_CALL_STACK
   CONFIG_RANDOMIZE_KSTACK_OFFSET
@@ -66,6 +72,12 @@ REQUIRED=(
   CONFIG_VIRTUALIZATION
   CONFIG_KVM
 )
+if [[ "$KMI_MODE" == "strict" ]]; then
+  STRICT_KMI_DISABLED=(CONFIG_CGROUP_PIDS CONFIG_LRU_GEN_STATS)
+else
+  REQUIRED+=(CONFIG_CGROUP_PIDS CONFIG_LRU_GEN_STATS)
+  STRICT_KMI_DISABLED=()
+fi
 if [[ "$REQUIRE_KPM" == "true" ]]; then
   REQUIRED+=(CONFIG_KPM)
 fi
@@ -78,6 +90,13 @@ if (("${#missing[@]}")); then
   printf '::error::Required S928B daily options missing: %s\n' "${missing[*]}"
   exit 1
 fi
+
+for symbol in "${STRICT_KMI_DISABLED[@]}"; do
+  grep -qx "# ${symbol} is not set" "$CONFIG_FILE" || {
+    echo "::error::Strict Samsung KMI requires ${symbol}=n"
+    exit 1
+  }
+done
 
 # The S928B production kernel is extremely chatty. The old 128 KiB default
 # (CONFIG_LOG_BUF_SHIFT=17) loses early boot diagnostics quickly. Require the
@@ -125,6 +144,9 @@ if grep -Eq '^CONFIG_(KFENCE|KASAN(_[A-Z0-9_]+)?|UBSAN(_TRAP|_BOUNDS|_LOCAL_BOUN
 fi
 
 echo "Verified ${#REQUIRED[@]} S928B daily features in $CONFIG_FILE"
+if [[ "$KMI_MODE" == "strict" ]]; then
+  echo "Verified strict Samsung KMI layout: CONFIG_CGROUP_PIDS=n and CONFIG_LRU_GEN_STATS=n"
+fi
 echo "Verified CONFIG_LOG_BUF_SHIFT=22 (4 MiB printk ring buffer)"
 echo "Verified CONFIG_KFENCE=n, CONFIG_KASAN=n and CONFIG_UBSAN=n"
 echo "Verified no KASAN implementation is enabled; KMI is supplied by the inactive stub"

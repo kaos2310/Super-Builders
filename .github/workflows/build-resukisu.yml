@@ -453,6 +453,19 @@ jobs:
           "$DAILY_CONFIG" "$KERNEL_ROOT/common" "$DEFCONFIG_FRAGMENT" "$DEFCONFIG" "$BUILD_MODE"
         fi
 
+        if [[ "$DEVICE_CODENAME" == "e3q" && "$KMI_MODE" == "strict" ]]; then
+          # Samsung's stock DLKMs were compiled with seven cgroup subsystems and
+          # the compact MGLRU statistics layout. Enabling these two options
+          # changes exported type layouts; rewriting their CRCs would hide a
+          # real ABI mismatch and can make vendor modules dereference bad data.
+          CONFIG_TOOL="$KERNEL_ROOT/common/scripts/config"
+          "$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --disable CGROUP_PIDS
+          "$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --disable LRU_GEN_STATS
+          grep -qx '# CONFIG_CGROUP_PIDS is not set' "$DEFCONFIG_FRAGMENT"
+          grep -qx '# CONFIG_LRU_GEN_STATS is not set' "$DEFCONFIG_FRAGMENT"
+          echo "Strict Samsung KMI config: CGROUP_PIDS=n and LRU_GEN_STATS=n"
+        fi
+
         while IFS='=' read -r cfg _; do
           symbol="${cfg#CONFIG_}"
           grep -Rqx "config ${symbol}" common/ ${KSU_DIR:+$KSU_DIR/} --include='Kconfig*' 2>/dev/null && continue
@@ -736,16 +749,18 @@ jobs:
             REQUIRED+=(
               CONFIG_NAMESPACES CONFIG_UTS_NS CONFIG_IPC_NS CONFIG_PID_NS
               CONFIG_NET_NS CONFIG_USER_NS CONFIG_CGROUPS CONFIG_CGROUP_BPF
-              CONFIG_CGROUP_PIDS CONFIG_ANDROID_BINDERFS CONFIG_SYSVIPC
+              CONFIG_ANDROID_BINDERFS CONFIG_SYSVIPC
               CONFIG_POSIX_MQUEUE
             )
+            [[ "$KMI_MODE" != "strict" ]] && REQUIRED+=(CONFIG_CGROUP_PIDS)
           fi
           if [ "$ADD_ZRAM" = "true" ]; then
             REQUIRED+=(
               CONFIG_ZSMALLOC CONFIG_ZSMALLOC_STAT CONFIG_ZRAM
               CONFIG_ZRAM_WRITEBACK CONFIG_ZRAM_MEMORY_TRACKING
-              CONFIG_LRU_GEN CONFIG_LRU_GEN_STATS
+              CONFIG_LRU_GEN
             )
+            [[ "$KMI_MODE" != "strict" ]] && REQUIRED+=(CONFIG_LRU_GEN_STATS)
           fi
         fi
 
@@ -756,6 +771,15 @@ jobs:
         if (("${#MISSING[@]}" > 0)); then
           printf '::error::Required final config options missing: %s\n' "${MISSING[*]}"
           exit 1
+        fi
+
+        if [[ "$KMI_MODE" == "strict" ]]; then
+          for SYMBOL in CONFIG_CGROUP_PIDS CONFIG_LRU_GEN_STATS; do
+            grep -qx "# ${SYMBOL} is not set" "$CONFIG_FILE" || {
+              echo "::error::Strict Samsung KMI requires ${SYMBOL}=n"
+              exit 1
+            }
+          done
         fi
 
         if [[ "$KMI_MINIMAL_CONFIG" != "true" ]]; then
@@ -774,7 +798,7 @@ jobs:
           if [[ "$KMI_MINIMAL_CONFIG" != "true" && ( "$KMI_MODE" == "runtime-compat" || "$KMI_PROFILE" == "full" || "$KMI_MODE" == "strict" ) ]]; then
             DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
             chmod +x "$DAILY_AUDIT"
-            "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER"
+            "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE"
           fi
 
           if [[ "$KMI_MINIMAL_CONFIG" != "true" ]]; then

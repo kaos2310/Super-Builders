@@ -9,6 +9,7 @@ COMPARATOR="$HELPERS_DIR/compare-kmi-variants.sh"
 COLLECTOR="$HELPERS_DIR/collect-kmi-symtypes.sh"
 CLEAN_FLAGS="$HELPERS_DIR/clean-build-flags.sh"
 KASAN_STUB_HELPER="$HELPERS_DIR/apply-kasan-kmi-stub.sh"
+DAILY_AUDIT="$HELPERS_DIR/audit-s928b-daily-config.sh"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -87,6 +88,37 @@ cp "$TMP_DIR/symtypes/summary.env" "$TMP_DIR/symtypes/Module.symvers" "$TMP_DIR/
 "$COMPARATOR" "$BASELINE" "$TMP_DIR/artifacts" "$TMP_DIR/comparison"
 grep -q $'^gki-control\t1679\t794\t1\t0\tno\t' "$TMP_DIR/comparison/variant-summary.tsv"
 grep -q $'^full\t1679\t795\t0\t0\tno\t' "$TMP_DIR/comparison/variant-summary.tsv"
+
+test_strict_daily_config() {
+  local config="$TMP_DIR/strict-daily.config"
+
+  awk '
+    /^REQUIRED=\(/ { in_required=1; next }
+    in_required && /^\)/ { in_required=0; next }
+    in_required {
+      for (field=1; field<=NF; field++) {
+        if ($field ~ /^CONFIG_[A-Z0-9_]+$/) print $field "=y"
+      }
+    }
+  ' "$DAILY_AUDIT" > "$config"
+  cat >> "$config" <<'EOF'
+# CONFIG_CGROUP_PIDS is not set
+# CONFIG_LRU_GEN_STATS is not set
+CONFIG_LOG_BUF_SHIFT=22
+CONFIG_IP6_NF_NAT=y
+# CONFIG_KFENCE is not set
+# CONFIG_KASAN is not set
+# CONFIG_UBSAN is not set
+EOF
+
+  "$DAILY_AUDIT" "$config" false false strict
+  if "$DAILY_AUDIT" "$config" false false runtime-compat; then
+    echo "Runtime-compatible audit unexpectedly accepted strict-disabled features" >&2
+    exit 1
+  fi
+}
+
+test_strict_daily_config
 
 test_kasan_kmi_layout() {
   local fixture="$TMP_DIR/kasan-kmi-layout"
