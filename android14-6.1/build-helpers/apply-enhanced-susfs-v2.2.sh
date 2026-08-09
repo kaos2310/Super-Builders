@@ -480,8 +480,8 @@ if handled == 0:
 PY
 
 # SUSFS 2.2 retains the two external-directory command IDs as deprecated
-# compatibility calls, while ReSukiSU's new dispatcher no longer acknowledges
-# them. ZeroMount also still sends the pre-v2.2 SUS_PATH structure. Add a small
+# compatibility calls, while current SukiSU/ReSukiSU dispatchers no longer
+# acknowledge them. ZeroMount also still sends the pre-v2.2 SUS_PATH structure. Add a small
 # dual-layout adapter around the current SUSFS functions so both the current
 # ksu_susfs tool and ZeroMount remain supported. No legacy path implementation
 # or overlapping filesystem hooks are reintroduced.
@@ -524,9 +524,14 @@ for candidate in candidates:
     if any(present):
         raise SystemExit(f"Partial ZeroMount external-dir compatibility in {candidate}")
 
-    dispatch_anchor = "int ksu_handle_susfs_cmd(unsigned int cmd, void __user **arg)\n"
-    if text.count(dispatch_anchor) != 1:
-        raise SystemExit(f"Expected one SUSFS dispatcher anchor in {candidate}")
+    dispatch_anchors = (
+        "int ksu_handle_susfs_cmd(unsigned int cmd, void __user **arg)\n",
+        "int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg)\n",
+    )
+    matches = [anchor for anchor in dispatch_anchors if text.count(anchor)]
+    if len(matches) != 1 or text.count(matches[0]) != 1:
+        raise SystemExit(f"Expected one SukiSU/ReSukiSU SUSFS dispatcher anchor in {candidate}")
+    dispatch_anchor = matches[0]
 
     helper = r'''struct ksu_susfs_current_path {
     char target_pathname[SUSFS_MAX_LEN_PATHNAME];
@@ -619,14 +624,22 @@ static int ksu_susfs_ack_deprecated_external_dir(void __user **arg,
         ("CMD_SUSFS_ADD_SUS_PATH_LOOP", "susfs_add_sus_path_loop", "true"),
     )
     for command, function, loop in path_cases:
-        pattern = re.compile(
+        braced_pattern = re.compile(
             rf"(?P<indent>^[ \t]*)case {command}: \{{\n"
             rf"(?P=indent)[ \t]+{function}\(arg\);\n"
             rf"(?P=indent)[ \t]+return 0;\n"
             rf"(?P=indent)\}}\n",
             re.MULTILINE,
         )
-        match = pattern.search(text)
+        plain_pattern = re.compile(
+            rf"(?P<indent>^[ \t]*)case {command}:\n"
+            rf"(?P=indent)[ \t]+{function}\(arg\);\n"
+            rf"(?P=indent)[ \t]+return 0;\n",
+            re.MULTILINE,
+        )
+        match = braced_pattern.search(text)
+        if not match:
+            match = plain_pattern.search(text)
         if not match:
             raise SystemExit(f"Cannot locate {command} dispatch in {candidate}")
         indent = match.group("indent")
@@ -657,7 +670,7 @@ static int ksu_susfs_ack_deprecated_external_dir(void __user **arg,
     print(f"Added ZeroMount external-dir compatibility: {candidate}")
 
 if handled == 0:
-    raise SystemExit("No ReSukiSU SUSFS dispatch source was found")
+    raise SystemExit("No SukiSU/ReSukiSU SUSFS dispatch source was found")
 PY
 
 for symbol in \
