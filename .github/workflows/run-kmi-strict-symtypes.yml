@@ -22,7 +22,7 @@ on:
       - 'android14-6.1/resukisu-pin.txt'
 
 permissions:
-  contents: read
+  contents: write
   actions: write
 
 concurrency:
@@ -175,7 +175,7 @@ jobs:
             perf: true
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
-      contents: read
+      contents: write
       actions: write
     with:
       android_version: android14
@@ -243,7 +243,7 @@ jobs:
     needs: [dependencies, feature-matrix]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
-      contents: read
+      contents: write
       actions: write
     with:
       android_version: android14
