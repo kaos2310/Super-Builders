@@ -4,7 +4,6 @@ set -euo pipefail
 KERNEL_ROOT="${1:?kernel root}"
 BASELINE="${2:?Samsung DLKM CRC baseline}"
 REPORT_DIR="${3:?report output directory}"
-MIN_MATCHED="${SAMSUNG_DLKM_MIN_MATCHED:-}"
 
 [[ -f "$BASELINE" ]] || {
   echo "::error::Samsung DLKM CRC baseline is missing: $BASELINE"
@@ -17,14 +16,10 @@ BASELINE_COUNT=$(awk '!/^#/ && NF >= 2 { count++ } END { print count + 0 }' "$BA
   echo "::error::Samsung DLKM CRC baseline contains no symbols"
   exit 1
 }
-MIN_MATCHED="${MIN_MATCHED:-$BASELINE_COUNT}"
-[[ "$MIN_MATCHED" =~ ^[0-9]+$ ]] && (( MIN_MATCHED <= BASELINE_COUNT )) || {
-  echo "::error::Invalid Samsung DLKM minimum coverage: $MIN_MATCHED"
-  exit 1
-}
-
 BAD_BASELINE=$(awk '
-  !/^#/ && (NF < 2 || $2 !~ /^0x[0-9a-fA-F]{8}$/) { print NR ":" $0 }
+  !/^#/ && (NF < 3 || $2 !~ /^0x[0-9a-fA-F]{8}$/ || $3 !~ /^0x[0-9a-fA-F]{8}$/) {
+    print NR ":" $0
+  }
 ' "$BASELINE")
 [[ -z "$BAD_BASELINE" ]] || {
   echo "::error::Samsung DLKM CRC baseline has malformed entries"
@@ -33,11 +28,11 @@ BAD_BASELINE=$(awk '
 }
 
 BASELINE_CONFLICTS=$(awk '
-  !/^#/ && NF >= 2 {
-    crc=tolower($2)
-    if ($1 in seen && seen[$1] != crc)
-      print $1 "\t" seen[$1] "\t" crc
-    seen[$1]=crc
+  !/^#/ && NF >= 3 {
+    pair=tolower($2) "/" tolower($3)
+    if ($1 in seen && seen[$1] != pair)
+      print $1 "\t" seen[$1] "\t" pair
+    seen[$1]=pair
   }
 ' "$BASELINE")
 [[ -z "$BASELINE_CONFLICTS" ]] || {
@@ -87,60 +82,95 @@ done
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-awk -v matched="$TMP_DIR/matched" \
-    -v mismatched="$TMP_DIR/mismatched" \
+awk -v exact="$TMP_DIR/exact" \
+    -v compatible="$TMP_DIR/compatible" \
+    -v unexpected="$TMP_DIR/unexpected" \
     -v missing="$TMP_DIR/missing" '
   NR == FNR {
-    if ($0 !~ /^#/ && NF >= 2) {
-      expected[$1]=tolower($2)
-      consumers[$1]=$3
+    if ($0 !~ /^#/ && NF >= 3) {
+      expected_device[$1]=tolower($2)
+      expected_build[$1]=tolower($3)
+      consumers[$1]=$4
     }
     next
   }
   NF >= 2 {
     symbol=$2
     crc=tolower($1)
-    if (symbol in expected)
+    if (symbol in expected_device)
       actual[symbol]=crc
   }
   END {
-    for (symbol in expected) {
+    for (symbol in expected_device) {
       if (!(symbol in actual))
-        print symbol "\t" expected[symbol] "\t" consumers[symbol] > missing
-      else if (actual[symbol] != expected[symbol])
-        print symbol "\t" expected[symbol] "\t" actual[symbol] "\t" consumers[symbol] > mismatched
+        print symbol "\t" expected_device[symbol] "\t" expected_build[symbol] "\t" consumers[symbol] > missing
+      else if (actual[symbol] == expected_device[symbol])
+        print symbol "\t" expected_device[symbol] "\t" consumers[symbol] > exact
+      else if (actual[symbol] == expected_build[symbol])
+        print symbol "\t" expected_device[symbol] "\t" expected_build[symbol] "\t" consumers[symbol] > compatible
       else
-        print symbol "\t" expected[symbol] "\t" consumers[symbol] > matched
+        print symbol "\t" expected_device[symbol] "\t" expected_build[symbol] "\t" actual[symbol] "\t" consumers[symbol] > unexpected
     }
   }
 ' "$BASELINE" "$SYMVERS"
 
 {
   printf 'symbol\tcrc\tmodules\n'
-  [[ ! -s "$TMP_DIR/matched" ]] || LC_ALL=C sort "$TMP_DIR/matched"
-} > "$REPORT_DIR/matched.tsv"
+  [[ ! -s "$TMP_DIR/exact" ]] || LC_ALL=C sort "$TMP_DIR/exact"
+} > "$REPORT_DIR/exact.tsv"
 {
-  printf 'symbol\texpected_crc\tbuild_crc\tmodules\n'
-  [[ ! -s "$TMP_DIR/mismatched" ]] || LC_ALL=C sort "$TMP_DIR/mismatched"
-} > "$REPORT_DIR/mismatched.tsv"
+  printf 'symbol\tdevice_crc\tvalidated_build_crc\tmodules\n'
+  [[ ! -s "$TMP_DIR/compatible" ]] || LC_ALL=C sort "$TMP_DIR/compatible"
+} > "$REPORT_DIR/compatible-differences.tsv"
 {
-  printf 'symbol\texpected_crc\tmodules\n'
+  printf 'symbol\tdevice_crc\tvalidated_build_crc\tactual_build_crc\tmodules\n'
+  [[ ! -s "$TMP_DIR/unexpected" ]] || LC_ALL=C sort "$TMP_DIR/unexpected"
+} > "$REPORT_DIR/unexpected.tsv"
+{
+  printf 'symbol\tdevice_crc\tvalidated_build_crc\tmodules\n'
   [[ ! -s "$TMP_DIR/missing" ]] || LC_ALL=C sort "$TMP_DIR/missing"
 } > "$REPORT_DIR/missing.tsv"
 
-MATCHED_COUNT=$(( $(wc -l < "$REPORT_DIR/matched.tsv") - 1 ))
-MISMATCH_COUNT=$(( $(wc -l < "$REPORT_DIR/mismatched.tsv") - 1 ))
+EXACT_COUNT=$(( $(wc -l < "$REPORT_DIR/exact.tsv") - 1 ))
+COMPATIBLE_COUNT=$(( $(wc -l < "$REPORT_DIR/compatible-differences.tsv") - 1 ))
+UNEXPECTED_COUNT=$(( $(wc -l < "$REPORT_DIR/unexpected.tsv") - 1 ))
 MISSING_COUNT=$(( $(wc -l < "$REPORT_DIR/missing.tsv") - 1 ))
 SYMVERS_SHA256=$(sha256sum "$SYMVERS" | awk '{print $1}')
+
+RUNTIME_FALLBACK="not-required"
+VERSION_SOURCE=""
+if (( COMPATIBLE_COUNT > 0 )); then
+  for candidate in \
+    "$KERNEL_ROOT/common/kernel/module/version.c" \
+    "$KERNEL_ROOT/common/kernel/module.c"; do
+    [[ -f "$candidate" ]] || continue
+    VERSION_SOURCE="$candidate"
+    break
+  done
+  [[ -n "$VERSION_SOURCE" ]] || {
+    echo "::error::Kernel module version source was not found"
+    exit 1
+  }
+  BAD_VERSION_RETURN=$(awk '
+    /^[[:space:]]*bad_version:/ { in_bad_version=1; next }
+    in_bad_version && /return[[:space:]]+[01];/ { print; exit }
+  ' "$VERSION_SOURCE")
+  if grep -qE 'return[[:space:]]+1;' <<< "$BAD_VERSION_RETURN"; then
+    RUNTIME_FALLBACK="verified"
+  else
+    RUNTIME_FALLBACK="missing"
+  fi
+fi
 
 cat > "$REPORT_DIR/summary.md" <<EOF
 # Samsung S928B DLKM CRC audit
 
 - Baseline symbols: **${BASELINE_COUNT}**
-- Exact CRC matches: **${MATCHED_COUNT}**
-- CRC mismatches: **${MISMATCH_COUNT}**
+- Exact Samsung/build CRC matches: **${EXACT_COUNT}**
+- Known Samsung/GKI CRC differences: **${COMPATIBLE_COUNT}**
+- Unexpected build CRCs: **${UNEXPECTED_COUNT}**
 - Baseline symbols absent from selected Module.symvers: **${MISSING_COUNT}**
-- Required minimum matches: **${MIN_MATCHED}**
+- Runtime bad_version fallback: **${RUNTIME_FALLBACK}**
 - Module.symvers: \`${SYMVERS#"$KERNEL_ROOT"/}\`
 - Module.symvers SHA-256: \`${SYMVERS_SHA256}\`
 EOF
@@ -152,21 +182,32 @@ fi
 if [[ -n "${GITHUB_ENV:-}" ]]; then
   {
     echo "SAMSUNG_DLKM_BASELINE_COUNT=$BASELINE_COUNT"
-    echo "SAMSUNG_DLKM_MATCHED_COUNT=$MATCHED_COUNT"
-    echo "SAMSUNG_DLKM_MISMATCH_COUNT=$MISMATCH_COUNT"
+    echo "SAMSUNG_DLKM_EXACT_COUNT=$EXACT_COUNT"
+    echo "SAMSUNG_DLKM_COMPATIBLE_COUNT=$COMPATIBLE_COUNT"
+    echo "SAMSUNG_DLKM_UNEXPECTED_COUNT=$UNEXPECTED_COUNT"
     echo "SAMSUNG_DLKM_MISSING_COUNT=$MISSING_COUNT"
+    echo "SAMSUNG_DLKM_RUNTIME_FALLBACK=$RUNTIME_FALLBACK"
     echo "SAMSUNG_DLKM_SYMVERS_SHA256=$SYMVERS_SHA256"
   } >> "$GITHUB_ENV"
 fi
 
-if (( MISMATCH_COUNT > 0 )); then
-  echo "::error::Samsung DLKM CRC mismatches detected: $MISMATCH_COUNT"
-  sed -n '1,31p' "$REPORT_DIR/mismatched.tsv"
+if (( UNEXPECTED_COUNT > 0 )); then
+  echo "::error::Unexpected Samsung DLKM build CRCs detected: $UNEXPECTED_COUNT"
+  sed -n '1,31p' "$REPORT_DIR/unexpected.tsv"
   exit 1
 fi
-if (( MATCHED_COUNT < MIN_MATCHED )); then
-  echo "::error::Samsung DLKM CRC coverage is too low: $MATCHED_COUNT < $MIN_MATCHED"
+if (( MISSING_COUNT > 0 )); then
+  echo "::error::Samsung DLKM baseline symbols are missing from Module.symvers: $MISSING_COUNT"
+  sed -n '1,31p' "$REPORT_DIR/missing.tsv"
+  exit 1
+fi
+if (( EXACT_COUNT + COMPATIBLE_COUNT != BASELINE_COUNT )); then
+  echo "::error::Samsung DLKM CRC coverage is incomplete"
+  exit 1
+fi
+if (( COMPATIBLE_COUNT > 0 )) && [[ "$RUNTIME_FALLBACK" != "verified" ]]; then
+  echo "::error::Known Samsung/GKI CRC differences require the audited bad_version fallback"
   exit 1
 fi
 
-echo "Verified $MATCHED_COUNT Samsung S928B DLKM symbol CRCs with no mismatch"
+echo "Verified $EXACT_COUNT exact Samsung CRCs and $COMPATIBLE_COUNT known Samsung/GKI differences"

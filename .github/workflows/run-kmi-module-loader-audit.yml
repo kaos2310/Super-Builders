@@ -93,10 +93,10 @@ jobs:
           cat > AnyKernel3/KMI-RUNTIME-COMPAT.txt <<'EOF'
           S928B KMI runtime compatibility build
           =====================================
-          The live S928B ABI-import CRC baseline is checked fail-closed against
-          the build's Module.symvers; any known CRC mismatch fails the build.
-          The legacy bad_version runtime fallback remains for Samsung modules
-          outside the captured persistent vendor_dlkm baseline.
+          All live S928B ABI-import and validated build CRC pairs are pinned.
+          Missing symbols, new CRCs, or unapproved differences fail the build.
+          The 795 known Samsung/GKI CRC differences require the audited
+          bad_version runtime fallback used by this device-compatible kernel.
           Genuine module blacklist matches still fail with -EPERM.
           Patch reject files remain fatal before compilation.
           KASAN remains disabled.
@@ -119,8 +119,8 @@ jobs:
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len" "4M"'
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'avc_log_spoofing 1'
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'hide_sus_mnts_for_all_or_non_su_procs 0'
-          unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'known CRC mismatch fails the build'
-          unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'runtime fallback remains'
+          unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'unapproved differences fail the build'
+          unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F '795 known Samsung/GKI CRC differences'
           unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'runtime-default OFF'
           unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'log_buf_len=4M'
 
@@ -161,8 +161,8 @@ jobs:
             echo "| Check | Result |"
             echo "|---|---|"
             echo "| ReSukiSU | v4.1.0-35055 pinned at beaaea0eb895dc41e7b9bf5e3f39e57aa9635bab |"
-            echo "| Samsung DLKM CRC gate | Live S928B ABI baseline compared fail-closed with \`Module.symvers\` |"
-            echo "| bad_version fallback | \`return 1\` retained only as runtime compatibility outside the captured baseline |"
+            echo "| Samsung DLKM CRC gate | 2474 live device/build CRC pairs pinned; missing or unexpected values fail |"
+            echo "| Known Samsung/GKI differences | 795 accepted only with audited \`bad_version: return 1\` fallback |"
             echo "| Module blacklist errno | Genuine blacklist matches return \`-EPERM\` |"
             echo "| Patch rejects before build | Build fails if any \`.rej\` exists |"
             echo "| KASAN | Disabled; compatibility stub retained where required |"

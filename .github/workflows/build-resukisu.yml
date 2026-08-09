@@ -900,7 +900,7 @@ jobs:
           echo "| **Baseband Guard** | $(S "$ADD_BBG") |"
           echo "| **KPM** | $(S "$ADD_KPM") |"
           echo "| **KASAN** | Disabled; inactive KMI static-key stub retained |"
-          echo "| **Samsung DLKM CRCs** | ${SAMSUNG_DLKM_MATCHED_COUNT:-not-recorded} exact, ${SAMSUNG_DLKM_MISMATCH_COUNT:-not-recorded} mismatched |"
+          echo "| **Samsung DLKM CRCs** | ${SAMSUNG_DLKM_EXACT_COUNT:-not-recorded} exact, ${SAMSUNG_DLKM_COMPATIBLE_COUNT:-not-recorded} known differences, ${SAMSUNG_DLKM_UNEXPECTED_COUNT:-not-recorded} unexpected |"
           echo "| **Kernel build exit** | ${KERNEL_BUILD_EXIT_CODE:-not-recorded} |"
           echo "| **Device Profile** | ${IDENTITY_STATUS:-Generic} |"
           echo "| **Rejects** | ${REJ_COUNT:-0} |"
