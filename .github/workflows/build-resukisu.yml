@@ -675,6 +675,14 @@ jobs:
           fi
           BAZEL_FLAGS=(build --config=fast --lto="$LTO_MODE")
           [[ "$KMI_MODE" != "runtime-compat" ]] && BAZEL_FLAGS+=(--kbuild_symtypes)
+          if [[ "$KMI_MODE" == "symtypes" ]]; then
+            # Reduced attribution profiles intentionally omit exports. Keep
+            # the strict module loader, but defer symbol-list enforcement to
+            # the separate full strict gate after CRC convergence.
+            BAZEL_FLAGS+=(--nokmi_symbol_list_strict_mode --nokmi_symbol_list_violations_check)
+          elif [[ "$KMI_MODE" == "strict" ]]; then
+            BAZEL_FLAGS+=(--kmi_symbol_list_strict_mode --kmi_symbol_list_violations_check)
+          fi
           BAZEL_FLAGS+=(--defconfig_fragment=//common:arch/arm64/configs/sukisu_gki.fragment)
           tools/bazel "${BAZEL_FLAGS[@]}" //common:kernel_aarch64_dist
         fi
@@ -797,6 +805,10 @@ jobs:
         KMI_MODE: ${{ inputs.kmi_mode }}
         KMI_PROFILE: ${{ inputs.kmi_profile }}
       run: |
+        if [[ ! -s "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/Module.symvers" ]]; then
+          echo "::warning::Skipping symtypes collection because the kernel build produced no audited Module.symvers"
+          exit 0
+        fi
         COLLECTOR="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/collect-kmi-symtypes.sh"
         chmod +x "$COLLECTOR"
         "$COLLECTOR" "$KERNEL_ROOT" "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit" \
