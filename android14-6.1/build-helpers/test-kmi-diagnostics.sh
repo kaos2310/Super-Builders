@@ -11,6 +11,7 @@ CLEAN_FLAGS="$HELPERS_DIR/clean-build-flags.sh"
 KASAN_STUB_HELPER="$HELPERS_DIR/apply-kasan-kmi-stub.sh"
 DAILY_AUDIT="$HELPERS_DIR/audit-s928b-daily-config.sh"
 BUILD_WORKFLOW="$VERSION_DIR/../.github/workflows/build-resukisu.yml"
+SUKISU_BUILD_WORKFLOW="$VERSION_DIR/../.github/workflows/build-sukisu-kmi.yml"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -122,33 +123,55 @@ EOF
 test_strict_daily_config
 
 test_kleaf_kmi_flags() {
-  grep -qF 'BAZEL_FLAGS+=(--nokmi_symbol_list_strict_mode --nokmi_symbol_list_violations_check)' \
-    "$BUILD_WORKFLOW"
-  if grep -qF 'BAZEL_FLAGS+=(--kmi_symbol_list_strict_mode' "$BUILD_WORKFLOW"; then
-    echo "Strict workflow uses a positive Kleaf flag unsupported by the pinned wrapper" >&2
-    exit 1
-  fi
-  grep -qF '"$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --enable "$SYMBOL"' "$BUILD_WORKFLOW"
-  grep -qF '"$CONFIG_TOOL" --file "$DEFCONFIG" --undefine "$SYMBOL"' "$BUILD_WORKFLOW"
-  grep -qF 'grep -qx "CONFIG_${SYMBOL}=y" "$DEFCONFIG_FRAGMENT"' "$BUILD_WORKFLOW"
+  local workflow
+  for workflow in "$BUILD_WORKFLOW" "$SUKISU_BUILD_WORKFLOW"; do
+    grep -qF 'BAZEL_FLAGS+=(--nokmi_symbol_list_strict_mode --nokmi_symbol_list_violations_check)' \
+      "$workflow"
+    if grep -qF 'BAZEL_FLAGS+=(--kmi_symbol_list_strict_mode' "$workflow"; then
+      echo "Strict workflow uses a positive Kleaf flag unsupported by the pinned wrapper: $workflow" >&2
+      exit 1
+    fi
+    grep -qF '"$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --enable "$SYMBOL"' "$workflow"
+    grep -qF '"$CONFIG_TOOL" --file "$DEFCONFIG" --undefine "$SYMBOL"' "$workflow"
+    grep -qF 'grep -qx "CONFIG_${SYMBOL}=y" "$DEFCONFIG_FRAGMENT"' "$workflow"
+  done
 }
 
 test_kleaf_kmi_flags
 
 test_strict_anykernel_gate() {
-  grep -qF 'package_strict_anykernel:' "$BUILD_WORKFLOW"
-  grep -qF 'Strict AnyKernel packaging requires kmi_mode=strict' "$BUILD_WORKFLOW"
-  grep -qF 'Strict AnyKernel packaging is restricted to kmi_profile=full-strict' "$BUILD_WORKFLOW"
-  grep -qF 'Strict AnyKernel packaging is restricted to device_codename=e3q' "$BUILD_WORKFLOW"
-  grep -qF 'test "$SAMSUNG_DLKM_EXACT_COUNT" = "2474"' "$BUILD_WORKFLOW"
-  grep -qF 'test "$SAMSUNG_DLKM_COMPATIBLE_COUNT" = "0"' "$BUILD_WORKFLOW"
-  grep -qF 'test "$SAMSUNG_DLKM_UNEXPECTED_COUNT" = "0"' "$BUILD_WORKFLOW"
-  grep -qF 'test "$SAMSUNG_DLKM_MISSING_COUNT" = "0"' "$BUILD_WORKFLOW"
-  grep -qF 'test "$SAMSUNG_DLKM_RUNTIME_FALLBACK" = "strict-rejection"' "$BUILD_WORKFLOW"
-  grep -qF 'Upload exact flashable Strict KMI ZIP' "$BUILD_WORKFLOW"
+  local workflow
+  for workflow in "$BUILD_WORKFLOW" "$SUKISU_BUILD_WORKFLOW"; do
+    grep -qF 'package_strict_anykernel:' "$workflow"
+    grep -qF 'Strict AnyKernel packaging requires kmi_mode=strict' "$workflow"
+    grep -qF 'Strict AnyKernel packaging is restricted to kmi_profile=full-strict' "$workflow"
+    grep -qF 'Strict AnyKernel packaging is restricted to device_codename=e3q' "$workflow"
+    grep -qF 'test "$SAMSUNG_DLKM_EXACT_COUNT" = "2474"' "$workflow"
+    grep -qF 'test "$SAMSUNG_DLKM_COMPATIBLE_COUNT" = "0"' "$workflow"
+    grep -qF 'test "$SAMSUNG_DLKM_UNEXPECTED_COUNT" = "0"' "$workflow"
+    grep -qF 'test "$SAMSUNG_DLKM_MISSING_COUNT" = "0"' "$workflow"
+    grep -qF 'test "$SAMSUNG_DLKM_RUNTIME_FALLBACK" = "strict-rejection"' "$workflow"
+    grep -qF 'Upload exact flashable Strict KMI ZIP' "$workflow"
+  done
 }
 
 test_strict_anykernel_gate
+
+test_sukisu_ultra_identity() {
+  local runner="$VERSION_DIR/../.github/workflows/run-kmi-strict-sukisu-40856.yml"
+
+  grep -qF 'SUKISU_VERSION_FULL: v4.1.3-${{ inputs.sukisu_version_code }}' \
+    "$SUKISU_BUILD_WORKFLOW"
+  grep -qF 'KSU_EXPECTED_SIZE := 0x35c' "$SUKISU_BUILD_WORKFLOW"
+  grep -qF '947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef' \
+    "$SUKISU_BUILD_WORKFLOW"
+  grep -qF 'sukisu_commit: 35467545b2826e3acfc88699755981a889956b1a' "$runner"
+  grep -qF 'sukisu_version_code: "40856"' "$runner"
+  grep -qF 'package_strict_anykernel: true' "$runner"
+  ! grep -qi 'resukisu' "$SUKISU_BUILD_WORKFLOW" "$runner"
+}
+
+test_sukisu_ultra_identity
 
 test_kasan_kmi_layout() {
   local fixture="$TMP_DIR/kasan-kmi-layout"
