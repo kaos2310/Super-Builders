@@ -8,6 +8,10 @@ on:
         description: "Run the full strict build gate after reviewing the non-flashable diagnostics"
         type: boolean
         default: false
+      run_attribution_matrix:
+        description: "Re-run all GKI and feature attribution profiles before the strict gate"
+        type: boolean
+        default: true
   push:
     branches:
       - agent/kmi-strict-symtypes
@@ -35,6 +39,7 @@ jobs:
 
   gki-control:
     name: Unmodified GKI control with symtypes
+    if: github.event_name == 'push' || inputs.run_attribution_matrix
     needs: dependencies
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -118,6 +123,7 @@ jobs:
 
   feature-matrix:
     name: "${{ matrix.profile }} symtypes"
+    if: github.event_name == 'push' || inputs.run_attribution_matrix
     needs: dependencies
     strategy:
       fail-fast: false
@@ -222,7 +228,7 @@ jobs:
 
   compare:
     name: Compare all CRC and symtypes variants
-    if: always()
+    if: always() && (github.event_name == 'push' || inputs.run_attribution_matrix)
     needs: [gki-control, feature-matrix]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -259,7 +265,11 @@ jobs:
 
   strict-gate:
     name: Full strict KMI gate
-    if: inputs.run_strict_gate
+    if: >-
+      always() &&
+      inputs.run_strict_gate &&
+      needs.dependencies.result == 'success' &&
+      (needs.feature-matrix.result == 'success' || needs.feature-matrix.result == 'skipped')
     needs: [dependencies, feature-matrix]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:

@@ -698,7 +698,10 @@ jobs:
             # the separate full strict gate after CRC convergence.
             BAZEL_FLAGS+=(--nokmi_symbol_list_strict_mode --nokmi_symbol_list_violations_check)
           elif [[ "$KMI_MODE" == "strict" ]]; then
-            BAZEL_FLAGS+=(--kmi_symbol_list_strict_mode --kmi_symbol_list_violations_check)
+            # These Kleaf checks default to enabled. The wrapper exposes only
+            # the --no* escape hatches, so strict mode enables them by simply
+            # omitting those disabling flags.
+            echo "Strict KMI: using Kleaf's default symbol-list and violations checks"
           fi
           BAZEL_FLAGS+=(--defconfig_fragment=//common:arch/arm64/configs/sukisu_gki.fragment)
           tools/bazel "${BAZEL_FLAGS[@]}" //common:kernel_aarch64_dist

@@ -10,6 +10,7 @@ COLLECTOR="$HELPERS_DIR/collect-kmi-symtypes.sh"
 CLEAN_FLAGS="$HELPERS_DIR/clean-build-flags.sh"
 KASAN_STUB_HELPER="$HELPERS_DIR/apply-kasan-kmi-stub.sh"
 DAILY_AUDIT="$HELPERS_DIR/audit-s928b-daily-config.sh"
+BUILD_WORKFLOW="$VERSION_DIR/../.github/workflows/build-resukisu.yml"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -119,6 +120,17 @@ EOF
 }
 
 test_strict_daily_config
+
+test_kleaf_kmi_flags() {
+  grep -qF 'BAZEL_FLAGS+=(--nokmi_symbol_list_strict_mode --nokmi_symbol_list_violations_check)' \
+    "$BUILD_WORKFLOW"
+  if grep -qF 'BAZEL_FLAGS+=(--kmi_symbol_list_strict_mode' "$BUILD_WORKFLOW"; then
+    echo "Strict workflow uses a positive Kleaf flag unsupported by the pinned wrapper" >&2
+    exit 1
+  fi
+}
+
+test_kleaf_kmi_flags
 
 test_kasan_kmi_layout() {
   local fixture="$TMP_DIR/kasan-kmi-layout"
