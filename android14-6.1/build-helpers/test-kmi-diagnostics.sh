@@ -16,6 +16,7 @@ SAMSUNG_SOURCE_OVERLAY="$VERSION_DIR/samsung-sm-s928b-16-dzg1-common-overlay.tar
 DAILY_AUDIT="$HELPERS_DIR/audit-s928b-daily-config.sh"
 BUILD_WORKFLOW="$VERSION_DIR/../.github/workflows/build-resukisu.yml"
 SUSFS_ACTION="$VERSION_DIR/../.github/actions/susfs-v2.2/action.yml"
+KERNEL_PATCH_HELPER="$VERSION_DIR/../android12-5.10/build-helpers/apply-kernel-patches.sh"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -271,6 +272,15 @@ test_s928b_dzg1_susfs_patch_context() {
 }
 
 test_s928b_dzg1_susfs_patch_context
+
+test_s928b_dzg1_wakeup_patch() {
+  grep -qF 'SAMSUNG_SOURCE_BASE_APPLIED:-false' "$KERNEL_PATCH_HELPER"
+  grep -qF 'avoid_extra_s2idle_wake_attempts_oneui8.5.patch' "$KERNEL_PATCH_HELPER"
+  grep -qF "grep -cF 'if (atomic_inc_return_relaxed(&pm_abort_suspend) == 1) {'" "$KERNEL_PATCH_HELPER"
+  grep -qF '[[ ! -f drivers/base/power/wakeup.c.rej ]]' "$KERNEL_PATCH_HELPER"
+}
+
+test_s928b_dzg1_wakeup_patch
 
 test_kasan_kmi_layout() {
   local fixture="$TMP_DIR/kasan-kmi-layout"
