@@ -86,12 +86,25 @@ vendor = insert_after_once(
 vendor_hooks.write_text(vendor)
 
 plat = xhci_plat.read_text()
-plat = insert_after_once(
-    plat,
-    "#include <trace/hooks/usb.h>\n",
-    "#include <trace/hooks/xhci.h>\n",
-    "xhci platform hook include",
-)
+if "#include <trace/hooks/xhci.h>" not in plat:
+    usb_hook_include = "#include <trace/hooks/usb.h>\n"
+    local_include = '#include "xhci.h"\n'
+    if plat.count(usb_hook_include) == 1:
+        plat = plat.replace(
+            usb_hook_include,
+            usb_hook_include + "#include <trace/hooks/xhci.h>\n",
+            1,
+        )
+    elif plat.count(local_include) == 1:
+        # Android 14/6.1 2025-09 predates the USB vendor-hook include in
+        # xhci-plat.c. Keep the hook beside the local XHCI includes.
+        plat = plat.replace(
+            local_include,
+            "#include <trace/hooks/xhci.h>\n\n" + local_include,
+            1,
+        )
+    else:
+        raise SystemExit("xhci platform hook include anchors changed")
 
 
 def function_block(text: str, signature: str) -> tuple[int, int, str]:

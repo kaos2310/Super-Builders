@@ -165,7 +165,6 @@ test_s928b_dzg1_xhci_hooks() {
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_usb_dev_resume);
 EOF
   cat > "$fixture/drivers/usb/host/xhci-plat.c" <<'EOF'
-#include <trace/hooks/usb.h>
 #include "xhci.h"
 
 static int __maybe_unused xhci_plat_runtime_suspend(struct device *dev)
