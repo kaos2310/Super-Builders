@@ -199,6 +199,8 @@ EOF
   bash "$XHCI_HOOK_HELPER" "$fixture"
   bash "$XHCI_HOOK_HELPER" "$fixture"
 
+  [[ "$(grep -cF '#include <linux/tracepoint.h>' \
+      "$fixture/include/trace/hooks/xhci.h")" -eq 1 ]]
   grep -qxF '  __traceiter_android_vh_xhci_resume' "$fixture/android/abi_gki_aarch64_galaxy"
   grep -qxF '  __traceiter_android_vh_xhci_suspend' "$fixture/android/abi_gki_aarch64_galaxy"
   grep -qxF '  __tracepoint_android_vh_xhci_resume' "$fixture/android/abi_gki_aarch64_galaxy"

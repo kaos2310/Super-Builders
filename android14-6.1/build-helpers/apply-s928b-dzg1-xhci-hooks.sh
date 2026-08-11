@@ -31,6 +31,7 @@ header_text = """/* SPDX-License-Identifier: GPL-2.0 */
 #if !defined(_TRACE_HOOK_XHCI_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_HOOK_XHCI_H
 
+#include <linux/tracepoint.h>
 #include <trace/hooks/vendor_hooks.h>
 /*
  * Following tracepoints are not exported in tracefs and provide a
@@ -55,6 +56,16 @@ if header.exists():
     for hook in ("android_vh_xhci_suspend", "android_vh_xhci_resume"):
         if hook not in current:
             raise SystemExit(f"existing xhci hook header is incompatible: {hook} missing")
+    if "#include <linux/tracepoint.h>" not in current:
+        anchor = "#define _TRACE_HOOK_XHCI_H\n"
+        if current.count(anchor) != 1:
+            raise SystemExit("existing xhci hook header guard changed")
+        current = current.replace(
+            anchor,
+            anchor + "\n#include <linux/tracepoint.h>\n",
+            1,
+        )
+        header.write_text(current)
 else:
     header.parent.mkdir(parents=True, exist_ok=True)
     header.write_text(header_text)
@@ -203,6 +214,7 @@ abi_list.write_text(abi)
 
 checks = {
     header: (
+        "#include <linux/tracepoint.h>",
         "DECLARE_HOOK(android_vh_xhci_suspend,",
         "DECLARE_HOOK(android_vh_xhci_resume,",
         "TP_PROTO(struct device *dev, int *bypass)",
