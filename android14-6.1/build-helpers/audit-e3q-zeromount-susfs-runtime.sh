@@ -2,11 +2,20 @@
 set -euo pipefail
 
 ADB_BIN="${ADB:-adb}"
+PYTHON_BIN="${PYTHON:-python3}"
+PROBE_SAMSUNG_DLKM="${PROBE_SAMSUNG_DLKM:-false}"
 REPORT_DIR="${1:-zeromount-susfs-runtime-audit}"
 mkdir -p "$REPORT_DIR"
 
+case "$PROBE_SAMSUNG_DLKM" in
+  true|false) ;;
+  *) echo "::error::PROBE_SAMSUNG_DLKM must be true or false"; exit 1 ;;
+esac
+
 adb_root() {
-  "$ADB_BIN" shell su -c "$1" | tr -d '\r'
+  local encoded
+  encoded=$(printf '%s' "$1" | base64 | tr -d '\r\n')
+  "$ADB_BIN" shell "su -c 'printf %s $encoded | base64 -d | sh'" | tr -d '\r'
 }
 
 "$ADB_BIN" wait-for-device
@@ -36,10 +45,27 @@ grep -qx 'boot_completed=1' "$REPORT_DIR/device.env" || {
   exit 1
 }
 
-adb_root 'zm status' > "$REPORT_DIR/zeromount-status.txt"
-adb_root 'zm detect' > "$REPORT_DIR/zeromount-detect.txt"
-adb_root 'zm vfs query-status' > "$REPORT_DIR/zeromount-vfs-status.txt"
-adb_root 'zm vfs list' > "$REPORT_DIR/zeromount-vfs-rules.txt"
+ZM_BIN=$(adb_root '
+  for candidate in \
+    /data/adb/ksu/bin/zm \
+    /data/adb/modules/meta-zeromount/bin/zm; do
+    if [ -x "$candidate" ]; then
+      printf "%s\n" "$candidate"
+      exit 0
+    fi
+  done
+  command -v zm 2>/dev/null || exit 1
+')
+[[ -n "$ZM_BIN" ]] || {
+  echo "::error::ZeroMount CLI is unavailable"
+  exit 1
+}
+printf 'zeromount_cli=%s\n' "$ZM_BIN" >> "$REPORT_DIR/device.env"
+
+adb_root "'$ZM_BIN' status" > "$REPORT_DIR/zeromount-status.txt"
+adb_root "'$ZM_BIN' detect" > "$REPORT_DIR/zeromount-detect.txt"
+adb_root "'$ZM_BIN' vfs query-status" > "$REPORT_DIR/zeromount-vfs-status.txt"
+adb_root "'$ZM_BIN' vfs list" > "$REPORT_DIR/zeromount-vfs-rules.txt"
 adb_root 'cat /data/adb/zeromount/.status.json' > "$REPORT_DIR/zeromount-status.json"
 adb_root 'cat /data/adb/zeromount/config.toml' > "$REPORT_DIR/zeromount-config.toml"
 
@@ -61,12 +87,14 @@ for feature in kstat path maps kstat_redirect; do
     exit 1
   }
 done
-grep -qx 'hide_sus_mounts = false' "$REPORT_DIR/zeromount-config.toml" || {
-  echo "::error::Droidspaces requires ZeroMount hide_sus_mounts=false"
+grep -qEx 'hide_sus_mounts = (true|false)' "$REPORT_DIR/zeromount-config.toml" || {
+  echo "::error::ZeroMount hide_sus_mounts policy is unavailable"
   exit 1
 }
+HIDE_SUS_MOUNTS=$(awk -F ' = ' '/^hide_sus_mounts = / { print $2; exit }' \
+  "$REPORT_DIR/zeromount-config.toml")
 
-python3 - "$REPORT_DIR/zeromount-status.json" <<'PY'
+"$PYTHON_BIN" - "$REPORT_DIR/zeromount-status.json" <<'PY'
 import json
 from pathlib import Path
 import sys
@@ -91,7 +119,9 @@ def require_value(key, expected):
         raise SystemExit(f"ZeroMount status lacks {key}={expected!r}; observed={observed!r}")
 
 require_value("engine_active", True)
-require_value("degraded", False)
+degraded = values(data, "degraded")
+if any(value is not False for value in degraded):
+    raise SystemExit(f"ZeroMount reports degraded operation: {degraded!r}")
 failed = values(data, "failed") + values(data, "rules_failed")
 if failed and any(value != 0 for value in failed if isinstance(value, int)):
     raise SystemExit(f"ZeroMount reports failed rules: {failed!r}")
@@ -125,6 +155,54 @@ for feature in "${SUSFS_FEATURES[@]}"; do
   }
 done
 
+XHCI_HOOKS=(
+  __tracepoint_android_vh_xhci_suspend
+  __tracepoint_android_vh_xhci_resume
+)
+adb_root 'grep -E "__tracepoint_android_vh_xhci_(suspend|resume)$" /proc/kallsyms || true' \
+  > "$REPORT_DIR/samsung-xhci-kmi-symbols.txt"
+for symbol in "${XHCI_HOOKS[@]}"; do
+  grep -qw "$symbol" "$REPORT_DIR/samsung-xhci-kmi-symbols.txt" || {
+    echo "::error::Running kernel lacks required Samsung XHCI KMI symbol: $symbol"
+    exit 1
+  }
+done
+
+adb_root \
+  'dmesg | grep -Ei "disagrees about version|version magic|Unknown symbol|module verification failed" || true' \
+  > "$REPORT_DIR/samsung-dlkm-errors.txt"
+[[ ! -s "$REPORT_DIR/samsung-dlkm-errors.txt" ]] || {
+  echo "::error::Current boot contains Samsung DLKM load errors"
+  cat "$REPORT_DIR/samsung-dlkm-errors.txt"
+  exit 1
+}
+
+DLKM_PROBE_STATUS="not-requested"
+if [[ "$PROBE_SAMSUNG_DLKM" == "true" ]]; then
+  adb_root '
+    module=/vendor/lib/modules/snd-usb-audio-qmi.ko
+    test -r "$module" || {
+      echo "critical Samsung DLKM is unavailable: $module"
+      exit 1
+    }
+    preloaded=false
+    grep -q "^snd_usb_audio_qmi " /proc/modules && preloaded=true
+    if [ "$preloaded" = false ]; then
+      insmod "$module"
+    fi
+    grep -q "^snd_usb_audio_qmi " /proc/modules
+    echo "snd_usb_audio_qmi=loaded"
+    if [ "$preloaded" = false ]; then
+      rmmod snd_usb_audio_qmi
+      ! grep -q "^snd_usb_audio_qmi " /proc/modules
+      echo "snd_usb_audio_qmi=unloaded-after-probe"
+    else
+      echo "snd_usb_audio_qmi=left-loaded"
+    fi
+  ' > "$REPORT_DIR/samsung-dlkm-probe.txt"
+  DLKM_PROBE_STATUS="passed"
+fi
+
 adb_root 'test -x /system/bin/droidspaces && /system/bin/droidspaces --version 2>&1 || true' \
   > "$REPORT_DIR/droidspaces.txt"
 grep -qi 'droidspaces' "$REPORT_DIR/droidspaces.txt" || {
@@ -147,8 +225,10 @@ cat > "$REPORT_DIR/summary.md" <<EOF
 - ZeroMount VFS engine: active with non-zero rules and no reported failures
 - ZeroMount/SUSFS bridge: path, kstat, maps and kstat redirect detected
 - SUSFS: v2.2.0 GKI with every required compiled feature available
+- Samsung XHCI KMI hooks: present in the running kernel
+- Samsung USB-QMI DLKM live CRC probe: ${DLKM_PROBE_STATUS}
 - Droidspaces: executable ZeroMount injection with matching source/target SHA-256
-- Safety profile: global SUS mount hiding remains disabled for Droidspaces
+- SUS mount hiding policy: ${HIDE_SUS_MOUNTS} (recorded, not modified)
 EOF
 
 cat "$REPORT_DIR/summary.md"

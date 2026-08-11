@@ -232,6 +232,9 @@ jobs:
           test "$SAMSUNG_DEVICE" = "e3q"
           test "$SAMSUNG_CSC" = "EUX"
           test "$SAMSUNG_FIRMWARE" = "S928BXXS6DZG1"
+          test "$SAMSUNG_BUILD_TARGET" = "e3q_eur_openx"
+          test "$SAMSUNG_CHIPSET" = "pineapple"
+          test "$SAMSUNG_OSS_SHA256" = "512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c"
           test "$AOSP_MANIFEST_BRANCH" = "$MANIFEST_BRANCH"
           [[ "$AOSP_MANIFEST_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$AOSP_COMMON_COMMIT" =~ ^[0-9a-f]{40}$ ]]
@@ -240,6 +243,10 @@ jobs:
             echo "SAMSUNG_SOURCE_PROFILE=$SOURCE_PROFILE"
             echo "SAMSUNG_OSS_PACKAGE=$SAMSUNG_OSS_PACKAGE"
             echo "SAMSUNG_OSS_UPLOAD_ID=$SAMSUNG_OSS_UPLOAD_ID"
+            echo "SAMSUNG_OSS_SHA256=$SAMSUNG_OSS_SHA256"
+            echo "SAMSUNG_BUILD_TARGET=$SAMSUNG_BUILD_TARGET"
+            echo "SAMSUNG_CHIPSET=$SAMSUNG_CHIPSET"
+            echo "SAMSUNG_COMMON_OVERLAY_SHA256=$SAMSUNG_COMMON_OVERLAY_SHA256"
           } >> "$GITHUB_ENV"
         fi
 
@@ -275,6 +282,28 @@ jobs:
         } >> "$GITHUB_ENV"
         printf 'Synced %s at common=%s manifest=%s\n' \
           "$MANIFEST_BRANCH" "$COMMON_UPSTREAM_COMMIT" "$MANIFEST_UPSTREAM_COMMIT"
+
+    - name: Apply exact SM-S928B Android 16 Samsung source delta
+      if: inputs.device_codename == 'e3q'
+      run: |
+        set -euo pipefail
+        SOURCE_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
+        # shellcheck disable=SC1090
+        source "$SOURCE_PROFILE"
+        OVERLAY="$GITHUB_WORKSPACE/$SAMSUNG_COMMON_OVERLAY"
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-s928b-dzg1-source-overlay.sh"
+        chmod +x "$HELPER"
+        "$HELPER" \
+          "$KERNEL_ROOT/common" \
+          "$OVERLAY" \
+          "$SAMSUNG_COMMON_OVERLAY_SHA256" \
+          "$AOSP_COMMON_COMMIT"
+        {
+          echo "SAMSUNG_SOURCE_BASE_APPLIED=true"
+          echo "SAMSUNG_COMMON_CHANGED_COUNT=$SAMSUNG_COMMON_CHANGED_COUNT"
+          echo "SAMSUNG_COMMON_ADDED_COUNT=$SAMSUNG_COMMON_ADDED_COUNT"
+          echo "SAMSUNG_COMMON_DELETED_COUNT=$SAMSUNG_COMMON_DELETED_COUNT"
+        } >> "$GITHUB_ENV"
 
     - name: Extract Sublevel
       env:
@@ -1015,6 +1044,10 @@ jobs:
         ReSukiSU: ${RESUKISU_VERSION_FULL}
         Target firmware: ${STOCK_FIRMWARE_EXPECTED} (${STOCK_CSC_EXPECTED})
         Kernel identity: ${KERNEL_VER}.${SUBLEVEL}${STOCK_RELEASE_EXPECTED}
+        Samsung source: ${SAMSUNG_OSS_PACKAGE} (${SAMSUNG_OSS_SHA256})
+        Samsung build target: ${SAMSUNG_BUILD_TARGET} / ${SAMSUNG_CHIPSET}
+        Samsung common delta: ${SAMSUNG_COMMON_CHANGED_COUNT} changed,
+        ${SAMSUNG_COMMON_ADDED_COUNT} added, ${SAMSUNG_COMMON_DELETED_COUNT} removed.
         KMI profile: full-strict
         All 2476 live Samsung DLKM symbols must match exactly.
         Samsung XHCI suspend/resume hooks are active at the real runtime call sites.
@@ -1108,6 +1141,10 @@ jobs:
         }
 
         if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
+          test "$SAMSUNG_SOURCE_BASE_APPLIED" = "true"
+          test "$SAMSUNG_COMMON_CHANGED_COUNT" = "405"
+          test "$SAMSUNG_COMMON_ADDED_COUNT" = "421"
+          test "$SAMSUNG_COMMON_DELETED_COUNT" = "309"
           test "$SAMSUNG_DLKM_BASELINE_COUNT" = "2476"
           test "$SAMSUNG_DLKM_EXACT_COUNT" = "2476"
           test "$SAMSUNG_DLKM_COMPATIBLE_COUNT" = "0"
@@ -1121,6 +1158,9 @@ jobs:
           test "$STOCK_CSC_EXPECTED" = "EUX"
           grep -qF 'patch_cmdline "log_buf_len=" "log_buf_len=4M"' "$ANYKERNEL3/anykernel.sh"
           grep -qF 'Target firmware: S928BXXS6DZG1 (EUX)' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Samsung source: SM-S928B_16_Opensource.zip (512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c)' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Samsung common delta: 405 changed,' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF '421 added, 309 removed.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'All 2476 live Samsung DLKM symbols must match exactly.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'Samsung XHCI suspend/resume hooks are active at the real runtime call sites.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'CRC mismatches are rejected by the module loader.' "$ANYKERNEL3/STRICT-KMI.txt"
@@ -1131,6 +1171,16 @@ jobs:
         grep -qF "${KERNEL_VER}.${SUBLEVEL}${STOCK_RELEASE_EXPECTED}" "$IMAGE_STRINGS"
         grep -qF "$STOCK_VERSION_EXPECTED" "$IMAGE_STRINGS"
         grep -qF "${STOCK_BUILD_USER_EXPECTED}@${STOCK_BUILD_HOST_EXPECTED}" "$IMAGE_STRINGS"
+        if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
+          for SYMBOL in \
+            __tracepoint_android_vh_xhci_suspend \
+            __tracepoint_android_vh_xhci_resume; do
+            grep -qF "$SYMBOL" "$IMAGE_STRINGS" || {
+              echo "::error::Packaged strict Image lacks Samsung XHCI KMI symbol: $SYMBOL"
+              exit 1
+            }
+          done
+        fi
         if grep -qF 'Thu Jan  1 00:00:00 UTC 1970' "$IMAGE_STRINGS"; then
           echo "::error::Kernel image still contains the zero-epoch UTS timestamp"
           exit 1
@@ -1151,6 +1201,7 @@ jobs:
         if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
           unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len=" "log_buf_len=4M"'
           unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target firmware: S928BXXS6DZG1 (EUX)'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Samsung source: SM-S928B_16_Opensource.zip (512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c)'
           unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'All 2476 live Samsung DLKM symbols must match exactly.'
           mkdir -p "$GITHUB_WORKSPACE/strict-flash"
           cp "$ANYKERNEL_ZIP" "$GITHUB_WORKSPACE/strict-flash/"

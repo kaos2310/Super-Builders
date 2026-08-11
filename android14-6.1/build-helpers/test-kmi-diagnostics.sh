@@ -10,6 +10,9 @@ COLLECTOR="$HELPERS_DIR/collect-kmi-symtypes.sh"
 CLEAN_FLAGS="$HELPERS_DIR/clean-build-flags.sh"
 KASAN_STUB_HELPER="$HELPERS_DIR/apply-kasan-kmi-stub.sh"
 XHCI_HOOK_HELPER="$HELPERS_DIR/apply-s928b-dzg1-xhci-hooks.sh"
+SAMSUNG_SOURCE_HELPER="$HELPERS_DIR/apply-s928b-dzg1-source-overlay.sh"
+SAMSUNG_SOURCE_PROFILE="$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
+SAMSUNG_SOURCE_OVERLAY="$VERSION_DIR/samsung-sm-s928b-16-dzg1-common-overlay.tar.xz"
 DAILY_AUDIT="$HELPERS_DIR/audit-s928b-daily-config.sh"
 BUILD_WORKFLOW="$VERSION_DIR/../.github/workflows/build-resukisu.yml"
 TMP_DIR=$(mktemp -d)
@@ -146,6 +149,11 @@ test_strict_anykernel_gate() {
   grep -qF 'test "$SAMSUNG_DLKM_UNEXPECTED_COUNT" = "0"' "$BUILD_WORKFLOW"
   grep -qF 'test "$SAMSUNG_DLKM_MISSING_COUNT" = "0"' "$BUILD_WORKFLOW"
   grep -qF 'test "$SAMSUNG_DLKM_RUNTIME_FALLBACK" = "strict-rejection"' "$BUILD_WORKFLOW"
+  grep -qF 'Packaged strict Image lacks Samsung XHCI KMI symbol' "$BUILD_WORKFLOW"
+  grep -qF '__tracepoint_android_vh_xhci_suspend' "$BUILD_WORKFLOW"
+  grep -qF '__tracepoint_android_vh_xhci_resume' "$BUILD_WORKFLOW"
+  grep -qF 'test "$SAMSUNG_SOURCE_BASE_APPLIED" = "true"' "$BUILD_WORKFLOW"
+  grep -qF 'Samsung source: ${SAMSUNG_OSS_PACKAGE} (${SAMSUNG_OSS_SHA256})' "$BUILD_WORKFLOW"
   grep -qF 'Upload exact flashable Strict KMI ZIP' "$BUILD_WORKFLOW"
 }
 
@@ -212,6 +220,44 @@ EOF
 }
 
 test_s928b_dzg1_xhci_hooks
+
+test_s928b_dzg1_source_overlay() {
+  local listing="$TMP_DIR/samsung-overlay-listing.txt"
+  local manifest="$TMP_DIR/samsung-overlay-manifest.tsv"
+  local deletes="$TMP_DIR/samsung-overlay-delete.txt"
+  local extracted="$TMP_DIR/samsung-overlay-extracted"
+
+  # shellcheck disable=SC1090
+  source "$SAMSUNG_SOURCE_PROFILE"
+  [[ "$SAMSUNG_BUILD_TARGET" == "e3q_eur_openx" ]]
+  [[ "$SAMSUNG_CHIPSET" == "pineapple" ]]
+  [[ "$SAMSUNG_OSS_SHA256" == "512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c" ]]
+  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "762fa379cf1afe8c53154d47e99b58a28afce9db063eae1957877c829d87581e" ]]
+  echo "$SAMSUNG_COMMON_OVERLAY_SHA256  $SAMSUNG_SOURCE_OVERLAY" | sha256sum -c -
+
+  tar -tJf "$SAMSUNG_SOURCE_OVERLAY" > "$listing"
+  [[ "$(wc -l < "$listing")" -eq 829 ]]
+  tar -xOJf "$SAMSUNG_SOURCE_OVERLAY" manifest.tsv > "$manifest"
+  tar -xOJf "$SAMSUNG_SOURCE_OVERLAY" delete.txt > "$deletes"
+  [[ "$(awk -F '\t' '$1 == "changed" { count++ } END { print count+0 }' "$manifest")" -eq 405 ]]
+  [[ "$(awk -F '\t' '$1 == "official-only" { count++ } END { print count+0 }' "$manifest")" -eq 421 ]]
+  [[ "$(grep -c . "$deletes")" -eq 309 ]]
+
+  mkdir -p "$extracted"
+  tar -xJf "$SAMSUNG_SOURCE_OVERLAY" -C "$extracted" \
+    files/include/trace/hooks/xhci.h \
+    files/drivers/android/vendor_hooks.c \
+    files/drivers/usb/host/xhci-plat.c
+  echo "$SAMSUNG_XHCI_HEADER_SHA256  $extracted/files/include/trace/hooks/xhci.h" | sha256sum -c -
+  echo "$SAMSUNG_VENDOR_HOOKS_SHA256  $extracted/files/drivers/android/vendor_hooks.c" | sha256sum -c -
+  echo "$SAMSUNG_XHCI_PLAT_SHA256  $extracted/files/drivers/usb/host/xhci-plat.c" | sha256sum -c -
+
+  grep -qF 'Apply exact SM-S928B Android 16 Samsung source delta' "$BUILD_WORKFLOW"
+  grep -qF 'apply-s928b-dzg1-source-overlay.sh' "$BUILD_WORKFLOW"
+  grep -qF 'status_counts != {"changed": 405, "official-only": 421}' "$SAMSUNG_SOURCE_HELPER"
+}
+
+test_s928b_dzg1_source_overlay
 
 test_kasan_kmi_layout() {
   local fixture="$TMP_DIR/kasan-kmi-layout"
