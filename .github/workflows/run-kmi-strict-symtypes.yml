@@ -97,9 +97,8 @@ jobs:
           cd "$KERNEL_ROOT"
           "$GITHUB_WORKSPACE/git-repo/repo" init \
             -u https://android.googlesource.com/kernel/manifest \
-            -b "$AOSP_MANIFEST_BRANCH" --depth=1
-          git -C .repo/manifests fetch --depth=1 origin "$AOSP_MANIFEST_COMMIT"
-          git -C .repo/manifests checkout --detach "$AOSP_MANIFEST_COMMIT"
+            -b "$AOSP_MANIFEST_COMMIT" \
+            --manifest-upstream-branch "$AOSP_MANIFEST_BRANCH" --depth=1
           "$GITHUB_WORKSPACE/git-repo/repo" --trace sync -c -j"$(nproc --all)" \
             --fail-fast --no-tags --force-sync --no-clone-bundle
           test "$(git -C .repo/manifests rev-parse HEAD)" = "$AOSP_MANIFEST_COMMIT"

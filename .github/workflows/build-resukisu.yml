@@ -243,13 +243,16 @@ jobs:
           } >> "$GITHUB_ENV"
         fi
 
-        repo init -u https://android.googlesource.com/kernel/manifest \
-          -b "$MANIFEST_BRANCH" --depth=1
-
         if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
-          git -C .repo/manifests fetch --depth=1 origin "$AOSP_MANIFEST_COMMIT"
-          git -C .repo/manifests checkout --detach "$AOSP_MANIFEST_COMMIT"
-          test "$(git -C .repo/manifests rev-parse HEAD)" = "$AOSP_MANIFEST_COMMIT"
+          # Repo accepts an immutable commit as -b when its containing branch
+          # is supplied separately. This keeps the manifest meta-project
+          # configured and avoids detached-HEAD sync falling back to master.
+          repo init -u https://android.googlesource.com/kernel/manifest \
+            -b "$AOSP_MANIFEST_COMMIT" \
+            --manifest-upstream-branch "$AOSP_MANIFEST_BRANCH" --depth=1
+        else
+          repo init -u https://android.googlesource.com/kernel/manifest \
+            -b "$MANIFEST_BRANCH" --depth=1
         fi
 
         REMOTE_BRANCH=$(git ls-remote https://android.googlesource.com/kernel/common "${FORMATTED_BRANCH}")
