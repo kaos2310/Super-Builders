@@ -652,6 +652,26 @@ jobs:
         STOCK_BUILD_USER=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.build_user" "$PROFILE_FILE")
         STOCK_BUILD_HOST=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.build_host" "$PROFILE_FILE")
         STOCK_COMPILER=$(jq -r ".devices.${DEVICE_CODENAME}.stock_kernel.compiler_info // empty" "$PROFILE_FILE")
+        STOCK_FIRMWARE=$(jq -r ".devices.${DEVICE_CODENAME}.firmware // empty" "$PROFILE_FILE")
+        STOCK_CSC=$(jq -r ".devices.${DEVICE_CODENAME}.csc // empty" "$PROFILE_FILE")
+
+        if [ "$DEVICE_CODENAME" = "e3q" ]; then
+          [ "$STOCK_FIRMWARE" = "S928BXXS6DZG1" ] || {
+            echo "::error::e3q firmware profile must be S928BXXS6DZG1, got $STOCK_FIRMWARE"
+            exit 1
+          }
+          [ "$STOCK_CSC" = "EUX" ] || {
+            echo "::error::e3q CSC profile must be EUX, got $STOCK_CSC"
+            exit 1
+          }
+          case "$STOCK_RELEASE" in
+            *"ab${STOCK_FIRMWARE}") ;;
+            *)
+              echo "::error::Stock kernel release does not match firmware $STOCK_FIRMWARE: $STOCK_RELEASE"
+              exit 1
+              ;;
+          esac
+        fi
 
         # 5.10–6.1: Makefile prepends KERNELVERSION, setlocalversion outputs suffix only
         # 6.6+: Makefile delegates entirely to setlocalversion, must output full version
@@ -703,6 +723,8 @@ jobs:
           echo "STOCK_BUILD_TIMESTAMP_EXPECTED=$STOCK_BUILD_TIMESTAMP"
           echo "STOCK_BUILD_USER_EXPECTED=$STOCK_BUILD_USER"
           echo "STOCK_BUILD_HOST_EXPECTED=$STOCK_BUILD_HOST"
+          echo "STOCK_FIRMWARE_EXPECTED=$STOCK_FIRMWARE"
+          echo "STOCK_CSC_EXPECTED=$STOCK_CSC"
           echo "DEVICE_CODENAME=$DEVICE_CODENAME"
           echo "IDENTITY_STATUS=Applied ($DEVICE_CODENAME)"
         } >> "$GITHUB_ENV"
@@ -917,11 +939,11 @@ jobs:
         fi
 
         if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
-          if grep -qE '^[[:space:]]*patch_cmdline "log_buf_len" ' "$ANYKERNEL3/anykernel.sh"; then
-            sed -i -E 's|^[[:space:]]*patch_cmdline "log_buf_len" "[^"]*"|patch_cmdline "log_buf_len" "4M"|' \
+          if grep -qE '^[[:space:]]*patch_cmdline "log_buf_len=?" ' "$ANYKERNEL3/anykernel.sh"; then
+            sed -i -E 's|^[[:space:]]*patch_cmdline "log_buf_len=?" "[^"]*"|patch_cmdline "log_buf_len=" "log_buf_len=4M"|' \
               "$ANYKERNEL3/anykernel.sh"
           else
-            sed -i '/patch_cmdline "kasan" "off"/a patch_cmdline "log_buf_len" "4M"' \
+            sed -i '/patch_cmdline "kasan=" "kasan=off"/a patch_cmdline "log_buf_len=" "log_buf_len=4M"' \
               "$ANYKERNEL3/anykernel.sh"
           fi
 
@@ -929,13 +951,17 @@ jobs:
         S928B strict Samsung DLKM KMI build
         ===================================
         ReSukiSU: ${RESUKISU_VERSION_FULL}
+        Target firmware: ${STOCK_FIRMWARE_EXPECTED} (${STOCK_CSC_EXPECTED})
+        Kernel identity: ${KERNEL_VER}.${SUBLEVEL}${STOCK_RELEASE_EXPECTED}
         KMI profile: full-strict
         All 2474 live Samsung DLKM symbols must match exactly.
         CRC mismatches are rejected by the module loader.
         CONFIG_CGROUP_PIDS and CONFIG_LRU_GEN_STATS are disabled to retain
         the stock Samsung structure layouts; CONFIG_LRU_GEN remains enabled.
         KASAN is disabled and the inactive KMI compatibility layout is retained.
-        AnyKernel requests log_buf_len=4M for early-boot diagnostics.
+        AnyKernel removes invalid bare off/4M tokens and writes
+        log_buf_len=4M to the kernel command line.
+        Android GKI bootconfig is owned by vendor_boot and remains untouched.
         EOF
         fi
 
@@ -966,13 +992,19 @@ jobs:
           echo "::error::Kernel image still contains the forbidden CPUFreq assignment"
           exit 1
         fi
-        if grep -qF 'patch_cmdline "kpti" "0"' "$ANYKERNEL3/anykernel.sh"; then
+        if grep -qF 'patch_cmdline "kpti=" "kpti=0"' "$ANYKERNEL3/anykernel.sh"; then
           echo "::error::AnyKernel3 still forces kpti=0"
           exit 1
         fi
-        grep -qF 'patch_cmdline "cpufreq.default_governor" ""' "$ANYKERNEL3/anykernel.sh"
-        grep -qF 'patch_cmdline "kpti" ""' "$ANYKERNEL3/anykernel.sh"
-        grep -qF 'patch_cmdline "kasan" "off"' "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'patch_cmdline "cpufreq.default_governor=" ""' "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'patch_cmdline "kpti=" ""' "$ANYKERNEL3/anykernel.sh"
+        grep -qF 'patch_cmdline "kasan=" "kasan=off"' "$ANYKERNEL3/anykernel.sh"
+        CMDLINE_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-anykernel-cmdline.py"
+        CMDLINE_AUDIT_ARGS=()
+        if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
+          CMDLINE_AUDIT_ARGS+=(--require-log-buf)
+        fi
+        python3 "$CMDLINE_AUDIT" "$ANYKERNEL3" "${CMDLINE_AUDIT_ARGS[@]}"
         grep -qF 'susfs_log=0' "$ANYKERNEL3/anykernel.sh"
         grep -qF 'set_shell_value "$SUSFS_CFG" avc_log_spoofing 1' "$ANYKERNEL3/anykernel.sh"
         grep -qF 'set_shell_value "$SUSFS_CFG" hide_sus_mnts_for_all_or_non_su_procs 0' "$ANYKERNEL3/anykernel.sh"
@@ -1022,7 +1054,10 @@ jobs:
           grep -qx '# CONFIG_CGROUP_PIDS is not set' "$IKCONFIG"
           grep -qx '# CONFIG_LRU_GEN_STATS is not set' "$IKCONFIG"
           grep -qx 'CONFIG_LRU_GEN=y' "$IKCONFIG"
-          grep -qF 'patch_cmdline "log_buf_len" "4M"' "$ANYKERNEL3/anykernel.sh"
+          test "$STOCK_FIRMWARE_EXPECTED" = "S928BXXS6DZG1"
+          test "$STOCK_CSC_EXPECTED" = "EUX"
+          grep -qF 'patch_cmdline "log_buf_len=" "log_buf_len=4M"' "$ANYKERNEL3/anykernel.sh"
+          grep -qF 'Target firmware: S928BXXS6DZG1 (EUX)' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'All 2474 live Samsung DLKM symbols must match exactly.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'CRC mismatches are rejected by the module loader.' "$ANYKERNEL3/STRICT-KMI.txt"
         fi
@@ -1041,8 +1076,8 @@ jobs:
         (cd "$ANYKERNEL3" && zip -X -qr "$ANYKERNEL_ZIP" .)
         unzip -l "$ANYKERNEL_ZIP"
         unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'susfs_log=0'
-        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "kpti" ""'
-        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "kasan" "off"'
+        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "kpti=" ""'
+        unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "kasan=" "kasan=off"'
         unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'avc_log_spoofing 1'
         unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'hide_sus_mnts_for_all_or_non_su_procs 0'
         if unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'performance'; then
@@ -1050,7 +1085,8 @@ jobs:
           exit 1
         fi
         if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
-          unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len" "4M"'
+          unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len=" "log_buf_len=4M"'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target firmware: S928BXXS6DZG1 (EUX)'
           unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'All 2474 live Samsung DLKM symbols must match exactly.'
           mkdir -p "$GITHUB_WORKSPACE/strict-flash"
           cp "$ANYKERNEL_ZIP" "$GITHUB_WORKSPACE/strict-flash/"

@@ -113,8 +113,8 @@ CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT=y
 CONFIG_UNMAP_KERNEL_AT_EL0=y
 CONFIG_VIRTUALIZATION=y
 CONFIG_KVM=y
-# Keep a 4 MiB kernel printk ring buffer. Samsung's stock log_buf_len=256K
-# command-line override is stripped by apply-e3q-cmdline-governor-compat.sh.
+# Keep a 4 MiB kernel printk ring buffer. The matching AnyKernel parameter
+# remains visible as log_buf_len=4M for post-boot ADB verification.
 CONFIG_LOG_BUF_SHIFT=22
 # CONFIG_KFENCE is not set
 # CONFIG_KASAN is not set

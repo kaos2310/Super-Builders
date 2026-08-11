@@ -71,14 +71,14 @@ jobs:
           # Keep the compiled kernel identity unchanged. AnyKernel patches the
           # boot cmdline at flash time so early Samsung DLKM/KMI diagnostics
           # survive long enough to be captured over ADB.
-          if grep -qE '^[[:space:]]*patch_cmdline "log_buf_len" ' AnyKernel3/anykernel.sh; then
-            sed -i -E 's|^[[:space:]]*patch_cmdline "log_buf_len" "[^"]*"|patch_cmdline "log_buf_len" "4M"|' AnyKernel3/anykernel.sh
+          if grep -qE '^[[:space:]]*patch_cmdline "log_buf_len=?" ' AnyKernel3/anykernel.sh; then
+            sed -i -E 's|^[[:space:]]*patch_cmdline "log_buf_len=?" "[^"]*"|patch_cmdline "log_buf_len=" "log_buf_len=4M"|' AnyKernel3/anykernel.sh
           else
-            sed -i '/patch_cmdline "kasan" "off"/a patch_cmdline "log_buf_len" "4M"' AnyKernel3/anykernel.sh
+            sed -i '/patch_cmdline "kasan=" "kasan=off"/a patch_cmdline "log_buf_len=" "log_buf_len=4M"' AnyKernel3/anykernel.sh
           fi
 
-          grep -qF 'patch_cmdline "log_buf_len" "4M"' AnyKernel3/anykernel.sh
-          if grep -qF 'patch_cmdline "log_buf_len" "256K"' AnyKernel3/anykernel.sh; then
+          grep -qF 'patch_cmdline "log_buf_len=" "log_buf_len=4M"' AnyKernel3/anykernel.sh
+          if grep -qF 'patch_cmdline "log_buf_len=" "log_buf_len=256K"' AnyKernel3/anykernel.sh; then
             echo "::error::AnyKernel3 still requests log_buf_len=256K"
             exit 1
           fi
@@ -114,9 +114,9 @@ jobs:
           unzip -l "$FLASH_ZIP"
 
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'susfs_log=0'
-          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "kpti" ""'
-          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "kasan" "off"'
-          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len" "4M"'
+          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "kpti=" ""'
+          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "kasan=" "kasan=off"'
+          unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len=" "log_buf_len=4M"'
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'avc_log_spoofing 1'
           unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'hide_sus_mnts_for_all_or_non_su_procs 0'
           unzip -p "$FLASH_ZIP" KMI-RUNTIME-COMPAT.txt | grep -F 'unapproved differences fail the build'
@@ -128,7 +128,7 @@ jobs:
             echo "::error::Flash ZIP contains a forced performance policy"
             exit 1
           fi
-          if unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len" "256K"'; then
+          if unzip -p "$FLASH_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len=" "log_buf_len=256K"'; then
             echo "::error::Flash ZIP still contains log_buf_len=256K"
             exit 1
           fi

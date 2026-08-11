@@ -47,7 +47,7 @@ for target in "${TARGETS[@]}"; do
 
   # Samsung's very verbose production drivers can overwrite the stock 128 KiB
   # printk ring buffer within minutes. Keep a deterministic 4 MiB buffer in the
-  # kernel config instead of relying on a boot-cmdline log_buf_len override.
+  # kernel config and require the matching AnyKernel log_buf_len=4M parameter.
   "$CONFIG_TOOL" --file "$target" --set-val LOG_BUF_SHIFT 22
 
   for symbol in "${DISABLED[@]}"; do

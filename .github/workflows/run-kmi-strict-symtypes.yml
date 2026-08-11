@@ -1,5 +1,5 @@
 name: S928B Strict KMI Symtypes Investigation
-run-name: "S928B Samsung DLKM CRC attribution — GKI to ReSukiSU 35056"
+run-name: "S928BXXS6DZG1 EUX — Samsung DLKM CRC attribution to ReSukiSU 35056"
 
 on:
   workflow_dispatch:
@@ -18,12 +18,18 @@ on:
     paths:
       - '.github/workflows/run-kmi-strict-symtypes.yml'
       - '.github/workflows/build-resukisu.yml'
+      - '.github/workflows/cache-dependencies.yml'
       - 'android14-6.1/build-helpers/clean-build-flags.sh'
+      - 'android14-6.1/build-helpers/audit-s928b-anykernel-cmdline.py'
+      - 'android14-6.1/build-helpers/apply-e3q-cmdline-governor-compat.sh'
+      - 'android14-6.1/build-helpers/enforce-s928b-daily-config.sh'
       - 'android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh'
       - 'android14-6.1/build-helpers/collect-kmi-symtypes.sh'
       - 'android14-6.1/build-helpers/compare-kmi-variants.sh'
       - 'android14-6.1/samsung-e3q-dlkm-crc-baseline.tsv'
       - 'android14-6.1/resukisu-pin.txt'
+      - 'android14-6.1/defconfig.fragment'
+      - 'device-profiles.json'
 
 permissions:
   contents: write
