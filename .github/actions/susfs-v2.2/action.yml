@@ -197,7 +197,27 @@ runs:
             ;;
         esac
 
-        patch -p1 --no-backup-if-mismatch < "$PATCH_FILE"
+        PATCH_FUZZ=2
+        if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
+          # Samsung DZG1 carries adjacent VFS/proc changes in namespace.c,
+          # open.c and proc/base.c. The SUSFS v2.2 hunks remain semantically
+          # identical but need one additional context-line relaxation.
+          PATCH_FUZZ=3
+        fi
+        patch -p1 -F"$PATCH_FUZZ" --no-backup-if-mismatch < "$PATCH_FILE"
+
+        if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
+          [[ "$(grep -cF '#define CL_COPY_MNT_NS BIT(25)' fs/namespace.c)" -eq 1 ]]
+          [[ "$(grep -cF 'copy_flags |= CL_COPY_MNT_NS;' fs/namespace.c)" -eq 1 ]]
+          [[ "$(grep -cF 'susfs_open_redirect_spoof_do_sys_openat(inode)' fs/open.c)" -eq 1 ]]
+          [[ "$(grep -cF '#if defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)' fs/proc/base.c)" -eq 1 ]]
+          if find fs -type f -name '*.rej' -print -quit | grep -q .; then
+            echo "::error::Samsung DZG1 SUSFS integration left patch rejects"
+            find fs -type f -name '*.rej' -print
+            exit 1
+          fi
+          echo "Verified Samsung DZG1 SUSFS v2.2 VFS/proc compatibility hunks"
+        fi
 
         case "$TARGET" in
           android12-5.10)

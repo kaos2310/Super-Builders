@@ -15,6 +15,7 @@ SAMSUNG_SOURCE_PROFILE="$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
 SAMSUNG_SOURCE_OVERLAY="$VERSION_DIR/samsung-sm-s928b-16-dzg1-common-overlay.tar.xz"
 DAILY_AUDIT="$HELPERS_DIR/audit-s928b-daily-config.sh"
 BUILD_WORKFLOW="$VERSION_DIR/../.github/workflows/build-resukisu.yml"
+SUSFS_ACTION="$VERSION_DIR/../.github/actions/susfs-v2.2/action.yml"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -258,6 +259,17 @@ test_s928b_dzg1_source_overlay() {
 }
 
 test_s928b_dzg1_source_overlay
+
+test_s928b_dzg1_susfs_patch_context() {
+  grep -qF 'SAMSUNG_SOURCE_BASE_APPLIED:-false' "$SUSFS_ACTION"
+  grep -qF 'PATCH_FUZZ=3' "$SUSFS_ACTION"
+  grep -qF 'patch -p1 -F"$PATCH_FUZZ" --no-backup-if-mismatch' "$SUSFS_ACTION"
+  grep -qF '#define CL_COPY_MNT_NS BIT(25)' "$SUSFS_ACTION"
+  grep -qF 'susfs_open_redirect_spoof_do_sys_openat(inode)' "$SUSFS_ACTION"
+  grep -qF 'Samsung DZG1 SUSFS integration left patch rejects' "$SUSFS_ACTION"
+}
+
+test_s928b_dzg1_susfs_patch_context
 
 test_kasan_kmi_layout() {
   local fixture="$TMP_DIR/kasan-kmi-layout"
