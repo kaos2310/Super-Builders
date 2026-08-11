@@ -13,6 +13,7 @@ XHCI_HOOK_HELPER="$HELPERS_DIR/apply-s928b-dzg1-xhci-hooks.sh"
 SAMSUNG_SOURCE_HELPER="$HELPERS_DIR/apply-s928b-dzg1-source-overlay.sh"
 SAMSUNG_SOURCE_PROFILE="$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
 SAMSUNG_SOURCE_OVERLAY="$VERSION_DIR/samsung-sm-s928b-16-dzg1-common-overlay.tar.xz"
+SAMSUNG_DEFCONFIG_NORMALIZER="$HELPERS_DIR/normalize-s928b-kleaf-defconfig.sh"
 DAILY_AUDIT="$HELPERS_DIR/audit-s928b-daily-config.sh"
 BUILD_WORKFLOW="$VERSION_DIR/../.github/workflows/build-resukisu.yml"
 SUSFS_ACTION="$VERSION_DIR/../.github/actions/susfs-v2.2/action.yml"
@@ -137,9 +138,63 @@ test_kleaf_kmi_flags() {
   grep -qF '"$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --enable "$SYMBOL"' "$BUILD_WORKFLOW"
   grep -qF '"$CONFIG_TOOL" --file "$DEFCONFIG" --undefine "$SYMBOL"' "$BUILD_WORKFLOW"
   grep -qF 'grep -qx "CONFIG_${SYMBOL}=y" "$DEFCONFIG_FRAGMENT"' "$BUILD_WORKFLOW"
+  grep -qF '"$NORMALIZER" "$KERNEL_ROOT/common" "$DEFCONFIG"' "$BUILD_WORKFLOW"
+  grep -qF 'DEVICE_CODENAME" == "e3q" && "$KMI_MODE" == "strict"' "$BUILD_WORKFLOW"
 }
 
 test_kleaf_kmi_flags
+
+test_samsung_defconfig_normalizer() {
+  local fixture="$TMP_DIR/samsung-defconfig-normalizer"
+  local common="$fixture/common"
+  local defconfig="$common/arch/arm64/configs/gki_defconfig"
+  local clang="$fixture/prebuilts/clang/host/linux-x86/clang-test/bin/clang"
+  local make_bin="$fixture/bin/make"
+  mkdir -p "$(dirname "$defconfig")" "$(dirname "$clang")" "$(dirname "$make_bin")"
+
+  cat > "$defconfig" <<'EOF'
+CONFIG_ZETA=y
+CONFIG_ARM64=y
+CONFIG_ALPHA=y
+EOF
+  cat > "$make_bin" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+source_dir=
+out_dir=
+target=
+while (( $# )); do
+  case "$1" in
+    -C) shift; source_dir="$1" ;;
+    O=*) out_dir="${1#O=}" ;;
+    gki_defconfig|savedefconfig) target="$1" ;;
+  esac
+  shift
+done
+mkdir -p "$out_dir"
+case "$target" in
+  gki_defconfig) cp "$source_dir/arch/arm64/configs/gki_defconfig" "$out_dir/.config" ;;
+  savedefconfig) LC_ALL=C sort -u "$out_dir/.config" > "$out_dir/defconfig" ;;
+  *) exit 64 ;;
+esac
+EOF
+  cat > "$clang" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+  chmod +x "$clang" "$make_bin"
+
+  PATH="$fixture/bin:$PATH" RUNNER_TEMP="$fixture/tmp" \
+    bash "$SAMSUNG_DEFCONFIG_NORMALIZER" "$common" "$defconfig"
+  cat > "$fixture/expected" <<'EOF'
+CONFIG_ALPHA=y
+CONFIG_ARM64=y
+CONFIG_ZETA=y
+EOF
+  cmp -s "$fixture/expected" "$defconfig"
+}
+
+test_samsung_defconfig_normalizer
 
 test_strict_anykernel_gate() {
   grep -qF 'package_strict_anykernel:' "$BUILD_WORKFLOW"

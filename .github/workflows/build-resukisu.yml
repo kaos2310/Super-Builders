@@ -628,6 +628,12 @@ jobs:
           grep -qx 'CONFIG_KSU_SUSFS_OPEN_REDIRECT=y' "$DEFCONFIG_FRAGMENT"
         fi
 
+        if [[ "$DEVICE_CODENAME" == "e3q" && "$KMI_MODE" == "strict" && "$KMI_MINIMAL_CONFIG" != "true" && ! -f "$KERNEL_ROOT/build/build.sh" ]]; then
+          NORMALIZER="$HELPERS/normalize-s928b-kleaf-defconfig.sh"
+          chmod +x "$NORMALIZER"
+          "$NORMALIZER" "$KERNEL_ROOT/common" "$DEFCONFIG"
+        fi
+
         if [[ "$KMI_MODE" != "strict" ]]; then
           bash "$HELPERS/bypass-abi-check.sh" . "$ANDROID_VER" "$KERNEL_VER"
         else
