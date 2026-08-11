@@ -161,7 +161,7 @@ jobs:
             echo "| Check | Result |"
             echo "|---|---|"
             echo "| ReSukiSU | v4.1.0-35056 pinned at ca62a37fc328e6cb836ea6d77b7eab0c073104a6 |"
-            echo "| Samsung DLKM CRC gate | 2474 live device/build CRC pairs pinned; missing or unexpected values fail |"
+            echo "| Samsung DLKM CRC gate | 2476 live device/build CRC pairs pinned; missing or unexpected values fail |"
             echo "| Known Samsung/GKI differences | 795 accepted only with audited \`bad_version: return 1\` fallback |"
             echo "| Module blacklist errno | Genuine blacklist matches return \`-EPERM\` |"
             echo "| Patch rejects before build | Build fails if any \`.rej\` exists |"

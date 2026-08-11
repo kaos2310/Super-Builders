@@ -20,6 +20,8 @@ on:
       - '.github/workflows/build-resukisu.yml'
       - '.github/workflows/cache-dependencies.yml'
       - 'android14-6.1/build-helpers/clean-build-flags.sh'
+      - 'android14-6.1/build-helpers/apply-s928b-dzg1-xhci-hooks.sh'
+      - 'android14-6.1/build-helpers/verify-zeromount-susfs-source.sh'
       - 'android14-6.1/build-helpers/audit-s928b-anykernel-cmdline.py'
       - 'android14-6.1/build-helpers/apply-e3q-cmdline-governor-compat.sh'
       - 'android14-6.1/build-helpers/enforce-s928b-daily-config.sh'
@@ -27,6 +29,7 @@ on:
       - 'android14-6.1/build-helpers/collect-kmi-symtypes.sh'
       - 'android14-6.1/build-helpers/compare-kmi-variants.sh'
       - 'android14-6.1/samsung-e3q-dlkm-crc-baseline.tsv'
+      - 'android14-6.1/samsung-s928bxxs6dzg1-source.env'
       - 'android14-6.1/resukisu-pin.txt'
       - 'android14-6.1/defconfig.fragment'
       - 'device-profiles.json'
@@ -85,15 +88,22 @@ jobs:
       - name: Sync unmodified Android GKI source
         run: |
           set -euo pipefail
+          SOURCE_PROFILE="$GITHUB_WORKSPACE/android14-6.1/samsung-s928bxxs6dzg1-source.env"
+          # shellcheck disable=SC1090
+          source "$SOURCE_PROFILE"
           mkdir -p "$KERNEL_ROOT"
           chmod +x "$GITHUB_WORKSPACE/git-repo/repo"
           echo "$GITHUB_WORKSPACE/git-repo" >> "$GITHUB_PATH"
           cd "$KERNEL_ROOT"
           "$GITHUB_WORKSPACE/git-repo/repo" init \
             -u https://android.googlesource.com/kernel/manifest \
-            -b common-android14-6.1-2025-09 --depth=1
+            -b "$AOSP_MANIFEST_BRANCH" --depth=1
+          git -C .repo/manifests fetch --depth=1 origin "$AOSP_MANIFEST_COMMIT"
+          git -C .repo/manifests checkout --detach "$AOSP_MANIFEST_COMMIT"
           "$GITHUB_WORKSPACE/git-repo/repo" --trace sync -c -j"$(nproc --all)" \
             --fail-fast --no-tags --force-sync --no-clone-bundle
+          test "$(git -C .repo/manifests rev-parse HEAD)" = "$AOSP_MANIFEST_COMMIT"
+          test "$(git -C common rev-parse HEAD)" = "$AOSP_COMMON_COMMIT"
 
       - name: Build unmodified GKI with KBUILD_SYMTYPES
         working-directory: ${{ env.KERNEL_ROOT }}

@@ -2,9 +2,9 @@
 # Firmware: S928BXXS6DZG1; live kernel: 6.1.145-android14-11-33419968-abS928BXXS6DZG1
 # Device CRCs captured over rooted ADB on 2026-08-09 from 351 persistent vendor_dlkm modules.
 # Build CRCs captured from Super-Builders run 31312547231 at commit 7e27cd1329e92fb7bdb278130145a4bd0a71aafd.
-# Scope: kernel-KMI imports present in Android 14/6.1 2025-09 ABI lists.
-# Device audit: 0 internal CRC conflicts, 0 DLKM link mismatches, 0 missing build symbols.
-# 1679 exact CRCs; 795 known Samsung/GKI CRC differences require the audited bad_version fallback.
+# Scope: all observed S928BXXS6DZG1 vendor-DLKM kernel imports, including the Samsung XHCI hooks.
+# Device audit: 0 internal CRC conflicts, 0 DLKM link mismatches; two XHCI imports repaired below.
+# 1681 exact CRCs; 795 known Samsung/GKI CRC differences require the audited bad_version fallback.
 # symbol	device_crc	validated_build_crc	modules
 ___drm_dbg	0x7e3277f8	0x7e3277f8	drm_display_helper;msm_drm
 ___pskb_trim	0x45b20f13	0xdd0cb6b8	mac80211;rmnet_core
@@ -216,6 +216,8 @@ __tracepoint_android_vh_show_suspend_epoch_val	0xaf7f3246	0xaf7f3246	msm_show_ep
 __tracepoint_android_vh_thermal_pm_notify_suspend	0x8224984a	0x8224984a	qti_thermal_vendor_hooks
 __tracepoint_android_vh_try_fixup_sea	0x834ac862	0x834ac862	mem_hooks
 __tracepoint_android_vh_usb_dev_resume	0x32f2ae2b	0x32f2ae2b	snd_usb_audio_qmi
+__tracepoint_android_vh_xhci_resume	0x62ed3550	0x62ed3550	snd_usb_audio_qmi
+__tracepoint_android_vh_xhci_suspend	0xbc052dab	0xbc052dab	snd_usb_audio_qmi
 __tracepoint_block_rq_insert	0xf4a00349	0xf4a00349	ssg
 __tracepoint_gpu_mem_total	0x16fa73fe	0x16fa73fe	msm_kgsl
 __tracepoint_ipi_entry	0x3f573f55	0x3f573f55	qcom_lpm

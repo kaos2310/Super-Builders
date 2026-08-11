@@ -217,11 +217,40 @@ jobs:
         ANDROID_VER: ${{ inputs.android_version }}
         KERNEL_VER: ${{ inputs.kernel_version }}
         OS_PATCH: ${{ inputs.os_patch_level }}
+        DEVICE_CODENAME: ${{ inputs.device_codename }}
       run: |
+        set -euo pipefail
         FORMATTED_BRANCH="${ANDROID_VER}-${KERNEL_VER}-${OS_PATCH}"
+        MANIFEST_BRANCH="common-${FORMATTED_BRANCH}"
+
+        if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
+          SOURCE_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
+          test -s "$SOURCE_PROFILE"
+          # shellcheck disable=SC1090
+          source "$SOURCE_PROFILE"
+          test "$SAMSUNG_MODEL" = "SM-S928B"
+          test "$SAMSUNG_DEVICE" = "e3q"
+          test "$SAMSUNG_CSC" = "EUX"
+          test "$SAMSUNG_FIRMWARE" = "S928BXXS6DZG1"
+          test "$AOSP_MANIFEST_BRANCH" = "$MANIFEST_BRANCH"
+          [[ "$AOSP_MANIFEST_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$AOSP_COMMON_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          MANIFEST_BRANCH="$AOSP_MANIFEST_BRANCH"
+          {
+            echo "SAMSUNG_SOURCE_PROFILE=$SOURCE_PROFILE"
+            echo "SAMSUNG_OSS_PACKAGE=$SAMSUNG_OSS_PACKAGE"
+            echo "SAMSUNG_OSS_UPLOAD_ID=$SAMSUNG_OSS_UPLOAD_ID"
+          } >> "$GITHUB_ENV"
+        fi
 
         repo init -u https://android.googlesource.com/kernel/manifest \
-          -b "common-${FORMATTED_BRANCH}" --depth=1
+          -b "$MANIFEST_BRANCH" --depth=1
+
+        if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
+          git -C .repo/manifests fetch --depth=1 origin "$AOSP_MANIFEST_COMMIT"
+          git -C .repo/manifests checkout --detach "$AOSP_MANIFEST_COMMIT"
+          test "$(git -C .repo/manifests rev-parse HEAD)" = "$AOSP_MANIFEST_COMMIT"
+        fi
 
         REMOTE_BRANCH=$(git ls-remote https://android.googlesource.com/kernel/common "${FORMATTED_BRANCH}")
         if grep -q deprecated <<< "$REMOTE_BRANCH"; then
@@ -229,6 +258,20 @@ jobs:
         fi
 
         repo --trace sync -c -j$(nproc --all) --fail-fast --no-tags --force-sync --no-clone-bundle
+
+        COMMON_UPSTREAM_COMMIT=$(git -C common rev-parse HEAD)
+        MANIFEST_UPSTREAM_COMMIT=$(git -C .repo/manifests rev-parse HEAD)
+        if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
+          test "$COMMON_UPSTREAM_COMMIT" = "$AOSP_COMMON_COMMIT"
+          test "$MANIFEST_UPSTREAM_COMMIT" = "$AOSP_MANIFEST_COMMIT"
+        fi
+        {
+          echo "COMMON_UPSTREAM_COMMIT=$COMMON_UPSTREAM_COMMIT"
+          echo "MANIFEST_UPSTREAM_COMMIT=$MANIFEST_UPSTREAM_COMMIT"
+          echo "MANIFEST_UPSTREAM_BRANCH=$MANIFEST_BRANCH"
+        } >> "$GITHUB_ENV"
+        printf 'Synced %s at common=%s manifest=%s\n' \
+          "$MANIFEST_BRANCH" "$COMMON_UPSTREAM_COMMIT" "$MANIFEST_UPSTREAM_COMMIT"
 
     - name: Extract Sublevel
       env:
@@ -334,12 +377,28 @@ jobs:
         ' "$PATCH" > "$FILTERED_PATCH"
         patch -p1 -F3 --no-backup-if-mismatch < "$FILTERED_PATCH"
 
+    - name: Apply S928BXXS6DZG1 Samsung XHCI hooks
+      if: inputs.device_codename == 'e3q'
+      run: |
+        set -euo pipefail
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-s928b-dzg1-xhci-hooks.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common"
+
     - name: Keep SUSFS logging switchable and default off
       if: inputs.add_susfs
       run: |
         HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/configure-susfs-log-default.sh"
         chmod +x "$HELPER"
         "$HELPER" "$KERNEL_ROOT/common"
+
+    - name: Verify complete ZeroMount and SUSFS source integration
+      if: inputs.add_susfs && inputs.add_zeromount
+      run: |
+        set -euo pipefail
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/verify-zeromount-susfs-source.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common" "$KERNEL_ROOT/$KSU_DIR"
 
     - name: Apply Droidspaces 6_7_8 patches
       if: inputs.add_droidspaces
@@ -954,7 +1013,8 @@ jobs:
         Target firmware: ${STOCK_FIRMWARE_EXPECTED} (${STOCK_CSC_EXPECTED})
         Kernel identity: ${KERNEL_VER}.${SUBLEVEL}${STOCK_RELEASE_EXPECTED}
         KMI profile: full-strict
-        All 2474 live Samsung DLKM symbols must match exactly.
+        All 2476 live Samsung DLKM symbols must match exactly.
+        Samsung XHCI suspend/resume hooks are active at the real runtime call sites.
         CRC mismatches are rejected by the module loader.
         CONFIG_CGROUP_PIDS and CONFIG_LRU_GEN_STATS are disabled to retain
         the stock Samsung structure layouts; CONFIG_LRU_GEN remains enabled.
@@ -1045,8 +1105,8 @@ jobs:
         }
 
         if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
-          test "$SAMSUNG_DLKM_BASELINE_COUNT" = "2474"
-          test "$SAMSUNG_DLKM_EXACT_COUNT" = "2474"
+          test "$SAMSUNG_DLKM_BASELINE_COUNT" = "2476"
+          test "$SAMSUNG_DLKM_EXACT_COUNT" = "2476"
           test "$SAMSUNG_DLKM_COMPATIBLE_COUNT" = "0"
           test "$SAMSUNG_DLKM_UNEXPECTED_COUNT" = "0"
           test "$SAMSUNG_DLKM_MISSING_COUNT" = "0"
@@ -1058,7 +1118,8 @@ jobs:
           test "$STOCK_CSC_EXPECTED" = "EUX"
           grep -qF 'patch_cmdline "log_buf_len=" "log_buf_len=4M"' "$ANYKERNEL3/anykernel.sh"
           grep -qF 'Target firmware: S928BXXS6DZG1 (EUX)' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'All 2474 live Samsung DLKM symbols must match exactly.' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'All 2476 live Samsung DLKM symbols must match exactly.' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Samsung XHCI suspend/resume hooks are active at the real runtime call sites.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'CRC mismatches are rejected by the module loader.' "$ANYKERNEL3/STRICT-KMI.txt"
         fi
 
@@ -1087,7 +1148,7 @@ jobs:
         if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
           unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len=" "log_buf_len=4M"'
           unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target firmware: S928BXXS6DZG1 (EUX)'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'All 2474 live Samsung DLKM symbols must match exactly.'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'All 2476 live Samsung DLKM symbols must match exactly.'
           mkdir -p "$GITHUB_WORKSPACE/strict-flash"
           cp "$ANYKERNEL_ZIP" "$GITHUB_WORKSPACE/strict-flash/"
           sha256sum "$GITHUB_WORKSPACE/strict-flash/$(basename "$ANYKERNEL_ZIP")" \

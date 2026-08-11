@@ -42,11 +42,19 @@ cp "$CONFIG_FILE" "$REPORT_DIR/final.config"
 
 {
   printf 'repository\tcommit\n'
+  [[ -z "${COMMON_UPSTREAM_COMMIT:-}" ]] || \
+    printf 'common-upstream\t%s\n' "$COMMON_UPSTREAM_COMMIT"
+  [[ -z "${MANIFEST_UPSTREAM_COMMIT:-}" ]] || \
+    printf 'manifest-upstream\t%s\n' "$MANIFEST_UPSTREAM_COMMIT"
   for repository in common build KernelSU; do
     [[ -d "$KERNEL_ROOT/$repository/.git" ]] || continue
     printf '%s\t%s\n' "$repository" "$(git -C "$KERNEL_ROOT/$repository" rev-parse HEAD)"
   done
 } > "$REPORT_DIR/source-revisions.tsv"
+
+if [[ -n "${SAMSUNG_SOURCE_PROFILE:-}" && -s "$SAMSUNG_SOURCE_PROFILE" ]]; then
+  cp "$SAMSUNG_SOURCE_PROFILE" "$REPORT_DIR/source/samsung-release-profile.env"
+fi
 
 git -C "$KERNEL_ROOT/common" diff --no-ext-diff --binary > "$REPORT_DIR/source/common-working-tree.patch" || true
 git -C "$KERNEL_ROOT/common" status --short > "$REPORT_DIR/source/common-status.txt" || true

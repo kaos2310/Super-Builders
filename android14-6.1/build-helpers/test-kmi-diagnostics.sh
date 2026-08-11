@@ -9,6 +9,7 @@ COMPARATOR="$HELPERS_DIR/compare-kmi-variants.sh"
 COLLECTOR="$HELPERS_DIR/collect-kmi-symtypes.sh"
 CLEAN_FLAGS="$HELPERS_DIR/clean-build-flags.sh"
 KASAN_STUB_HELPER="$HELPERS_DIR/apply-kasan-kmi-stub.sh"
+XHCI_HOOK_HELPER="$HELPERS_DIR/apply-s928b-dzg1-xhci-hooks.sh"
 DAILY_AUDIT="$HELPERS_DIR/audit-s928b-daily-config.sh"
 BUILD_WORKFLOW="$VERSION_DIR/../.github/workflows/build-resukisu.yml"
 TMP_DIR=$(mktemp -d)
@@ -51,7 +52,7 @@ git -C "$KERNEL_ROOT/common" add .
 git -C "$KERNEL_ROOT/common" commit --quiet -m fixture
 
 "$AUDITOR" "$KERNEL_ROOT" "$BASELINE" "$TMP_DIR/symtypes" symtypes full
-grep -qx 'EXACT_COUNT=1679' "$TMP_DIR/symtypes/summary.env"
+grep -qx 'EXACT_COUNT=1681' "$TMP_DIR/symtypes/summary.env"
 grep -qx 'REFERENCE_COUNT=795' "$TMP_DIR/symtypes/summary.env"
 grep -qx 'VARIANT_COUNT=0' "$TMP_DIR/symtypes/summary.env"
 grep -qx 'MISSING_COUNT=0' "$TMP_DIR/symtypes/summary.env"
@@ -87,8 +88,8 @@ mkdir -p "$TMP_DIR/artifacts/gki" "$TMP_DIR/artifacts/full"
 cp "$TMP_DIR/variant/summary.env" "$TMP_DIR/variant/Module.symvers" "$TMP_DIR/artifacts/gki/"
 cp "$TMP_DIR/symtypes/summary.env" "$TMP_DIR/symtypes/Module.symvers" "$TMP_DIR/artifacts/full/"
 "$COMPARATOR" "$BASELINE" "$TMP_DIR/artifacts" "$TMP_DIR/comparison"
-grep -q $'^gki-control\t1679\t794\t1\t0\tno\t' "$TMP_DIR/comparison/variant-summary.tsv"
-grep -q $'^full\t1679\t795\t0\t0\tno\t' "$TMP_DIR/comparison/variant-summary.tsv"
+grep -q $'^gki-control\t1681\t794\t1\t0\tno\t' "$TMP_DIR/comparison/variant-summary.tsv"
+grep -q $'^full\t1681\t795\t0\t0\tno\t' "$TMP_DIR/comparison/variant-summary.tsv"
 
 test_strict_daily_config() {
   local config="$TMP_DIR/strict-daily.config"
@@ -140,7 +141,7 @@ test_strict_anykernel_gate() {
   grep -qF 'Strict AnyKernel packaging requires kmi_mode=strict' "$BUILD_WORKFLOW"
   grep -qF 'Strict AnyKernel packaging is restricted to kmi_profile=full-strict' "$BUILD_WORKFLOW"
   grep -qF 'Strict AnyKernel packaging is restricted to device_codename=e3q' "$BUILD_WORKFLOW"
-  grep -qF 'test "$SAMSUNG_DLKM_EXACT_COUNT" = "2474"' "$BUILD_WORKFLOW"
+  grep -qF 'test "$SAMSUNG_DLKM_EXACT_COUNT" = "2476"' "$BUILD_WORKFLOW"
   grep -qF 'test "$SAMSUNG_DLKM_COMPATIBLE_COUNT" = "0"' "$BUILD_WORKFLOW"
   grep -qF 'test "$SAMSUNG_DLKM_UNEXPECTED_COUNT" = "0"' "$BUILD_WORKFLOW"
   grep -qF 'test "$SAMSUNG_DLKM_MISSING_COUNT" = "0"' "$BUILD_WORKFLOW"
@@ -149,6 +150,67 @@ test_strict_anykernel_gate() {
 }
 
 test_strict_anykernel_gate
+
+test_s928b_dzg1_xhci_hooks() {
+  local fixture="$TMP_DIR/s928b-dzg1-xhci"
+  mkdir -p \
+    "$fixture/include/trace/hooks" \
+    "$fixture/drivers/android" \
+    "$fixture/drivers/usb/host" \
+    "$fixture/android"
+
+  cat > "$fixture/drivers/android/vendor_hooks.c" <<'EOF'
+#define CREATE_TRACE_POINTS
+#include <trace/hooks/usb.h>
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_usb_dev_resume);
+EOF
+  cat > "$fixture/drivers/usb/host/xhci-plat.c" <<'EOF'
+#include <trace/hooks/usb.h>
+#include "xhci.h"
+
+static int __maybe_unused xhci_plat_runtime_suspend(struct device *dev)
+{
+	struct usb_hcd  *hcd = dev_get_drvdata(dev);
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+	int ret;
+
+	ret = xhci_priv_suspend_quirk(hcd);
+	if (ret)
+		return ret;
+
+	return xhci_suspend(xhci, true);
+}
+
+static int __maybe_unused xhci_plat_runtime_resume(struct device *dev)
+{
+	struct usb_hcd  *hcd = dev_get_drvdata(dev);
+	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
+
+	return xhci_resume(xhci, 0);
+}
+EOF
+  cat > "$fixture/android/abi_gki_aarch64_galaxy" <<'EOF'
+[abi_symbol_list]
+  __traceiter_android_vh_wq_lockup_pool
+  __traceiter_block_rq_insert
+  __tracepoint_android_vh_wq_lockup_pool
+  __tracepoint_block_rq_insert
+EOF
+
+  bash "$XHCI_HOOK_HELPER" "$fixture"
+  bash "$XHCI_HOOK_HELPER" "$fixture"
+
+  grep -qxF '  __traceiter_android_vh_xhci_resume' "$fixture/android/abi_gki_aarch64_galaxy"
+  grep -qxF '  __traceiter_android_vh_xhci_suspend' "$fixture/android/abi_gki_aarch64_galaxy"
+  grep -qxF '  __tracepoint_android_vh_xhci_resume' "$fixture/android/abi_gki_aarch64_galaxy"
+  grep -qxF '  __tracepoint_android_vh_xhci_suspend' "$fixture/android/abi_gki_aarch64_galaxy"
+  [[ "$(grep -cF 'trace_android_vh_xhci_suspend(dev, &bypass);' \
+      "$fixture/drivers/usb/host/xhci-plat.c")" -eq 1 ]]
+  [[ "$(grep -cF 'trace_android_vh_xhci_resume(dev, &bypass);' \
+      "$fixture/drivers/usb/host/xhci-plat.c")" -eq 1 ]]
+}
+
+test_s928b_dzg1_xhci_hooks
 
 test_kasan_kmi_layout() {
   local fixture="$TMP_DIR/kasan-kmi-layout"
