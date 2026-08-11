@@ -24,6 +24,8 @@ require_source fs/zeromount.c 'zeromount_ioctl_add_rule'
 require_source fs/zeromount.c 'zeromount_inject_dents64'
 require_source fs/zeromount.c 'zeromount_is_uid_blocked'
 require_source fs/zeromount.c 'zeromount_spoof_statfs'
+require_source fs/zeromount.c 'kern_path(statfs_root, LOOKUP_FOLLOW, &root_path)'
+require_source fs/zeromount.c '*buf = root_stats'
 require_source fs/zeromount.c 'zeromount_spoof_xattr'
 require_source include/linux/zeromount.h 'ZEROMOUNT_IOC_GET_STATUS'
 require_source fs/namei.c 'zeromount_getname_hook'
@@ -58,4 +60,4 @@ if grep -qF 'zeromount_spoof_mmap_metadata' "$COMMON_TREE/fs/proc/task_mmu.c"; t
   exit 1
 fi
 
-echo "Verified ZeroMount VFS hooks, SUSFS 2.2 bridge, and external-directory compatibility"
+echo "Verified ZeroMount VFS hooks, full statfs spoofing, SUSFS 2.2 bridge, and external-directory compatibility"
