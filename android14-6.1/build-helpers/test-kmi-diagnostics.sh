@@ -14,6 +14,7 @@ SAMSUNG_SOURCE_HELPER="$HELPERS_DIR/apply-s928b-dzg1-source-overlay.sh"
 SAMSUNG_SOURCE_PROFILE="$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
 SAMSUNG_SOURCE_OVERLAY="$VERSION_DIR/samsung-sm-s928b-16-dzg1-common-overlay.tar.xz"
 SAMSUNG_DEFCONFIG_NORMALIZER="$HELPERS_DIR/normalize-s928b-kleaf-defconfig.sh"
+SAMSUNG_SUSFS_NAMESPACE_REPAIR="$HELPERS_DIR/repair-s928b-dzg1-susfs-namespace.sh"
 DAILY_AUDIT="$HELPERS_DIR/audit-s928b-daily-config.sh"
 BUILD_WORKFLOW="$VERSION_DIR/../.github/workflows/build-resukisu.yml"
 SUSFS_ACTION="$VERSION_DIR/../.github/actions/susfs-v2.2/action.yml"
@@ -140,6 +141,8 @@ test_kleaf_kmi_flags() {
   grep -qF 'grep -qx "CONFIG_${SYMBOL}=y" "$DEFCONFIG_FRAGMENT"' "$BUILD_WORKFLOW"
   grep -qF '"$NORMALIZER" "$KERNEL_ROOT/common" "$DEFCONFIG"' "$BUILD_WORKFLOW"
   grep -qF 'DEVICE_CODENAME" == "e3q" && "$KMI_MODE" == "strict"' "$BUILD_WORKFLOW"
+  grep -qF '"$NAMESPACE_REPAIR" "$KERNEL_COMMON"' "$SUSFS_ACTION"
+  grep -qF 'KSU_INCOMPATIBLE=(UH KDP RKP)' "$HELPERS_DIR/enforce-s928b-daily-config.sh"
 }
 
 test_kleaf_kmi_flags
@@ -195,6 +198,56 @@ EOF
 }
 
 test_samsung_defconfig_normalizer
+
+test_samsung_susfs_namespace_repair() {
+  local fixture="$TMP_DIR/samsung-susfs-namespace"
+  local source="$fixture/fs/namespace.c"
+  mkdir -p "$(dirname "$source")"
+  cat > "$source" <<'EOF'
+static void *copy_mount_options(const void __user *data)
+{
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	copy_flags |= CL_COPY_MNT_NS;
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	return NULL;
+}
+
+struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
+		struct user_namespace *user_ns, struct fs_struct *new_fs)
+{
+	struct mount *old;
+	struct mount *new;
+	int copy_flags;
+
+	copy_flags = CL_COPY_UNBINDABLE | CL_EXPIRE;
+	if (user_ns != ns->user_ns)
+		copy_flags |= CL_SHARED_TO_SLAVE;
+#ifdef CONFIG_KDP_NS
+	new = copy_tree(old, ((struct kdp_mount *)old)->mnt->mnt_root, copy_flags);
+#else
+	new = copy_tree(old, old->mnt.mnt_root, copy_flags);
+#endif
+	return ERR_CAST(new);
+}
+
+struct dentry *mount_subtree(struct vfsmount *m, const char *name)
+{
+	return NULL;
+}
+EOF
+
+  bash "$SAMSUNG_SUSFS_NAMESPACE_REPAIR" "$fixture"
+  test "$(grep -cF 'copy_flags |= CL_COPY_MNT_NS;' "$source")" = 1
+  awk '
+    /^struct mnt_namespace \*copy_mnt_ns/ { in_function=1 }
+    in_function && /copy_flags \|= CL_COPY_MNT_NS;/ { found=1 }
+    in_function && /^}/ { exit(found ? 0 : 1) }
+    END { if (!found) exit 1 }
+  ' "$source"
+  ! sed -n '/copy_mount_options/,/^}/p' "$source" | grep -qF 'CL_COPY_MNT_NS'
+}
+
+test_samsung_susfs_namespace_repair
 
 test_strict_anykernel_gate() {
   grep -qF 'package_strict_anykernel:' "$BUILD_WORKFLOW"

@@ -207,6 +207,10 @@ runs:
         patch -p1 -F"$PATCH_FUZZ" --no-backup-if-mismatch < "$PATCH_FILE"
 
         if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
+          NAMESPACE_REPAIR="$GITHUB_WORKSPACE/android14-6.1/build-helpers/repair-s928b-dzg1-susfs-namespace.sh"
+          chmod +x "$NAMESPACE_REPAIR"
+          "$NAMESPACE_REPAIR" "$KERNEL_COMMON"
+
           require_exact_susfs_marker() {
             local file="$1"
             local marker="$2"

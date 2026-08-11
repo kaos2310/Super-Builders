@@ -122,6 +122,17 @@ for symbol in KFENCE KASAN UBSAN; do
   }
 done
 
+for symbol in UH KDP RKP; do
+  if grep -Eq "^CONFIG_${symbol}=(y|m)$" "$CONFIG_FILE"; then
+    echo "::error::CONFIG_${symbol} is incompatible with KernelSU on Samsung DZG1"
+    exit 1
+  fi
+  if grep -qx "# CONFIG_${symbol} is not set" "$CONFIG_FILE"; then
+    continue
+  fi
+  echo "CONFIG_${symbol}=n (dependency-disabled; omitted by Kconfig)"
+done
+
 # Child KASAN modes can be omitted from a normalized .config when their parent
 # is disabled. Either an explicit "not set" line or dependency-driven absence
 # is n; any assigned value is rejected.
@@ -149,6 +160,7 @@ if [[ "$KMI_MODE" == "strict" ]]; then
 fi
 echo "Verified CONFIG_LOG_BUF_SHIFT=22 (4 MiB printk ring buffer)"
 echo "Verified CONFIG_KFENCE=n, CONFIG_KASAN=n and CONFIG_UBSAN=n"
+echo "Verified CONFIG_UH=n, CONFIG_KDP=n and CONFIG_RKP=n for KernelSU compatibility"
 echo "Verified no KASAN implementation is enabled; KMI is supplied by the inactive stub"
 echo "Verified CONFIG_CFI_CLANG=y and CONFIG_SHADOW_CALL_STACK=y"
 echo "Verified KStack offset randomization is enabled by default"
