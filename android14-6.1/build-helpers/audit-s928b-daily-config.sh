@@ -18,6 +18,7 @@ esac
 }
 
 REQUIRED=(
+  CONFIG_MODULE_ALLOW_BTF_MISMATCH
   CONFIG_KSU
   CONFIG_KSU_MULTI_MANAGER_SUPPORT
   CONFIG_KSU_SUSFS
@@ -161,6 +162,7 @@ fi
 echo "Verified CONFIG_LOG_BUF_SHIFT=22 (4 MiB printk ring buffer)"
 echo "Verified CONFIG_KFENCE=n, CONFIG_KASAN=n and CONFIG_UBSAN=n"
 echo "Verified CONFIG_UH=n, CONFIG_KDP=n and CONFIG_RKP=n for KernelSU compatibility"
+echo "Verified CONFIG_MODULE_ALLOW_BTF_MISMATCH=y for Samsung DLKM compatibility"
 echo "Verified no KASAN implementation is enabled; KMI is supplied by the inactive stub"
 echo "Verified CONFIG_CFI_CLANG=y and CONFIG_SHADOW_CALL_STACK=y"
 echo "Verified KStack offset randomization is enabled by default"

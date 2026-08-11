@@ -143,6 +143,8 @@ test_kleaf_kmi_flags() {
   grep -qF 'DEVICE_CODENAME" == "e3q" && "$KMI_MODE" == "strict"' "$BUILD_WORKFLOW"
   grep -qF '"$NAMESPACE_REPAIR" "$KERNEL_COMMON"' "$SUSFS_ACTION"
   grep -qF 'KSU_INCOMPATIBLE=(UH KDP RKP)' "$HELPERS_DIR/enforce-s928b-daily-config.sh"
+  grep -qF 'REQUIRED_MODULE_COMPAT=(MODULE_ALLOW_BTF_MISMATCH)' \
+    "$HELPERS_DIR/enforce-s928b-daily-config.sh"
 }
 
 test_kleaf_kmi_flags
