@@ -207,10 +207,20 @@ runs:
         patch -p1 -F"$PATCH_FUZZ" --no-backup-if-mismatch < "$PATCH_FILE"
 
         if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
-          [[ "$(grep -cF '#define CL_COPY_MNT_NS BIT(25)' fs/namespace.c)" -eq 1 ]]
-          [[ "$(grep -cF 'copy_flags |= CL_COPY_MNT_NS;' fs/namespace.c)" -eq 1 ]]
-          [[ "$(grep -cF 'susfs_open_redirect_spoof_do_sys_openat(inode)' fs/open.c)" -eq 1 ]]
-          [[ "$(grep -cF '#if defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)' fs/proc/base.c)" -eq 1 ]]
+          require_exact_susfs_marker() {
+            local file="$1"
+            local marker="$2"
+            local count
+            count=$(grep -cF "$marker" "$file" || true)
+            if [[ "$count" -ne 1 ]]; then
+              echo "::error::Expected one Samsung DZG1 SUSFS marker in $file, found $count: $marker"
+              exit 1
+            fi
+          }
+          require_exact_susfs_marker fs/namespace.c '#define CL_COPY_MNT_NS BIT(25)'
+          require_exact_susfs_marker fs/namespace.c 'copy_flags |= CL_COPY_MNT_NS;'
+          require_exact_susfs_marker fs/open.c 'susfs_open_redirect_spoof_do_sys_openat(inode)'
+          require_exact_susfs_marker fs/proc/base.c '#include <linux/susfs_def.h>'
           if find fs -type f -name '*.rej' -print -quit | grep -q .; then
             echo "::error::Samsung DZG1 SUSFS integration left patch rejects"
             find fs -type f -name '*.rej' -print

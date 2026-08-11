@@ -266,6 +266,7 @@ test_s928b_dzg1_susfs_patch_context() {
   grep -qF 'patch -p1 -F"$PATCH_FUZZ" --no-backup-if-mismatch' "$SUSFS_ACTION"
   grep -qF '#define CL_COPY_MNT_NS BIT(25)' "$SUSFS_ACTION"
   grep -qF 'susfs_open_redirect_spoof_do_sys_openat(inode)' "$SUSFS_ACTION"
+  grep -qF "require_exact_susfs_marker fs/proc/base.c '#include <linux/susfs_def.h>'" "$SUSFS_ACTION"
   grep -qF 'Samsung DZG1 SUSFS integration left patch rejects' "$SUSFS_ACTION"
 }
 
