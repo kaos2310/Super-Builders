@@ -96,7 +96,7 @@ jobs:
               'external/rust/',
               'external/minijail', 'external/libcap', 'external/libdrm',
               'external/libepoxy', 'external/libffi', 'external/libusb',
-              'external/protobuf', 'external/boringssl', 'external/zlib',
+              'external/protobuf', 'external/golang-protobuf', 'external/boringssl', 'external/zlib',
               'external/wayland', 'external/wayland-protocols',
               'external/mesa3d', 'external/gfxstream-protocols',
               'frameworks/native',
