@@ -111,6 +111,7 @@ jobs:
               'prebuilts/misc', 'prebuilts/ndk', 'prebuilts/remoteexecution-client',
               'prebuilts/rust', 'prebuilts/sdk', 'prebuilts/tools',
               'prebuilts/vndk',
+              'toolchain/pgo-profiles',
               'system/core', 'system/libbase', 'system/logging',
               'system/sepolicy', 'system/tools/aidl',
           )
@@ -128,6 +129,7 @@ jobs:
           echo "Selected $(wc -l < /tmp/crosvm-projects.txt) AOSP projects"
           cat /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/vndk/' /tmp/crosvm-projects.txt
+          grep -q '^platform/toolchain/pgo-profiles$' /tmp/crosvm-projects.txt
           mapfile -t PROJECTS < /tmp/crosvm-projects.txt
           repo sync -c -j4 --no-tags --no-clone-bundle --force-sync "${PROJECTS[@]}"
 
@@ -146,6 +148,7 @@ jobs:
           test -x prebuilts/jdk/jdk21/linux-x86/bin/java
           test -d prebuilts/rust
           find prebuilts/vndk -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .
+          test -f toolchain/pgo-profiles/sampling/afdo_profiles.mk
 
       - name: Verify exact crosvm source revision
         shell: bash
