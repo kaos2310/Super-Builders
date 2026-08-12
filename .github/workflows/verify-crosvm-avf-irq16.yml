@@ -1,4 +1,4 @@
-name: Verify crosvm AVF Gunyah IRQ16 patch
+name: Verify crosvm AVF Gunyah IRQFD patch
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
       - avf-crosvm-irq16
     paths:
       - 'patches/crosvm/**'
+      - 'scripts/patch-crosvm-gunyah-irqfd.py'
       - '.github/workflows/verify-crosvm-avf-irq16.yml'
 
 permissions:
@@ -28,36 +29,36 @@ jobs:
             "$RUNNER_TEMP/crosvm"
           cd "$RUNNER_TEMP/crosvm"
           echo "HEAD=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "738b7016fc50d6eadc94c8ca28022ad7c21f798d"
           git log -1 --oneline
 
-      - name: Show IRQ constants before patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          FILE="$RUNNER_TEMP/crosvm/aarch64/src/lib.rs"
-          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ' "$FILE" || true
-          grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' "$FILE"
-
-      - name: Apply Gunyah IRQ collision patch
+      - name: Verify source anchors before patch
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/crosvm"
-          git apply "$GITHUB_WORKSPACE/patches/crosvm/android-16.0.0_r4-gunyah-irq16.patch"
+          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ|let has_bios' aarch64/src/lib.rs
+          grep -n 'pub fn register_irqfd' hypervisor/src/gunyah/mod.rs
+          grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' aarch64/src/lib.rs
+          grep -q 'const AARCH64_VMWDT_IRQ: u32 = 15;' aarch64/src/lib.rs
 
-      - name: Verify patched IRQ allocator
+      - name: Apply Gunyah IRQFD source-anchor patch
         shell: bash
         run: |
           set -euo pipefail
-          FILE="$RUNNER_TEMP/crosvm/aarch64/src/lib.rs"
-          echo '=== patched constants ==='
-          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ' "$FILE" || true
-          grep -q 'const AARCH64_IRQ_BASE: u32 = 16;' "$FILE"
-          if grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' "$FILE"; then
-            echo 'ERROR: old dynamic IRQ base still present'
-            exit 1
-          fi
-          echo '=== git diff ==='
+          python3 "$GITHUB_WORKSPACE/scripts/patch-crosvm-gunyah-irqfd.py" "$RUNNER_TEMP/crosvm"
+
+      - name: Verify patched IRQ allocator and logging
+        shell: bash
+        run: |
+          set -euo pipefail
           cd "$RUNNER_TEMP/crosvm"
+          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ|reserve_irq' aarch64/src/lib.rs
+          grep -n 'GUNYAH IRQFD' hypervisor/src/gunyah/mod.rs
+          grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' aarch64/src/lib.rs
+          grep -q 'const AARCH64_VMWDT_IRQ: u32 = 15;' aarch64/src/lib.rs
+          grep -q 'reserve_irq(AARCH64_VMWDT_IRQ)' aarch64/src/lib.rs
+          grep -q 'GUNYAH IRQFD add:' hypervisor/src/gunyah/mod.rs
+          grep -q 'GUNYAH IRQFD add failed:' hypervisor/src/gunyah/mod.rs
           git diff --check
-          git diff -- aarch64/src/lib.rs
+          git diff -- aarch64/src/lib.rs hypervisor/src/gunyah/mod.rs
