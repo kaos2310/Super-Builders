@@ -149,7 +149,7 @@ jobs:
           test -d external/crosvm
           test -d build/soong
           test -d build/release
-          test -d build/bazel
+          test -d build/bazel || test -d prebuilts/bazel/common
           test -x prebuilts/go/linux-x86/bin/go
           test -x prebuilts/jdk/jdk21/linux-x86/bin/java
           test -d prebuilts/rust
