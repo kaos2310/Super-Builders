@@ -1,4 +1,4 @@
-name: Build patched Android 16 crosvm (AVF Gunyah IRQ16)
+name: Build patched Android 16 crosvm (AVF Gunyah IRQFD)
 
 on:
   workflow_dispatch:
@@ -151,18 +151,22 @@ jobs:
           grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' aarch64/src/lib.rs
           grep -q 'const AARCH64_VMWDT_IRQ: u32 = 15;' aarch64/src/lib.rs
 
-      - name: Apply IRQ16 patch
+      - name: Apply Gunyah IRQFD collision patch
         shell: bash
         run: |
           set -euxo pipefail
           cd "$AOSP_DIR/external/crosvm"
           git apply --check "$PATCH_FILE"
           git apply "$PATCH_FILE"
-          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ' aarch64/src/lib.rs
-          grep -q 'const AARCH64_IRQ_BASE: u32 = 16;' aarch64/src/lib.rs
-          ! grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' aarch64/src/lib.rs
+          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ|reserve_irq' aarch64/src/lib.rs
+          grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' aarch64/src/lib.rs
+          grep -q 'const AARCH64_VMWDT_IRQ: u32 = 15;' aarch64/src/lib.rs
+          grep -q 'reserve_irq(AARCH64_VMWDT_IRQ)' aarch64/src/lib.rs
+          grep -n 'GUNYAH IRQFD' hypervisor/src/gunyah/mod.rs
+          grep -q 'GUNYAH IRQFD add:' hypervisor/src/gunyah/mod.rs
+          grep -q 'GUNYAH IRQFD add failed:' hypervisor/src/gunyah/mod.rs
           git diff --check
-          git diff -- aarch64/src/lib.rs
+          git diff -- aarch64/src/lib.rs hypervisor/src/gunyah/mod.rs
 
       - name: Build ARM64 Android crosvm
         shell: bash
@@ -185,7 +189,7 @@ jobs:
         run: |
           set -euxo pipefail
           cd "$AOSP_DIR"
-          mkdir -p "$GITHUB_WORKSPACE/artifacts/crosvm-avf-irq16"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd"
           CANDIDATES="$(find "$OUT_DIR/target/product" -type f -name crosvm -perm -111 2>/dev/null || true)"
           printf '%s\n' "$CANDIDATES"
           CROSVM="$(printf '%s\n' "$CANDIDATES" | grep '/system/bin/crosvm$' | head -n1 || true)"
@@ -194,25 +198,25 @@ jobs:
           test -f "$CROSVM"
           file "$CROSVM"
           file "$CROSVM" | grep -qi 'ARM aarch64\|ARM64'
-          "$CROSVM" version 2>&1 | tee "$GITHUB_WORKSPACE/artifacts/crosvm-avf-irq16/version.txt" || true
-          sha256sum "$CROSVM" | tee "$GITHUB_WORKSPACE/artifacts/crosvm-avf-irq16/sha256.txt"
-          readelf -n "$CROSVM" | tee "$GITHUB_WORKSPACE/artifacts/crosvm-avf-irq16/readelf-notes.txt" || true
-          cp -a "$CROSVM" "$GITHUB_WORKSPACE/artifacts/crosvm-avf-irq16/crosvm"
-          cp "$PATCH_FILE" "$GITHUB_WORKSPACE/artifacts/crosvm-avf-irq16/"
-          cat > "$GITHUB_WORKSPACE/artifacts/crosvm-avf-irq16/build-info.txt" <<EOF
+          "$CROSVM" version 2>&1 | tee "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/version.txt" || true
+          sha256sum "$CROSVM" | tee "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/sha256.txt"
+          readelf -n "$CROSVM" | tee "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/readelf-notes.txt" || true
+          cp -a "$CROSVM" "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/crosvm"
+          cp "$PATCH_FILE" "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/"
+          cat > "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/build-info.txt" <<EOF
           AOSP_TAG=$AOSP_TAG
           CROSVM_SOURCE_COMMIT=$(cd external/crosvm && git rev-parse HEAD)
-          PATCH=AARCH64_IRQ_BASE_4_TO_16
+          PATCH=RESERVE_VMWDT_IRQ15_PLUS_GUNYAH_IRQFD_LOGGING
           TARGET=aosp_arm64-trunk_staging-eng
           OUT_DIR=$OUT_DIR
           SOURCE_BINARY=$CROSVM
           EOF
-          ls -lh "$GITHUB_WORKSPACE/artifacts/crosvm-avf-irq16"
+          ls -lh "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd"
 
       - name: Upload patched crosvm artifact
         uses: actions/upload-artifact@v4
         with:
-          name: crosvm-android16-r4-gunyah-irq16-arm64
-          path: artifacts/crosvm-avf-irq16/
+          name: crosvm-android16-r4-gunyah-irqfd-arm64
+          path: artifacts/crosvm-avf-gunyah-irqfd/
           if-no-files-found: error
           retention-days: 14
