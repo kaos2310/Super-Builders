@@ -1,10 +1,17 @@
 diff --git a/aarch64/src/lib.rs b/aarch64/src/lib.rs
 --- a/aarch64/src/lib.rs
 +++ b/aarch64/src/lib.rs
-@@ -163,2 +163,4 @@
+@@ -159,9 +159,11 @@
+ // Default PCI mem base address.
+ const AARCH64_PCI_MEM_BASE_DEFAULT: u64 = 0x2000000;
+ // Default PCI mem size.
+ const AARCH64_PCI_MEM_SIZE_DEFAULT: u64 = 0x2000000;
 -// Virtio devices start at SPI interrupt number 4
 -const AARCH64_IRQ_BASE: u32 = 4;
 +// Keep dynamically allocated Virtio/PCI IRQs above the fixed ARM64 IRQ range.
 +// Gunyah rejects duplicate IRQFD bell labels; VMWDT uses fixed IRQ 15, so
 +// dynamic IRQs must start above the fixed ARM64 IRQ range.
 +const AARCH64_IRQ_BASE: u32 = 16;
+ 
+ // Virtual CPU Frequency Device.
+ const AARCH64_VIRTFREQ_BASE: u64 = 0x1040000;
