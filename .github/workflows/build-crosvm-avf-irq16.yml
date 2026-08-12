@@ -110,7 +110,7 @@ jobs:
               'prebuilts/devtools', 'prebuilts/go/linux-x86', 'prebuilts/jdk/jdk21',
               'prebuilts/misc', 'prebuilts/ndk', 'prebuilts/remoteexecution-client',
               'prebuilts/rust', 'prebuilts/sdk', 'prebuilts/tools',
-              'prebuilts/vndk/v31',
+              'prebuilts/vndk',
               'system/core', 'system/libbase', 'system/logging',
               'system/sepolicy', 'system/tools/aidl',
           )
@@ -127,7 +127,7 @@ jobs:
 
           echo "Selected $(wc -l < /tmp/crosvm-projects.txt) AOSP projects"
           cat /tmp/crosvm-projects.txt
-          grep -q '^platform/prebuilts/vndk/v31$' /tmp/crosvm-projects.txt
+          grep -q '^platform/prebuilts/vndk/' /tmp/crosvm-projects.txt
           mapfile -t PROJECTS < /tmp/crosvm-projects.txt
           repo sync -c -j4 --no-tags --no-clone-bundle --force-sync "${PROJECTS[@]}"
 
@@ -145,7 +145,7 @@ jobs:
           test -x prebuilts/go/linux-x86/bin/go
           test -x prebuilts/jdk/jdk21/linux-x86/bin/java
           test -d prebuilts/rust
-          test -d prebuilts/vndk/v31
+          find prebuilts/vndk -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .
 
       - name: Verify exact crosvm source revision
         shell: bash
