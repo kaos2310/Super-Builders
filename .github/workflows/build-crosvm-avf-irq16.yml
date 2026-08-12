@@ -163,8 +163,10 @@ jobs:
           set -euxo pipefail
           cd "$AOSP_DIR"
           export OUT_DIR="$OUT_DIR"
+          set +u
           source build/envsetup.sh
           lunch aosp_arm64-eng
+          set -u
           m -j2 crosvm
           echo '=== STORAGE AFTER BUILD ==='
           df -hT "$BUILD_VOLUME"
