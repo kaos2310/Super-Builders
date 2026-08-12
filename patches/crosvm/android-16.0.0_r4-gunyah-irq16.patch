@@ -1,7 +1,7 @@
 diff --git a/aarch64/src/lib.rs b/aarch64/src/lib.rs
 --- a/aarch64/src/lib.rs
 +++ b/aarch64/src/lib.rs
-@@ -557,6 +557,10 @@
+@@ -557,4 +557,8 @@
          no_pmu: bool,
      ) -> std::result::Result<RunnableLinuxVm, Self::Error> {
 +        if !system_allocator.reserve_irq(AARCH64_VMWDT_IRQ) {
@@ -10,7 +10,7 @@ diff --git a/aarch64/src/lib.rs b/aarch64/src/lib.rs
 +
          let has_bios = matches!(components.vm_image, VmImage::Bios(_));
          let mem = vm.get_memory().clone();
- 
+
 diff --git a/hypervisor/src/gunyah/mod.rs b/hypervisor/src/gunyah/mod.rs
 --- a/hypervisor/src/gunyah/mod.rs
 +++ b/hypervisor/src/gunyah/mod.rs
