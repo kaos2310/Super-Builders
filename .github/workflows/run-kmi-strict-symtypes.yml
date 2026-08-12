@@ -1,5 +1,5 @@
 name: S928B Strict KMI Symtypes Investigation
-run-name: "S928BXXS6DZG1 EUX — Samsung DLKM CRC attribution to ReSukiSU 35056"
+run-name: "S928BXXS6DZG1 EUX — Samsung DLKM CRC attribution to ReSukiSU 35057"
 
 on:
   workflow_dispatch:
@@ -233,9 +233,9 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: ${{ matrix.ptrace }}
       add_perf_patches: ${{ matrix.perf }}
-      sukisu_commit: ca62a37fc328e6cb836ea6d77b7eab0c073104a6
+      sukisu_commit: aff9a23feeebe2b1c7b1919daae24766d274fa19
       resukisu_source_branch: main
-      resukisu_version_code: "35056"
+      resukisu_version_code: "35057"
       device_codename: e3q
       kmi_mode: symtypes
       kmi_profile: ${{ matrix.profile }}
@@ -305,9 +305,9 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: ca62a37fc328e6cb836ea6d77b7eab0c073104a6
+      sukisu_commit: aff9a23feeebe2b1c7b1919daae24766d274fa19
       resukisu_source_branch: main
-      resukisu_version_code: "35056"
+      resukisu_version_code: "35057"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
