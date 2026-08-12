@@ -95,6 +95,7 @@ jobs:
               'external/crosvm',
               'external/rust/',
               'external/golang-protobuf', 'external/starlark-go',
+              'external/go-cmp', 'external/pogreb',
               'external/minijail', 'external/libcap', 'external/libdrm',
               'external/libepoxy', 'external/libffi', 'external/libusb',
               'external/protobuf', 'external/boringssl', 'external/zlib',
@@ -136,6 +137,8 @@ jobs:
           test -d build/release
           test -d external/golang-protobuf/proto
           test -d external/starlark-go/starlark
+          test -d external/go-cmp/cmp
+          test -d external/pogreb
           test -x prebuilts/go/linux-x86/bin/go
           test -x prebuilts/jdk/jdk21/linux-x86/bin/java
           test -d prebuilts/rust
