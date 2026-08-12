@@ -8,6 +8,7 @@ on:
     paths:
       - '.github/workflows/build-crosvm-avf-irq16.yml'
       - 'patches/crosvm/android-16.0.0_r4-gunyah-irq16.patch'
+      - 'scripts/patch-crosvm-gunyah-irqfd.py'
 
 permissions:
   contents: read
@@ -150,7 +151,8 @@ jobs:
           cd "$AOSP_DIR/external/crosvm"
           echo "crosvm HEAD=$(git rev-parse HEAD)"
           test "$(git rev-parse HEAD)" = "738b7016fc50d6eadc94c8ca28022ad7c21f798d"
-          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ' aarch64/src/lib.rs
+          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ|let has_bios' aarch64/src/lib.rs
+          grep -n 'pub fn register_irqfd' hypervisor/src/gunyah/mod.rs
           grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' aarch64/src/lib.rs
           grep -q 'const AARCH64_VMWDT_IRQ: u32 = 15;' aarch64/src/lib.rs
 
@@ -158,9 +160,8 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          python3 "$GITHUB_WORKSPACE/scripts/patch-crosvm-gunyah-irqfd.py" "$AOSP_DIR/external/crosvm"
           cd "$AOSP_DIR/external/crosvm"
-          git apply --check "$PATCH_FILE"
-          git apply "$PATCH_FILE"
           grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ|reserve_irq' aarch64/src/lib.rs
           grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' aarch64/src/lib.rs
           grep -q 'const AARCH64_VMWDT_IRQ: u32 = 15;' aarch64/src/lib.rs
@@ -206,10 +207,12 @@ jobs:
           readelf -n "$CROSVM" | tee "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/readelf-notes.txt" || true
           cp -a "$CROSVM" "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/crosvm"
           cp "$PATCH_FILE" "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/"
+          cp "$GITHUB_WORKSPACE/scripts/patch-crosvm-gunyah-irqfd.py" "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/"
           cat > "$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd/build-info.txt" <<EOF
           AOSP_TAG=$AOSP_TAG
           CROSVM_SOURCE_COMMIT=$(cd external/crosvm && git rev-parse HEAD)
           PATCH=RESERVE_VMWDT_IRQ15_PLUS_GUNYAH_IRQFD_LOGGING
+          PATCH_METHOD=SOURCE_ANCHORS
           TARGET=aosp_arm64-trunk_staging-eng
           OUT_DIR=$OUT_DIR
           SOURCE_BINARY=$CROSVM
