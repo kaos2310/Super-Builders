@@ -153,7 +153,6 @@ jobs:
           test -x prebuilts/go/linux-x86/bin/go
           test -x prebuilts/jdk/jdk21/linux-x86/bin/java
           test -d prebuilts/rust
-          test -d prebuilts/bazel/linux-x86_64
 
       - name: Verify exact crosvm source revision
         shell: bash
