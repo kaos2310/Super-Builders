@@ -10,7 +10,6 @@ diff --git a/aarch64/src/lib.rs b/aarch64/src/lib.rs
 +
          let has_bios = matches!(components.vm_image, VmImage::Bios(_));
          let mem = vm.get_memory().clone();
-
 diff --git a/hypervisor/src/gunyah/mod.rs b/hypervisor/src/gunyah/mod.rs
 --- a/hypervisor/src/gunyah/mod.rs
 +++ b/hypervisor/src/gunyah/mod.rs
