@@ -74,7 +74,8 @@ jobs:
             --partial-clone \
             --clone-filter=blob:none \
             --no-clone-bundle
-          repo manifest -r -o /tmp/aosp-manifest.xml
+          cp .repo/manifests/default.xml /tmp/aosp-manifest.xml
+          test -s /tmp/aosp-manifest.xml
           df -hT "$BUILD_VOLUME"
 
       - name: Sync minimal crosvm build source set
