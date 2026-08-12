@@ -1,0 +1,63 @@
+name: Verify crosvm AVF Gunyah IRQ16 patch
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - avf-crosvm-irq16
+    paths:
+      - 'patches/crosvm/**'
+      - '.github/workflows/verify-crosvm-avf-irq16.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Super-Builders
+        uses: actions/checkout@v4
+
+      - name: Fetch Android 16 r4 crosvm
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch android-16.0.0_r4 \
+            https://android.googlesource.com/platform/external/crosvm \
+            "$RUNNER_TEMP/crosvm"
+          cd "$RUNNER_TEMP/crosvm"
+          echo "HEAD=$(git rev-parse HEAD)"
+          git log -1 --oneline
+
+      - name: Show IRQ constants before patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="$RUNNER_TEMP/crosvm/aarch64/src/lib.rs"
+          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ' "$FILE" || true
+          grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' "$FILE"
+
+      - name: Apply Gunyah IRQ collision patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/crosvm"
+          git apply "$GITHUB_WORKSPACE/patches/crosvm/android-16.0.0_r4-gunyah-irq16.patch"
+
+      - name: Verify patched IRQ allocator
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="$RUNNER_TEMP/crosvm/aarch64/src/lib.rs"
+          echo '=== patched constants ==='
+          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ' "$FILE" || true
+          grep -q 'const AARCH64_IRQ_BASE: u32 = 16;' "$FILE"
+          if grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' "$FILE"; then
+            echo 'ERROR: old dynamic IRQ base still present'
+            exit 1
+          fi
+          echo '=== git diff ==='
+          cd "$RUNNER_TEMP/crosvm"
+          git diff --check
+          git diff -- aarch64/src/lib.rs
