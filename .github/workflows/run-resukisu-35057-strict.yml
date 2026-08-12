@@ -1,0 +1,53 @@
+name: S928B ReSukiSU 35057 Exact Strict Build
+run-name: "S928BXXS6DZG1 EUX — exact 35056 strict branch updated to ReSukiSU 35057"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/resukisu-35057-eux-dzg1-cmdline
+    paths:
+      - '.github/workflows/run-resukisu-35057-strict.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: s928b-resukisu-35057-exact-strict
+  cancel-in-progress: true
+
+jobs:
+  dependencies:
+    uses: ./.github/workflows/cache-dependencies.yml
+
+  strict-gate:
+    name: Full strict KMI gate / ReSukiSU 6.1.145
+    needs: dependencies
+    uses: ./.github/workflows/build-resukisu.yml
+    permissions:
+      contents: write
+      actions: write
+    with:
+      android_version: android14
+      kernel_version: "6.1"
+      sub_level: "145"
+      os_patch_level: "2025-09"
+      add_susfs: true
+      add_zeromount: true
+      add_droidspaces: true
+      add_zram: true
+      add_bbg: true
+      add_overlayfs_support: true
+      add_kpm: false
+      susfs_open_redirect: false
+      add_ptrace_fix: true
+      add_perf_patches: true
+      sukisu_commit: aff9a23feeebe2b1c7b1919daae24766d274fa19
+      resukisu_source_branch: main
+      resukisu_version_code: "35057"
+      device_codename: e3q
+      kmi_mode: strict
+      kmi_profile: full-strict
+      kmi_minimal_config: false
+      package_strict_anykernel: true
