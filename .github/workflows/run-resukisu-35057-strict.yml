@@ -1,5 +1,5 @@
-name: S928B ReSukiSU 35057 Exact Strict Build
-run-name: "S928BXXS6DZG1 EUX — exact 35056 strict branch updated to ReSukiSU 35057"
+name: S928B ReSukiSU 35058 Exact Strict Build
+run-name: "S928BXXS6DZG1 EUX — exact strict branch updated to ReSukiSU 35058"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35057-exact-strict
+  group: s928b-resukisu-35058-exact-strict
   cancel-in-progress: true
 
 jobs:
@@ -43,9 +43,9 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: aff9a23feeebe2b1c7b1919daae24766d274fa19
+      sukisu_commit: b267ab11af0d8495d91b004ddcba008c9afc3114
       resukisu_source_branch: main
-      resukisu_version_code: "35057"
+      resukisu_version_code: "35058"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
