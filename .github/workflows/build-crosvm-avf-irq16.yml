@@ -90,7 +90,7 @@ jobs:
           root = ET.parse('/tmp/aosp-manifest.xml').getroot()
           prefixes = (
               'bionic',
-              'build/bazel', 'build/blueprint', 'build/make', 'build/soong', 'build/release',
+              'build/blueprint', 'build/make', 'build/soong', 'build/release',
               'device/generic',
               'external/crosvm',
               'external/rust/',
@@ -102,7 +102,7 @@ jobs:
               'frameworks/native',
               'hardware/interfaces',
               'packages/modules/Virtualization',
-              'prebuilts/bazel/common', 'prebuilts/bazel/linux-x86_64',
+              'prebuilts/bazel/common',
               'prebuilts/build-tools', 'prebuilts/clang/host/linux-x86',
               'prebuilts/devtools', 'prebuilts/go/linux-x86', 'prebuilts/jdk/jdk21',
               'prebuilts/misc', 'prebuilts/ndk', 'prebuilts/remoteexecution-client',
@@ -133,7 +133,6 @@ jobs:
           test -d external/crosvm
           test -d build/soong
           test -d build/release
-          test -d build/bazel
           test -x prebuilts/go/linux-x86/bin/go
           test -x prebuilts/jdk/jdk21/linux-x86/bin/java
           test -d prebuilts/rust
