@@ -98,6 +98,7 @@ jobs:
               'external/libepoxy', 'external/libffi', 'external/libusb',
               'external/protobuf', 'external/golang-protobuf', 'external/pogreb', 'external/starlark-go', 'external/boringssl', 'external/zlib',
               'prebuilts/vndk/v31', 'prebuilts/vndk/v32', 'prebuilts/vndk/v33', 'prebuilts/vndk/v34',
+              'toolchain/pgo-profiles',
               'external/wayland', 'external/wayland-protocols',
               'external/mesa3d', 'external/gfxstream-protocols',
               'frameworks/native',
