@@ -90,7 +90,7 @@ jobs:
           root = ET.parse('/tmp/aosp-manifest.xml').getroot()
           prefixes = (
               'bionic',
-              'build/blueprint', 'build/make', 'build/soong', 'build/release',
+              'build/bazel', 'build/blueprint', 'build/make', 'build/soong', 'build/release',
               'device/generic',
               'external/crosvm',
               'external/rust/',
@@ -102,8 +102,11 @@ jobs:
               'frameworks/native',
               'hardware/interfaces',
               'packages/modules/Virtualization',
+              'prebuilts/bazel/common', 'prebuilts/bazel/linux-x86_64',
               'prebuilts/build-tools', 'prebuilts/clang/host/linux-x86',
-              'prebuilts/misc', 'prebuilts/ndk', 'prebuilts/rust', 'prebuilts/sdk',
+              'prebuilts/devtools', 'prebuilts/go/linux-x86', 'prebuilts/jdk/jdk21',
+              'prebuilts/misc', 'prebuilts/ndk', 'prebuilts/remoteexecution-client',
+              'prebuilts/rust', 'prebuilts/sdk', 'prebuilts/tools',
               'system/core', 'system/libbase', 'system/logging',
               'system/sepolicy', 'system/tools/aidl',
           )
@@ -130,6 +133,9 @@ jobs:
           test -d external/crosvm
           test -d build/soong
           test -d build/release
+          test -d build/bazel
+          test -x prebuilts/go/linux-x86/bin/go
+          test -x prebuilts/jdk/jdk21/linux-x86/bin/java
           test -d prebuilts/rust
 
       - name: Verify exact crosvm source revision
@@ -162,11 +168,12 @@ jobs:
           set -euxo pipefail
           cd "$AOSP_DIR"
           export OUT_DIR="$OUT_DIR"
+          export ENVSETUP_NO_COMPLETION=1
           set +u
           source build/envsetup.sh
           lunch aosp_arm64 trunk_staging eng
-          set -u
           m -j2 crosvm
+          set -u
           echo '=== STORAGE AFTER BUILD ==='
           df -hT "$BUILD_VOLUME"
           du -sh "$OUT_DIR" 2>/dev/null || true
