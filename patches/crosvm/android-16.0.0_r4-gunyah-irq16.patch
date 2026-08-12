@@ -1,0 +1,11 @@
+diff --git a/aarch64/src/lib.rs b/aarch64/src/lib.rs
+--- a/aarch64/src/lib.rs
++++ b/aarch64/src/lib.rs
+@@
+-// Virtio devices start at SPI interrupt number 4
+-const AARCH64_IRQ_BASE: u32 = 4;
++// Keep dynamically allocated Virtio/PCI IRQs above the fixed ARM64 IRQ range.
++// Gunyah rejects a second IRQFD registration for the same bell label with
++// -EEXIST; VMWDT uses fixed IRQ 15, so starting dynamic IRQs at 4 can collide
++// once enough devices are attached to the VM.
++const AARCH64_IRQ_BASE: u32 = 16;
