@@ -1,9 +1,12 @@
 diff --git a/aarch64/src/lib.rs b/aarch64/src/lib.rs
 --- a/aarch64/src/lib.rs
 +++ b/aarch64/src/lib.rs
-@@ -557,4 +557,8 @@
-         no_pmu: bool,
-     ) -> std::result::Result<RunnableLinuxVm, Self::Error> {
+@@ -544,7 +544,11 @@
+     ) -> std::result::Result<RunnableLinuxVm<V, Vcpu>, Self::Error>
+     where
+         V: VmAArch64,
+         Vcpu: VcpuAArch64,
+     {
 +        if !system_allocator.reserve_irq(AARCH64_VMWDT_IRQ) {
 +            return Err(Error::AllocateIrq);
 +        }
