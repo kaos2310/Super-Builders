@@ -104,7 +104,6 @@ jobs:
               'external/mesa3d', 'external/gfxstream-protocols',
               'frameworks/native',
               'hardware/interfaces',
-              'kernel/configs',
               'prebuilts/bazel/common',
               'prebuilts/build-tools', 'prebuilts/clang/host/linux-x86',
               'prebuilts/devtools', 'prebuilts/go/linux-x86', 'prebuilts/jdk/jdk21',
@@ -113,7 +112,7 @@ jobs:
               'prebuilts/vndk',
               'toolchain/pgo-profiles',
               'system/core', 'system/cros-codecs', 'system/libbase', 'system/logging',
-              'system/sepolicy', 'system/tools/aidl', 'system/tools/hidl', 'system/tools/xsdc',
+              'system/sepolicy', 'system/tools/aidl', 'system/tools/hidl',
           )
           selected = []
           for p in root.findall('project'):
@@ -132,12 +131,10 @@ jobs:
           grep -q '^platform/external/abseil-cpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/error_prone$' /tmp/crosvm-projects.txt
           grep -q '^platform/hardware/interfaces$' /tmp/crosvm-projects.txt
-          grep -q '^kernel/configs$' /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/vndk/' /tmp/crosvm-projects.txt
           grep -q '^toolchain/pgo-profiles$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/aidl$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/hidl$' /tmp/crosvm-projects.txt
-          grep -q '^platform/system/tools/xsdc$' /tmp/crosvm-projects.txt
           if grep -q '^device/generic/' /tmp/crosvm-projects.txt; then
             echo 'ERROR: full generic-device product graph selected unexpectedly' >&2
             exit 1
@@ -148,6 +145,50 @@ jobs:
           fi
           mapfile -t PROJECTS < /tmp/crosvm-projects.txt
           repo sync -c -j4 --no-tags --no-clone-bundle --force-sync "${PROJECTS[@]}"
+
+          # hardware/interfaces is a monorepo. Only its common and graphics-common
+          # providers are needed for libgralloctypes/crosvm. Hide unrelated HAL
+          # product graphs whose global Soong plugins require a full AOSP checkout.
+          python3 - <<'PY'
+          import shutil
+          from pathlib import Path
+
+          def remove_path(path):
+              if path.is_dir() and not path.is_symlink():
+                  shutil.rmtree(path)
+              else:
+                  path.unlink()
+
+          root = Path('hardware/interfaces')
+          root_keep = {
+              '.git', 'Android.bp', 'LICENSE', 'METADATA', 'NOTICE', 'OWNERS',
+              'common', 'graphics',
+          }
+          removed = []
+          for child in root.iterdir():
+              if child.name not in root_keep:
+                  removed.append(str(child))
+                  remove_path(child)
+
+          graphics = root / 'graphics'
+          graphics_keep = {
+              'Android.bp', 'LICENSE', 'METADATA', 'NOTICE', 'OWNERS', 'common',
+          }
+          for child in graphics.iterdir():
+              if child.name not in graphics_keep:
+                  removed.append(str(child))
+                  remove_path(child)
+
+          print(f'Pruned {len(removed)} unrelated hardware/interfaces path(s)')
+          for path in removed:
+              print(path)
+          PY
+          test ! -e hardware/interfaces/compatibility_matrices
+          test ! -e hardware/interfaces/audio
+          test -f hardware/interfaces/Android.bp
+          test -f hardware/interfaces/graphics/Android.bp
+          test -d hardware/interfaces/common/aidl
+          test -d hardware/interfaces/graphics/common/aidl
 
           echo '=== STORAGE AFTER MINIMAL SYNC ==='
           df -hT /
@@ -171,8 +212,6 @@ jobs:
           test -d prebuilts/rust
           find prebuilts/vndk -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .
           test -f toolchain/pgo-profiles/sampling/afdo_profiles.mk
-          test -f kernel/configs/build/Android.bp
-          grep -q 'name: "kernel-config-soong-rules"' kernel/configs/build/Android.bp
           test -f system/cros-codecs/Android.bp
           test -f hardware/interfaces/graphics/common/aidl/Android.bp
           python3 - <<'PY'
@@ -219,8 +258,6 @@ jobs:
           test -d system/tools/hidl/build
           grep -R -q 'RegisterModuleType("hidl_interface"' system/tools/hidl/build
           grep -R -q 'RegisterModuleType("hidl_package_root"' system/tools/hidl/build
-          test -d system/tools/xsdc/build
-          grep -R -q 'RegisterModuleType("xsd_config"' system/tools/xsdc/build
 
           # In a partial checkout some modules can reference ownership-team
           # metadata whose definition lives outside the selected source graph.
