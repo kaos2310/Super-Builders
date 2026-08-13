@@ -44,12 +44,14 @@ if (aosp_root / ".repo").is_dir():
         fail(f"failed to exclude {virtualization_dir}")
 
     # system/hardware/interfaces is needed for android.media.soundtrigger.types.
-    # Its Android.bp files use module types registered by system/tools/aidl and
-    # system/tools/hidl, so all three projects must be present together. Error
-    # Prone and Abseil cover the remaining partial-checkout Soong/APEX metadata.
+    # Its Android.bp files use module types registered by system/tools/aidl,
+    # system/tools/hidl and system/tools/xsdc, so keep all provider projects
+    # available in the partial checkout. Error Prone and Abseil cover the
+    # remaining Java/Soong and runtime APEX metadata requirements.
     media_aidl_bp = aosp_root / "system/hardware/interfaces/media/Android.bp"
     aidl_bp = aosp_root / "system/tools/aidl/Android.bp"
     hidl_bp = aosp_root / "system/tools/hidl/Android.bp"
+    xsdc_bp = aosp_root / "system/tools/xsdc/Android.bp"
     error_prone_bp = aosp_root / "external/error_prone/Android.bp"
     abseil_bp = aosp_root / "external/abseil-cpp/Android.bp"
     projects = []
@@ -59,6 +61,8 @@ if (aosp_root / ".repo").is_dir():
         projects.append("platform/system/tools/aidl")
     if not hidl_bp.is_file():
         projects.append("platform/system/tools/hidl")
+    if not xsdc_bp.is_file():
+        projects.append("platform/system/tools/xsdc")
     if not error_prone_bp.is_file():
         projects.append("platform/external/error_prone")
     if not abseil_bp.is_file():
@@ -72,7 +76,7 @@ if (aosp_root / ".repo").is_dir():
             check=True,
         )
 
-    for required in (media_aidl_bp, aidl_bp, hidl_bp, error_prone_bp, abseil_bp):
+    for required in (media_aidl_bp, aidl_bp, hidl_bp, xsdc_bp, error_prone_bp, abseil_bp):
         if not required.is_file():
             fail(f"missing {required} after dependency sync")
     if 'name: "android.media.soundtrigger.types"' not in media_aidl_bp.read_text():
@@ -83,7 +87,7 @@ if (aosp_root / ".repo").is_dir():
         fail("absl_notls_defaults definition missing after dependency sync")
     if '"com.android.runtime"' not in abseil_text:
         fail("absl_notls_defaults source lacks com.android.runtime APEX availability")
-    print("verified AIDL/HIDL Soong providers and Abseil notls defaults")
+    print("verified AIDL/HIDL/XSDC Soong providers and Abseil notls defaults")
 
     github_env = os.environ.get("GITHUB_ENV")
     if github_env:
