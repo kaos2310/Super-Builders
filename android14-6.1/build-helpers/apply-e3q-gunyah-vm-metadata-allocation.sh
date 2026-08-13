@@ -2,14 +2,19 @@
 set -euo pipefail
 
 KERNEL_TREE="${1:?usage: apply-e3q-gunyah-vm-metadata-allocation.sh <kernel-tree>}"
-TARGET="$KERNEL_TREE/drivers/virt/gunyah/vm_mgr_mm.c"
+MEM_TARGET="$KERNEL_TREE/drivers/virt/gunyah/vm_mgr_mm.c"
+IRQ_TARGET="$KERNEL_TREE/drivers/virt/gunyah/gunyah_irqfd.c"
 
-test -f "$TARGET" || {
-  echo "FATAL: Gunyah VM memory manager not found: $TARGET" >&2
+test -f "$MEM_TARGET" || {
+  echo "FATAL: Gunyah VM memory manager not found: $MEM_TARGET" >&2
+  exit 1
+}
+test -f "$IRQ_TARGET" || {
+  echo "FATAL: Gunyah IRQFD driver not found: $IRQ_TARGET" >&2
   exit 1
 }
 
-python3 - "$TARGET" <<'PY'
+python3 - "$MEM_TARGET" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -97,8 +102,330 @@ path.write_text(source)
 print(f"Applied fragmentation-safe Gunyah VM metadata allocation fix to {path}")
 PY
 
-grep -qF 'mapping->pages = kvcalloc(' "$TARGET"
-grep -qF 'parcel->mem_entries = kvcalloc(' "$TARGET"
-test "$(grep -cF 'kvfree(mapping->pages);' "$TARGET")" -eq 2
-test "$(grep -cF 'kvfree(mapping->parcel.mem_entries);' "$TARGET")" -eq 1
+grep -qF 'mapping->pages = kvcalloc(' "$MEM_TARGET"
+grep -qF 'parcel->mem_entries = kvcalloc(' "$MEM_TARGET"
+test "$(grep -cF 'kvfree(mapping->pages);' "$MEM_TARGET")" -eq 2
+test "$(grep -cF 'kvfree(mapping->parcel.mem_entries);' "$MEM_TARGET")" -eq 1
 
+python3 - "$IRQ_TARGET" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text()
+
+if "struct gh_irqfd_group" in source:
+    checks = {
+        "single shared resource ticket": source.count(
+            "gh_vm_add_resource_ticket(f->ghvm, &group->ticket);"
+        ) == 1,
+        "grouped duplicate irqfds": "list_add(&irqfd->group_list, &group->irqfds);" in source,
+        "level semantics upgrade": "Gunyah irqfd label %u is shared by edge and level sources; using level semantics" in source,
+        "wait queue removed on unbind": "eventfd_ctx_remove_wait_queue(irqfd->ctx, &irqfd->wait, &cnt);" in source,
+    }
+    failed = [name for name, ok in checks.items() if not ok]
+    if failed:
+        raise SystemExit("FATAL: incomplete grouped Gunyah IRQFD fix: " + ", ".join(failed))
+    print(f"Grouped Gunyah IRQFD compatibility fix already present in {path}")
+    raise SystemExit(0)
+
+if source.count("struct gh_irqfd {") != 1:
+    raise SystemExit(f"FATAL: unexpected gh_irqfd structure layout in {path}")
+
+include_marker = "#include <linux/module.h>\n"
+if source.count(include_marker) != 1:
+    raise SystemExit("FATAL: cannot place explicit linux/mutex.h include")
+source = source.replace(include_marker, include_marker + "#include <linux/mutex.h>\n", 1)
+
+struct_pattern = re.compile(
+    r"struct gh_irqfd \{.*?\n\};\n\n"
+    r"(?=static int irqfd_wakeup)",
+    re.S,
+)
+struct_replacement = r'''struct gh_irqfd_group {
+	struct list_head list;
+	struct list_head irqfds;
+	struct gh_vm *ghvm;
+	struct gh_resource *ghrsc;
+	struct gh_vm_resource_ticket ticket;
+	bool level;
+};
+
+struct gh_irqfd {
+	struct gh_vm_function_instance *f;
+	struct gh_irqfd_group *group;
+	struct list_head group_list;
+
+	bool level;
+
+	struct eventfd_ctx *ctx;
+	wait_queue_entry_t wait;
+	poll_table pt;
+};
+
+static LIST_HEAD(gh_irqfd_groups);
+static DEFINE_MUTEX(gh_irqfd_groups_lock);
+
+static struct gh_irqfd_group *gh_irqfd_find_group(struct gh_vm *ghvm, u32 label)
+{
+	struct gh_irqfd_group *group;
+
+	list_for_each_entry(group, &gh_irqfd_groups, list) {
+		if (group->ghvm == ghvm && group->ticket.label == label)
+			return group;
+	}
+
+	return NULL;
+}
+
+'''
+source, count = struct_pattern.subn(lambda _: struct_replacement, source, count=1)
+if count != 1:
+    raise SystemExit("FATAL: failed to replace gh_irqfd structure")
+
+wakeup_pattern = re.compile(
+    r"static int irqfd_wakeup\(.*?\n\}\n\n"
+    r"(?=static void irqfd_ptable_queue_proc)",
+    re.S,
+)
+wakeup_replacement = r'''static int irqfd_wakeup(wait_queue_entry_t *wait, unsigned int mode, int sync, void *key)
+{
+	struct gh_irqfd *irqfd = container_of(wait, struct gh_irqfd, wait);
+	struct gh_resource *ghrsc = READ_ONCE(irqfd->group->ghrsc);
+	__poll_t flags = key_to_poll(key);
+	int ret = 0;
+
+	if (flags & EPOLLIN) {
+		if (ghrsc) {
+			ret = gh_hypercall_bell_send(ghrsc->capid, 1, NULL);
+			if (ret)
+				pr_err_ratelimited("Failed to inject interrupt %d: %d\n",
+						irqfd->group->ticket.label, ret);
+		} else
+			pr_err_ratelimited("Premature injection of interrupt\n");
+	}
+
+	return 0;
+}
+
+'''
+source, count = wakeup_pattern.subn(lambda _: wakeup_replacement, source, count=1)
+if count != 1:
+    raise SystemExit("FATAL: failed to replace irqfd_wakeup()")
+
+populate_pattern = re.compile(
+    r"static bool gh_irqfd_populate\(.*?\n\}\n\n"
+    r"static void gh_irqfd_unpopulate\(.*?\n\}\n\n"
+    r"(?=static long gh_irqfd_bind)",
+    re.S,
+)
+populate_replacement = r'''static bool gh_irqfd_populate(struct gh_vm_resource_ticket *ticket, struct gh_resource *ghrsc)
+{
+	struct gh_irqfd_group *group = container_of(ticket, struct gh_irqfd_group, ticket);
+	int ret;
+
+	if (READ_ONCE(group->ghrsc)) {
+		pr_warn("irqfd%d already got a Gunyah resource. Check if multiple resources with same label were configured.\n",
+			group->ticket.label);
+		return false;
+	}
+
+	WRITE_ONCE(group->ghrsc, ghrsc);
+	if (group->level) {
+		/* Configure the shared bell as level triggered when any source
+		 * registered for this label requires level semantics.
+		 */
+		ret = gh_hypercall_bell_set_mask(ghrsc->capid, 1, 1);
+		if (ret)
+			pr_warn("irq %d couldn't be set as level triggered. Might cause IRQ storm if asserted\n",
+				group->ticket.label);
+	}
+
+	return true;
+}
+
+static void gh_irqfd_unpopulate(struct gh_vm_resource_ticket *ticket, struct gh_resource *ghrsc)
+{
+	struct gh_irqfd_group *group = container_of(ticket, struct gh_irqfd_group, ticket);
+
+	if (WARN_ON(READ_ONCE(group->ghrsc) != ghrsc))
+		return;
+
+	WRITE_ONCE(group->ghrsc, NULL);
+}
+
+'''
+source, count = populate_pattern.subn(lambda _: populate_replacement, source, count=1)
+if count != 1:
+    raise SystemExit("FATAL: failed to replace Gunyah IRQFD resource callbacks")
+
+bind_pattern = re.compile(
+    r"static long gh_irqfd_bind\(.*?\n\}\n\n"
+    r"(?=static void gh_irqfd_unbind)",
+    re.S,
+)
+bind_replacement = r'''static long gh_irqfd_bind(struct gh_vm_function_instance *f)
+{
+	struct gh_fn_irqfd_arg *args = f->argp;
+	struct gh_irqfd_group *group;
+	struct gh_irqfd *irqfd;
+	__poll_t events;
+	struct fd fd;
+	long r;
+
+	if (f->arg_size != sizeof(*args))
+		return -EINVAL;
+
+	/* All other flag bits are reserved for future use */
+	if (args->flags & ~GH_IRQFD_FLAGS_LEVEL)
+		return -EINVAL;
+
+	irqfd = kzalloc(sizeof(*irqfd), GFP_KERNEL);
+	if (!irqfd)
+		return -ENOMEM;
+
+	irqfd->f = f;
+	f->data = irqfd;
+
+	fd = fdget(args->fd);
+	if (!fd.file) {
+		kfree(irqfd);
+		return -EBADF;
+	}
+
+	irqfd->ctx = eventfd_ctx_fileget(fd.file);
+	if (IS_ERR(irqfd->ctx)) {
+		r = PTR_ERR(irqfd->ctx);
+		goto err_fdput;
+	}
+
+	irqfd->level = args->flags & GH_IRQFD_FLAGS_LEVEL;
+	init_waitqueue_func_entry(&irqfd->wait, irqfd_wakeup);
+	init_poll_funcptr(&irqfd->pt, irqfd_ptable_queue_proc);
+
+	mutex_lock(&gh_irqfd_groups_lock);
+	group = gh_irqfd_find_group(f->ghvm, args->label);
+	if (!group) {
+		group = kzalloc(sizeof(*group), GFP_KERNEL);
+		if (!group) {
+			r = -ENOMEM;
+			goto err_unlock;
+		}
+
+		INIT_LIST_HEAD(&group->irqfds);
+		group->ghvm = f->ghvm;
+		group->level = irqfd->level;
+		group->ticket.resource_type = GH_RESOURCE_TYPE_BELL_TX;
+		group->ticket.label = args->label;
+		group->ticket.owner = THIS_MODULE;
+		group->ticket.populate = gh_irqfd_populate;
+		group->ticket.unpopulate = gh_irqfd_unpopulate;
+
+		r = gh_vm_add_resource_ticket(f->ghvm, &group->ticket);
+		if (r) {
+			kfree(group);
+			goto err_unlock;
+		}
+		list_add(&group->list, &gh_irqfd_groups);
+	} else if (irqfd->level != group->level) {
+		pr_warn("Gunyah irqfd label %u is shared by edge and level sources; using level semantics\n",
+			args->label);
+		if (irqfd->level) {
+			group->level = true;
+			if (READ_ONCE(group->ghrsc)) {
+				r = gh_hypercall_bell_set_mask(group->ghrsc->capid, 1, 1);
+				if (r)
+					pr_warn("irq %u couldn't be upgraded to level triggered: %ld\n",
+						args->label, r);
+			}
+		}
+	}
+
+	irqfd->group = group;
+	list_add(&irqfd->group_list, &group->irqfds);
+	mutex_unlock(&gh_irqfd_groups_lock);
+
+	events = vfs_poll(fd.file, &irqfd->pt);
+	if (events & EPOLLIN)
+		pr_warn("Premature injection of interrupt\n");
+	fdput(fd);
+
+	return 0;
+
+err_unlock:
+	mutex_unlock(&gh_irqfd_groups_lock);
+	eventfd_ctx_put(irqfd->ctx);
+err_fdput:
+	fdput(fd);
+	kfree(irqfd);
+	return r;
+}
+
+'''
+source, count = bind_pattern.subn(lambda _: bind_replacement, source, count=1)
+if count != 1:
+    raise SystemExit("FATAL: failed to replace gh_irqfd_bind()")
+
+unbind_pattern = re.compile(
+    r"static void gh_irqfd_unbind\(.*?\n\}\n\n"
+    r"(?=static bool gh_irqfd_compare)",
+    re.S,
+)
+unbind_replacement = r'''static void gh_irqfd_unbind(struct gh_vm_function_instance *f)
+{
+	struct gh_irqfd *irqfd = f->data;
+	struct gh_irqfd_group *group = irqfd->group;
+	bool free_group = false;
+	u64 cnt;
+
+	eventfd_ctx_remove_wait_queue(irqfd->ctx, &irqfd->wait, &cnt);
+
+	mutex_lock(&gh_irqfd_groups_lock);
+	list_del(&irqfd->group_list);
+	if (list_empty(&group->irqfds)) {
+		list_del(&group->list);
+		gh_vm_remove_resource_ticket(group->ghvm, &group->ticket);
+		free_group = true;
+	}
+	mutex_unlock(&gh_irqfd_groups_lock);
+
+	if (free_group)
+		kfree(group);
+	eventfd_ctx_put(irqfd->ctx);
+	kfree(irqfd);
+}
+
+'''
+source, count = unbind_pattern.subn(lambda _: unbind_replacement, source, count=1)
+if count != 1:
+    raise SystemExit("FATAL: failed to replace gh_irqfd_unbind()")
+
+checks = {
+    "single shared resource ticket": source.count(
+        "gh_vm_add_resource_ticket(f->ghvm, &group->ticket);"
+    ) == 1,
+    "grouped duplicate irqfds": source.count(
+        "list_add(&irqfd->group_list, &group->irqfds);"
+    ) == 1,
+    "per-instance resource ticket removed": "&irqfd->ticket" not in source,
+    "level semantics upgrade": source.count(
+        "Gunyah irqfd label %u is shared by edge and level sources; using level semantics"
+    ) == 1,
+    "wait queue removed on unbind": source.count(
+        "eventfd_ctx_remove_wait_queue(irqfd->ctx, &irqfd->wait, &cnt);"
+    ) == 1,
+}
+failed = [name for name, ok in checks.items() if not ok]
+if failed:
+    raise SystemExit("FATAL: incomplete grouped Gunyah IRQFD fix: " + ", ".join(failed))
+
+path.write_text(source)
+print(f"Applied grouped Gunyah IRQFD compatibility fix to {path}")
+PY
+
+grep -qF 'struct gh_irqfd_group {' "$IRQ_TARGET"
+grep -qF 'list_add(&irqfd->group_list, &group->irqfds);' "$IRQ_TARGET"
+grep -qF 'using level semantics' "$IRQ_TARGET"
+test "$(grep -cF 'gh_vm_add_resource_ticket(f->ghvm, &group->ticket);' "$IRQ_TARGET")" -eq 1
+test "$(grep -cF 'eventfd_ctx_remove_wait_queue(irqfd->ctx, &irqfd->wait, &cnt);' "$IRQ_TARGET")" -eq 1
