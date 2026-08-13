@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import os
+import subprocess
 import sys
 
 
@@ -25,11 +26,31 @@ if not arch_path.is_file():
 if not gunyah_path.is_file():
     fail(f"missing {gunyah_path}")
 
-# The workflow owns the selective AOSP dependency graph. The source patcher
-# must not run repo sync or expose unrelated Android.bp trees after the
-# workflow has validated and deliberately scoped that graph.
 if (aosp_root / ".repo").is_dir():
-    print("selective AOSP checkout: dependency graph managed by workflow")
+    print("selective AOSP checkout: ensuring rustc_linker host providers")
+    required_projects = []
+    if not (aosp_root / "external/sqlite").is_dir():
+        required_projects.append("platform/external/sqlite")
+    if not (aosp_root / "external/icu").is_dir():
+        required_projects.append("platform/external/icu")
+    if required_projects:
+        subprocess.run(
+            ["repo", "sync", "-c", "-j2", "--no-tags", "--no-clone-bundle", "--force-sync", *required_projects],
+            cwd=aosp_root,
+            check=True,
+        )
+
+    sqlite_bps = list((aosp_root / "external/sqlite").rglob("Android.bp"))
+    sqlite_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in sqlite_bps)
+    if 'name: "libsqlite"' not in sqlite_text:
+        fail("libsqlite provider missing after external/sqlite sync")
+
+    icu_bps = list((aosp_root / "external/icu").rglob("Android.bp"))
+    icu_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in icu_bps)
+    for module in ("libicuuc", "libicui18n"):
+        if f'name: "{module}"' not in icu_text:
+            fail(f"{module} provider missing after external/icu sync")
+
     github_env = os.environ.get("GITHUB_ENV")
     if github_env:
         with open(github_env, "a", encoding="utf-8") as env_file:
@@ -38,8 +59,8 @@ if (aosp_root / ".repo").is_dir():
 else:
     print("standalone crosvm checkout: skipping AOSP-only build settings")
 
-arch = arch_path.read_text()
-gunyah = gunyah_path.read_text()
+arch = arch_path.read_text(encoding="utf-8", errors="ignore")
+gunyah = gunyah_path.read_text(encoding="utf-8", errors="ignore")
 
 if "const AARCH64_IRQ_BASE: u32 = 4;" not in arch:
     fail("AARCH64_IRQ_BASE is not 4")
@@ -104,8 +125,8 @@ failure_replacement = (
 )
 gunyah = replace_once(gunyah, failure_anchor, failure_replacement, "register_irqfd failure")
 
-arch_path.write_text(arch)
-gunyah_path.write_text(gunyah)
+arch_path.write_text(arch, encoding="utf-8")
+gunyah_path.write_text(gunyah, encoding="utf-8")
 
 print(f"patched: {arch_path}")
 print(f"patched: {gunyah_path}")
