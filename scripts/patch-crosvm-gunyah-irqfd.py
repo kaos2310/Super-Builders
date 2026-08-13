@@ -50,19 +50,14 @@ if (aosp_root / ".repo").is_dir():
     if virtualization_dir.exists():
         fail(f"failed to exclude {virtualization_dir}")
 
-    # hardware/interfaces is still part of the selective product graph and its
-    # frozen SoundTrigger AIDL validation needs android.media.soundtrigger.types.
     # Error Prone is needed by remaining Java modules. Protobuf's linker-safe
     # notls variants inherit their com.android.runtime APEX availability from
     # absl_notls_defaults in external/abseil-cpp; without that defaults module,
     # ALLOW_MISSING_DEPENDENCIES can hide the missing source while losing the
     # inherited apex_available metadata and later fail bionic's runtime APEX.
-    media_aidl_bp = aosp_root / "system/hardware/interfaces/media/Android.bp"
     error_prone_bp = aosp_root / "external/error_prone/Android.bp"
     abseil_bp = aosp_root / "external/abseil-cpp/Android.bp"
     projects = []
-    if not media_aidl_bp.is_file():
-        projects.append("platform/system/hardware/interfaces")
     if not error_prone_bp.is_file():
         projects.append("platform/external/error_prone")
     if not abseil_bp.is_file():
@@ -85,10 +80,6 @@ if (aosp_root / ".repo").is_dir():
             check=True,
         )
 
-    if not media_aidl_bp.is_file():
-        fail(f"missing {media_aidl_bp} after dependency sync")
-    if 'name: "android.media.soundtrigger.types"' not in media_aidl_bp.read_text():
-        fail("android.media.soundtrigger.types definition missing after dependency sync")
     if not error_prone_bp.is_file():
         fail(f"missing {error_prone_bp} after dependency sync")
     if not abseil_bp.is_file():
@@ -112,8 +103,8 @@ if (aosp_root / ".repo").is_dir():
 else:
     print("standalone crosvm checkout: skipping AOSP-only dependency handling")
 
-arch = arch_path.read_text()
-gunyah = gunyah_path.read_text()
+arch = arch_path.read_text(encoding="utf-8", errors="ignore")
+gunyah = gunyah_path.read_text(encoding="utf-8", errors="ignore")
 
 if "const AARCH64_IRQ_BASE: u32 = 4;" not in arch:
     fail("AARCH64_IRQ_BASE is not 4")
@@ -183,8 +174,8 @@ failure_replacement = (
 )
 gunyah = replace_once(gunyah, failure_anchor, failure_replacement, "register_irqfd failure")
 
-arch_path.write_text(arch)
-gunyah_path.write_text(gunyah)
+arch_path.write_text(arch, encoding="utf-8")
+gunyah_path.write_text(gunyah, encoding="utf-8")
 
 print(f"patched: {arch_path}")
 print(f"patched: {gunyah_path}")
