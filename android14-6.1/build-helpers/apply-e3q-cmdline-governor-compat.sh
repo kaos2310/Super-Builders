@@ -63,8 +63,6 @@ if marker not in text:
         call
         + '\tstrip_cmdline_key(saved_command_line, "cpufreq.default_governor");\n'
         + '\tstrip_cmdline_key(static_command_line, "cpufreq.default_governor");\n'
-        + '\tstrip_cmdline_key(saved_command_line, "log_buf_len");\n'
-        + '\tstrip_cmdline_key(static_command_line, "log_buf_len");\n'
     )
     if text.count(call) != 1:
         raise SystemExit("setup_command_line call anchor is not unique")
@@ -74,16 +72,22 @@ required = (
     marker,
     'strip_cmdline_key(saved_command_line, "cpufreq.default_governor");',
     'strip_cmdline_key(static_command_line, "cpufreq.default_governor");',
-    'strip_cmdline_key(saved_command_line, "log_buf_len");',
-    'strip_cmdline_key(static_command_line, "log_buf_len");',
 )
 missing = [needle for needle in required if text.count(needle) != 1]
 if missing:
     raise SystemExit(f"S928B command-line audit failed: {missing}")
 
+forbidden = (
+    'strip_cmdline_key(saved_command_line, "log_buf_len");',
+    'strip_cmdline_key(static_command_line, "log_buf_len");',
+)
+present = [needle for needle in forbidden if needle in text]
+if present:
+    raise SystemExit(f"S928B log_buf_len must remain visible: {present}")
+
 path.write_text(text, encoding="utf-8")
 print("S928B CPUFreq command-line override will be ignored and hidden")
 print("Samsung PowerHAL remains responsible for selecting the governor")
-print("S928B stock log_buf_len override will be ignored and hidden")
-print("CONFIG_LOG_BUF_SHIFT supplies the audited kernel printk buffer size")
+print("S928B log_buf_len remains visible for post-boot ADB verification")
+print("CONFIG_LOG_BUF_SHIFT and AnyKernel both request the audited 4 MiB size")
 PY

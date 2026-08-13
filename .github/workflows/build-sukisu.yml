@@ -328,9 +328,9 @@ jobs:
         android_version: ${{ inputs.android_version }}
         kernel_version: ${{ inputs.kernel_version }}
 
-    - name: Warn about SUSFS mount hiding
+    - name: Record Droidspaces SUSFS runtime requirement
       if: inputs.add_susfs && inputs.add_droidspaces
-      run: echo "::warning::Droidspaces requires SUSFS Hide SUS Mounts for All Processes to remain disabled at runtime."
+      run: echo "::notice::Droidspaces compatibility keeps SUSFS Hide SUS Mounts for All Processes disabled; packaging validates the setting."
 
     - name: Apply Kernel Patches
       if: inputs.add_ptrace_fix || inputs.add_perf_patches

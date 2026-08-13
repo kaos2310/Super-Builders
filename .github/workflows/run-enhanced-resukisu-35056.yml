@@ -1,5 +1,5 @@
-name: Enhanced ReSukiSU v4.1.0-35055
-run-name: "Enhanced ReSukiSU v4.1.0-35055 + Official Spoofed Manager support — 6.1.145-android14-11-33419968-abS928BXXS6DZG1"
+name: Enhanced ReSukiSU v4.1.0-35056
+run-name: "Enhanced ReSukiSU v4.1.0-35056 + Official Spoofed Manager support — 6.1.145-android14-11-33419968-abS928BXXS6DZG1"
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ on:
     branches:
       - agent/kmi-runtime-compat
     paths:
-      - '.github/workflows/run-enhanced-resukisu-35055.yml'
+      - '.github/workflows/run-enhanced-resukisu-35056.yml'
       - '.github/workflows/kernel-custom.yml'
       - '.github/workflows/build-resukisu.yml'
       - '.github/workflows/cache-dependencies.yml'
@@ -27,7 +27,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: enhanced-resukisu-35055-e3q
+  group: enhanced-resukisu-35056-e3q
   cancel-in-progress: true
 
 jobs:
@@ -49,9 +49,9 @@ jobs:
       # ReSukiSU removed KPM upstream in faac3098; current main cannot provide it.
       add_kpm: false
       susfs_open_redirect: true
-      sukisu_commit: "beaaea0eb895dc41e7b9bf5e3f39e57aa9635bab"
+      sukisu_commit: "ca62a37fc328e6cb836ea6d77b7eab0c073104a6"
       resukisu_source_branch: "main"
-      resukisu_version_code: "35055"
+      resukisu_version_code: "35056"
 
   official-manager:
     name: Official ReSukiSU Manager reference

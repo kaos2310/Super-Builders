@@ -7,6 +7,8 @@
       "kernel_version": "6.1",
       "sub_level": "145",
       "os_patch_level": "2025-09",
+      "firmware": "S928BXXS6DZG1",
+      "csc": "EUX",
       "stock_kernel": {
         "release": "-android14-11-33419968-abS928BXXS6DZG1",
         "version_string": "#1 SMP PREEMPT Fri Jul 3 05:32:51 UTC 2026",
@@ -56,6 +58,8 @@
     "kernel_version": "6.6",
     "sub_level": "30",
     "os_patch_level": "2025-01",
+    "firmware": "DEVICE_FIRMWARE_BUILD",
+    "csc": "DEVICE_CSC",
     "stock_kernel": {
       "release": "-android15-6-xxxxx-gabcdef123456-ab12345678",
       "version_string": "#1 SMP PREEMPT Mon Jan 1 12:00:00 UTC 2025",

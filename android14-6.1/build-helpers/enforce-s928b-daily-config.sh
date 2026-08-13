@@ -21,6 +21,8 @@ DISABLED=(
   KASAN KASAN_HW_TAGS KASAN_SW_TAGS KASAN_GENERIC
   UBSAN UBSAN_TRAP UBSAN_BOUNDS UBSAN_LOCAL_BOUNDS
 )
+KSU_INCOMPATIBLE=(UH KDP RKP)
+REQUIRED_MODULE_COMPAT=(MODULE_ALLOW_BTF_MISMATCH)
 REQUIRED_HARDENING=(
   RANDOMIZE_KSTACK_OFFSET RANDOMIZE_KSTACK_OFFSET_DEFAULT
   UNMAP_KERNEL_AT_EL0 VIRTUALIZATION KVM
@@ -38,25 +40,34 @@ if [[ "$MODE" == "legacy" ]]; then
 fi
 
 for target in "${TARGETS[@]}"; do
-  for symbol in "${DISABLED[@]}"; do
+  for symbol in "${DISABLED[@]}" "${KSU_INCOMPATIBLE[@]}"; do
     "$CONFIG_TOOL" --file "$target" --disable "$symbol"
   done
   for symbol in "${REQUIRED_HARDENING[@]}"; do
     "$CONFIG_TOOL" --file "$target" --enable "$symbol"
   done
+  for symbol in "${REQUIRED_MODULE_COMPAT[@]}"; do
+    "$CONFIG_TOOL" --file "$target" --enable "$symbol"
+  done
 
   # Samsung's very verbose production drivers can overwrite the stock 128 KiB
   # printk ring buffer within minutes. Keep a deterministic 4 MiB buffer in the
-  # kernel config instead of relying on a boot-cmdline log_buf_len override.
+  # kernel config and require the matching AnyKernel log_buf_len=4M parameter.
   "$CONFIG_TOOL" --file "$target" --set-val LOG_BUF_SHIFT 22
 
-  for symbol in "${DISABLED[@]}"; do
+  for symbol in "${DISABLED[@]}" "${KSU_INCOMPATIBLE[@]}"; do
     grep -qx "# CONFIG_${symbol} is not set" "$target" || {
       echo "::error::CONFIG_${symbol} was not disabled in $target"
       exit 1
     }
   done
   for symbol in "${REQUIRED_HARDENING[@]}"; do
+    grep -qx "CONFIG_${symbol}=y" "$target" || {
+      echo "::error::CONFIG_${symbol} was not enabled in $target"
+      exit 1
+    }
+  done
+  for symbol in "${REQUIRED_MODULE_COMPAT[@]}"; do
     grep -qx "CONFIG_${symbol}=y" "$target" || {
       echo "::error::CONFIG_${symbol} was not enabled in $target"
       exit 1
@@ -70,6 +81,10 @@ done
 
 echo "S928B daily debug sanitizers fully disabled in the final build input:"
 printf '  CONFIG_%s=n\n' "${DISABLED[@]}"
+echo "Samsung Knox hypervisor options incompatible with KernelSU disabled:"
+printf '  CONFIG_%s=n\n' "${KSU_INCOMPATIBLE[@]}"
+echo "Samsung DLKM BTF compatibility retained for the ReSukiSU/SUSFS-modified kernel:"
+printf '  CONFIG_%s=y\n' "${REQUIRED_MODULE_COMPAT[@]}"
 echo "S928B printk ring buffer fixed at 4 MiB: CONFIG_LOG_BUF_SHIFT=22"
 echo "S928B KMI compatibility is supplied by the always-built inactive kasan_flag_enabled stub."
 echo "S928B hardening and kernel-side virtualization support retained:"

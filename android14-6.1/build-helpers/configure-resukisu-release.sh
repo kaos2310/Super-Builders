@@ -87,10 +87,27 @@ replace_once(
 )
 
 manager_gradle = root / "manager/build.gradle.kts"
+manager_text = manager_gradle.read_text(encoding="utf-8")
+if 'extra["managerVersionCode"]' in manager_text:
+    manager_version_assignment = (
+        f'extra["managerVersionCode"] = 30000 + getGitCommitCount() + {offset}'
+    )
+    manager_version_pattern = (
+        r'^extra\["managerVersionCode"\]\s*=\s*'
+        r'30000 \+ getGitCommitCount\(\) \+ [0-9]+$'
+    )
+else:
+    manager_version_assignment = (
+        f"val managerVersionCode by extra(30000 + getGitCommitCount() + {offset})"
+    )
+    manager_version_pattern = (
+        r"^val managerVersionCode by extra\(30000 \+ "
+        r"getGitCommitCount\(\) \+ [0-9]+\)$"
+    )
 replace_once(
     manager_gradle,
-    r"^val managerVersionCode by extra\(30000 \+ getGitCommitCount\(\) \+ [0-9]+\)$",
-    f"val managerVersionCode by extra(30000 + getGitCommitCount() + {offset})",
+    manager_version_pattern,
+    manager_version_assignment,
     "manager version override",
 )
 
@@ -122,7 +139,7 @@ checks = {
         f"KSU_VERSION := $(shell expr 30000 + $(KSU_LOCAL_VERSION) + {offset})",
     ],
     manager_gradle: [
-        f"val managerVersionCode by extra(30000 + getGitCommitCount() + {offset})",
+        manager_version_assignment,
     ],
     ksud_build: [
         f"let version_code = 30000 + {offset} + version_code;",
@@ -144,7 +161,7 @@ if cert_size and cert_hash:
 PY
 
 TAG=$(git -C "$KSU_ROOT" describe --abbrev=0 --tags 2>/dev/null || true)
-[[ "$TAG" == "v4.1.0" ]] || {
+[[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || {
   echo "::error::Unexpected ReSukiSU release tag at $EXPECTED_COMMIT: ${TAG:-none}"
   exit 1
 }

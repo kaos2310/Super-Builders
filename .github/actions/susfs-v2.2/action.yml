@@ -50,55 +50,10 @@ runs:
         git -C "$SUSFS_DIR" config user.name "github-actions[bot]"
         git -C "$SUSFS_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-        # These Android 14 / 6.1 compatibility overlays were previously fetched
-        # only through a moving branch. Fetch each immutable SHA directly first.
-        # If the fork has rewritten its history, search all advertised refs. A
-        # vanished optional overlay is reported but must not make the pinned
-        # upstream SUSFS stack fail with an opaque "bad object" error.
-        if [ "$TARGET" = "android14-6.1" ]; then
-          git -C "$SUSFS_DIR" remote add pershoot https://gitlab.com/pershoot/susfs4ksu.git
-
-          apply_compat_commit() {
-            local sha="$1"
-
-            if ! git -C "$SUSFS_DIR" cat-file -e "${sha}^{commit}" 2>/dev/null; then
-              if ! git -C "$SUSFS_DIR" fetch --no-tags pershoot "$sha"; then
-                echo "::warning::Direct fetch failed for SUSFS compatibility commit $sha; scanning all Pershoot branches"
-                git -C "$SUSFS_DIR" fetch --no-tags pershoot \
-                  '+refs/heads/*:refs/remotes/pershoot/*' || true
-              fi
-            fi
-
-            if ! git -C "$SUSFS_DIR" cat-file -e "${sha}^{commit}" 2>/dev/null; then
-              echo "::warning::SUSFS compatibility commit $sha is no longer reachable; continuing with pinned upstream commit $SUSFS_COMMIT"
-              return 0
-            fi
-
-            if git -C "$SUSFS_DIR" merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
-              echo "SUSFS compatibility commit $sha is already contained in the pinned stack"
-              return 0
-            fi
-
-            if git -C "$SUSFS_DIR" cherry-pick "$sha"; then
-              echo "Applied SUSFS compatibility commit $sha"
-              return 0
-            fi
-
-            if git -C "$SUSFS_DIR" diff --quiet && \
-               git -C "$SUSFS_DIR" diff --cached --quiet; then
-              git -C "$SUSFS_DIR" cherry-pick --skip
-              echo "SUSFS compatibility commit $sha is already represented by the pinned stack"
-              return 0
-            fi
-
-            git -C "$SUSFS_DIR" cherry-pick --abort || true
-            echo "::error::SUSFS compatibility commit $sha conflicts with pinned commit $SUSFS_COMMIT"
-            exit 1
-          }
-
-          apply_compat_commit 8d2420be13e43d4cc0d80215d08ed475081a1404
-          apply_compat_commit ee71ca33d08710d686f2bdba27cacefe9e615fb9
-        fi
+        # Android 14 / 6.1 uses the immutable upstream SUSFS stack above.
+        # The former Pershoot overlays are no longer reachable and are not
+        # required: the pinned stack plus the Samsung DZG1 repair/verification
+        # below produced an exact 2476/2476 live-DLKM CRC match.
 
         # Later defconfig reconciliation needs the exact pinned patch tree.
         # Keep it until the ephemeral runner is torn down and publish its path
@@ -197,7 +152,41 @@ runs:
             ;;
         esac
 
-        patch -p1 --no-backup-if-mismatch < "$PATCH_FILE"
+        PATCH_FUZZ=2
+        if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
+          # Samsung DZG1 carries adjacent VFS/proc changes in namespace.c,
+          # open.c and proc/base.c. The SUSFS v2.2 hunks remain semantically
+          # identical but need one additional context-line relaxation.
+          PATCH_FUZZ=3
+        fi
+        patch -p1 -F"$PATCH_FUZZ" --no-backup-if-mismatch < "$PATCH_FILE"
+
+        if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
+          NAMESPACE_REPAIR="$GITHUB_WORKSPACE/android14-6.1/build-helpers/repair-s928b-dzg1-susfs-namespace.sh"
+          chmod +x "$NAMESPACE_REPAIR"
+          "$NAMESPACE_REPAIR" "$KERNEL_COMMON"
+
+          require_exact_susfs_marker() {
+            local file="$1"
+            local marker="$2"
+            local count
+            count=$(grep -cF "$marker" "$file" || true)
+            if [[ "$count" -ne 1 ]]; then
+              echo "::error::Expected one Samsung DZG1 SUSFS marker in $file, found $count: $marker"
+              exit 1
+            fi
+          }
+          require_exact_susfs_marker fs/namespace.c '#define CL_COPY_MNT_NS BIT(25)'
+          require_exact_susfs_marker fs/namespace.c 'copy_flags |= CL_COPY_MNT_NS;'
+          require_exact_susfs_marker fs/open.c 'susfs_open_redirect_spoof_do_sys_openat(inode)'
+          require_exact_susfs_marker fs/proc/base.c '#include <linux/susfs_def.h>'
+          if find fs -type f -name '*.rej' -print -quit | grep -q .; then
+            echo "::error::Samsung DZG1 SUSFS integration left patch rejects"
+            find fs -type f -name '*.rej' -print
+            exit 1
+          fi
+          echo "Verified Samsung DZG1 SUSFS v2.2 VFS/proc compatibility hunks"
+        fi
 
         case "$TARGET" in
           android12-5.10)

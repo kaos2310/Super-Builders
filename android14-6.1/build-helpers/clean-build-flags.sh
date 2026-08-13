@@ -4,13 +4,20 @@ set -euo pipefail
 KERNEL_ROOT="${1:?}"
 KERNEL_VER="${2:?}"
 SUFFIX="${3:-SukiSU}"
+KMI_MODE="${4:-runtime-compat}"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+
+case "$KMI_MODE" in
+  runtime-compat|symtypes|strict) ;;
+  *) echo "Unsupported KMI mode: $KMI_MODE" >&2; exit 1 ;;
+esac
 
 cd "$KERNEL_ROOT"
 
 if [[ "$KERNEL_VER" == "5."* ]] || [[ "$KERNEL_VER" == "6.1" ]]; then
-  perl -i -0777 -pe "s/(.*)echo \"\\\$res\"/\$1echo \"\\\$res-${SUFFIX}\"/s" ./common/scripts/setlocalversion
+  perl -i -0777 -pe "s/(.*)echo \"\$res\"/\$1echo \"\$res-${SUFFIX}\"/s" ./common/scripts/setlocalversion
 else
-  perl -i -0777 -pe "s/(.*)echo \"\\\$\\{KERNELVERSION\\}\\\$\\{file_localversion\\}\\\$\\{config_localversion\\}\\\$\\{LOCALVERSION\\}\\\$\\{scm_version\\}\"/\$1echo \"\\\${KERNELVERSION}\\\${file_localversion}\\\${config_localversion}\\\${LOCALVERSION}-${SUFFIX}\\\${scm_version}\"/s" ./common/scripts/setlocalversion
+  perl -i -0777 -pe "s/(.*)echo \"\${KERNELVERSION}\${file_localversion}\${config_localversion}\${LOCALVERSION}\${scm_version}\"/\$1echo \"\${KERNELVERSION}\${file_localversion}\${config_localversion}\${LOCALVERSION}-${SUFFIX}\${scm_version}\"/s" ./common/scripts/setlocalversion
 fi
 
 if [ -f "build/build.sh" ]; then
@@ -18,15 +25,51 @@ if [ -f "build/build.sh" ]; then
 else
   sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" ./build/kernel/kleaf/impl/stamp.bzl
   sed -i 's/-dirty//' ./common/scripts/setlocalversion
+  # Samsung vendor_dlkm modules import exported symbols outside Google's
+  # protected-export allowlist (including rfkill_*, usbnet_* and vendor XHCI
+  # tracepoints). Remove only that export filter in every mode. Strict mode
+  # independently retains the Kleaf symbol-list/violation checks, build-time
+  # ABI checks and the module loader's CRC rejection path.
   rm -rf ./common/android/abi_gki_protected_exports_*
   perl -pi -e 's/^\s*"protected_exports_list"\s*:\s*"android\/abi_gki_protected_exports_aarch64",\s*$//;' ./common/BUILD.bazel
+  echo "Removed the protected-exports filter; KMI mode ${KMI_MODE} retains its independent symbol and CRC policy."
 fi
 
 # Keep SUSFS logging compiled in, default-off, serialized and safely toggleable.
 SUSFS_SOURCE="./common/fs/susfs.c"
 SUSFS_FRAGMENT="./common/arch/arm64/configs/sukisu_gki.fragment"
 
+# The diagnostic ReSukiSU-minimal profile intentionally writes exactly these
+# three non-empty lines. Samsung's e3q source overlay can still leave UH/KDP/RKP
+# enabled in the base config; ReSukiSU rejects that combination at compile time.
+# Add only the three KernelSU-incompatible Samsung disables to the minimal
+# fragment so the CRC attribution remains minimal and the full profiles remain
+# untouched.
 if [ -f "$SUSFS_FRAGMENT" ]; then
+  mapfile -t MINIMAL_KMI_LINES < <(grep -Ev '^[[:space:]]*$' "$SUSFS_FRAGMENT")
+  if [[ "${#MINIMAL_KMI_LINES[@]}" -eq 3 ]] &&
+     grep -qx 'CONFIG_KSU=y' "$SUSFS_FRAGMENT" &&
+     grep -qx 'CONFIG_KSU_MULTI_MANAGER_SUPPORT=y' "$SUSFS_FRAGMENT" &&
+     grep -qx '# CONFIG_LOCALVERSION_AUTO is not set' "$SUSFS_FRAGMENT"; then
+    CONFIG_TOOL="./common/scripts/config"
+    [[ -x "$CONFIG_TOOL" ]] || {
+      echo "::error::Kernel config editor is unavailable: $CONFIG_TOOL"
+      exit 1
+    }
+    for symbol in UH KDP RKP; do
+      "$CONFIG_TOOL" --file "$SUSFS_FRAGMENT" --disable "$symbol"
+    done
+    for symbol in UH KDP RKP; do
+      grep -qx "# CONFIG_${symbol} is not set" "$SUSFS_FRAGMENT" || {
+        echo "::error::CONFIG_${symbol} was not disabled in minimal ReSukiSU KMI config"
+        exit 1
+      }
+    done
+    echo "Minimal ReSukiSU KMI config: Samsung UH/KDP/RKP disabled."
+  fi
+fi
+
+if [ -f "$SUSFS_FRAGMENT" ] && [ -f "$SUSFS_SOURCE" ]; then
   grep -qx 'CONFIG_KSU_SUSFS_ENABLE_LOG=y' "$SUSFS_FRAGMENT" || {
     echo "::error::CONFIG_KSU_SUSFS_ENABLE_LOG must remain enabled"
     exit 1
@@ -63,22 +106,24 @@ else
 fi
 MODULE_MAIN_FILE="$KERNEL_ROOT/common/kernel/module/main.c"
 
-# Runtime recovery for Samsung vendor/DLKM modules:
-# keep the mismatch warning, but accept a CRC mismatch. The preceding workflow
-# step already applies this mode; enforce and audit it here so a later patch
-# cannot silently restore strict rejection and reproduce the S928B bootloop.
-python3 - "$MODULE_VERSION_FILE" <<'PY'
+# Runtime recovery accepts CRC mismatches only in the proven bootsafe build.
+# Symtypes and strict modes retain the upstream return 0 rejection path. The
+# reusable workflow may package only the exact full-strict e3q gate after all
+# 2476 live Samsung DLKM CRCs have converged; other diagnostics stay unflashable.
+"$PYTHON_BIN" - "$MODULE_VERSION_FILE" "$KMI_MODE" <<'PY'
 from pathlib import Path
 import re
 import sys
 
 path = Path(sys.argv[1])
+mode = sys.argv[2]
 if not path.is_file():
     raise SystemExit(f"module version source not found: {path}")
 
 text = path.read_text()
 pattern = re.compile(r"(bad_version:.*?\breturn\s+)[01](\s*;)", re.S)
-text, count = pattern.subn(r"\g<1>1\2", text, count=1)
+target = "1" if mode == "runtime-compat" else "0"
+text, count = pattern.subn(rf"\g<1>{target}\2", text, count=1)
 if count != 1:
     raise SystemExit(f"unexpected bad_version replacement count: {count}")
 
@@ -86,10 +131,11 @@ match = re.search(r"bad_version:(.*?)(?:\n[}\t ]*\n|\Z)", text, re.S)
 if not match:
     raise SystemExit("bad_version block not found")
 block = match.group(1)
-if not re.search(r"\breturn\s+1\s*;", block):
-    raise SystemExit("bad_version does not accept logged CRC mismatches")
-if re.search(r"\breturn\s+0\s*;", block):
-    raise SystemExit("bad_version still rejects CRC mismatches")
+if not re.search(rf"\breturn\s+{target}\s*;", block):
+    raise SystemExit(f"bad_version does not use the expected return {target}")
+other = "0" if target == "1" else "1"
+if re.search(rf"\breturn\s+{other}\s*;", block):
+    raise SystemExit(f"bad_version still contains conflicting return {other}")
 if "disagrees about version of symbol" not in block:
     raise SystemExit("CRC mismatch warning was removed")
 
@@ -129,6 +175,7 @@ AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
   echo "UTC: $(date -u '+%Y-%m-%d %H:%M:%S')"
   echo "Kernel root: $KERNEL_ROOT"
   echo "Kernel version: $KERNEL_VER"
+  echo "KMI mode: $KMI_MODE"
   echo "Workflow ref: ${GITHUB_REF:-unknown}"
   echo "Workflow SHA: ${GITHUB_SHA:-unknown}"
   echo "Module version file: $MODULE_VERSION_FILE"
@@ -165,15 +212,24 @@ AUDIT_FILE="$AUDIT_ROOT/kmi-module-loader-audit.txt"
   echo "============================================================"
   echo "4. AUTOMATIC VERDICT"
   echo "============================================================"
-  if awk '
+  EXPECTED_RETURN=0
+  [[ "$KMI_MODE" == "runtime-compat" ]] && EXPECTED_RETURN=1
+  if awk -v expected="$EXPECTED_RETURN" '
       /bad_version:/ { active=1; remaining=18; next }
-      active && /return[[:space:]]+1[[:space:]]*;/ { accept=1 }
-      active && /return[[:space:]]+0[[:space:]]*;/ { reject=1 }
+      active && /return[[:space:]]+[01][[:space:]]*;/ {
+        line=$0
+        if (line ~ ("return[[:space:]]+" expected "[[:space:]]*;")) match_expected=1
+        else match_other=1
+      }
       active { remaining-- }
       active && remaining <= 0 { active=0 }
-      END { exit(accept && !reject ? 0 : 1) }
+      END { exit(match_expected && !match_other ? 0 : 1) }
     ' "$MODULE_VERSION_FILE"; then
-    echo "[OK] CRC mismatches are logged and accepted for Samsung KMI compatibility."
+    if [[ "$KMI_MODE" == "runtime-compat" ]]; then
+      echo "[OK] CRC mismatches are logged and accepted for Samsung KMI compatibility."
+    else
+      echo "[OK] CRC mismatches are logged and strictly rejected."
+    fi
   else
     echo "[ERROR] bad_version is not in runtime-compat mode."
     exit 1
@@ -211,7 +267,11 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "## KMI module-loader runtime compatibility"
     echo
-    echo "- ✅ CRC mismatches remain visible in dmesg but are accepted to preserve Samsung DLKM boot compatibility."
+    if [[ "$KMI_MODE" == "runtime-compat" ]]; then
+      echo "- CRC mismatches remain visible in dmesg and are accepted only in the proven recovery build."
+    else
+      echo "- CRC mismatches remain visible and are strictly rejected."
+    fi
     echo "- ✅ Real module blacklist matches still propagate \`-EPERM\`."
     echo "- ✅ No patch reject files were found before compilation."
   } >> "$GITHUB_STEP_SUMMARY"

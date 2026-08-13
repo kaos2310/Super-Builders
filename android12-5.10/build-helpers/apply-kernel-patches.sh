@@ -83,7 +83,22 @@ sed 's/unsigned long val;/unsigned int val;/' \
   "$COMMON/add_limitation_scaling_min_freq.patch" | patch -p1 -F3 --forward || true
 apply "$COMMON/re_write_limitation_scaling_min_freq.patch"
 apply "$COMMON/adjust_cpu_scan_order.patch"
-apply "$COMMON/avoid_extra_s2idle_wake_attempts.patch"
+if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
+  SAMSUNG_WAKE_PATCH="$COMMON/Samsung/avoid_extra_s2idle_wake_attempts_oneui8.5.patch"
+  test -s "$SAMSUNG_WAKE_PATCH" || {
+    echo "::error::Required Samsung OneUI 8.5 wakeup patch is missing: $SAMSUNG_WAKE_PATCH"
+    exit 1
+  }
+  patch -p1 -F3 --no-backup-if-mismatch < "$SAMSUNG_WAKE_PATCH"
+  WAKE_BLOCK=$(sed -n '/^void pm_system_wakeup(void)$/,/^}/p' drivers/base/power/wakeup.c)
+  [[ "$(grep -cF 'if (atomic_inc_return_relaxed(&pm_abort_suspend) == 1) {' <<< "$WAKE_BLOCK")" -eq 1 ]]
+  [[ "$(grep -cF 'suspend_abort_fs_sync();' <<< "$WAKE_BLOCK")" -eq 1 ]]
+  [[ "$(grep -cF 's2idle_wake();' <<< "$WAKE_BLOCK")" -eq 1 ]]
+  [[ ! -f drivers/base/power/wakeup.c.rej ]]
+  echo "apply-kernel-patches: Samsung OneUI 8.5 s2idle wake patch applied"
+else
+  apply "$COMMON/avoid_extra_s2idle_wake_attempts.patch"
+fi
 apply "$COMMON/disable_cache_hot_buddy.patch"
 apply "$COMMON/f2fs_enlarge_min_fsync_blocks.patch"
 apply "$COMMON/increase_ext4_default_commit_age.patch"
