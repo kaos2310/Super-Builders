@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 
 
@@ -15,6 +17,7 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 
 root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
+aosp_root = root.parent.parent
 arch_path = root / "aarch64/src/lib.rs"
 gunyah_path = root / "hypervisor/src/gunyah/mod.rs"
 
@@ -22,6 +25,35 @@ if not arch_path.is_file():
     fail(f"missing {arch_path}")
 if not gunyah_path.is_file():
     fail(f"missing {gunyah_path}")
+
+# The partial AOSP checkout used by CI does not otherwise need the whole
+# system/hardware tree, but frozen soundtrigger AIDL validation requires
+# android.media.soundtrigger.types from system/hardware/interfaces.
+media_aidl_bp = aosp_root / "system/hardware/interfaces/media/Android.bp"
+if not media_aidl_bp.is_file():
+    repo = shutil.which("repo")
+    if not repo:
+        fail("repo launcher not found while system/hardware/interfaces is missing")
+    print("syncing required AOSP project: platform/system/hardware/interfaces")
+    subprocess.run(
+        [
+            repo,
+            "sync",
+            "-c",
+            "-j4",
+            "--no-tags",
+            "--no-clone-bundle",
+            "--force-sync",
+            "platform/system/hardware/interfaces",
+        ],
+        cwd=aosp_root,
+        check=True,
+    )
+
+if not media_aidl_bp.is_file():
+    fail(f"missing {media_aidl_bp} after dependency sync")
+if 'name: "android.media.soundtrigger.types"' not in media_aidl_bp.read_text():
+    fail("android.media.soundtrigger.types definition missing after dependency sync")
 
 arch = arch_path.read_text()
 gunyah = gunyah_path.read_text()
