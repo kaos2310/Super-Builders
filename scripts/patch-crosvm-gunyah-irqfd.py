@@ -52,15 +52,21 @@ if (aosp_root / ".repo").is_dir():
 
     # hardware/interfaces is still part of the selective product graph and its
     # frozen SoundTrigger AIDL validation needs android.media.soundtrigger.types.
+    # Error Prone is needed by remaining Java modules. Protobuf's linker-safe
+    # notls variants inherit their com.android.runtime APEX availability from
+    # absl_notls_defaults in external/abseil-cpp; without that defaults module,
+    # ALLOW_MISSING_DEPENDENCIES can hide the missing source while losing the
+    # inherited apex_available metadata and later fail bionic's runtime APEX.
     media_aidl_bp = aosp_root / "system/hardware/interfaces/media/Android.bp"
     error_prone_bp = aosp_root / "external/error_prone/Android.bp"
+    abseil_bp = aosp_root / "external/abseil-cpp/Android.bp"
     projects = []
     if not media_aidl_bp.is_file():
         projects.append("platform/system/hardware/interfaces")
-    # Keep Error Prone available for any remaining Java modules in the partial
-    # graph; it is small and avoids another global Soong-analysis failure.
     if not error_prone_bp.is_file():
         projects.append("platform/external/error_prone")
+    if not abseil_bp.is_file():
+        projects.append("platform/external/abseil-cpp")
 
     if projects:
         print("syncing required AOSP project(s): " + " ".join(projects))
@@ -85,6 +91,15 @@ if (aosp_root / ".repo").is_dir():
         fail("android.media.soundtrigger.types definition missing after dependency sync")
     if not error_prone_bp.is_file():
         fail(f"missing {error_prone_bp} after dependency sync")
+    if not abseil_bp.is_file():
+        fail(f"missing {abseil_bp} after dependency sync")
+
+    abseil_text = abseil_bp.read_text(encoding="utf-8", errors="ignore")
+    if 'name: "absl_notls_defaults"' not in abseil_text:
+        fail("absl_notls_defaults definition missing after dependency sync")
+    if '"com.android.runtime"' not in abseil_text:
+        fail("absl_notls_defaults source lacks com.android.runtime APEX availability")
+    print("verified Abseil notls defaults for com.android.runtime")
 
     # This is a native crosvm-only target. Keep product dexpreopt disabled now
     # that AVF's bootclasspath fragment has intentionally been excluded, which
