@@ -170,8 +170,45 @@ jobs:
           test -f toolchain/pgo-profiles/sampling/afdo_profiles.mk
           test -f system/cros-codecs/Android.bp
           test -f hardware/interfaces/graphics/common/aidl/Android.bp
-          grep -q 'name: "android.hardware.graphics.common"' hardware/interfaces/graphics/common/aidl/Android.bp
-          grep -q 'version: "7"' hardware/interfaces/graphics/common/aidl/Android.bp
+          python3 - <<'PY'
+          from pathlib import Path
+
+          bp = Path('hardware/interfaces/graphics/common/aidl/Android.bp')
+          text = bp.read_text(encoding='utf-8')
+          required = (
+              'name: "android.hardware.graphics.common"',
+              'host_supported: true',
+              'frozen: false',
+              'ndk: {',
+          )
+          missing = [entry for entry in required if entry not in text]
+          if missing:
+              raise SystemExit(f'graphics common AIDL definition is incomplete: {missing}')
+
+          api_root = bp.parent / 'aidl_api' / 'android.hardware.graphics.common'
+          current_api = api_root / 'current'
+          if not current_api.is_dir():
+              raise SystemExit(f'missing current Stable AIDL API dump: {current_api}')
+
+          frozen_versions = sorted(
+              int(path.name)
+              for path in api_root.iterdir()
+              if path.is_dir() and path.name.isdigit()
+          )
+          if not frozen_versions:
+              raise SystemExit(f'no frozen Stable AIDL API versions found below {api_root}')
+
+          generated_version = frozen_versions[-1] + 1
+          if generated_version != 7:
+              raise SystemExit(
+                  f'expected graphics common current version V7, '
+                  f'but frozen versions imply V{generated_version}: {frozen_versions}'
+              )
+          print(
+              f'graphics common Stable AIDL: frozen={frozen_versions}, '
+              f'current=V{generated_version}, ndk_backend=enabled'
+          )
+          PY
           test -d system/tools/aidl/build
           grep -R -q 'RegisterModuleType("aidl_interface"' system/tools/aidl/build
           test -d system/tools/hidl/build
