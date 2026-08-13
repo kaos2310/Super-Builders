@@ -103,6 +103,7 @@ jobs:
               'external/wayland', 'external/wayland-protocols',
               'external/mesa3d', 'external/gfxstream-protocols',
               'frameworks/native',
+              'hardware/interfaces',
               'prebuilts/bazel/common',
               'prebuilts/build-tools', 'prebuilts/clang/host/linux-x86',
               'prebuilts/devtools', 'prebuilts/go/linux-x86', 'prebuilts/jdk/jdk21',
@@ -129,6 +130,7 @@ jobs:
           grep -q '^platform/external/crosvm$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/abseil-cpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/error_prone$' /tmp/crosvm-projects.txt
+          grep -q '^platform/hardware/interfaces$' /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/vndk/' /tmp/crosvm-projects.txt
           grep -q '^toolchain/pgo-profiles$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/aidl$' /tmp/crosvm-projects.txt
@@ -167,6 +169,9 @@ jobs:
           find prebuilts/vndk -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .
           test -f toolchain/pgo-profiles/sampling/afdo_profiles.mk
           test -f system/cros-codecs/Android.bp
+          test -f hardware/interfaces/graphics/common/aidl/Android.bp
+          grep -q 'name: "android.hardware.graphics.common"' hardware/interfaces/graphics/common/aidl/Android.bp
+          grep -q 'version: "7"' hardware/interfaces/graphics/common/aidl/Android.bp
           test -d system/tools/aidl/build
           grep -R -q 'RegisterModuleType("aidl_interface"' system/tools/aidl/build
           test -d system/tools/hidl/build
