@@ -140,7 +140,23 @@ jobs:
             exit 1
           fi
           mapfile -t PROJECTS < /tmp/crosvm-projects.txt
-          repo sync -c -j4 --no-tags --no-clone-bundle --force-sync "${PROJECTS[@]}"
+          retry_repo_sync() {
+            local attempts=5
+            local delay=20
+            local try=1
+            while true; do
+              if repo sync -c -j2 --no-tags --no-clone-bundle --force-sync --retry-fetches=3 "${PROJECTS[@]}"; then
+                return 0
+              fi
+              if [ "$try" -ge "$attempts" ]; then
+                return 1
+              fi
+              sleep "$delay"
+              try=$((try + 1))
+              delay=$((delay * 2))
+            done
+          }
+          retry_repo_sync
 
           echo '=== STORAGE AFTER MINIMAL SYNC ==='
           df -hT /
