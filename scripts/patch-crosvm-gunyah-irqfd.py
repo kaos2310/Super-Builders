@@ -36,11 +36,29 @@ if (aosp_root / ".repo").is_dir():
     if not repo:
         fail("repo launcher not found in AOSP checkout")
 
+    # The workflow historically synced packages/modules/Virtualization only
+    # because the final device uses com.android.virt. Building the standalone
+    # crosvm binary does not require AVF's Java framework/bootclasspath modules.
+    # Leaving that tree visible makes Soong analyze framework-virtualization and
+    # drags in Error Prone, dex2oat and bootclasspath-fragment requirements that
+    # are unrelated to the crosvm binary target. Remove only the worktree from
+    # this partial checkout; repo metadata remains untouched.
+    virtualization_dir = aosp_root / "packages/modules/Virtualization"
+    if virtualization_dir.is_dir():
+        print("excluding non-crosvm AVF Java build graph: packages/modules/Virtualization")
+        shutil.rmtree(virtualization_dir)
+    if virtualization_dir.exists():
+        fail(f"failed to exclude {virtualization_dir}")
+
+    # hardware/interfaces is still part of the selective product graph and its
+    # frozen SoundTrigger AIDL validation needs android.media.soundtrigger.types.
     media_aidl_bp = aosp_root / "system/hardware/interfaces/media/Android.bp"
     error_prone_bp = aosp_root / "external/error_prone/Android.bp"
     projects = []
     if not media_aidl_bp.is_file():
         projects.append("platform/system/hardware/interfaces")
+    # Keep Error Prone available for any remaining Java modules in the partial
+    # graph; it is small and avoids another global Soong-analysis failure.
     if not error_prone_bp.is_file():
         projects.append("platform/external/error_prone")
 
@@ -68,15 +86,16 @@ if (aosp_root / ".repo").is_dir():
     if not error_prone_bp.is_file():
         fail(f"missing {error_prone_bp} after dependency sync")
 
-    # crosvm is native; product dexpreopt is unnecessary for this target and
-    # otherwise makes a partial checkout require dex2oat/dex_bootjars tooling.
+    # This is a native crosvm-only target. Keep product dexpreopt disabled now
+    # that AVF's bootclasspath fragment has intentionally been excluded, which
+    # also prevents the unrelated global dex_bootjars/dex2oat dependency.
     github_env = os.environ.get("GITHUB_ENV")
     if github_env:
         with open(github_env, "a", encoding="utf-8") as env_file:
             env_file.write("WITH_DEXPREOPT=false\n")
         print("GitHub Actions: WITH_DEXPREOPT=false")
 else:
-    print("standalone crosvm checkout: skipping AOSP-only dependency sync")
+    print("standalone crosvm checkout: skipping AOSP-only dependency handling")
 
 arch = arch_path.read_text()
 gunyah = gunyah_path.read_text()
