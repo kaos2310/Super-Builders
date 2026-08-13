@@ -121,7 +121,7 @@ if "struct gh_irqfd_group" in source:
             "gh_vm_add_resource_ticket(f->ghvm, &group->ticket);"
         ) == 1,
         "grouped duplicate irqfds": "list_add(&irqfd->group_list, &group->irqfds);" in source,
-        "level semantics upgrade": "Gunyah irqfd label %u is shared by edge and level sources; using level semantics" in source,
+        "mixed semantics fallback": "Gunyah irqfd label %u is shared by edge and level sources; using edge-compatible semantics" in source,
         "wait queue removed on unbind": "eventfd_ctx_remove_wait_queue(irqfd->ctx, &irqfd->wait, &cnt);" in source,
     }
     failed = [name for name, ok in checks.items() if not ok]
@@ -150,6 +150,7 @@ struct_replacement = r'''struct gh_irqfd_group {
 	struct gh_resource *ghrsc;
 	struct gh_vm_resource_ticket ticket;
 	bool level;
+	bool mixed;
 };
 
 struct gh_irqfd {
@@ -233,8 +234,13 @@ populate_replacement = r'''static bool gh_irqfd_populate(struct gh_vm_resource_t
 
 	WRITE_ONCE(group->ghrsc, ghrsc);
 	if (group->level) {
-		/* Configure the shared bell as level triggered when any source
-		 * registered for this label requires level semantics.
+		/* Configure the shared bell as level triggered only when every
+		 * source registered for this label uses level semantics.
+		 *
+		 * A shared edge/level label must retain the default edge-compatible
+		 * bell behaviour.  Enabling the automatic acknowledgement mask for
+		 * such a mixed label can wedge affected Gunyah implementations while
+		 * the VM resources are being populated.
 		 */
 		ret = gh_hypercall_bell_set_mask(ghrsc->capid, 1, 1);
 		if (ret)
@@ -328,18 +334,22 @@ bind_replacement = r'''static long gh_irqfd_bind(struct gh_vm_function_instance 
 			goto err_unlock;
 		}
 		list_add(&group->list, &gh_irqfd_groups);
-	} else if (irqfd->level != group->level) {
-		pr_warn("Gunyah irqfd label %u is shared by edge and level sources; using level semantics\n",
-			args->label);
-		if (irqfd->level) {
-			group->level = true;
-			if (READ_ONCE(group->ghrsc)) {
-				r = gh_hypercall_bell_set_mask(group->ghrsc->capid, 1, 1);
-				if (r)
-					pr_warn("irq %u couldn't be upgraded to level triggered: %ld\n",
-						args->label, r);
-			}
+	} else if (!group->mixed && irqfd->level != group->level) {
+		/* crosvm can share one guest IRQ between edge and level sources.
+		 * Decide the common bell mode before resource population.  Changing
+		 * the acknowledgement mask after assignment would be unsafe.
+		 */
+		if (READ_ONCE(group->ghrsc)) {
+			pr_warn("Gunyah irqfd label %u cannot mix edge and level sources after resource assignment\n",
+				args->label);
+			r = -EBUSY;
+			goto err_unlock;
 		}
+
+		group->mixed = true;
+		group->level = false;
+		pr_warn("Gunyah irqfd label %u is shared by edge and level sources; using edge-compatible semantics\n",
+			args->label);
 	}
 
 	irqfd->group = group;
@@ -409,8 +419,8 @@ checks = {
         "list_add(&irqfd->group_list, &group->irqfds);"
     ) == 1,
     "per-instance resource ticket removed": "&irqfd->ticket" not in source,
-    "level semantics upgrade": source.count(
-        "Gunyah irqfd label %u is shared by edge and level sources; using level semantics"
+    "mixed semantics fallback": source.count(
+        "Gunyah irqfd label %u is shared by edge and level sources; using edge-compatible semantics"
     ) == 1,
     "wait queue removed on unbind": source.count(
         "eventfd_ctx_remove_wait_queue(irqfd->ctx, &irqfd->wait, &cnt);"
@@ -426,6 +436,6 @@ PY
 
 grep -qF 'struct gh_irqfd_group {' "$IRQ_TARGET"
 grep -qF 'list_add(&irqfd->group_list, &group->irqfds);' "$IRQ_TARGET"
-grep -qF 'using level semantics' "$IRQ_TARGET"
+grep -qF 'using edge-compatible semantics' "$IRQ_TARGET"
 test "$(grep -cF 'gh_vm_add_resource_ticket(f->ghvm, &group->ticket);' "$IRQ_TARGET")" -eq 1
 test "$(grep -cF 'eventfd_ctx_remove_wait_queue(irqfd->ctx, &irqfd->wait, &cnt);' "$IRQ_TARGET")" -eq 1
