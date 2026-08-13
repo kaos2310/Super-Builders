@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import os
 import shutil
 import subprocess
 import sys
@@ -54,6 +55,16 @@ if not media_aidl_bp.is_file():
     fail(f"missing {media_aidl_bp} after dependency sync")
 if 'name: "android.media.soundtrigger.types"' not in media_aidl_bp.read_text():
     fail("android.media.soundtrigger.types definition missing after dependency sync")
+
+# This workflow builds only the native crosvm binary. A full Android product
+# dexpreopt graph is unnecessary and, in a selective checkout, can pull in the
+# ART dex2oat toolchain solely while Soong analyzes dex_bootjars. Persist the
+# supported Make variable for the following GitHub Actions build step.
+github_env = os.environ.get("GITHUB_ENV")
+if github_env:
+    with open(github_env, "a", encoding="utf-8") as env_file:
+        env_file.write("WITH_DEXPREOPT=false\n")
+    print("GitHub Actions: WITH_DEXPREOPT=false")
 
 arch = arch_path.read_text()
 gunyah = gunyah_path.read_text()
