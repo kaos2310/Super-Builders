@@ -57,7 +57,7 @@ on:
         default: "dev"
       resukisu_version_code:
         type: string
-        default: "35056"
+        default: "35063"
       resukisu_expected_size:
         type: string
         default: ""
@@ -94,7 +94,7 @@ jobs:
       KSU_DIR: KernelSU
       RESUKISU_VERSION_CODE: ${{ inputs.resukisu_version_code }}
       RESUKISU_VERSION_LABEL: ${{ inputs.resukisu_version_code }}
-      RESUKISU_VERSION_FULL: v4.1.0-${{ inputs.resukisu_version_code }}
+      RESUKISU_VERSION_FULL: ReSukiSU-${{ inputs.resukisu_version_code }}
 
     steps:
     - name: Checkout Repository
@@ -357,6 +357,9 @@ jobs:
         RELEASE_CONFIG="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/configure-resukisu-release.sh"
         bash "$RELEASE_CONFIG" "$KERNEL_ROOT/$KSU_DIR" "$SOURCE_BRANCH" "$PIN" \
           "$TARGET_VERSION_CODE" "$MANAGER_CERT_SIZE" "$MANAGER_CERT_HASH"
+        RELEASE_TAG=$(git -C "$KERNEL_ROOT/$KSU_DIR" describe --abbrev=0 --tags)
+        echo "RESUKISU_VERSION_FULL=${RELEASE_TAG}-${TARGET_VERSION_CODE}" >> "$GITHUB_ENV"
+        echo "Resolved ReSukiSU release: ${RELEASE_TAG}-${TARGET_VERSION_CODE}"
 
         cd "$KERNEL_ROOT/common"
 
@@ -453,9 +456,9 @@ jobs:
         chmod +x "$HELPER"
         "$HELPER" "$KERNEL_ROOT/common"
 
-    - name: Warn about SUSFS mount hiding
+    - name: Record Droidspaces SUSFS runtime requirement
       if: inputs.add_susfs && inputs.add_droidspaces
-      run: echo "::warning::Droidspaces requires SUSFS Hide SUS Mounts for All Processes to remain disabled at runtime."
+      run: echo "::notice::Droidspaces compatibility keeps SUSFS Hide SUS Mounts for All Processes disabled; packaging validates the setting."
 
     - name: Apply Kernel Patches
       # Android 14 / 6.1 always needs this helper for the base NTSYNC and

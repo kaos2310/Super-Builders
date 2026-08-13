@@ -15,9 +15,9 @@ esac
 cd "$KERNEL_ROOT"
 
 if [[ "$KERNEL_VER" == "5."* ]] || [[ "$KERNEL_VER" == "6.1" ]]; then
-  perl -i -0777 -pe "s/(.*)echo \"\\\$res\"/\$1echo \"\\\$res-${SUFFIX}\"/s" ./common/scripts/setlocalversion
+  perl -i -0777 -pe "s/(.*)echo \"\$res\"/\$1echo \"\$res-${SUFFIX}\"/s" ./common/scripts/setlocalversion
 else
-  perl -i -0777 -pe "s/(.*)echo \"\\\$\\{KERNELVERSION\\}\\\$\\{file_localversion\\}\\\$\\{config_localversion\\}\\\$\\{LOCALVERSION\\}\\\$\\{scm_version\\}\"/\$1echo \"\\\${KERNELVERSION}\\\${file_localversion}\\\${config_localversion}\\\${LOCALVERSION}-${SUFFIX}\\\${scm_version}\"/s" ./common/scripts/setlocalversion
+  perl -i -0777 -pe "s/(.*)echo \"\${KERNELVERSION}\${file_localversion}\${config_localversion}\${LOCALVERSION}\${scm_version}\"/\$1echo \"\${KERNELVERSION}\${file_localversion}\${config_localversion}\${LOCALVERSION}-${SUFFIX}\${scm_version}\"/s" ./common/scripts/setlocalversion
 fi
 
 if [ -f "build/build.sh" ]; then
@@ -38,6 +38,36 @@ fi
 # Keep SUSFS logging compiled in, default-off, serialized and safely toggleable.
 SUSFS_SOURCE="./common/fs/susfs.c"
 SUSFS_FRAGMENT="./common/arch/arm64/configs/sukisu_gki.fragment"
+
+# The diagnostic ReSukiSU-minimal profile intentionally writes exactly these
+# three non-empty lines. Samsung's e3q source overlay can still leave UH/KDP/RKP
+# enabled in the base config; ReSukiSU rejects that combination at compile time.
+# Add only the three KernelSU-incompatible Samsung disables to the minimal
+# fragment so the CRC attribution remains minimal and the full profiles remain
+# untouched.
+if [ -f "$SUSFS_FRAGMENT" ]; then
+  mapfile -t MINIMAL_KMI_LINES < <(grep -Ev '^[[:space:]]*$' "$SUSFS_FRAGMENT")
+  if [[ "${#MINIMAL_KMI_LINES[@]}" -eq 3 ]] &&
+     grep -qx 'CONFIG_KSU=y' "$SUSFS_FRAGMENT" &&
+     grep -qx 'CONFIG_KSU_MULTI_MANAGER_SUPPORT=y' "$SUSFS_FRAGMENT" &&
+     grep -qx '# CONFIG_LOCALVERSION_AUTO is not set' "$SUSFS_FRAGMENT"; then
+    CONFIG_TOOL="./common/scripts/config"
+    [[ -x "$CONFIG_TOOL" ]] || {
+      echo "::error::Kernel config editor is unavailable: $CONFIG_TOOL"
+      exit 1
+    }
+    for symbol in UH KDP RKP; do
+      "$CONFIG_TOOL" --file "$SUSFS_FRAGMENT" --disable "$symbol"
+    done
+    for symbol in UH KDP RKP; do
+      grep -qx "# CONFIG_${symbol} is not set" "$SUSFS_FRAGMENT" || {
+        echo "::error::CONFIG_${symbol} was not disabled in minimal ReSukiSU KMI config"
+        exit 1
+      }
+    done
+    echo "Minimal ReSukiSU KMI config: Samsung UH/KDP/RKP disabled."
+  fi
+fi
 
 if [ -f "$SUSFS_FRAGMENT" ] && [ -f "$SUSFS_SOURCE" ]; then
   grep -qx 'CONFIG_KSU_SUSFS_ENABLE_LOG=y' "$SUSFS_FRAGMENT" || {
