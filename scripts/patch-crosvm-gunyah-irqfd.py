@@ -36,13 +36,6 @@ if (aosp_root / ".repo").is_dir():
     if not repo:
         fail("repo launcher not found in AOSP checkout")
 
-    # The workflow historically synced packages/modules/Virtualization only
-    # because the final device uses com.android.virt. Building the standalone
-    # crosvm binary does not require AVF's Java framework/bootclasspath modules.
-    # Leaving that tree visible makes Soong analyze framework-virtualization and
-    # drags in Error Prone, dex2oat and bootclasspath-fragment requirements that
-    # are unrelated to the crosvm binary target. Remove only the worktree from
-    # this partial checkout; repo metadata remains untouched.
     virtualization_dir = aosp_root / "packages/modules/Virtualization"
     if virtualization_dir.is_dir():
         print("excluding non-crosvm AVF Java build graph: packages/modules/Virtualization")
@@ -50,19 +43,22 @@ if (aosp_root / ".repo").is_dir():
     if virtualization_dir.exists():
         fail(f"failed to exclude {virtualization_dir}")
 
-    # hardware/interfaces is still part of the selective product graph and its
-    # frozen SoundTrigger AIDL validation needs android.media.soundtrigger.types.
-    # Error Prone is needed by remaining Java modules. Protobuf's linker-safe
-    # notls variants inherit their com.android.runtime APEX availability from
-    # absl_notls_defaults in external/abseil-cpp; without that defaults module,
-    # ALLOW_MISSING_DEPENDENCIES can hide the missing source while losing the
-    # inherited apex_available metadata and later fail bionic's runtime APEX.
+    # system/hardware/interfaces is needed for android.media.soundtrigger.types.
+    # Its Android.bp files use module types registered by system/tools/aidl and
+    # system/tools/hidl, so all three projects must be present together. Error
+    # Prone and Abseil cover the remaining partial-checkout Soong/APEX metadata.
     media_aidl_bp = aosp_root / "system/hardware/interfaces/media/Android.bp"
+    aidl_bp = aosp_root / "system/tools/aidl/Android.bp"
+    hidl_bp = aosp_root / "system/tools/hidl/Android.bp"
     error_prone_bp = aosp_root / "external/error_prone/Android.bp"
     abseil_bp = aosp_root / "external/abseil-cpp/Android.bp"
     projects = []
     if not media_aidl_bp.is_file():
         projects.append("platform/system/hardware/interfaces")
+    if not aidl_bp.is_file():
+        projects.append("platform/system/tools/aidl")
+    if not hidl_bp.is_file():
+        projects.append("platform/system/tools/hidl")
     if not error_prone_bp.is_file():
         projects.append("platform/external/error_prone")
     if not abseil_bp.is_file():
@@ -71,39 +67,24 @@ if (aosp_root / ".repo").is_dir():
     if projects:
         print("syncing required AOSP project(s): " + " ".join(projects))
         subprocess.run(
-            [
-                repo,
-                "sync",
-                "-c",
-                "-j4",
-                "--no-tags",
-                "--no-clone-bundle",
-                "--force-sync",
-                *projects,
-            ],
+            [repo, "sync", "-c", "-j4", "--no-tags", "--no-clone-bundle", "--force-sync", *projects],
             cwd=aosp_root,
             check=True,
         )
 
-    if not media_aidl_bp.is_file():
-        fail(f"missing {media_aidl_bp} after dependency sync")
+    for required in (media_aidl_bp, aidl_bp, hidl_bp, error_prone_bp, abseil_bp):
+        if not required.is_file():
+            fail(f"missing {required} after dependency sync")
     if 'name: "android.media.soundtrigger.types"' not in media_aidl_bp.read_text():
         fail("android.media.soundtrigger.types definition missing after dependency sync")
-    if not error_prone_bp.is_file():
-        fail(f"missing {error_prone_bp} after dependency sync")
-    if not abseil_bp.is_file():
-        fail(f"missing {abseil_bp} after dependency sync")
 
     abseil_text = abseil_bp.read_text(encoding="utf-8", errors="ignore")
     if 'name: "absl_notls_defaults"' not in abseil_text:
         fail("absl_notls_defaults definition missing after dependency sync")
     if '"com.android.runtime"' not in abseil_text:
         fail("absl_notls_defaults source lacks com.android.runtime APEX availability")
-    print("verified Abseil notls defaults for com.android.runtime")
+    print("verified AIDL/HIDL Soong providers and Abseil notls defaults")
 
-    # This is a native crosvm-only target. Keep product dexpreopt disabled now
-    # that AVF's bootclasspath fragment has intentionally been excluded, which
-    # also prevents the unrelated global dex_bootjars/dex2oat dependency.
     github_env = os.environ.get("GITHUB_ENV")
     if github_env:
         with open(github_env, "a", encoding="utf-8") as env_file:
@@ -128,9 +109,7 @@ arch_replacement = (
     "        // PCI/platform devices consume dynamically allocated IRQs starting at 4.\n"
     "        if !system_allocator.reserve_irq(AARCH64_VMWDT_IRQ) {\n"
     "            return Err(Error::AllocateIrq);\n"
-    "        }\n"
-    "\n"
-    + arch_anchor
+    "        }\n\n" + arch_anchor
 )
 arch = replace_once(arch, arch_anchor, arch_replacement, "build_vm/has_bios")
 
@@ -152,8 +131,7 @@ register_replacement = (
     "            label,\n"
     "            level,\n"
     "            evt.as_raw_descriptor()\n"
-    "        );\n"
-    "\n"
+    "        );\n\n"
     "        let gh_fn_irqfd_arg = gh_fn_irqfd_arg {\n"
 )
 gunyah = replace_once(gunyah, register_anchor, register_replacement, "register_irqfd")
@@ -162,8 +140,7 @@ failure_anchor = (
     "        } else {\n"
     "            errno_result()\n"
     "        }\n"
-    "    }\n"
-    "\n"
+    "    }\n\n"
     "    pub fn unregister_irqfd"
 )
 failure_replacement = (
@@ -177,8 +154,7 @@ failure_replacement = (
     "            );\n"
     "            errno_result()\n"
     "        }\n"
-    "    }\n"
-    "\n"
+    "    }\n\n"
     "    pub fn unregister_irqfd"
 )
 gunyah = replace_once(gunyah, failure_anchor, failure_replacement, "register_irqfd failure")
