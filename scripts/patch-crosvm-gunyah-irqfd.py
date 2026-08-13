@@ -27,44 +27,56 @@ if not arch_path.is_file():
 if not gunyah_path.is_file():
     fail(f"missing {gunyah_path}")
 
-# The partial AOSP checkout used by CI does not otherwise need the whole
-# system/hardware tree, but frozen soundtrigger AIDL validation requires
-# android.media.soundtrigger.types from system/hardware/interfaces.
-media_aidl_bp = aosp_root / "system/hardware/interfaces/media/Android.bp"
-if not media_aidl_bp.is_file():
+# The full build workflow uses a selective AOSP repo checkout. Some Soong
+# analysis paths still require metadata/tooling projects that are not direct
+# crosvm source dependencies. Keep those build-only concerns out of the
+# standalone patch verifier by acting only when a real repo checkout exists.
+if (aosp_root / ".repo").is_dir():
     repo = shutil.which("repo")
     if not repo:
-        fail("repo launcher not found while system/hardware/interfaces is missing")
-    print("syncing required AOSP project: platform/system/hardware/interfaces")
-    subprocess.run(
-        [
-            repo,
-            "sync",
-            "-c",
-            "-j4",
-            "--no-tags",
-            "--no-clone-bundle",
-            "--force-sync",
-            "platform/system/hardware/interfaces",
-        ],
-        cwd=aosp_root,
-        check=True,
-    )
+        fail("repo launcher not found in AOSP checkout")
 
-if not media_aidl_bp.is_file():
-    fail(f"missing {media_aidl_bp} after dependency sync")
-if 'name: "android.media.soundtrigger.types"' not in media_aidl_bp.read_text():
-    fail("android.media.soundtrigger.types definition missing after dependency sync")
+    media_aidl_bp = aosp_root / "system/hardware/interfaces/media/Android.bp"
+    error_prone_bp = aosp_root / "external/error_prone/Android.bp"
+    projects = []
+    if not media_aidl_bp.is_file():
+        projects.append("platform/system/hardware/interfaces")
+    if not error_prone_bp.is_file():
+        projects.append("platform/external/error_prone")
 
-# This workflow builds only the native crosvm binary. A full Android product
-# dexpreopt graph is unnecessary and, in a selective checkout, can pull in the
-# ART dex2oat toolchain solely while Soong analyzes dex_bootjars. Persist the
-# supported Make variable for the following GitHub Actions build step.
-github_env = os.environ.get("GITHUB_ENV")
-if github_env:
-    with open(github_env, "a", encoding="utf-8") as env_file:
-        env_file.write("WITH_DEXPREOPT=false\n")
-    print("GitHub Actions: WITH_DEXPREOPT=false")
+    if projects:
+        print("syncing required AOSP project(s): " + " ".join(projects))
+        subprocess.run(
+            [
+                repo,
+                "sync",
+                "-c",
+                "-j4",
+                "--no-tags",
+                "--no-clone-bundle",
+                "--force-sync",
+                *projects,
+            ],
+            cwd=aosp_root,
+            check=True,
+        )
+
+    if not media_aidl_bp.is_file():
+        fail(f"missing {media_aidl_bp} after dependency sync")
+    if 'name: "android.media.soundtrigger.types"' not in media_aidl_bp.read_text():
+        fail("android.media.soundtrigger.types definition missing after dependency sync")
+    if not error_prone_bp.is_file():
+        fail(f"missing {error_prone_bp} after dependency sync")
+
+    # crosvm is native; product dexpreopt is unnecessary for this target and
+    # otherwise makes a partial checkout require dex2oat/dex_bootjars tooling.
+    github_env = os.environ.get("GITHUB_ENV")
+    if github_env:
+        with open(github_env, "a", encoding="utf-8") as env_file:
+            env_file.write("WITH_DEXPREOPT=false\n")
+        print("GitHub Actions: WITH_DEXPREOPT=false")
+else:
+    print("standalone crosvm checkout: skipping AOSP-only dependency sync")
 
 arch = arch_path.read_text()
 gunyah = gunyah_path.read_text()
