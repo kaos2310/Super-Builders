@@ -305,6 +305,14 @@ jobs:
           echo "SAMSUNG_COMMON_DELETED_COUNT=$SAMSUNG_COMMON_DELETED_COUNT"
         } >> "$GITHUB_ENV"
 
+    - name: Avoid high-order Gunyah VM metadata allocations
+      if: inputs.device_codename == 'e3q'
+      run: |
+        set -euo pipefail
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-e3q-gunyah-vm-metadata-allocation.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common"
+
     - name: Extract Sublevel
       env:
         INPUT_SUB_LEVEL: ${{ inputs.sub_level }}

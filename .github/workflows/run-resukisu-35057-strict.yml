@@ -12,6 +12,7 @@ on:
       - '.github/workflows/cache-dependencies.yml'
       - '.github/actions/susfs-v2.2/**'
       - 'android14-6.1/build-helpers/clean-build-flags.sh'
+      - 'android14-6.1/build-helpers/apply-e3q-gunyah-vm-metadata-allocation.sh'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
       - 'android14-6.1/resukisu-pin.txt'
 
