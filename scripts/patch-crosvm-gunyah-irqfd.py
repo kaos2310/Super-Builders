@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import os
-import shutil
-import subprocess
 import sys
 
 
@@ -27,75 +25,18 @@ if not arch_path.is_file():
 if not gunyah_path.is_file():
     fail(f"missing {gunyah_path}")
 
-# The full build workflow uses a selective AOSP repo checkout. Some Soong
-# analysis paths still require metadata/tooling projects that are not direct
-# crosvm source dependencies. Keep those build-only concerns out of the
-# standalone patch verifier by acting only when a real repo checkout exists.
+# The workflow owns the selective AOSP dependency graph. The source patcher
+# must not run repo sync or expose unrelated Android.bp trees after the
+# workflow has validated and deliberately scoped that graph.
 if (aosp_root / ".repo").is_dir():
-    repo = shutil.which("repo")
-    if not repo:
-        fail("repo launcher not found in AOSP checkout")
-
-    virtualization_dir = aosp_root / "packages/modules/Virtualization"
-    if virtualization_dir.is_dir():
-        print("excluding non-crosvm AVF Java build graph: packages/modules/Virtualization")
-        shutil.rmtree(virtualization_dir)
-    if virtualization_dir.exists():
-        fail(f"failed to exclude {virtualization_dir}")
-
-    # system/hardware/interfaces is needed for android.media.soundtrigger.types.
-    # Its Android.bp files use module types registered by system/tools/aidl,
-    # system/tools/hidl and system/tools/xsdc, so keep all provider projects
-    # available in the partial checkout. Error Prone and Abseil cover the
-    # remaining Java/Soong and runtime APEX metadata requirements.
-    media_aidl_bp = aosp_root / "system/hardware/interfaces/media/Android.bp"
-    aidl_bp = aosp_root / "system/tools/aidl/Android.bp"
-    hidl_bp = aosp_root / "system/tools/hidl/Android.bp"
-    xsdc_bp = aosp_root / "system/tools/xsdc/Android.bp"
-    error_prone_bp = aosp_root / "external/error_prone/Android.bp"
-    abseil_bp = aosp_root / "external/abseil-cpp/Android.bp"
-    projects = []
-    if not media_aidl_bp.is_file():
-        projects.append("platform/system/hardware/interfaces")
-    if not aidl_bp.is_file():
-        projects.append("platform/system/tools/aidl")
-    if not hidl_bp.is_file():
-        projects.append("platform/system/tools/hidl")
-    if not xsdc_bp.is_file():
-        projects.append("platform/system/tools/xsdc")
-    if not error_prone_bp.is_file():
-        projects.append("platform/external/error_prone")
-    if not abseil_bp.is_file():
-        projects.append("platform/external/abseil-cpp")
-
-    if projects:
-        print("syncing required AOSP project(s): " + " ".join(projects))
-        subprocess.run(
-            [repo, "sync", "-c", "-j4", "--no-tags", "--no-clone-bundle", "--force-sync", *projects],
-            cwd=aosp_root,
-            check=True,
-        )
-
-    for required in (media_aidl_bp, aidl_bp, hidl_bp, xsdc_bp, error_prone_bp, abseil_bp):
-        if not required.is_file():
-            fail(f"missing {required} after dependency sync")
-    if 'name: "android.media.soundtrigger.types"' not in media_aidl_bp.read_text():
-        fail("android.media.soundtrigger.types definition missing after dependency sync")
-
-    abseil_text = abseil_bp.read_text(encoding="utf-8", errors="ignore")
-    if 'name: "absl_notls_defaults"' not in abseil_text:
-        fail("absl_notls_defaults definition missing after dependency sync")
-    if '"com.android.runtime"' not in abseil_text:
-        fail("absl_notls_defaults source lacks com.android.runtime APEX availability")
-    print("verified AIDL/HIDL/XSDC Soong providers and Abseil notls defaults")
-
+    print("selective AOSP checkout: dependency graph managed by workflow")
     github_env = os.environ.get("GITHUB_ENV")
     if github_env:
         with open(github_env, "a", encoding="utf-8") as env_file:
             env_file.write("WITH_DEXPREOPT=false\n")
         print("GitHub Actions: WITH_DEXPREOPT=false")
 else:
-    print("standalone crosvm checkout: skipping AOSP-only dependency handling")
+    print("standalone crosvm checkout: skipping AOSP-only build settings")
 
 arch = arch_path.read_text()
 gunyah = gunyah_path.read_text()
