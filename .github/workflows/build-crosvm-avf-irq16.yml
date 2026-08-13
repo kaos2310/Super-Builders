@@ -104,6 +104,7 @@ jobs:
               'external/mesa3d', 'external/gfxstream-protocols',
               'frameworks/native',
               'hardware/interfaces',
+              'kernel/configs',
               'prebuilts/bazel/common',
               'prebuilts/build-tools', 'prebuilts/clang/host/linux-x86',
               'prebuilts/devtools', 'prebuilts/go/linux-x86', 'prebuilts/jdk/jdk21',
@@ -131,6 +132,7 @@ jobs:
           grep -q '^platform/external/abseil-cpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/error_prone$' /tmp/crosvm-projects.txt
           grep -q '^platform/hardware/interfaces$' /tmp/crosvm-projects.txt
+          grep -q '^kernel/configs$' /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/vndk/' /tmp/crosvm-projects.txt
           grep -q '^toolchain/pgo-profiles$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/aidl$' /tmp/crosvm-projects.txt
@@ -168,6 +170,8 @@ jobs:
           test -d prebuilts/rust
           find prebuilts/vndk -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .
           test -f toolchain/pgo-profiles/sampling/afdo_profiles.mk
+          test -f kernel/configs/build/Android.bp
+          grep -q 'name: "kernel-config-soong-rules"' kernel/configs/build/Android.bp
           test -f system/cros-codecs/Android.bp
           test -f hardware/interfaces/graphics/common/aidl/Android.bp
           python3 - <<'PY'
