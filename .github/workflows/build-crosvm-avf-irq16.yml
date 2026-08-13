@@ -98,7 +98,7 @@ jobs:
               'external/golang-protobuf', 'external/starlark-go',
               'external/go-cmp', 'external/pogreb',
               'external/minijail', 'external/libcap', 'external/libdrm',
-              'external/libepoxy', 'external/libffi', 'external/libusb',
+              'external/libepoxy', 'external/libffi', 'external/libusb', 'external/libxml2',
               'external/protobuf', 'external/boringssl', 'external/zlib',
               'external/wayland', 'external/wayland-protocols',
               'external/mesa3d', 'external/gfxstream-protocols',
@@ -113,7 +113,7 @@ jobs:
               'prebuilts/rust', 'prebuilts/sdk', 'prebuilts/tools',
               'prebuilts/vndk',
               'toolchain/pgo-profiles',
-              'system/core', 'system/cros-codecs', 'system/libbase', 'system/logging',
+              'system/core', 'system/cros-codecs', 'system/libbase', 'system/libvintf', 'system/logging',
               'system/sepolicy', 'system/tools/aidl', 'system/tools/hidl', 'system/tools/xsdc',
           )
           selected = []
@@ -132,7 +132,9 @@ jobs:
           grep -q '^platform/prebuilts/vndk/' /tmp/crosvm-projects.txt
           grep -q '^toolchain/pgo-profiles$' /tmp/crosvm-projects.txt
           grep -q '^kernel/configs$' /tmp/crosvm-projects.txt
+          grep -q '^platform/external/libxml2$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/cros-codecs$' /tmp/crosvm-projects.txt
+          grep -q '^platform/system/libvintf$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/hidl$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/xsdc$' /tmp/crosvm-projects.txt
           mapfile -t PROJECTS < /tmp/crosvm-projects.txt
@@ -149,6 +151,8 @@ jobs:
           test -d external/starlark-go/starlark
           test -d external/go-cmp/cmp
           test -d external/pogreb
+          test -f external/libxml2/Android.bp
+          grep -q 'name: "xmllint"' external/libxml2/Android.bp
           test -x prebuilts/go/linux-x86/bin/go
           test -x prebuilts/jdk/jdk21/linux-x86/bin/java
           test -d prebuilts/rust
@@ -157,6 +161,9 @@ jobs:
           test -f kernel/configs/build/Android.bp
           grep -q 'name: "kernel-config-soong-rules"' kernel/configs/build/Android.bp
           test -f system/cros-codecs/Android.bp
+          test -f system/libvintf/xsd/compatibilityMatrix/Android.bp
+          grep -q 'compatibility_matrix_schema' system/libvintf/xsd/compatibilityMatrix/Android.bp
+          test -f system/libvintf/xsd/compatibilityMatrix/compatibility_matrix.xsd
           test -d system/tools/hidl/build
           test -d system/tools/xsdc/build
 
