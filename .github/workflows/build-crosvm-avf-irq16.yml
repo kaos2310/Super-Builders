@@ -113,7 +113,7 @@ jobs:
               'prebuilts/vndk',
               'toolchain/pgo-profiles',
               'system/core', 'system/cros-codecs', 'system/libbase', 'system/logging',
-              'system/sepolicy', 'system/tools/aidl', 'system/tools/hidl',
+              'system/sepolicy', 'system/tools/aidl', 'system/tools/hidl', 'system/tools/xsdc',
           )
           selected = []
           for p in root.findall('project'):
@@ -137,6 +137,7 @@ jobs:
           grep -q '^toolchain/pgo-profiles$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/aidl$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/hidl$' /tmp/crosvm-projects.txt
+          grep -q '^platform/system/tools/xsdc$' /tmp/crosvm-projects.txt
           if grep -q '^device/generic/' /tmp/crosvm-projects.txt; then
             echo 'ERROR: full generic-device product graph selected unexpectedly' >&2
             exit 1
@@ -218,6 +219,8 @@ jobs:
           test -d system/tools/hidl/build
           grep -R -q 'RegisterModuleType("hidl_interface"' system/tools/hidl/build
           grep -R -q 'RegisterModuleType("hidl_package_root"' system/tools/hidl/build
+          test -d system/tools/xsdc/build
+          grep -R -q 'RegisterModuleType("xsd_config"' system/tools/xsdc/build
 
           # In a partial checkout some modules can reference ownership-team
           # metadata whose definition lives outside the selected source graph.
