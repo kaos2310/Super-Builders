@@ -195,6 +195,8 @@ jobs:
           cd "$AOSP_DIR"
           export OUT_DIR="$OUT_DIR"
           export ENVSETUP_NO_COMPLETION=1
+          export ALLOW_MISSING_DEPENDENCIES=true
+          echo "ALLOW_MISSING_DEPENDENCIES=$ALLOW_MISSING_DEPENDENCIES"
           set +u
           source build/envsetup.sh
           lunch aosp_arm64 trunk_staging eng
