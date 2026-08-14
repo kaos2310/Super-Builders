@@ -138,7 +138,7 @@ if "GH_DIAG mem_alloc enter" not in source:
             "\tpr_info(\"GH_DIAG mem_alloc pin end label=%u pinned=%d expected=%lu\\n\",\n"
             "\t\tregion->label, pinned, (unsigned long)mapping->npages);\n",
         "\tlist_add(&mapping->list, &ghvm->memory_mappings);\n":
-            "\tpr_info(\"GH_DIAG mem_alloc ready label=%u npages=%lu entries=%u share=%u\\n\",\n"
+            "\tpr_info(\"GH_DIAG mem_alloc ready label=%u npages=%lu entries=%zu share=%u\\n\",\n"
             "\t\tparcel->label, (unsigned long)mapping->npages,\n"
             "\t\tparcel->n_mem_entries, (unsigned int)mapping->share_type);\n"
             "\tlist_add(&mapping->list, &ghvm->memory_mappings);\n",
@@ -188,7 +188,7 @@ if "GH_DIAG vm_start enter" not in source:
             "\tret = gh_rm_alloc_vmid(ghvm->rm, 0);\n"
             "\tpr_info(\"GH_DIAG alloc_vmid end ret=%d\\n\", ret);\n",
         "\t\tswitch (mapping->share_type) {\n":
-            "\t\tpr_info(\"GH_DIAG mem_share begin vmid=%u label=%u type=%u entries=%u\\n\",\n"
+            "\t\tpr_info(\"GH_DIAG mem_share begin vmid=%u label=%u type=%u entries=%zu\\n\",\n"
             "\t\t\tghvm->vmid, mapping->parcel.label,\n"
             "\t\t\t(unsigned int)mapping->share_type,\n"
             "\t\t\tmapping->parcel.n_mem_entries);\n"
