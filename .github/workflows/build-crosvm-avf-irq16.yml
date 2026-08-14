@@ -98,6 +98,7 @@ jobs:
               'external/abseil-cpp', 'external/error_prone',
               'external/sqlite', 'external/icu',
               'external/minijail', 'external/libcap', 'external/libdrm',
+              'external/expat',
               'external/libepoxy', 'external/libffi', 'external/libusb', 'external/libxml2',
               'external/protobuf', 'external/boringssl', 'external/zlib',
               'external/wayland', 'external/wayland-protocols',
