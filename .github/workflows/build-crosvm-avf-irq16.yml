@@ -101,9 +101,10 @@ jobs:
               'external/expat', 'external/libepoxy', 'external/libffi',
               'external/libusb', 'external/libxml2',
               'external/protobuf', 'external/boringssl', 'external/zlib',
-              'external/wayland', 'external/wayland-protocols',
+              'external/virglrenderer', 'external/wayland', 'external/wayland-protocols',
               'external/mesa3d', 'external/gfxstream-protocols',
               'frameworks/native',
+              'hardware/google/gfxstream',
               'hardware/interfaces',
               'prebuilts/bazel/common',
               'prebuilts/build-tools', 'prebuilts/clang/host/linux-x86',
@@ -135,6 +136,8 @@ jobs:
           grep -q '^platform/external/expat$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/sqlite$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/icu$' /tmp/crosvm-projects.txt
+          grep -q '^platform/external/virglrenderer$' /tmp/crosvm-projects.txt
+          grep -q '^platform/hardware/google/gfxstream$' /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8$' /tmp/crosvm-projects.txt
           grep -q '^platform/hardware/interfaces$' /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/vndk/' /tmp/crosvm-projects.txt
