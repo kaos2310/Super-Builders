@@ -96,7 +96,7 @@ jobs:
               'external/golang-protobuf', 'external/starlark-go',
               'external/go-cmp', 'external/pogreb',
               'external/abseil-cpp', 'external/error_prone',
-              'external/sqlite', 'external/icu',
+              'external/sqlite', 'external/icu', 'external/jsoncpp',
               'external/minijail', 'external/libcap', 'external/libdrm',
               'external/expat', 'external/libepoxy', 'external/libffi',
               'external/libusb', 'external/libxml2', 'external/lz4',
@@ -135,6 +135,7 @@ jobs:
           grep -q '^platform/external/abseil-cpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/error_prone$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/expat$' /tmp/crosvm-projects.txt
+          grep -q '^platform/external/jsoncpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/lz4$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/perfetto$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/sqlite$' /tmp/crosvm-projects.txt
@@ -213,6 +214,8 @@ jobs:
           grep -R -q 'name: "libsqlite"' external/sqlite
           grep -R -q 'name: "libicuuc"' external/icu
           grep -R -q 'name: "libicui18n"' external/icu
+          test -f external/jsoncpp/Android.bp
+          grep -q 'name: "libjsoncpp"' external/jsoncpp/Android.bp
           test -f prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/include/stdlib.h
           test -f prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/include/string.h
           test -f prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/include/math.h
