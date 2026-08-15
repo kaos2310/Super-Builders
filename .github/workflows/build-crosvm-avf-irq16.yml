@@ -99,11 +99,12 @@ jobs:
               'external/sqlite', 'external/icu',
               'external/minijail', 'external/libcap', 'external/libdrm',
               'external/expat', 'external/libepoxy', 'external/libffi',
-              'external/libusb', 'external/libxml2',
+              'external/libusb', 'external/libxml2', 'external/lz4',
               'external/perfetto', 'external/protobuf', 'external/boringssl', 'external/zlib',
               'external/virglrenderer', 'external/wayland', 'external/wayland-protocols',
               'external/mesa3d', 'external/gfxstream-protocols',
               'frameworks/native',
+              'hardware/google/aemu',
               'hardware/google/gfxstream',
               'hardware/interfaces',
               'prebuilts/bazel/common',
@@ -134,10 +135,12 @@ jobs:
           grep -q '^platform/external/abseil-cpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/error_prone$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/expat$' /tmp/crosvm-projects.txt
+          grep -q '^platform/external/lz4$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/perfetto$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/sqlite$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/icu$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/virglrenderer$' /tmp/crosvm-projects.txt
+          grep -q '^platform/hardware/google/aemu$' /tmp/crosvm-projects.txt
           grep -q '^platform/hardware/google/gfxstream$' /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8$' /tmp/crosvm-projects.txt
           grep -q '^platform/hardware/interfaces$' /tmp/crosvm-projects.txt
@@ -203,6 +206,8 @@ jobs:
           grep -R -q 'name: "absl_notls_defaults"' external/abseil-cpp
           grep -R -q '"com.android.runtime"' external/abseil-cpp
           test -f external/error_prone/Android.bp
+          test -f external/lz4/lib/Android.bp
+          grep -q 'name: "liblz4"' external/lz4/lib/Android.bp
           test -f external/perfetto/include/perfetto/tracing.h
           grep -q 'name: "libperfetto_client_experimental"' external/perfetto/Android.bp
           grep -R -q 'name: "libsqlite"' external/sqlite
@@ -223,6 +228,10 @@ jobs:
           find prebuilts/vndk -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .
           test -f toolchain/pgo-profiles/sampling/afdo_profiles.mk
           test -f system/cros-codecs/Android.bp
+          test -f hardware/google/aemu/host-common/Android.bp
+          grep -q 'name: "gfxstream_host_common"' hardware/google/aemu/host-common/Android.bp
+          test -f hardware/google/aemu/base/Android.bp
+          grep -q 'name: "gfxstream_base"' hardware/google/aemu/base/Android.bp
           test -f hardware/interfaces/graphics/common/aidl/Android.bp
 
           python3 - <<'PY'
