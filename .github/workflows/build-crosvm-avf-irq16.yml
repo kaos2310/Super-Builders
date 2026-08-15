@@ -224,8 +224,8 @@ jobs:
           grep -q 'name: "libvirtio_media"' external/virtio-media/device/Android.bp
           test -f external/rust/crates/v4l2r/lib/Android.bp
           grep -q 'name: "libv4l2r"' external/rust/crates/v4l2r/lib/Android.bp
-          test -f external/rust/crates/enumn/Android.bp
-          grep -q 'name: "libenumn"' external/rust/crates/enumn/Android.bp
+          test -d external/rust/android-crates-io/crates
+          grep -R -q 'name: "libenumn"' external/rust/android-crates-io/crates
           grep -R -q 'libvirtio_media' external/crosvm
           test -f prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/include/stdlib.h
           test -f prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/include/string.h
