@@ -91,7 +91,7 @@ jobs:
           prefixes = (
               'bionic',
               'build/blueprint', 'build/make', 'build/soong', 'build/release',
-              'external/crosvm',
+              'external/crosvm', 'external/virtio-media',
               'external/rust/',
               'external/golang-protobuf', 'external/starlark-go',
               'external/go-cmp', 'external/pogreb',
@@ -132,6 +132,7 @@ jobs:
           echo "Selected $(wc -l < /tmp/crosvm-projects.txt) AOSP projects"
           cat /tmp/crosvm-projects.txt
           grep -q '^platform/external/crosvm$' /tmp/crosvm-projects.txt
+          grep -q '^platform/external/virtio-media$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/abseil-cpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/error_prone$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/expat$' /tmp/crosvm-projects.txt
@@ -219,6 +220,13 @@ jobs:
           grep -q 'name: "libjsoncpp"' external/jsoncpp/Android.bp
           test -f external/fmtlib/Android.bp
           grep -q 'name: "fmtlib"' external/fmtlib/Android.bp
+          test -f external/virtio-media/device/Android.bp
+          grep -q 'name: "libvirtio_media"' external/virtio-media/device/Android.bp
+          test -f external/rust/crates/v4l2r/lib/Android.bp
+          grep -q 'name: "libv4l2r"' external/rust/crates/v4l2r/lib/Android.bp
+          test -f external/rust/crates/enumn/Android.bp
+          grep -q 'name: "libenumn"' external/rust/crates/enumn/Android.bp
+          grep -R -q 'libvirtio_media' external/crosvm
           test -f prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/include/stdlib.h
           test -f prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/include/string.h
           test -f prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/sysroot/usr/include/math.h
