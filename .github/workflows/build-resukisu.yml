@@ -57,7 +57,7 @@ on:
         default: "dev"
       resukisu_version_code:
         type: string
-        default: "35063"
+        default: "35071"
       resukisu_expected_size:
         type: string
         default: ""
