@@ -98,7 +98,8 @@ jobs:
               'external/abseil-cpp', 'external/error_prone',
               'external/sqlite', 'external/icu',
               'external/minijail', 'external/libcap', 'external/libdrm',
-              'external/libepoxy', 'external/libffi', 'external/libusb', 'external/libxml2',
+              'external/expat', 'external/libepoxy', 'external/libffi',
+              'external/libusb', 'external/libxml2',
               'external/protobuf', 'external/boringssl', 'external/zlib',
               'external/wayland', 'external/wayland-protocols',
               'external/mesa3d', 'external/gfxstream-protocols',
@@ -131,6 +132,7 @@ jobs:
           grep -q '^platform/external/crosvm$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/abseil-cpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/error_prone$' /tmp/crosvm-projects.txt
+          grep -q '^platform/external/expat$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/sqlite$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/icu$' /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8$' /tmp/crosvm-projects.txt
