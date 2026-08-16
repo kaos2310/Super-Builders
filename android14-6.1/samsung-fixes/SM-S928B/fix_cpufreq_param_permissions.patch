@@ -1,0 +1,13 @@
+--- a/drivers/cpufreq/cpufreq.c
++++ b/drivers/cpufreq/cpufreq.c
+@@ -2554,8 +2554,8 @@
+ #define MAX_CLUSTERS	4
+ static int max_freqs[MAX_CLUSTERS + 1];
+ static int min_freqs[MAX_CLUSTERS + 1];
+-module_param_array(max_freqs, int, NULL, 440);
+-module_param_array(min_freqs, int, NULL, 440);
++module_param_array(max_freqs, int, NULL, 0440);
++module_param_array(min_freqs, int, NULL, 0440);
+ 
+ static void cpufreq_sec_limit_max(struct cpufreq_policy_data *new_data)
+ {
