@@ -16,8 +16,7 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
-def make_root_crosvm_device_only(android_bp: str) -> str:
-    lines = android_bp.splitlines(keepends=True)
+def find_root_crosvm_rust_binary(lines: list[str]) -> tuple[int, int]:
     matches = []
 
     for start, line in enumerate(lines):
@@ -43,7 +42,21 @@ def make_root_crosvm_device_only(android_bp: str) -> str:
     if len(matches) != 1:
         fail(f"expected exactly one root crosvm rust_binary block, found {len(matches)}")
 
-    start, end = matches[0]
+    return matches[0]
+
+
+def line_ending(line: str) -> str:
+    if line.endswith("\r\n"):
+        return "\r\n"
+    if line.endswith("\n"):
+        return "\n"
+    return "\n"
+
+
+def make_root_crosvm_device_platform_available(android_bp: str) -> str:
+    lines = android_bp.splitlines(keepends=True)
+    start, end = find_root_crosvm_rust_binary(lines)
+
     host_lines = [
         idx
         for idx in range(start, end + 1)
@@ -56,19 +69,71 @@ def make_root_crosvm_device_only(android_bp: str) -> str:
         )
 
     host_idx = host_lines[0]
-    if lines[host_idx].strip() == "host_supported: false,":
-        print("root crosvm rust_binary is already device-only")
-        return android_bp
+    host_indent = lines[host_idx][: len(lines[host_idx]) - len(lines[host_idx].lstrip())]
+    newline = line_ending(lines[host_idx])
+    lines[host_idx] = f"{host_indent}host_supported: false,{newline}"
 
-    indent = lines[host_idx][: len(lines[host_idx]) - len(lines[host_idx].lstrip())]
-    if lines[host_idx].endswith("\r\n"):
-        newline = "\r\n"
-    elif lines[host_idx].endswith("\n"):
-        newline = "\n"
+    # Re-locate after the host edit so subsequent property ranges are always
+    # scoped to the exact root crosvm module.
+    start, end = find_root_crosvm_rust_binary(lines)
+    apex_starts = [
+        idx
+        for idx in range(start, end + 1)
+        if lines[idx].lstrip().startswith("apex_available:")
+    ]
+    if len(apex_starts) > 1:
+        fail(
+            "expected at most one apex_available property in root crosvm "
+            f"rust_binary block, found {len(apex_starts)}"
+        )
+
+    if apex_starts:
+        apex_start = apex_starts[0]
+        apex_indent = lines[apex_start][: len(lines[apex_start]) - len(lines[apex_start].lstrip())]
+        newline = line_ending(lines[apex_start])
+        bracket_depth = 0
+        apex_end = None
+        for idx in range(apex_start, end + 1):
+            bracket_depth += lines[idx].count("[")
+            bracket_depth -= lines[idx].count("]")
+            if bracket_depth == 0:
+                apex_end = idx
+                break
+        if apex_end is None:
+            fail("unterminated apex_available property in root crosvm rust_binary block")
     else:
-        newline = ""
-    lines[host_idx] = f"{indent}host_supported: false,{newline}"
+        # android-16.0.0_r4 has an explicit com.android.virt-only property, but
+        # keep this fallback for nearby revisions where the property is inherited.
+        apex_start = host_idx + 1
+        apex_end = host_idx
+        apex_indent = host_indent
+        newline = line_ending(lines[host_idx])
+
+    platform_apex = [
+        f"{apex_indent}apex_available: [{newline}",
+        f'{apex_indent}    "//apex_available:platform",{newline}',
+        f'{apex_indent}    "com.android.virt",{newline}',
+        f"{apex_indent}],{newline}",
+    ]
+    lines[apex_start : apex_end + 1] = platform_apex
     return "".join(lines)
+
+
+def verify_root_crosvm_device_platform(android_bp: str) -> None:
+    lines = android_bp.splitlines(keepends=True)
+    start, end = find_root_crosvm_rust_binary(lines)
+    block = "".join(lines[start : end + 1])
+
+    required = (
+        "host_supported: false,",
+        '"//apex_available:platform"',
+        '"com.android.virt"',
+    )
+    missing = [entry for entry in required if entry not in block]
+    if missing:
+        fail(f"root crosvm device/platform verification failed; missing {missing}")
+    if "host_supported: true," in block:
+        fail("root crosvm device/platform verification failed; host support still enabled")
 
 
 root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
@@ -124,16 +189,16 @@ gunyah = gunyah_path.read_text(encoding="utf-8", errors="ignore")
 android_bp = android_bp_path.read_text(encoding="utf-8", errors="ignore")
 
 if selective_aosp_checkout:
-    # AOSP's crosvm rust_binary supports both device and host variants. A bare
-    # `m crosvm` in the reduced module_arm64 graph resolves to the host
-    # linux_glibc_x86_64 variant. Disable host support only on the root crosvm
-    # binary so the same module goal resolves to Android ARM64, while keeping
-    # host variants available for proc-macros/build-time dependencies.
+    # AOSP's root crosvm binary supports host variants and, at Android 16 r4,
+    # is explicitly APEX-only (com.android.virt). A reduced module_arm64 graph
+    # therefore either selects the host linux_glibc_x86_64 variant or exposes no
+    # standalone `crosvm` target once host support is disabled.
     #
-    # Do not anchor this on the defaults module name. That name differs between
-    # crosvm revisions, while the root rust_binary name and host_supported
-    # property are the stable identifiers we actually need.
-    android_bp = make_root_crosvm_device_only(android_bp)
+    # For this CI-only source checkout, keep the AVF APEX variant while also
+    # exposing a platform Android64 variant, and disable host support only on
+    # the root binary. Build-time host tools/proc-macros remain untouched.
+    android_bp = make_root_crosvm_device_platform_available(android_bp)
+    verify_root_crosvm_device_platform(android_bp)
 
 if "const AARCH64_IRQ_BASE: u32 = 4;" not in arch:
     fail("AARCH64_IRQ_BASE is not 4")
@@ -202,8 +267,14 @@ arch_path.write_text(arch, encoding="utf-8")
 gunyah_path.write_text(gunyah, encoding="utf-8")
 if selective_aosp_checkout:
     android_bp_path.write_text(android_bp, encoding="utf-8")
+    verify_root_crosvm_device_platform(
+        android_bp_path.read_text(encoding="utf-8", errors="ignore")
+    )
+    print("verified: root crosvm host_supported=false + platform/com.android.virt")
+    print("=== Android.bp root crosvm CI diff ===")
+    subprocess.run(["git", "diff", "--", "Android.bp"], cwd=root, check=True)
 
 print(f"patched: {arch_path}")
 print(f"patched: {gunyah_path}")
 if selective_aosp_checkout:
-    print(f"patched: {android_bp_path} (root crosvm device-only)")
+    print(f"patched: {android_bp_path} (root crosvm Android platform device variant enabled)")
