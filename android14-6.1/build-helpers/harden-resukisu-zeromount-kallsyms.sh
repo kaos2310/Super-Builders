@@ -22,61 +22,13 @@ if base_marker not in text:
         "SUSFS kallsyms filter is missing; refusing to modify an unexpected kallsyms.c"
     )
 
-insert_before = 'susfs_starts_with(iter->name, "is_ksu_") ||'
-extra_ksu = (
-    'susfs_starts_with(iter->name, "setup_ksu_") ||\n\t\t\t'
-    'susfs_starts_with(iter->name, "do_ksu_") ||\n\t\t\t'
-    'susfs_starts_with(iter->name, "is_task_ksu_") ||\n\t\t\t'
-    'susfs_starts_with(iter->name, "anon_ksu_") ||\n\t\t\t'
-    'susfs_starts_with(iter->name, "bb_bprm_set_creds.ksu_") ||\n\t\t\t'
-    'susfs_starts_with(iter->name, "__initstub__kmod_kernelsu") ||\n\t\t\t'
-    'susfs_starts_with(iter->name, "__initcall__kmod_kernelsu") ||\n\t\t\t'
-)
-
-if 'susfs_starts_with(iter->name, "setup_ksu_") ||' not in text:
-    if text.count(insert_before) != 1:
-        raise SystemExit("KSU kallsyms insertion anchor is not unique")
-    text = text.replace(insert_before, extra_ksu + insert_before, 1)
-else:
-    # Upgrade an already-hardened tree with the remaining observed init/local symbols.
-    upgrade_anchor = 'susfs_starts_with(iter->name, "anon_ksu_") ||'
-    extra_remaining_ksu = (
-        '\n\t\t\t' 'susfs_starts_with(iter->name, "bb_bprm_set_creds.ksu_") ||'
-        '\n\t\t\t' 'susfs_starts_with(iter->name, "__initstub__kmod_kernelsu") ||'
-        '\n\t\t\t' 'susfs_starts_with(iter->name, "__initcall__kmod_kernelsu") ||'
-    )
-    if 'susfs_starts_with(iter->name, "bb_bprm_set_creds.ksu_") ||' not in text:
-        if text.count(upgrade_anchor) != 1:
-            raise SystemExit("KSU kallsyms upgrade anchor is not unique")
-        text = text.replace(upgrade_anchor, upgrade_anchor + extra_remaining_ksu, 1)
-
-zm_anchor = 'susfs_starts_with(iter->name, "susfs_") ||'
-zm_filters = (
-    'susfs_starts_with(iter->name, "zeromount_") ||',
-    'susfs_starts_with(iter->name, "__initstub__kmod_zeromount") ||',
-    'susfs_starts_with(iter->name, "__initcall__kmod_zeromount") ||',
-)
-if zm_filters[0] not in text:
-    if text.count(zm_anchor) != 1:
-        raise SystemExit("ZeroMount kallsyms insertion anchor is not unique")
-    text = text.replace(
-        zm_anchor,
-        zm_anchor + '\n\t\t\t' + '\n\t\t\t'.join(zm_filters),
-        1,
-    )
-else:
-    zm_upgrade_anchor = zm_filters[0]
-    missing_zm = [needle for needle in zm_filters[1:] if needle not in text]
-    if missing_zm:
-        if text.count(zm_upgrade_anchor) != 1:
-            raise SystemExit("ZeroMount kallsyms upgrade anchor is not unique")
-        text = text.replace(
-            zm_upgrade_anchor,
-            zm_upgrade_anchor + ''.join('\n\t\t\t' + needle for needle in missing_zm),
-            1,
-        )
-
-required = (
+# SUSFS versions differ in which KSU prefixes are already filtered.  Add each
+# missing prefix independently instead of using one existing prefix as a proxy
+# for the whole group.  This keeps the helper idempotent across pinned SUSFS
+# revisions and avoids false audit failures when only one new leak class is
+# absent (for example __initcall__kmod_kernelsu).
+ksu_anchor = 'susfs_starts_with(iter->name, "is_ksu_") ||'
+ksu_filters = (
     'susfs_starts_with(iter->name, "setup_ksu_") ||',
     'susfs_starts_with(iter->name, "do_ksu_") ||',
     'susfs_starts_with(iter->name, "is_task_ksu_") ||',
@@ -84,16 +36,50 @@ required = (
     'susfs_starts_with(iter->name, "bb_bprm_set_creds.ksu_") ||',
     'susfs_starts_with(iter->name, "__initstub__kmod_kernelsu") ||',
     'susfs_starts_with(iter->name, "__initcall__kmod_kernelsu") ||',
+)
+
+duplicate_ksu = [needle for needle in ksu_filters if text.count(needle) > 1]
+if duplicate_ksu:
+    raise SystemExit(f"Duplicate KSU kallsyms filters detected: {duplicate_ksu}")
+
+missing_ksu = [needle for needle in ksu_filters if needle not in text]
+if missing_ksu:
+    if text.count(ksu_anchor) != 1:
+        raise SystemExit("KSU kallsyms insertion anchor is not unique")
+    insertion = '\n\t\t\t'.join(missing_ksu) + '\n\t\t\t'
+    text = text.replace(ksu_anchor, insertion + ksu_anchor, 1)
+
+# ZeroMount is not covered by upstream SUSFS.  Treat its normal/init symbol
+# classes with the same per-prefix missing-set logic.
+zm_anchor = 'susfs_starts_with(iter->name, "susfs_") ||'
+zm_filters = (
     'susfs_starts_with(iter->name, "zeromount_") ||',
     'susfs_starts_with(iter->name, "__initstub__kmod_zeromount") ||',
     'susfs_starts_with(iter->name, "__initcall__kmod_zeromount") ||',
 )
-missing = [needle for needle in required if text.count(needle) != 1]
-if missing:
-    raise SystemExit(f"kallsyms hardening audit failed: {missing}")
+
+duplicate_zm = [needle for needle in zm_filters if text.count(needle) > 1]
+if duplicate_zm:
+    raise SystemExit(f"Duplicate ZeroMount kallsyms filters detected: {duplicate_zm}")
+
+missing_zm = [needle for needle in zm_filters if needle not in text]
+if missing_zm:
+    if text.count(zm_anchor) != 1:
+        raise SystemExit("ZeroMount kallsyms insertion anchor is not unique")
+    text = text.replace(
+        zm_anchor,
+        zm_anchor + ''.join('\n\t\t\t' + needle for needle in missing_zm),
+        1,
+    )
+
+required = ksu_filters + zm_filters
+invalid = [needle for needle in required if text.count(needle) != 1]
+if invalid:
+    raise SystemExit(f"kallsyms hardening audit failed: {invalid}")
 
 path.write_text(text, encoding="utf-8")
 print("ReSukiSU kallsyms filter covers observed KSU normal/init/local symbol names")
 print("ZeroMount kallsyms filter covers normal, initstub and initcall symbols")
+print("Kallsyms hardening is idempotent across partially pre-hardened SUSFS revisions")
 print("Internal kallsyms lookup/export tables are unchanged; only /proc/kallsyms output is filtered")
 PY
