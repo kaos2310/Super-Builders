@@ -125,3 +125,10 @@ path.write_text(text, encoding="utf-8")
 print("SUSFS logging static key: DEFINE_STATIC_KEY_FALSE")
 print("SUSFS runtime logging toggle: balanced enable_log 1 / enable_log 0")
 PY
+
+KALLSYMS_HARDENER="$(dirname "$0")/harden-resukisu-zeromount-kallsyms.sh"
+[[ -f "$KALLSYMS_HARDENER" ]] || {
+  echo "::error::Missing kallsyms hardener: $KALLSYMS_HARDENER"
+  exit 1
+}
+bash "$KALLSYMS_HARDENER" "$COMMON_TREE"
