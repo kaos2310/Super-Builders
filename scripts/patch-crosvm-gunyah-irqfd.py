@@ -20,13 +20,18 @@ root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
 aosp_root = root.parent.parent
 arch_path = root / "aarch64/src/lib.rs"
 gunyah_path = root / "hypervisor/src/gunyah/mod.rs"
+android_bp_path = root / "Android.bp"
 
 if not arch_path.is_file():
     fail(f"missing {arch_path}")
 if not gunyah_path.is_file():
     fail(f"missing {gunyah_path}")
+if not android_bp_path.is_file():
+    fail(f"missing {android_bp_path}")
 
-if (aosp_root / ".repo").is_dir():
+selective_aosp_checkout = (aosp_root / ".repo").is_dir()
+
+if selective_aosp_checkout:
     print("selective AOSP checkout: ensuring rustc_linker host providers")
     required_projects = []
     if not (aosp_root / "external/sqlite").is_dir():
@@ -61,6 +66,32 @@ else:
 
 arch = arch_path.read_text(encoding="utf-8", errors="ignore")
 gunyah = gunyah_path.read_text(encoding="utf-8", errors="ignore")
+android_bp = android_bp_path.read_text(encoding="utf-8", errors="ignore")
+
+if selective_aosp_checkout:
+    # AOSP's crosvm rust_binary supports both device and host variants. A bare
+    # `m crosvm` in the reduced module_arm64 graph resolves to the host
+    # linux_glibc_x86_64 variant. Disable host support only on the root crosvm
+    # binary so the same module goal resolves to Android ARM64, while keeping
+    # host variants available for proc-macros/build-time dependencies.
+    crosvm_binary_anchor = (
+        'rust_binary {\n'
+        '    name: "crosvm",\n'
+        '    defaults: ["crosvm_inner_defaults"],\n'
+        '    host_supported: true,\n'
+    )
+    crosvm_binary_replacement = (
+        'rust_binary {\n'
+        '    name: "crosvm",\n'
+        '    defaults: ["crosvm_inner_defaults"],\n'
+        '    host_supported: false,\n'
+    )
+    android_bp = replace_once(
+        android_bp,
+        crosvm_binary_anchor,
+        crosvm_binary_replacement,
+        "root crosvm rust_binary host_supported",
+    )
 
 if "const AARCH64_IRQ_BASE: u32 = 4;" not in arch:
     fail("AARCH64_IRQ_BASE is not 4")
@@ -127,6 +158,10 @@ gunyah = replace_once(gunyah, failure_anchor, failure_replacement, "register_irq
 
 arch_path.write_text(arch, encoding="utf-8")
 gunyah_path.write_text(gunyah, encoding="utf-8")
+if selective_aosp_checkout:
+    android_bp_path.write_text(android_bp, encoding="utf-8")
 
 print(f"patched: {arch_path}")
 print(f"patched: {gunyah_path}")
+if selective_aosp_checkout:
+    print(f"patched: {android_bp_path} (root crosvm device-only)")
