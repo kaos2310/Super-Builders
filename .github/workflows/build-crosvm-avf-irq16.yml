@@ -360,13 +360,12 @@ jobs:
           lunch module_arm64 trunk_staging eng
           test "$TARGET_PRODUCT" = module_arm64
 
-          echo '=== GATE 1: libapexsupport ==='
-          m -j2 libapexsupport
+          APEX_STUB=android-16-crosvm-build-stubs/apexsupport/Android.bp
+          test -f "$APEX_STUB"
+          grep -Fq 'system_shared_libs: ["libc"]' "$APEX_STUB"
+          grep -Fq 'installable: false' "$APEX_STUB"
 
-          echo '=== GATE 2: libbinder ==='
-          m -j2 libbinder
-
-          echo '=== GATE 3: crosvm ==='
+          echo '=== BUILD GATE: crosvm with transitive Binder/libapexsupport closure ==='
           m -j2 crosvm
           set -u
           echo '=== STORAGE AFTER BUILD ==='
