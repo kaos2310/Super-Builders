@@ -8,6 +8,7 @@ on:
     paths:
       - 'patches/crosvm/**'
       - 'scripts/patch-crosvm-gunyah-irqfd.py'
+      - 'scripts/patch-crosvm-gunyah-irqfd-core.py'
       - '.github/workflows/verify-crosvm-avf-irq16.yml'
 
 permissions:
@@ -46,7 +47,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 "$GITHUB_WORKSPACE/scripts/patch-crosvm-gunyah-irqfd.py" "$RUNNER_TEMP/crosvm"
+          # This workflow intentionally uses an isolated crosvm checkout. The
+          # core helper supports standalone mode and skips AOSP-only dependency
+          # closure, while the build workflow uses the wrapper for full preflight.
+          python3 "$GITHUB_WORKSPACE/scripts/patch-crosvm-gunyah-irqfd-core.py" "$RUNNER_TEMP/crosvm"
 
       - name: Verify patched IRQ allocator and logging
         shell: bash
