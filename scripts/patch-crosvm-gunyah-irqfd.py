@@ -62,5 +62,91 @@ for required in (
         raise SystemExit(f"ERROR: llvm-libc provider validation failed: missing {required}")
 print("Verified Bionic provider: //external/llvm-libc:llvmlibc")
 
+# The workflow intentionally prunes hardware/interfaces after the initial sync.
+# libgrallocusage still requires the legacy gralloc HIDL ABI. Restore only the
+# interface definitions needed for allocator@2.0 -> mapper@2.0 -> common@1.0,
+# rather than re-expanding the full hardware/interfaces product graph.
+hw_interfaces = aosp_root / "hardware/interfaces"
+if not (hw_interfaces / ".git").exists():
+    raise SystemExit(f"ERROR: hardware/interfaces git worktree missing: {hw_interfaces}")
+
+graphics_hidl_paths = (
+    "graphics/allocator/2.0/Android.bp",
+    "graphics/allocator/2.0/IAllocator.hal",
+    "graphics/mapper/2.0/Android.bp",
+    "graphics/mapper/2.0/IMapper.hal",
+    "graphics/mapper/2.0/types.hal",
+)
+print("Restoring minimal legacy graphics HIDL interfaces")
+subprocess.run(
+    ["git", "checkout", "HEAD", "--", *graphics_hidl_paths],
+    cwd=hw_interfaces,
+    check=True,
+)
+
+# These HIDL interfaces are not self-contained: generated allocator/mapper
+# libraries depend on libhidlbase/android.hidl.base@1.0, libhwbinder internals,
+# and libfmq-base. Sync the three small provider projects explicitly so Ninja
+# cannot defer another missing-provider failure.
+legacy_hidl_projects = (
+    "platform/system/libhidl",
+    "platform/system/libhwbinder",
+    "platform/system/libfmq",
+)
+print("Syncing legacy HIDL runtime providers: " + ", ".join(legacy_hidl_projects))
+subprocess.run(
+    [
+        "repo",
+        "sync",
+        "-c",
+        "-j2",
+        "--no-tags",
+        "--no-clone-bundle",
+        "--force-sync",
+        *legacy_hidl_projects,
+    ],
+    cwd=aosp_root,
+    check=True,
+)
+
+provider_checks = {
+    aosp_root / "hardware/interfaces/graphics/allocator/2.0/Android.bp": (
+        'name: "android.hardware.graphics.allocator@2.0"',
+        '"android.hardware.graphics.mapper@2.0"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/mapper/2.0/Android.bp": (
+        'name: "android.hardware.graphics.mapper@2.0"',
+        '"android.hardware.graphics.common@1.0"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/common/1.0/Android.bp": (
+        'name: "android.hardware.graphics.common@1.0"',
+    ),
+    aosp_root / "system/libhidl/Android.bp": (
+        'name: "libhidlbase"',
+        'name: "libhidltransport"',
+    ),
+    aosp_root / "system/libhidl/transport/base/1.0/Android.bp": (
+        'name: "android.hidl.base@1.0"',
+    ),
+    aosp_root / "system/libhwbinder/Android.bp": (
+        'name: "libhwbinder-impl-internal"',
+    ),
+    aosp_root / "system/libfmq/Android.bp": (
+        'name: "libfmq-base"',
+    ),
+}
+for path, needles in provider_checks.items():
+    if not path.is_file():
+        raise SystemExit(f"ERROR: legacy HIDL provider missing: {path}")
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    missing = [needle for needle in needles if needle not in text]
+    if missing:
+        raise SystemExit(f"ERROR: legacy HIDL provider validation failed for {path}: {missing}")
+
+print(
+    "Verified legacy graphics HIDL closure: "
+    "allocator@2.0 -> mapper@2.0 -> common@1.0 + libhidlbase/libhwbinder/libfmq"
+)
+
 subprocess.run([sys.executable, str(PREP), *sys.argv[1:]], check=True)
 runpy.run_path(str(CORE), run_name="__main__")
