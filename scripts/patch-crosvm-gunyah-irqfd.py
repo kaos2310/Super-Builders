@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import os
+import re
 import runpy
+import shutil
 import subprocess
 import sys
 
@@ -30,10 +33,16 @@ bionic_text = bionic_bp.read_text(encoding="utf-8", errors="ignore")
 if '//external/llvm-libc:llvmlibc' not in bionic_text:
     raise SystemExit("ERROR: expected Bionic dependency //external/llvm-libc:llvmlibc is absent")
 
-# The selective checkout includes Bionic, but Android 16's libc_bionic also
-# whole-archives //external/llvm-libc:llvmlibc. ALLOW_MISSING_DEPENDENCIES can
-# postpone this omission until Ninja, so close and validate it before Soong.
-print("Syncing Bionic dependency provider: platform/external/llvm-libc")
+# Close all dependency projects that are intentionally outside the workflow's
+# first minimal manifest selection. ALLOW_MISSING_DEPENDENCIES can defer these
+# omissions until Ninja, so sync and validate them before Soong starts.
+dependency_projects = (
+    "platform/external/llvm-libc",
+    "platform/system/libhidl",
+    "platform/system/libhwbinder",
+    "platform/system/libfmq",
+)
+print("Syncing deferred crosvm dependency providers: " + ", ".join(dependency_projects))
 subprocess.run(
     [
         "repo",
@@ -43,7 +52,7 @@ subprocess.run(
         "--no-tags",
         "--no-clone-bundle",
         "--force-sync",
-        "platform/external/llvm-libc",
+        *dependency_projects,
     ],
     cwd=aosp_root,
     check=True,
@@ -62,64 +71,123 @@ for required in (
         raise SystemExit(f"ERROR: llvm-libc provider validation failed: missing {required}")
 print("Verified Bionic provider: //external/llvm-libc:llvmlibc")
 
-# The workflow intentionally prunes hardware/interfaces after the initial sync.
-# libgrallocusage still requires the legacy gralloc HIDL ABI. Restore only the
-# interface definitions needed for allocator@2.0 -> mapper@2.0 -> common@1.0,
-# rather than re-expanding the full hardware/interfaces product graph.
+# The workflow prunes hardware/interfaces to keep the GitHub runner small.
+# frameworks/native's libui/libgui closure still requires the legacy gralloc
+# HIDL families plus the allocator AIDL and media@1.0 bridge. Restore the whole
+# required version directories now instead of fixing one missing module per run.
 hw_interfaces = aosp_root / "hardware/interfaces"
 if not (hw_interfaces / ".git").exists():
     raise SystemExit(f"ERROR: hardware/interfaces git worktree missing: {hw_interfaces}")
 
-graphics_hidl_paths = (
-    "graphics/allocator/2.0/Android.bp",
-    "graphics/allocator/2.0/IAllocator.hal",
-    "graphics/mapper/2.0/Android.bp",
-    "graphics/mapper/2.0/IMapper.hal",
-    "graphics/mapper/2.0/types.hal",
+graphics_provider_paths = (
+    "graphics/allocator/2.0",
+    "graphics/allocator/3.0",
+    "graphics/allocator/4.0",
+    "graphics/allocator/aidl",
+    "graphics/mapper/2.0",
+    "graphics/mapper/2.1",
+    "graphics/mapper/3.0",
+    "graphics/mapper/4.0",
+    "graphics/bufferqueue/1.0",
+    "graphics/bufferqueue/2.0",
+    "media/1.0",
 )
-print("Restoring minimal legacy graphics HIDL interfaces")
+print("Restoring complete frameworks/native graphics HIDL/AIDL provider closure")
 subprocess.run(
-    ["git", "checkout", "HEAD", "--", *graphics_hidl_paths],
+    ["git", "checkout", "HEAD", "--", *graphics_provider_paths],
     cwd=hw_interfaces,
     check=True,
 )
 
-# These HIDL interfaces are not self-contained: generated allocator/mapper
-# libraries depend on libhidlbase/android.hidl.base@1.0, libhwbinder internals,
-# and libfmq-base. Sync the three small provider projects explicitly so Ninja
-# cannot defer another missing-provider failure.
-legacy_hidl_projects = (
-    "platform/system/libhidl",
-    "platform/system/libhwbinder",
-    "platform/system/libfmq",
+# Assert the consumer side before checking providers. This catches exact-tag
+# drift and documents why every restored HAL family is required.
+ui_bp = aosp_root / "frameworks/native/libs/ui/Android.bp"
+gui_bp = aosp_root / "frameworks/native/libs/gui/Android.bp"
+for path in (ui_bp, gui_bp):
+    if not path.is_file():
+        raise SystemExit(f"ERROR: frameworks/native consumer definition missing: {path}")
+
+ui_text = ui_bp.read_text(encoding="utf-8", errors="ignore")
+ui_required = (
+    '"android.hardware.graphics.allocator@2.0"',
+    '"android.hardware.graphics.allocator@3.0"',
+    '"android.hardware.graphics.allocator@4.0"',
+    '"android.hardware.graphics.mapper@2.0"',
+    '"android.hardware.graphics.mapper@2.1"',
+    '"android.hardware.graphics.mapper@3.0"',
+    '"android.hardware.graphics.mapper@4.0"',
 )
-print("Syncing legacy HIDL runtime providers: " + ", ".join(legacy_hidl_projects))
-subprocess.run(
-    [
-        "repo",
-        "sync",
-        "-c",
-        "-j2",
-        "--no-tags",
-        "--no-clone-bundle",
-        "--force-sync",
-        *legacy_hidl_projects,
-    ],
-    cwd=aosp_root,
-    check=True,
+ui_missing = [needle for needle in ui_required if needle not in ui_text]
+if ui_missing:
+    raise SystemExit(f"ERROR: libui graphics dependency model drifted: {ui_missing}")
+
+gui_text = gui_bp.read_text(encoding="utf-8", errors="ignore")
+gui_required = (
+    '"android.hardware.graphics.bufferqueue@1.0"',
+    '"android.hardware.graphics.bufferqueue@2.0"',
+    '"android.hidl.token@1.0-utils"',
 )
+gui_missing = [needle for needle in gui_required if needle not in gui_text]
+if gui_missing:
+    raise SystemExit(f"ERROR: libgui graphics dependency model drifted: {gui_missing}")
 
 provider_checks = {
     aosp_root / "hardware/interfaces/graphics/allocator/2.0/Android.bp": (
         'name: "android.hardware.graphics.allocator@2.0"',
         '"android.hardware.graphics.mapper@2.0"',
     ),
+    aosp_root / "hardware/interfaces/graphics/allocator/3.0/Android.bp": (
+        'name: "android.hardware.graphics.allocator@3.0"',
+        '"android.hardware.graphics.mapper@3.0"',
+        '"android.hardware.graphics.common@1.2"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/allocator/4.0/Android.bp": (
+        'name: "android.hardware.graphics.allocator@4.0"',
+        '"android.hardware.graphics.mapper@4.0"',
+        '"android.hardware.graphics.common@1.2"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/allocator/aidl/Android.bp": (
+        'name: "android.hardware.graphics.allocator"',
+    ),
     aosp_root / "hardware/interfaces/graphics/mapper/2.0/Android.bp": (
         'name: "android.hardware.graphics.mapper@2.0"',
         '"android.hardware.graphics.common@1.0"',
     ),
+    aosp_root / "hardware/interfaces/graphics/mapper/2.1/Android.bp": (
+        'name: "android.hardware.graphics.mapper@2.1"',
+        '"android.hardware.graphics.mapper@2.0"',
+        '"android.hardware.graphics.common@1.1"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/mapper/3.0/Android.bp": (
+        'name: "android.hardware.graphics.mapper@3.0"',
+        '"android.hardware.graphics.common@1.2"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/mapper/4.0/Android.bp": (
+        'name: "android.hardware.graphics.mapper@4.0"',
+        '"android.hardware.graphics.common@1.2"',
+    ),
     aosp_root / "hardware/interfaces/graphics/common/1.0/Android.bp": (
         'name: "android.hardware.graphics.common@1.0"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/common/1.1/Android.bp": (
+        'name: "android.hardware.graphics.common@1.1"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/common/1.2/Android.bp": (
+        'name: "android.hardware.graphics.common@1.2"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/bufferqueue/1.0/Android.bp": (
+        'name: "android.hardware.graphics.bufferqueue@1.0"',
+        '"android.hardware.media@1.0"',
+        '"android.hidl.base@1.0"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/bufferqueue/2.0/Android.bp": (
+        'name: "android.hardware.graphics.bufferqueue@2.0"',
+        '"android.hardware.graphics.common@1.2"',
+        '"android.hidl.base@1.0"',
+    ),
+    aosp_root / "hardware/interfaces/media/1.0/Android.bp": (
+        'name: "android.hardware.media@1.0"',
+        '"android.hardware.graphics.common@1.0"',
     ),
     aosp_root / "system/libhidl/Android.bp": (
         'name: "libhidlbase"',
@@ -128,7 +196,11 @@ provider_checks = {
     aosp_root / "system/libhidl/transport/base/1.0/Android.bp": (
         'name: "android.hidl.base@1.0"',
     ),
+    aosp_root / "system/libhidl/transport/token/1.0/utils/Android.bp": (
+        'name: "android.hidl.token@1.0-utils"',
+    ),
     aosp_root / "system/libhwbinder/Android.bp": (
+        'name: "libhwbinder"',
         'name: "libhwbinder-impl-internal"',
     ),
     aosp_root / "system/libfmq/Android.bp": (
@@ -137,15 +209,52 @@ provider_checks = {
 }
 for path, needles in provider_checks.items():
     if not path.is_file():
-        raise SystemExit(f"ERROR: legacy HIDL provider missing: {path}")
+        raise SystemExit(f"ERROR: graphics/HIDL provider missing: {path}")
     text = path.read_text(encoding="utf-8", errors="ignore")
     missing = [needle for needle in needles if needle not in text]
     if missing:
-        raise SystemExit(f"ERROR: legacy HIDL provider validation failed for {path}: {missing}")
+        raise SystemExit(f"ERROR: provider validation failed for {path}: {missing}")
+
+# The workflow creates ownership-only team stubs before this late provider sync
+# and restore. Refresh them so any default_team/team references introduced by
+# llvm-libc, libhidl or the restored HAL Android.bp files cannot become the next
+# Soong failure.
+team_stub_root = aosp_root / "local-missing-teams"
+if team_stub_root.exists():
+    shutil.rmtree(team_stub_root)
+team_stub_root.mkdir(parents=True, exist_ok=True)
+
+ref_re = re.compile(r'\b(?:team|default_team)\s*:\s*"(?P<name>trendy_team_[^"]+)"')
+name_re = re.compile(r'\bname\s*:\s*"(?P<name>trendy_team_[^"]+)"')
+refs, defs = set(), set()
+for base, dirs, files in os.walk(aosp_root):
+    dirs[:] = [
+        d
+        for d in dirs
+        if d not in {".repo", "out", "local-missing-teams"}
+    ]
+    if "Android.bp" not in files:
+        continue
+    bp = Path(base) / "Android.bp"
+    text = bp.read_text(encoding="utf-8", errors="ignore")
+    refs.update(m.group("name") for m in ref_re.finditer(text))
+    defs.update(m.group("name") for m in name_re.finditer(text))
+
+missing_teams = sorted(refs - defs)
+team_bp = team_stub_root / "Android.bp"
+with team_bp.open("w", encoding="utf-8") as f:
+    f.write("// Generated ownership-only team stubs after late provider closure.\n\n")
+    for name in missing_teams:
+        f.write("team {\n")
+        f.write(f'    name: "{name}",\n')
+        f.write(f'    trendy_team_id: "{name}",\n')
+        f.write("}\n\n")
+print(f"Refreshed {len(missing_teams)} missing trendy team stub(s)")
 
 print(
-    "Verified legacy graphics HIDL closure: "
-    "allocator@2.0 -> mapper@2.0 -> common@1.0 + libhidlbase/libhwbinder/libfmq"
+    "Verified graphics/HIDL follow-on closure: "
+    "allocator@2/3/4 + allocator AIDL + mapper@2/2.1/3/4 + "
+    "bufferqueue@1/2 + media@1.0 + libhidl/libhwbinder/libfmq"
 )
 
 subprocess.run([sys.executable, str(PREP), *sys.argv[1:]], check=True)
