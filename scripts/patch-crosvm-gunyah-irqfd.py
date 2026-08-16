@@ -16,6 +16,61 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def make_root_crosvm_device_only(android_bp: str) -> str:
+    lines = android_bp.splitlines(keepends=True)
+    matches = []
+
+    for start, line in enumerate(lines):
+        if line.strip() != "rust_binary {":
+            continue
+
+        depth = 0
+        end = None
+        for idx in range(start, len(lines)):
+            depth += lines[idx].count("{")
+            depth -= lines[idx].count("}")
+            if depth == 0:
+                end = idx
+                break
+
+        if end is None:
+            fail(f"unterminated rust_binary block starting at line {start + 1}")
+
+        block = lines[start : end + 1]
+        if any(entry.strip() == 'name: "crosvm",' for entry in block):
+            matches.append((start, end))
+
+    if len(matches) != 1:
+        fail(f"expected exactly one root crosvm rust_binary block, found {len(matches)}")
+
+    start, end = matches[0]
+    host_lines = [
+        idx
+        for idx in range(start, end + 1)
+        if lines[idx].strip() in ("host_supported: true,", "host_supported: false,")
+    ]
+    if len(host_lines) != 1:
+        fail(
+            "expected exactly one host_supported property in root crosvm "
+            f"rust_binary block, found {len(host_lines)}"
+        )
+
+    host_idx = host_lines[0]
+    if lines[host_idx].strip() == "host_supported: false,":
+        print("root crosvm rust_binary is already device-only")
+        return android_bp
+
+    indent = lines[host_idx][: len(lines[host_idx]) - len(lines[host_idx].lstrip())]
+    if lines[host_idx].endswith("\r\n"):
+        newline = "\r\n"
+    elif lines[host_idx].endswith("\n"):
+        newline = "\n"
+    else:
+        newline = ""
+    lines[host_idx] = f"{indent}host_supported: false,{newline}"
+    return "".join(lines)
+
+
 root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
 aosp_root = root.parent.parent
 arch_path = root / "aarch64/src/lib.rs"
@@ -74,24 +129,11 @@ if selective_aosp_checkout:
     # linux_glibc_x86_64 variant. Disable host support only on the root crosvm
     # binary so the same module goal resolves to Android ARM64, while keeping
     # host variants available for proc-macros/build-time dependencies.
-    crosvm_binary_anchor = (
-        'rust_binary {\n'
-        '    name: "crosvm",\n'
-        '    defaults: ["crosvm_inner_defaults"],\n'
-        '    host_supported: true,\n'
-    )
-    crosvm_binary_replacement = (
-        'rust_binary {\n'
-        '    name: "crosvm",\n'
-        '    defaults: ["crosvm_inner_defaults"],\n'
-        '    host_supported: false,\n'
-    )
-    android_bp = replace_once(
-        android_bp,
-        crosvm_binary_anchor,
-        crosvm_binary_replacement,
-        "root crosvm rust_binary host_supported",
-    )
+    #
+    # Do not anchor this on the defaults module name. That name differs between
+    # crosvm revisions, while the root rust_binary name and host_supported
+    # property are the stable identifiers we actually need.
+    android_bp = make_root_crosvm_device_only(android_bp)
 
 if "const AARCH64_IRQ_BASE: u32 = 4;" not in arch:
     fail("AARCH64_IRQ_BASE is not 4")
