@@ -20,7 +20,7 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 
 def find_root_crosvm_rust_binary(lines: list[str]) -> tuple[int, int]:
-    matches = []
+    matches: list[tuple[int, int]] = []
     for start, line in enumerate(lines):
         if line.strip() != "rust_binary {":
             continue
@@ -45,15 +45,12 @@ def find_root_crosvm_rust_binary(lines: list[str]) -> tuple[int, int]:
 def line_ending(line: str) -> str:
     if line.endswith("\r\n"):
         return "\r\n"
-    if line.endswith("\n"):
-        return "\n"
     return "\n"
 
 
 def make_root_crosvm_device_platform_available(android_bp: str) -> str:
     lines = android_bp.splitlines(keepends=True)
     start, end = find_root_crosvm_rust_binary(lines)
-
     host_lines = [
         idx
         for idx in range(start, end + 1)
@@ -85,12 +82,12 @@ def make_root_crosvm_device_platform_available(android_bp: str) -> str:
         apex_start = apex_starts[0]
         apex_indent = lines[apex_start][: len(lines[apex_start]) - len(lines[apex_start].lstrip())]
         newline = line_ending(lines[apex_start])
-        bracket_depth = 0
+        depth = 0
         apex_end = None
         for idx in range(apex_start, end + 1):
-            bracket_depth += lines[idx].count("[")
-            bracket_depth -= lines[idx].count("]")
-            if bracket_depth == 0:
+            depth += lines[idx].count("[")
+            depth -= lines[idx].count("]")
+            if depth == 0:
                 apex_end = idx
                 break
         if apex_end is None:
@@ -101,13 +98,12 @@ def make_root_crosvm_device_platform_available(android_bp: str) -> str:
         apex_indent = host_indent
         newline = line_ending(lines[host_idx])
 
-    platform_apex = [
+    lines[apex_start : apex_end + 1] = [
         f"{apex_indent}apex_available: [{newline}",
         f'{apex_indent}    "//apex_available:platform",{newline}',
         f'{apex_indent}    "com.android.virt",{newline}',
         f"{apex_indent}],{newline}",
     ]
-    lines[apex_start : apex_end + 1] = platform_apex
     return "".join(lines)
 
 
@@ -136,9 +132,8 @@ def manifest_project_map(aosp_root: Path) -> dict[str, str]:
     manifest = next((path for path in candidates if path.is_file()), None)
     if manifest is None:
         fail("cannot locate AOSP manifest for dependency closure")
-    tree = ET.parse(manifest)
     mapping: dict[str, str] = {}
-    for project in tree.getroot().iter("project"):
+    for project in ET.parse(manifest).getroot().iter("project"):
         name = project.get("name")
         path = project.get("path") or name
         if name and path:
@@ -148,9 +143,28 @@ def manifest_project_map(aosp_root: Path) -> dict[str, str]:
     return mapping
 
 
+def repo_sync(aosp_root: Path, projects: list[str], jobs: int = 2) -> None:
+    if not projects:
+        return
+    subprocess.run(
+        [
+            "repo",
+            "sync",
+            "-c",
+            f"-j{jobs}",
+            "--no-tags",
+            "--no-clone-bundle",
+            "--force-sync",
+            *projects,
+        ],
+        cwd=aosp_root,
+        check=True,
+    )
+
+
 def sync_native_dependency_closure(aosp_root: Path) -> None:
-    # Build the native Android closure up-front instead of letting
-    # ALLOW_MISSING_DEPENDENCIES surface one provider per Ninja run.
+    # Native providers that are either direct crosvm Android dependencies or
+    # common transitive requirements of bionic/graphics/HIDL in this reduced tree.
     required_paths = (
         "external/sqlite",
         "external/icu",
@@ -187,40 +201,23 @@ def sync_native_dependency_closure(aosp_root: Path) -> None:
     )
 
     project_map = manifest_project_map(aosp_root)
-    absent_from_manifest = [path for path in required_paths if path not in project_map]
-    if absent_from_manifest:
-        fail(f"required dependency projects absent from AOSP manifest: {absent_from_manifest}")
+    absent = [path for path in required_paths if path not in project_map]
+    if absent:
+        fail(f"required dependency projects absent from AOSP manifest: {absent}")
 
-    selected_paths = list(required_paths)
-    selected_paths.extend(path for path in optional_paths if path in project_map)
-    to_sync = [
-        project_map[path]
-        for path in selected_paths
-        if not (aosp_root / path).is_dir()
-    ]
+    selected = list(required_paths)
+    selected.extend(path for path in optional_paths if path in project_map)
+    to_sync = [project_map[path] for path in selected if not (aosp_root / path).is_dir()]
     if to_sync:
         print("syncing native crosvm dependency closure:")
         for project in to_sync:
             print(f"  {project}")
-        subprocess.run(
-            [
-                "repo",
-                "sync",
-                "-c",
-                "-j2",
-                "--no-tags",
-                "--no-clone-bundle",
-                "--force-sync",
-                *to_sync,
-            ],
-            cwd=aosp_root,
-            check=True,
-        )
+        repo_sync(aosp_root, to_sync)
 
-    still_missing = [path for path in required_paths if not (aosp_root / path).is_dir()]
-    if still_missing:
-        fail(f"native dependency projects still missing after repo sync: {still_missing}")
-    print(f"native dependency closure present: {len(selected_paths)} projects")
+    missing = [path for path in required_paths if not (aosp_root / path).is_dir()]
+    if missing:
+        fail(f"native dependency projects still missing after repo sync: {missing}")
+    print(f"native dependency closure present: {len(selected)} projects")
 
 
 def project_defines_module(project: Path, module: str) -> bool:
@@ -246,7 +243,7 @@ def validate_native_dependency_modules(aosp_root: Path) -> None:
         "system/core": ("libprocessgroup",),
         "frameworks/native": ("libnativewindow",),
     }
-    failures = []
+    failures: list[str] = []
     for relative, modules in checks.items():
         project = aosp_root / relative
         if not project.is_dir():
@@ -263,54 +260,132 @@ def validate_native_dependency_modules(aosp_root: Path) -> None:
     )
 
 
-def install_aaudio_abi_stub(aosp_root: Path) -> None:
-    # libandroid_audio links to libaaudio on Android. Building frameworks/av
-    # would pull a large product/audio graph, so use the AOSP NDK ARM64 ABI
-    # stub for link-time only. The produced crosvm still records DT_NEEDED
-    # libaaudio.so and resolves against the device's real system library.
-    ndk = aosp_root / "prebuilts/ndk"
-    if not ndk.is_dir():
-        fail(f"NDK prebuilts missing: {ndk}")
-
-    candidates = [
-        path
-        for path in ndk.rglob("libaaudio.so")
-        if "aarch64-linux-android" in path.as_posix()
-    ]
+def newest_aosp_clang(aosp_root: Path) -> Path:
+    clang_root = aosp_root / "prebuilts/clang/host/linux-x86"
+    candidates = [path for path in clang_root.glob("clang-r*/bin/clang") if path.is_file()]
     if not candidates:
-        fail("cannot find ARM64 libaaudio.so ABI stub under prebuilts/ndk")
+        stable = clang_root / "clang-stable/bin/clang"
+        if stable.is_file():
+            return stable
+        fail(f"cannot find AOSP clang under {clang_root}")
 
-    def api_rank(path: Path) -> tuple[int, str]:
-        parts = path.parts
-        api = -1
-        for part in parts:
-            if part.isdigit():
-                api = max(api, int(part))
-        return api, path.as_posix()
+    def rank(path: Path) -> tuple[int, str]:
+        match = re.search(r"clang-r(\d+)", path.as_posix())
+        return (int(match.group(1)) if match else -1, path.as_posix())
 
-    source = max(candidates, key=api_rank)
-    out = aosp_root / "local-crosvm-ndk-stubs"
+    return max(candidates, key=rank)
+
+
+def install_aaudio_abi_stub(aosp_root: Path) -> None:
+    """Create a CI-only Android ARM64 libaaudio link provider.
+
+    crosvm's android_audio Soong module links Android targets against libaaudio.
+    The full frameworks/av graph is intentionally not part of this reduced build,
+    so transiently sync the exact-tag AAudio symbol map, generate a minimal ARM64
+    ELF exporting that ABI, then remove frameworks/av before Soong scans the tree.
+    The prebuilt is installable:false; it exists only to satisfy the build link.
+    """
+    av_dir = aosp_root / "frameworks/av"
+    if av_dir.is_dir() and project_defines_module(av_dir, "libaaudio"):
+        print("using real frameworks/av libaaudio provider")
+        return
+
+    project_map = manifest_project_map(aosp_root)
+    av_project = project_map.get("frameworks/av")
+    if not av_project:
+        fail("frameworks/av is absent from the AOSP manifest; cannot derive AAudio ABI")
+
+    synced_here = not av_dir.is_dir()
+    if synced_here:
+        print("syncing transient frameworks/av for exact-tag AAudio ABI map")
+        repo_sync(aosp_root, [av_project], jobs=1)
+
+    try:
+        maps = sorted(av_dir.rglob("libaaudio.map.txt"))
+        if not maps:
+            fail("frameworks/av contains no libaaudio.map.txt")
+        preferred = av_dir / "media/libaaudio/src/libaaudio.map.txt"
+        map_path = preferred if preferred.is_file() else maps[0]
+        map_text = map_path.read_text(encoding="utf-8", errors="strict")
+        symbols = sorted(
+            set(re.findall(r"^\s*(AAudio[A-Za-z0-9_]+)\s*;", map_text, flags=re.MULTILINE))
+        )
+        if len(symbols) < 20:
+            fail(f"AAudio ABI map yielded only {len(symbols)} exported symbols: {map_path}")
+        print(f"AAudio ABI map: {map_path.relative_to(aosp_root)} ({len(symbols)} symbols)")
+    finally:
+        if synced_here and av_dir.exists():
+            shutil.rmtree(av_dir)
+            print("removed transient frameworks/av checkout before Soong scan")
+
+    out = aosp_root / "local-crosvm-aaudio-stub"
+    if out.exists():
+        shutil.rmtree(out)
     libdir = out / "lib64"
-    libdir.mkdir(parents=True, exist_ok=True)
+    libdir.mkdir(parents=True)
+    source = out / "aaudio_abi_stub.c"
+    source.write_text(
+        "#define EXPORT __attribute__((visibility(\"default\")))\n\n"
+        + "\n".join(f"EXPORT void {symbol}(void) {{}}" for symbol in symbols)
+        + "\n",
+        encoding="utf-8",
+    )
     dest = libdir / "libaaudio.so"
-    shutil.copy2(source, dest)
+    clang = newest_aosp_clang(aosp_root)
+    subprocess.run(
+        [
+            str(clang),
+            "--target=aarch64-linux-android26",
+            "-shared",
+            "-fPIC",
+            "-fno-stack-protector",
+            "-nostdlib",
+            "-Wl,-soname,libaaudio.so",
+            "-Wl,--build-id=none",
+            "-o",
+            str(dest),
+            str(source),
+        ],
+        cwd=aosp_root,
+        check=True,
+    )
+
+    file_desc = subprocess.check_output(["file", "-b", str(dest)], text=True).strip()
+    if not re.search(r"AArch64|ARM aarch64|ARM64", file_desc, flags=re.IGNORECASE):
+        fail(f"generated libaaudio has wrong architecture: {file_desc}")
+    dynamic = subprocess.check_output(["readelf", "-d", str(dest)], text=True)
+    if "SONAME" not in dynamic or "libaaudio.so" not in dynamic:
+        fail("generated libaaudio is missing SONAME libaaudio.so")
+    dynsym = subprocess.check_output(["readelf", "-Ws", str(dest)], text=True)
+    must_export = (
+        "AAudio_createStreamBuilder",
+        "AAudioStreamBuilder_openStream",
+        "AAudioStream_requestStart",
+    )
+    missing_exports = [symbol for symbol in must_export if symbol not in dynsym]
+    if missing_exports:
+        fail(f"generated libaaudio is missing required exports: {missing_exports}")
+
     bp = out / "Android.bp"
     bp.write_text(
-        """// Generated CI-only ARM64 AAudio ABI provider for crosvm.
+        """// Generated CI-only ARM64 AAudio ABI link provider for crosvm.
 cc_prebuilt_library_shared {
     name: "libaaudio",
+    visibility: ["//visibility:public"],
     compile_multilib: "64",
     arch: {
         arm64: {
             srcs: ["lib64/libaaudio.so"],
         },
     },
+    system_shared_libs: [],
     stl: "none",
     strip: {
         none: true,
     },
     check_elf_files: false,
     installable: false,
+    min_sdk_version: "26",
     apex_available: [
         "//apex_available:platform",
         "com.android.virt",
@@ -319,11 +394,9 @@ cc_prebuilt_library_shared {
 """,
         encoding="utf-8",
     )
-    if not dest.is_file() or not bp.is_file():
-        fail("failed to install local libaaudio ABI provider")
     if not project_defines_module(out, "libaaudio"):
-        fail("generated libaaudio ABI provider is not discoverable")
-    print(f"installed ARM64 libaaudio ABI provider from {source.relative_to(aosp_root)}")
+        fail("generated libaaudio Soong provider is not discoverable")
+    print(f"generated ARM64 libaaudio link provider with {len(symbols)} exact-tag exports")
 
 
 def restore_pruned_hardware_interface_inputs(aosp_root: Path) -> None:
@@ -341,7 +414,7 @@ def restore_pruned_hardware_interface_inputs(aosp_root: Path) -> None:
         "graphics/common/1.2",
         "graphics/common/aidl",
     )
-    restored = []
+    restored: list[str] = []
     for relative in required_paths:
         path = project / relative
         if path.exists():
@@ -372,9 +445,9 @@ def restore_pruned_hardware_interface_inputs(aosp_root: Path) -> None:
         "graphics/common/1.2/Android.bp",
         "graphics/common/aidl/Android.bp",
     )
-    missing_files = [relative for relative in required_files if not (project / relative).is_file()]
-    if missing_files:
-        fail(f"hardware/interfaces graphics preflight missing files: {missing_files}")
+    missing = [relative for relative in required_files if not (project / relative).is_file()]
+    if missing:
+        fail(f"hardware/interfaces graphics preflight missing files: {missing}")
 
     current_txt = (project / "current.txt").read_text(encoding="utf-8", errors="ignore")
     if "android.hardware.graphics.common@1.0" not in current_txt:
@@ -400,12 +473,10 @@ def restore_pruned_hardware_interface_inputs(aosp_root: Path) -> None:
     api_root = project / "graphics/common/aidl/aidl_api/android.hardware.graphics.common"
     if not (api_root / "current").is_dir():
         fail(f"missing graphics common Stable AIDL current dump: {api_root / 'current'}")
-    frozen_versions = sorted(
-        int(path.name)
-        for path in api_root.iterdir()
-        if path.is_dir() and path.name.isdigit()
+    frozen = sorted(
+        int(path.name) for path in api_root.iterdir() if path.is_dir() and path.name.isdigit()
     )
-    if not frozen_versions:
+    if not frozen:
         fail("graphics common Stable AIDL has no frozen versions")
 
     if restored:
@@ -416,130 +487,137 @@ def restore_pruned_hardware_interface_inputs(aosp_root: Path) -> None:
     )
 
 
-root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
-aosp_root = root.parent.parent
-arch_path = root / "aarch64/src/lib.rs"
-gunyah_path = root / "hypervisor/src/gunyah/mod.rs"
-android_bp_path = root / "Android.bp"
-
-if not arch_path.is_file():
-    fail(f"missing {arch_path}")
-if not gunyah_path.is_file():
-    fail(f"missing {gunyah_path}")
-if not android_bp_path.is_file():
-    fail(f"missing {android_bp_path}")
-
-selective_aosp_checkout = (aosp_root / ".repo").is_dir()
-
-if selective_aosp_checkout:
-    print("selective AOSP checkout: completing native Android dependency closure")
-    sync_native_dependency_closure(aosp_root)
-    restore_pruned_hardware_interface_inputs(aosp_root)
-    validate_native_dependency_modules(aosp_root)
-    install_aaudio_abi_stub(aosp_root)
-
-    sqlite_bps = list((aosp_root / "external/sqlite").rglob("Android.bp"))
-    sqlite_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in sqlite_bps)
+def validate_sqlite_icu(aosp_root: Path) -> None:
+    sqlite_text = "\n".join(
+        path.read_text(encoding="utf-8", errors="ignore")
+        for path in (aosp_root / "external/sqlite").rglob("Android.bp")
+    )
     if 'name: "libsqlite"' not in sqlite_text:
         fail("libsqlite provider missing after dependency closure")
 
-    icu_bps = list((aosp_root / "external/icu").rglob("Android.bp"))
-    icu_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in icu_bps)
+    icu_text = "\n".join(
+        path.read_text(encoding="utf-8", errors="ignore")
+        for path in (aosp_root / "external/icu").rglob("Android.bp")
+    )
     for module in ("libicuuc", "libicui18n"):
         if f'name: "{module}"' not in icu_text:
             fail(f"{module} provider missing after dependency closure")
 
-    github_env = os.environ.get("GITHUB_ENV")
-    if github_env:
-        with open(github_env, "a", encoding="utf-8") as env_file:
-            env_file.write("WITH_DEXPREOPT=false\n")
-        print("GitHub Actions: WITH_DEXPREOPT=false")
-else:
-    print("standalone crosvm checkout: skipping AOSP-only build settings")
 
-arch = arch_path.read_text(encoding="utf-8", errors="ignore")
-gunyah = gunyah_path.read_text(encoding="utf-8", errors="ignore")
-android_bp = android_bp_path.read_text(encoding="utf-8", errors="ignore")
+def main() -> None:
+    root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
+    aosp_root = root.parent.parent
+    arch_path = root / "aarch64/src/lib.rs"
+    gunyah_path = root / "hypervisor/src/gunyah/mod.rs"
+    android_bp_path = root / "Android.bp"
 
-if selective_aosp_checkout:
-    android_bp = make_root_crosvm_device_platform_available(android_bp)
-    verify_root_crosvm_device_platform(android_bp)
+    for path in (arch_path, gunyah_path, android_bp_path):
+        if not path.is_file():
+            fail(f"missing {path}")
 
-if "const AARCH64_IRQ_BASE: u32 = 4;" not in arch:
-    fail("AARCH64_IRQ_BASE is not 4")
-if "const AARCH64_VMWDT_IRQ: u32 = 15;" not in arch:
-    fail("AARCH64_VMWDT_IRQ is not 15")
-if "reserve_irq(AARCH64_VMWDT_IRQ)" in arch:
-    fail("VMWDT IRQ reservation is already present")
+    selective_aosp_checkout = (aosp_root / ".repo").is_dir()
+    if selective_aosp_checkout:
+        print("selective AOSP checkout: completing native Android dependency closure")
+        sync_native_dependency_closure(aosp_root)
+        restore_pruned_hardware_interface_inputs(aosp_root)
+        validate_native_dependency_modules(aosp_root)
+        install_aaudio_abi_stub(aosp_root)
+        validate_sqlite_icu(aosp_root)
+        github_env = os.environ.get("GITHUB_ENV")
+        if github_env:
+            with open(github_env, "a", encoding="utf-8") as env_file:
+                env_file.write("WITH_DEXPREOPT=false\n")
+            print("GitHub Actions: WITH_DEXPREOPT=false")
+    else:
+        print("standalone crosvm checkout: skipping AOSP-only build settings")
 
-arch_anchor = "        let has_bios = matches!(components.vm_image, VmImage::Bios(_));\n"
-arch_replacement = (
-    "        // IRQ 15 is fixed for the ARM64 virtual watchdog. Reserve it before\n"
-    "        // PCI/platform devices consume dynamically allocated IRQs starting at 4.\n"
-    "        if !system_allocator.reserve_irq(AARCH64_VMWDT_IRQ) {\n"
-    "            return Err(Error::AllocateIrq);\n"
-    "        }\n\n" + arch_anchor
-)
-arch = replace_once(arch, arch_anchor, arch_replacement, "build_vm/has_bios")
+    arch = arch_path.read_text(encoding="utf-8", errors="ignore")
+    gunyah = gunyah_path.read_text(encoding="utf-8", errors="ignore")
+    android_bp = android_bp_path.read_text(encoding="utf-8", errors="ignore")
 
-for required_import in ("use base::info;", "use base::warn;"):
-    if required_import not in gunyah:
-        fail(f"required logging import missing: {required_import}")
+    if selective_aosp_checkout:
+        android_bp = make_root_crosvm_device_platform_available(android_bp)
+        verify_root_crosvm_device_platform(android_bp)
 
-if "GUNYAH IRQFD add:" in gunyah or "GUNYAH IRQFD add failed:" in gunyah:
-    fail("Gunyah IRQFD diagnostic logging is already present")
+    if "const AARCH64_IRQ_BASE: u32 = 4;" not in arch:
+        fail("AARCH64_IRQ_BASE is not 4")
+    if "const AARCH64_VMWDT_IRQ: u32 = 15;" not in arch:
+        fail("AARCH64_VMWDT_IRQ is not 15")
+    if "reserve_irq(AARCH64_VMWDT_IRQ)" in arch:
+        fail("VMWDT IRQ reservation is already present")
 
-register_anchor = (
-    "    pub fn register_irqfd(&self, label: u32, evt: &Event, level: bool) -> Result<()> {\n"
-    "        let gh_fn_irqfd_arg = gh_fn_irqfd_arg {\n"
-)
-register_replacement = (
-    "    pub fn register_irqfd(&self, label: u32, evt: &Event, level: bool) -> Result<()> {\n"
-    "        info!(\n"
-    "            \"GUNYAH IRQFD add: label={} level={} fd={}\",\n"
-    "            label,\n"
-    "            level,\n"
-    "            evt.as_raw_descriptor()\n"
-    "        );\n\n"
-    "        let gh_fn_irqfd_arg = gh_fn_irqfd_arg {\n"
-)
-gunyah = replace_once(gunyah, register_anchor, register_replacement, "register_irqfd")
-
-failure_anchor = (
-    "        } else {\n"
-    "            errno_result()\n"
-    "        }\n"
-    "    }\n\n"
-    "    pub fn unregister_irqfd"
-)
-failure_replacement = (
-    "        } else {\n"
-    "            warn!(\n"
-    "                \"GUNYAH IRQFD add failed: label={} level={} fd={} ret={}\",\n"
-    "                label,\n"
-    "                level,\n"
-    "                evt.as_raw_descriptor(),\n"
-    "                ret\n"
-    "            );\n"
-    "            errno_result()\n"
-    "        }\n"
-    "    }\n\n"
-    "    pub fn unregister_irqfd"
-)
-gunyah = replace_once(gunyah, failure_anchor, failure_replacement, "register_irqfd failure")
-
-arch_path.write_text(arch, encoding="utf-8")
-gunyah_path.write_text(gunyah, encoding="utf-8")
-if selective_aosp_checkout:
-    android_bp_path.write_text(android_bp, encoding="utf-8")
-    verify_root_crosvm_device_platform(
-        android_bp_path.read_text(encoding="utf-8", errors="ignore")
+    arch_anchor = "        let has_bios = matches!(components.vm_image, VmImage::Bios(_));\n"
+    arch_replacement = (
+        "        // IRQ 15 is fixed for the ARM64 virtual watchdog. Reserve it before\n"
+        "        // PCI/platform devices consume dynamically allocated IRQs starting at 4.\n"
+        "        if !system_allocator.reserve_irq(AARCH64_VMWDT_IRQ) {\n"
+        "            return Err(Error::AllocateIrq);\n"
+        "        }\n\n"
+        + arch_anchor
     )
-    print("verified: root crosvm host_supported=false + platform/com.android.virt")
-    print("=== Android.bp root crosvm CI diff ===")
-    subprocess.run(["git", "diff", "--", "Android.bp"], cwd=root, check=True)
+    arch = replace_once(arch, arch_anchor, arch_replacement, "build_vm/has_bios")
 
-print(f"patched: {arch_path}")
-print(f"patched: {gunyah_path}")
-if selective_aosp_checkout:
-    print(f"patched: {android_bp_path} (root crosvm Android platform device variant enabled)")
+    for required_import in ("use base::info;", "use base::warn;"):
+        if required_import not in gunyah:
+            fail(f"required logging import missing: {required_import}")
+    if "GUNYAH IRQFD add:" in gunyah or "GUNYAH IRQFD add failed:" in gunyah:
+        fail("Gunyah IRQFD diagnostic logging is already present")
+
+    register_anchor = (
+        "    pub fn register_irqfd(&self, label: u32, evt: &Event, level: bool) -> Result<()> {\n"
+        "        let gh_fn_irqfd_arg = gh_fn_irqfd_arg {\n"
+    )
+    register_replacement = (
+        "    pub fn register_irqfd(&self, label: u32, evt: &Event, level: bool) -> Result<()> {\n"
+        "        info!(\n"
+        "            \"GUNYAH IRQFD add: label={} level={} fd={}\",\n"
+        "            label,\n"
+        "            level,\n"
+        "            evt.as_raw_descriptor()\n"
+        "        );\n\n"
+        "        let gh_fn_irqfd_arg = gh_fn_irqfd_arg {\n"
+    )
+    gunyah = replace_once(gunyah, register_anchor, register_replacement, "register_irqfd")
+
+    failure_anchor = (
+        "        } else {\n"
+        "            errno_result()\n"
+        "        }\n"
+        "    }\n\n"
+        "    pub fn unregister_irqfd"
+    )
+    failure_replacement = (
+        "        } else {\n"
+        "            warn!(\n"
+        "                \"GUNYAH IRQFD add failed: label={} level={} fd={} ret={}\",\n"
+        "                label,\n"
+        "                level,\n"
+        "                evt.as_raw_descriptor(),\n"
+        "                ret\n"
+        "            );\n"
+        "            errno_result()\n"
+        "        }\n"
+        "    }\n\n"
+        "    pub fn unregister_irqfd"
+    )
+    gunyah = replace_once(gunyah, failure_anchor, failure_replacement, "register_irqfd failure")
+
+    arch_path.write_text(arch, encoding="utf-8")
+    gunyah_path.write_text(gunyah, encoding="utf-8")
+    if selective_aosp_checkout:
+        android_bp_path.write_text(android_bp, encoding="utf-8")
+        verify_root_crosvm_device_platform(
+            android_bp_path.read_text(encoding="utf-8", errors="ignore")
+        )
+        print("verified: root crosvm host_supported=false + platform/com.android.virt")
+        print("=== Android.bp root crosvm CI diff ===")
+        subprocess.run(["git", "diff", "--", "Android.bp"], cwd=root, check=True)
+
+    print(f"patched: {arch_path}")
+    print(f"patched: {gunyah_path}")
+    if selective_aosp_checkout:
+        print(f"patched: {android_bp_path} (root crosvm Android platform device variant enabled)")
+
+
+if __name__ == "__main__":
+    main()
