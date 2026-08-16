@@ -251,6 +251,23 @@ if "GH_DIAG rm_mem_share call begin" not in source:
         patch_lend_common,
     )
 
+# Samsung's source delta preserves the 512-entry RM batching semantics, but
+# preprocessor alignment/whitespace is not guaranteed to match AOSP byte-for-byte.
+batch_define = re.search(
+    r'(?m)^[ \t]*#[ \t]*define[ \t]+GH_RM_MAX_MEM_ENTRIES[ \t]+'
+    r'(?:\([ \t]*)?512(?:[uU](?:[lL]{1,2})?)?(?:[ \t]*\))?'
+    r'[ \t]*(?:/\*.*\*/)?$',
+    source,
+)
+append_loop_uses_batch = re.search(
+    r'\bn\s*=\s*GH_RM_MAX_MEM_ENTRIES\s*;',
+    source,
+) is not None
+initial_share_uses_batch = re.search(
+    r'\binitial_mem_entries\s*=\s*GH_RM_MAX_MEM_ENTRIES\s*;',
+    source,
+) is not None
+
 checks = {
     "initial call begin": source.count("GH_DIAG rm_mem_share call begin") == 1,
     "initial call end": source.count("GH_DIAG rm_mem_share call end") == 1,
@@ -261,7 +278,9 @@ checks = {
     "append batch end": source.count("GH_DIAG rm_append batch end") == 1,
     "append call begin": source.count("GH_DIAG rm_append call begin") == 1,
     "append call end": source.count("GH_DIAG rm_append call end") == 1,
-    "upstream batch size retained": "#define GH_RM_MAX_MEM_ENTRIES 512" in source,
+    "upstream batch size retained": batch_define is not None,
+    "append loop still uses batch macro": append_loop_uses_batch,
+    "initial share still uses batch macro": initial_share_uses_batch,
 }
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
@@ -281,6 +300,8 @@ grep -qF 'GH_DIAG rm_mem_share call end' "$RPC_TARGET"
 grep -qF 'GH_DIAG rm_append sequence begin' "$RPC_TARGET"
 grep -qF 'GH_DIAG rm_append batch begin' "$RPC_TARGET"
 grep -qF 'GH_DIAG rm_append call begin' "$RPC_TARGET"
-grep -qF '#define GH_RM_MAX_MEM_ENTRIES 512' "$RPC_TARGET"
+grep -Eq '^[[:space:]]*#[[:space:]]*define[[:space:]]+GH_RM_MAX_MEM_ENTRIES[[:space:]]+\(?[[:space:]]*512([uU]([lL]{1,2})?)?[[:space:]]*\)?([[:space:]]*/\*.*\*/)?[[:space:]]*$' "$RPC_TARGET"
+grep -Eq 'n[[:space:]]*=[[:space:]]*GH_RM_MAX_MEM_ENTRIES[[:space:]]*;' "$RPC_TARGET"
+grep -Eq 'initial_mem_entries[[:space:]]*=[[:space:]]*GH_RM_MAX_MEM_ENTRIES[[:space:]]*;' "$RPC_TARGET"
 
 echo 'e3q Gunyah diagnostics verified: guard=8192 extents, RM batch=512 entries, failure=-E2BIG'
