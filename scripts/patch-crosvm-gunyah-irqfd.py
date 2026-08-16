@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import os
+import re
+import shutil
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
 
 def fail(message: str) -> None:
@@ -18,11 +21,9 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 def find_root_crosvm_rust_binary(lines: list[str]) -> tuple[int, int]:
     matches = []
-
     for start, line in enumerate(lines):
         if line.strip() != "rust_binary {":
             continue
-
         depth = 0
         end = None
         for idx in range(start, len(lines)):
@@ -31,17 +32,13 @@ def find_root_crosvm_rust_binary(lines: list[str]) -> tuple[int, int]:
             if depth == 0:
                 end = idx
                 break
-
         if end is None:
             fail(f"unterminated rust_binary block starting at line {start + 1}")
-
         block = lines[start : end + 1]
         if any(entry.strip() == 'name: "crosvm",' for entry in block):
             matches.append((start, end))
-
     if len(matches) != 1:
         fail(f"expected exactly one root crosvm rust_binary block, found {len(matches)}")
-
     return matches[0]
 
 
@@ -67,7 +64,6 @@ def make_root_crosvm_device_platform_available(android_bp: str) -> str:
             "expected exactly one host_supported property in root crosvm "
             f"rust_binary block, found {len(host_lines)}"
         )
-
     host_idx = host_lines[0]
     host_indent = lines[host_idx][: len(lines[host_idx]) - len(lines[host_idx].lstrip())]
     newline = line_ending(lines[host_idx])
@@ -119,7 +115,6 @@ def verify_root_crosvm_device_platform(android_bp: str) -> None:
     lines = android_bp.splitlines(keepends=True)
     start, end = find_root_crosvm_rust_binary(lines)
     block = "".join(lines[start : end + 1])
-
     required = (
         "host_supported: false,",
         '"//apex_available:platform"',
@@ -132,8 +127,206 @@ def verify_root_crosvm_device_platform(android_bp: str) -> None:
         fail("root crosvm device/platform verification failed; host support still enabled")
 
 
+def manifest_project_map(aosp_root: Path) -> dict[str, str]:
+    candidates = (
+        Path("/tmp/aosp-manifest.xml"),
+        aosp_root / ".repo/manifests/default.xml",
+        aosp_root / ".repo/manifest.xml",
+    )
+    manifest = next((path for path in candidates if path.is_file()), None)
+    if manifest is None:
+        fail("cannot locate AOSP manifest for dependency closure")
+    tree = ET.parse(manifest)
+    mapping: dict[str, str] = {}
+    for project in tree.getroot().iter("project"):
+        name = project.get("name")
+        path = project.get("path") or name
+        if name and path:
+            mapping[path] = name
+    if not mapping:
+        fail(f"AOSP manifest contains no project mappings: {manifest}")
+    return mapping
+
+
+def sync_native_dependency_closure(aosp_root: Path) -> None:
+    # Build the native Android closure up-front instead of letting
+    # ALLOW_MISSING_DEPENDENCIES surface one provider per Ninja run.
+    required_paths = (
+        "external/sqlite",
+        "external/icu",
+        "external/gwp_asan",
+        "external/scudo",
+        "external/dtc",
+        "external/libcxx",
+        "external/libcxxabi",
+        "external/compiler-rt",
+        "external/selinux",
+        "external/vulkan-headers",
+        "external/libpng",
+        "external/libyuv",
+        "external/libjpeg-turbo",
+        "external/flatbuffers",
+        "hardware/libhardware",
+        "system/libhidl",
+        "system/libfmq",
+        "system/libvintf",
+        "system/libufdt",
+        "system/libprocinfo",
+        "system/librustutils",
+        "system/unwinding",
+        "system/media",
+    )
+    optional_paths = (
+        "external/minigbm",
+        "system/libhwbinder",
+        "system/libziparchive",
+        "system/memory/libdmabufheap",
+        "system/memory/libion",
+        "system/memory/libmeminfo",
+        "system/memory/libmemtrack",
+    )
+
+    project_map = manifest_project_map(aosp_root)
+    absent_from_manifest = [path for path in required_paths if path not in project_map]
+    if absent_from_manifest:
+        fail(f"required dependency projects absent from AOSP manifest: {absent_from_manifest}")
+
+    selected_paths = list(required_paths)
+    selected_paths.extend(path for path in optional_paths if path in project_map)
+    to_sync = [
+        project_map[path]
+        for path in selected_paths
+        if not (aosp_root / path).is_dir()
+    ]
+    if to_sync:
+        print("syncing native crosvm dependency closure:")
+        for project in to_sync:
+            print(f"  {project}")
+        subprocess.run(
+            [
+                "repo",
+                "sync",
+                "-c",
+                "-j2",
+                "--no-tags",
+                "--no-clone-bundle",
+                "--force-sync",
+                *to_sync,
+            ],
+            cwd=aosp_root,
+            check=True,
+        )
+
+    still_missing = [path for path in required_paths if not (aosp_root / path).is_dir()]
+    if still_missing:
+        fail(f"native dependency projects still missing after repo sync: {still_missing}")
+    print(f"native dependency closure present: {len(selected_paths)} projects")
+
+
+def project_defines_module(project: Path, module: str) -> bool:
+    pattern = re.compile(r'\bname\s*:\s*"' + re.escape(module) + r'"')
+    for bp in project.rglob("Android.bp"):
+        try:
+            text = bp.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if pattern.search(text):
+            return True
+    return False
+
+
+def validate_native_dependency_modules(aosp_root: Path) -> None:
+    checks = {
+        "external/gwp_asan": ("gwp_asan_headers", "gwp_asan"),
+        "external/scudo": ("libscudo",),
+        "external/dtc": ("libfdt",),
+        "system/libhidl": ("libhidlbase",),
+        "system/unwinding": ("libunwindstack",),
+        "external/selinux": ("libselinux",),
+        "system/core": ("libprocessgroup",),
+        "frameworks/native": ("libnativewindow",),
+    }
+    failures = []
+    for relative, modules in checks.items():
+        project = aosp_root / relative
+        if not project.is_dir():
+            failures.append(f"{relative}: project missing")
+            continue
+        for module in modules:
+            if not project_defines_module(project, module):
+                failures.append(f"{relative}: module {module} not defined")
+    if failures:
+        fail("native dependency preflight failed: " + "; ".join(failures))
+    print(
+        "verified native providers: gwp_asan/scudo/libfdt/libhidlbase/"
+        "libunwindstack/libselinux/libprocessgroup/libnativewindow"
+    )
+
+
+def install_aaudio_abi_stub(aosp_root: Path) -> None:
+    # libandroid_audio links to libaaudio on Android. Building frameworks/av
+    # would pull a large product/audio graph, so use the AOSP NDK ARM64 ABI
+    # stub for link-time only. The produced crosvm still records DT_NEEDED
+    # libaaudio.so and resolves against the device's real system library.
+    ndk = aosp_root / "prebuilts/ndk"
+    if not ndk.is_dir():
+        fail(f"NDK prebuilts missing: {ndk}")
+
+    candidates = [
+        path
+        for path in ndk.rglob("libaaudio.so")
+        if "aarch64-linux-android" in path.as_posix()
+    ]
+    if not candidates:
+        fail("cannot find ARM64 libaaudio.so ABI stub under prebuilts/ndk")
+
+    def api_rank(path: Path) -> tuple[int, str]:
+        parts = path.parts
+        api = -1
+        for part in parts:
+            if part.isdigit():
+                api = max(api, int(part))
+        return api, path.as_posix()
+
+    source = max(candidates, key=api_rank)
+    out = aosp_root / "local-crosvm-ndk-stubs"
+    libdir = out / "lib64"
+    libdir.mkdir(parents=True, exist_ok=True)
+    dest = libdir / "libaaudio.so"
+    shutil.copy2(source, dest)
+    bp = out / "Android.bp"
+    bp.write_text(
+        """// Generated CI-only ARM64 AAudio ABI provider for crosvm.
+cc_prebuilt_library_shared {
+    name: "libaaudio",
+    compile_multilib: "64",
+    arch: {
+        arm64: {
+            srcs: ["lib64/libaaudio.so"],
+        },
+    },
+    stl: "none",
+    strip: {
+        none: true,
+    },
+    check_elf_files: false,
+    installable: false,
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.virt",
+    ],
+}
+""",
+        encoding="utf-8",
+    )
+    if not dest.is_file() or not bp.is_file():
+        fail("failed to install local libaaudio ABI provider")
+    if not project_defines_module(out, "libaaudio"):
+        fail("generated libaaudio ABI provider is not discoverable")
+    print(f"installed ARM64 libaaudio ABI provider from {source.relative_to(aosp_root)}")
+
+
 def restore_pruned_hardware_interface_inputs(aosp_root: Path) -> None:
-    """Restore tracked inputs that the reduced-checkout pruning must never remove."""
     project = aosp_root / "hardware/interfaces"
     if not project.is_dir():
         fail(f"hardware interfaces project missing: {project}")
@@ -148,7 +341,6 @@ def restore_pruned_hardware_interface_inputs(aosp_root: Path) -> None:
         "graphics/common/1.2",
         "graphics/common/aidl",
     )
-
     restored = []
     for relative in required_paths:
         path = project / relative
@@ -240,31 +432,22 @@ if not android_bp_path.is_file():
 selective_aosp_checkout = (aosp_root / ".repo").is_dir()
 
 if selective_aosp_checkout:
-    print("selective AOSP checkout: ensuring rustc_linker host providers")
-    required_projects = []
-    if not (aosp_root / "external/sqlite").is_dir():
-        required_projects.append("platform/external/sqlite")
-    if not (aosp_root / "external/icu").is_dir():
-        required_projects.append("platform/external/icu")
-    if required_projects:
-        subprocess.run(
-            ["repo", "sync", "-c", "-j2", "--no-tags", "--no-clone-bundle", "--force-sync", *required_projects],
-            cwd=aosp_root,
-            check=True,
-        )
+    print("selective AOSP checkout: completing native Android dependency closure")
+    sync_native_dependency_closure(aosp_root)
+    restore_pruned_hardware_interface_inputs(aosp_root)
+    validate_native_dependency_modules(aosp_root)
+    install_aaudio_abi_stub(aosp_root)
 
     sqlite_bps = list((aosp_root / "external/sqlite").rglob("Android.bp"))
     sqlite_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in sqlite_bps)
     if 'name: "libsqlite"' not in sqlite_text:
-        fail("libsqlite provider missing after external/sqlite sync")
+        fail("libsqlite provider missing after dependency closure")
 
     icu_bps = list((aosp_root / "external/icu").rglob("Android.bp"))
     icu_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in icu_bps)
     for module in ("libicuuc", "libicui18n"):
         if f'name: "{module}"' not in icu_text:
-            fail(f"{module} provider missing after external/icu sync")
-
-    restore_pruned_hardware_interface_inputs(aosp_root)
+            fail(f"{module} provider missing after dependency closure")
 
     github_env = os.environ.get("GITHUB_ENV")
     if github_env:
