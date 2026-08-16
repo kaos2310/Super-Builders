@@ -73,8 +73,6 @@ def make_root_crosvm_device_platform_available(android_bp: str) -> str:
     newline = line_ending(lines[host_idx])
     lines[host_idx] = f"{host_indent}host_supported: false,{newline}"
 
-    # Re-locate after the host edit so subsequent property ranges are always
-    # scoped to the exact root crosvm module.
     start, end = find_root_crosvm_rust_binary(lines)
     apex_starts = [
         idx
@@ -102,8 +100,6 @@ def make_root_crosvm_device_platform_available(android_bp: str) -> str:
         if apex_end is None:
             fail("unterminated apex_available property in root crosvm rust_binary block")
     else:
-        # android-16.0.0_r4 has an explicit com.android.virt-only property, but
-        # keep this fallback for nearby revisions where the property is inherited.
         apex_start = host_idx + 1
         apex_end = host_idx
         apex_indent = host_indent
@@ -134,6 +130,98 @@ def verify_root_crosvm_device_platform(android_bp: str) -> None:
         fail(f"root crosvm device/platform verification failed; missing {missing}")
     if "host_supported: true," in block:
         fail("root crosvm device/platform verification failed; host support still enabled")
+
+
+def restore_pruned_hardware_interface_inputs(aosp_root: Path) -> None:
+    """Restore tracked inputs that the reduced-checkout pruning must never remove."""
+    project = aosp_root / "hardware/interfaces"
+    if not project.is_dir():
+        fail(f"hardware interfaces project missing: {project}")
+
+    required_paths = (
+        "current.txt",
+        "Android.bp",
+        "common/aidl",
+        "graphics/Android.bp",
+        "graphics/common/1.0",
+        "graphics/common/1.1",
+        "graphics/common/1.2",
+        "graphics/common/aidl",
+    )
+
+    restored = []
+    for relative in required_paths:
+        path = project / relative
+        if path.exists():
+            continue
+        result = subprocess.run(
+            ["git", "checkout", "HEAD", "--", relative],
+            cwd=project,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if result.returncode != 0:
+            fail(
+                f"cannot restore required hardware/interfaces path {relative}: "
+                f"{result.stderr.strip() or result.stdout.strip()}"
+            )
+        if not path.exists():
+            fail(f"restored path is still missing: hardware/interfaces/{relative}")
+        restored.append(relative)
+
+    required_files = (
+        "current.txt",
+        "Android.bp",
+        "common/aidl/Android.bp",
+        "graphics/Android.bp",
+        "graphics/common/1.0/Android.bp",
+        "graphics/common/1.1/Android.bp",
+        "graphics/common/1.2/Android.bp",
+        "graphics/common/aidl/Android.bp",
+    )
+    missing_files = [relative for relative in required_files if not (project / relative).is_file()]
+    if missing_files:
+        fail(f"hardware/interfaces graphics preflight missing files: {missing_files}")
+
+    current_txt = (project / "current.txt").read_text(encoding="utf-8", errors="ignore")
+    if "android.hardware.graphics.common@1.0" not in current_txt:
+        fail("hardware/interfaces/current.txt lacks graphics.common@1.0 HIDL hashes")
+
+    hidl_markers = {
+        "graphics/common/1.0/Android.bp": "android.hardware.graphics.common@1.0",
+        "graphics/common/1.1/Android.bp": "android.hardware.graphics.common@1.1",
+        "graphics/common/1.2/Android.bp": "android.hardware.graphics.common@1.2",
+    }
+    for relative, marker in hidl_markers.items():
+        text = (project / relative).read_text(encoding="utf-8", errors="ignore")
+        if marker not in text:
+            fail(f"{relative} lacks expected HIDL module marker {marker}")
+
+    aidl_text = (project / "graphics/common/aidl/Android.bp").read_text(
+        encoding="utf-8", errors="ignore"
+    )
+    for marker in ('name: "android.hardware.graphics.common"', "host_supported: true"):
+        if marker not in aidl_text:
+            fail(f"graphics common AIDL definition lacks required marker: {marker}")
+
+    api_root = project / "graphics/common/aidl/aidl_api/android.hardware.graphics.common"
+    if not (api_root / "current").is_dir():
+        fail(f"missing graphics common Stable AIDL current dump: {api_root / 'current'}")
+    frozen_versions = sorted(
+        int(path.name)
+        for path in api_root.iterdir()
+        if path.is_dir() and path.name.isdigit()
+    )
+    if not frozen_versions:
+        fail("graphics common Stable AIDL has no frozen versions")
+
+    if restored:
+        print("restored pruned hardware/interfaces inputs: " + ", ".join(restored))
+    print(
+        "verified hardware/interfaces graphics inputs: current.txt + "
+        "HIDL 1.0/1.1/1.2 + Stable AIDL"
+    )
 
 
 root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
@@ -176,6 +264,8 @@ if selective_aosp_checkout:
         if f'name: "{module}"' not in icu_text:
             fail(f"{module} provider missing after external/icu sync")
 
+    restore_pruned_hardware_interface_inputs(aosp_root)
+
     github_env = os.environ.get("GITHUB_ENV")
     if github_env:
         with open(github_env, "a", encoding="utf-8") as env_file:
@@ -189,14 +279,6 @@ gunyah = gunyah_path.read_text(encoding="utf-8", errors="ignore")
 android_bp = android_bp_path.read_text(encoding="utf-8", errors="ignore")
 
 if selective_aosp_checkout:
-    # AOSP's root crosvm binary supports host variants and, at Android 16 r4,
-    # is explicitly APEX-only (com.android.virt). A reduced module_arm64 graph
-    # therefore either selects the host linux_glibc_x86_64 variant or exposes no
-    # standalone `crosvm` target once host support is disabled.
-    #
-    # For this CI-only source checkout, keep the AVF APEX variant while also
-    # exposing a platform Android64 variant, and disable host support only on
-    # the root binary. Build-time host tools/proc-macros remain untouched.
     android_bp = make_root_crosvm_device_platform_available(android_bp)
     verify_root_crosvm_device_platform(android_bp)
 
