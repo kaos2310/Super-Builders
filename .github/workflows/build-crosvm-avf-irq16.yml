@@ -9,6 +9,8 @@ on:
       - '.github/workflows/build-crosvm-avf-irq16.yml'
       - 'patches/crosvm/android-16.0.0_r4-gunyah-irq16.patch'
       - 'scripts/patch-crosvm-gunyah-irqfd.py'
+      - 'scripts/patch-crosvm-gunyah-irqfd-core.py'
+      - 'scripts/prepare-crosvm-binder-deps.py'
 
 permissions:
   contents: read
@@ -357,6 +359,14 @@ jobs:
           source build/envsetup.sh
           lunch module_arm64 trunk_staging eng
           test "$TARGET_PRODUCT" = module_arm64
+
+          echo '=== GATE 1: libapexsupport ==='
+          m -j2 libapexsupport
+
+          echo '=== GATE 2: libbinder ==='
+          m -j2 libbinder
+
+          echo '=== GATE 3: crosvm ==='
           m -j2 crosvm
           set -u
           echo '=== STORAGE AFTER BUILD ==='
@@ -414,6 +424,12 @@ jobs:
           sha256sum "$CROSVM" | tee "$DEST/sha256.txt"
           readelf -h "$CROSVM" | tee "$DEST/readelf-header.txt"
           readelf -n "$CROSVM" | tee "$DEST/readelf-notes.txt" || true
+          readelf -d "$CROSVM" | tee "$DEST/readelf-dynamic.txt"
+          readelf -Ws "$CROSVM" | tee "$DEST/readelf-symbols.txt"
+          grep 'NEEDED' "$DEST/readelf-dynamic.txt" \
+            | tee "$DEST/dt-needed.txt" || true
+          awk '$7 == "UND" {print}' "$DEST/readelf-symbols.txt" \
+            | tee "$DEST/undefined-dynamic-symbols.txt"
           {
             echo 'Binary not executed during CI.'
             echo 'Target architecture: Android ARM64/AArch64'
@@ -422,6 +438,8 @@ jobs:
           cp -a "$CROSVM" "$DEST/crosvm"
           cp "$PATCH_FILE" "$DEST/"
           cp "$GITHUB_WORKSPACE/scripts/patch-crosvm-gunyah-irqfd.py" "$DEST/"
+          cp "$GITHUB_WORKSPACE/scripts/patch-crosvm-gunyah-irqfd-core.py" "$DEST/"
+          cp "$GITHUB_WORKSPACE/scripts/prepare-crosvm-binder-deps.py" "$DEST/"
           cat > "$DEST/build-info.txt" <<EOF
           AOSP_TAG=$AOSP_TAG
           CROSVM_SOURCE_COMMIT=$(cd external/crosvm && git rev-parse HEAD)

@@ -208,7 +208,7 @@ void *AApexSupport_loadLibrary(const char *name, const char *apexName, int flag)
     apex_available: ["//apex_available:platform"],
     visibility: ["//visibility:public"],
     stl: "none",
-    system_shared_libs: [],
+    system_shared_libs: ["libc"],
     installable: false,
 }
 ''',
@@ -222,7 +222,10 @@ void *AApexSupport_loadLibrary(const char *name, const char *apexName, int flag)
             "StatsBootstrapAtomValue.aidl",
         ),
         jni / "Android.bp": ('name: "jni_headers"',),
-        apex / "Android.bp": ('name: "libapexsupport"',),
+        apex / "Android.bp": (
+            'name: "libapexsupport"',
+            'system_shared_libs: ["libc"]',
+        ),
         apex / "apexsupport_stub.c": ("AApexSupport_loadLibrary",),
     }
     for path, needles in checks.items():
