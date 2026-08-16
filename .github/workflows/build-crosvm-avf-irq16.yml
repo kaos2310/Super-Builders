@@ -95,7 +95,7 @@ jobs:
               'external/rust/',
               'external/golang-protobuf', 'external/starlark-go',
               'external/go-cmp', 'external/pogreb',
-              'external/abseil-cpp', 'external/error_prone',
+              'external/abseil-cpp', 'external/error_prone', 'external/googletest',
               'external/sqlite', 'external/icu', 'external/jsoncpp', 'external/fmtlib',
               'external/minijail', 'external/libcap', 'external/libdrm',
               'external/expat', 'external/libepoxy', 'external/libffi',
@@ -135,6 +135,7 @@ jobs:
           grep -q '^platform/external/virtio-media$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/abseil-cpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/error_prone$' /tmp/crosvm-projects.txt
+          grep -q '^platform/external/googletest$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/expat$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/jsoncpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/fmtlib$' /tmp/crosvm-projects.txt
@@ -209,6 +210,10 @@ jobs:
           grep -R -q 'name: "absl_notls_defaults"' external/abseil-cpp
           grep -R -q '"com.android.runtime"' external/abseil-cpp
           test -f external/error_prone/Android.bp
+          test -f external/googletest/googletest/Android.bp
+          grep -q 'name: "libgtest"' external/googletest/googletest/Android.bp
+          grep -q 'name: "libgtest_prod_headers"' external/googletest/googletest/Android.bp
+          grep -q 'host_supported: true' external/googletest/googletest/Android.bp
           test -f external/lz4/lib/Android.bp
           grep -q 'name: "liblz4"' external/lz4/lib/Android.bp
           test -f external/perfetto/include/perfetto/tracing.h
