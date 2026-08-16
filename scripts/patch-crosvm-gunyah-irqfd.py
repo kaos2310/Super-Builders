@@ -72,27 +72,19 @@ for required in (
 print("Verified Bionic provider: //external/llvm-libc:llvmlibc")
 
 # The workflow prunes hardware/interfaces to keep the GitHub runner small.
-# frameworks/native's libui/libgui closure still requires the legacy gralloc
-# HIDL families plus the allocator AIDL and media@1.0 bridge. Restore the whole
-# required version directories now instead of fixing one missing module per run.
+# frameworks/native's libui/libgui closure spans legacy gralloc HIDL, stable-C
+# IMapper and the allocator/common AIDL backends. Restore the complete graphics
+# subtree so a future direct graphics dependency cannot be silently pruned, but
+# still keep unrelated HAL families (audio, camera, radio, etc.) out of Soong.
 hw_interfaces = aosp_root / "hardware/interfaces"
 if not (hw_interfaces / ".git").exists():
     raise SystemExit(f"ERROR: hardware/interfaces git worktree missing: {hw_interfaces}")
 
 graphics_provider_paths = (
-    "graphics/allocator/2.0",
-    "graphics/allocator/3.0",
-    "graphics/allocator/4.0",
-    "graphics/allocator/aidl",
-    "graphics/mapper/2.0",
-    "graphics/mapper/2.1",
-    "graphics/mapper/3.0",
-    "graphics/mapper/4.0",
-    "graphics/bufferqueue/1.0",
-    "graphics/bufferqueue/2.0",
+    "graphics",
     "media/1.0",
 )
-print("Restoring complete frameworks/native graphics HIDL/AIDL provider closure")
+print("Restoring complete frameworks/native graphics HIDL/AIDL/stable-C provider closure")
 subprocess.run(
     ["git", "checkout", "HEAD", "--", *graphics_provider_paths],
     cwd=hw_interfaces,
@@ -100,7 +92,7 @@ subprocess.run(
 )
 
 # Assert the consumer side before checking providers. This catches exact-tag
-# drift and documents why every restored HAL family is required.
+# drift and documents why the restored graphics subtree is required.
 ui_bp = aosp_root / "frameworks/native/libs/ui/Android.bp"
 gui_bp = aosp_root / "frameworks/native/libs/gui/Android.bp"
 for path in (ui_bp, gui_bp):
@@ -112,10 +104,13 @@ ui_required = (
     '"android.hardware.graphics.allocator@2.0"',
     '"android.hardware.graphics.allocator@3.0"',
     '"android.hardware.graphics.allocator@4.0"',
+    '"android.hardware.graphics.allocator-V2-ndk"',
     '"android.hardware.graphics.mapper@2.0"',
     '"android.hardware.graphics.mapper@2.1"',
     '"android.hardware.graphics.mapper@3.0"',
     '"android.hardware.graphics.mapper@4.0"',
+    '"libimapper_stablec"',
+    '"libimapper_providerutils"',
 )
 ui_missing = [needle for needle in ui_required if needle not in ui_text]
 if ui_missing:
@@ -148,6 +143,24 @@ provider_checks = {
     ),
     aosp_root / "hardware/interfaces/graphics/allocator/aidl/Android.bp": (
         'name: "android.hardware.graphics.allocator"',
+        'vndk_use_version: "2"',
+        'version: "2"',
+        '"android.hardware.common-V2"',
+        '"android.hardware.graphics.common-V4"',
+    ),
+    aosp_root / "hardware/interfaces/common/aidl/Android.bp": (
+        'name: "android.hardware.common"',
+        'version: "2"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/common/aidl/Android.bp": (
+        'name: "android.hardware.graphics.common"',
+        'version: "4"',
+        '"android.hardware.common-V2"',
+    ),
+    aosp_root / "hardware/interfaces/graphics/mapper/stable-c/Android.bp": (
+        'name: "libimapper_stablec"',
+        'name: "libimapper_providerutils"',
+        '"libarect_headers"',
     ),
     aosp_root / "hardware/interfaces/graphics/mapper/2.0/Android.bp": (
         'name: "android.hardware.graphics.mapper@2.0"',
@@ -253,8 +266,8 @@ print(f"Refreshed {len(missing_teams)} missing trendy team stub(s)")
 
 print(
     "Verified graphics/HIDL follow-on closure: "
-    "allocator@2/3/4 + allocator AIDL + mapper@2/2.1/3/4 + "
-    "bufferqueue@1/2 + media@1.0 + libhidl/libhwbinder/libfmq"
+    "full graphics subtree + stable-C IMapper + allocator/common AIDL + "
+    "legacy allocator/mapper/bufferqueue + media@1.0 + libhidl/libhwbinder/libfmq"
 )
 
 subprocess.run([sys.executable, str(PREP), *sys.argv[1:]], check=True)
