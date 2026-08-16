@@ -166,7 +166,10 @@ jobs:
           mapfile -t PROJECTS < /tmp/crosvm-projects.txt
           repo sync -c -j4 --no-tags --no-clone-bundle --force-sync "${PROJECTS[@]}"
 
-          # Keep only the hardware/interface providers required by crosvm graphics.
+          # Keep the complete graphics provider subtree from the initial checkout.
+          # libui/libgui require legacy HIDL, stable-C IMapper and Stable AIDL
+          # providers. Deleting these and restoring them later is intentionally
+          # avoided so Soong always sees one coherent provider tree.
           python3 - <<'PY'
           import shutil
           from pathlib import Path
@@ -180,18 +183,18 @@ jobs:
           root = Path('hardware/interfaces')
           root_keep = {
               '.git', 'Android.bp', 'LICENSE', 'METADATA', 'NOTICE', 'OWNERS',
-              'common', 'graphics',
+              'common', 'graphics', 'media',
           }
           for child in list(root.iterdir()):
               if child.name not in root_keep:
                   remove_path(child)
 
-          graphics = root / 'graphics'
-          graphics_keep = {
-              'Android.bp', 'LICENSE', 'METADATA', 'NOTICE', 'OWNERS', 'common',
+          media = root / 'media'
+          media_keep = {
+              'Android.bp', 'LICENSE', 'METADATA', 'NOTICE', 'OWNERS', '1.0',
           }
-          for child in list(graphics.iterdir()):
-              if child.name not in graphics_keep:
+          for child in list(media.iterdir()):
+              if child.name not in media_keep:
                   remove_path(child)
           PY
 
@@ -199,6 +202,22 @@ jobs:
           test ! -e hardware/interfaces/audio
           test -d hardware/interfaces/common/aidl
           test -d hardware/interfaces/graphics/common/aidl
+          test -f hardware/interfaces/graphics/mapper/stable-c/Android.bp
+          grep -q 'name: "libimapper_stablec"' hardware/interfaces/graphics/mapper/stable-c/Android.bp
+          grep -q 'name: "libimapper_providerutils"' hardware/interfaces/graphics/mapper/stable-c/Android.bp
+          grep -q '"libarect_headers"' hardware/interfaces/graphics/mapper/stable-c/Android.bp
+          grep -q '"libbase_headers"' hardware/interfaces/graphics/mapper/stable-c/Android.bp
+          test -f frameworks/native/libs/arect/Android.bp
+          grep -q 'name: "libarect_headers"' frameworks/native/libs/arect/Android.bp
+          test -f system/libbase/Android.bp
+          grep -q 'name: "libbase_headers"' system/libbase/Android.bp
+          test -f hardware/interfaces/graphics/allocator/3.0/Android.bp
+          test -f hardware/interfaces/graphics/allocator/4.0/Android.bp
+          test -f hardware/interfaces/graphics/mapper/2.1/Android.bp
+          test -f hardware/interfaces/graphics/mapper/3.0/Android.bp
+          test -f hardware/interfaces/graphics/mapper/4.0/Android.bp
+          test -f hardware/interfaces/graphics/allocator/aidl/Android.bp
+          test -f hardware/interfaces/media/1.0/Android.bp
 
           echo '=== STORAGE AFTER MINIMAL SYNC ==='
           df -hT /
