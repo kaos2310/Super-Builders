@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Full AOSP build wrapper; standalone source-only verification invokes the core helper directly.
 from pathlib import Path
 import os
 import re
