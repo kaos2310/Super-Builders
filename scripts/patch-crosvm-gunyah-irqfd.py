@@ -43,9 +43,7 @@ def find_root_crosvm_rust_binary(lines: list[str]) -> tuple[int, int]:
 
 
 def line_ending(line: str) -> str:
-    if line.endswith("\r\n"):
-        return "\r\n"
-    return "\n"
+    return "\r\n" if line.endswith("\r\n") else "\n"
 
 
 def make_root_crosvm_device_platform_available(android_bp: str) -> str:
@@ -61,6 +59,7 @@ def make_root_crosvm_device_platform_available(android_bp: str) -> str:
             "expected exactly one host_supported property in root crosvm "
             f"rust_binary block, found {len(host_lines)}"
         )
+
     host_idx = host_lines[0]
     host_indent = lines[host_idx][: len(lines[host_idx]) - len(lines[host_idx].lstrip())]
     newline = line_ending(lines[host_idx])
@@ -132,6 +131,7 @@ def manifest_project_map(aosp_root: Path) -> dict[str, str]:
     manifest = next((path for path in candidates if path.is_file()), None)
     if manifest is None:
         fail("cannot locate AOSP manifest for dependency closure")
+
     mapping: dict[str, str] = {}
     for project in ET.parse(manifest).getroot().iter("project"):
         name = project.get("name")
@@ -163,8 +163,8 @@ def repo_sync(aosp_root: Path, projects: list[str], jobs: int = 2) -> None:
 
 
 def sync_native_dependency_closure(aosp_root: Path) -> None:
-    # Native providers that are either direct crosvm Android dependencies or
-    # common transitive requirements of bionic/graphics/HIDL in this reduced tree.
+    # Direct providers plus bounded transitive native dependencies. Keep this
+    # intentionally native: do not pull full Java/product trees into module_arm64.
     required_paths = (
         "external/sqlite",
         "external/icu",
@@ -175,6 +175,9 @@ def sync_native_dependency_closure(aosp_root: Path) -> None:
         "external/libcxxabi",
         "external/compiler-rt",
         "external/selinux",
+        "external/pcre",
+        "external/tinyxml2",
+        "external/lzma",
         "external/vulkan-headers",
         "external/libpng",
         "external/libyuv",
@@ -220,6 +223,45 @@ def sync_native_dependency_closure(aosp_root: Path) -> None:
     print(f"native dependency closure present: {len(selected)} projects")
 
 
+def prune_libvintf_for_minimal_build(aosp_root: Path) -> None:
+    """Keep libvintf itself but remove unrelated XSD/test subgraphs."""
+    root = aosp_root / "system/libvintf"
+    if not root.is_dir():
+        fail(f"libvintf project missing: {root}")
+
+    removed: list[str] = []
+    for relative in ("xsd", "test", "analyze_matrix", "libaidlvintf_test_helper"):
+        path = root / relative
+        if path.exists():
+            if path.is_dir() and not path.is_symlink():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+            removed.append(relative)
+
+    root_bp = root / "Android.bp"
+    if not root_bp.is_file():
+        fail("system/libvintf/Android.bp missing after pruning")
+    text = root_bp.read_text(encoding="utf-8", errors="ignore")
+    for marker in ('name: "libvintf"', '"libtinyxml2"', '"libselinux"', '"libz"'):
+        if marker not in text:
+            fail(f"libvintf core Android.bp lacks expected marker {marker}")
+
+    xsd_refs: list[str] = []
+    for bp in root.rglob("Android.bp"):
+        bp_text = bp.read_text(encoding="utf-8", errors="ignore")
+        if re.search(r"(?m)^\s*xsd_config\s*\{", bp_text):
+            xsd_refs.append(str(bp.relative_to(aosp_root)))
+    if xsd_refs:
+        fail(f"xsd_config modules remain in reduced libvintf tree: {xsd_refs}")
+
+    print(
+        "pruned libvintf non-runtime subgraphs: "
+        + (", ".join(removed) if removed else "already minimal")
+    )
+    print("verified libvintf core requires tinyxml2/selinux/z and contains no xsd_config")
+
+
 def project_defines_module(project: Path, module: str) -> bool:
     pattern = re.compile(r'\bname\s*:\s*"' + re.escape(module) + r'"')
     for bp in project.rglob("Android.bp"):
@@ -237,11 +279,16 @@ def validate_native_dependency_modules(aosp_root: Path) -> None:
         "external/gwp_asan": ("gwp_asan_headers", "gwp_asan"),
         "external/scudo": ("libscudo",),
         "external/dtc": ("libfdt",),
+        "external/tinyxml2": ("libtinyxml2",),
+        "external/lzma": ("liblzma",),
+        "external/pcre": ("libpcre2",),
         "system/libhidl": ("libhidlbase",),
-        "system/unwinding": ("libunwindstack",),
+        "system/unwinding": ("libunwindstack", "libunwindstack_no_dex"),
         "external/selinux": ("libselinux",),
-        "system/core": ("libprocessgroup",),
+        "system/libvintf": ("libvintf",),
+        "system/core": ("libprocessgroup", "libpackagelistparser"),
         "frameworks/native": ("libnativewindow",),
+        "system/tools/hidl": ("libhidl-gen-utils",),
     }
     failures: list[str] = []
     for relative, modules in checks.items():
@@ -255,9 +302,54 @@ def validate_native_dependency_modules(aosp_root: Path) -> None:
     if failures:
         fail("native dependency preflight failed: " + "; ".join(failures))
     print(
-        "verified native providers: gwp_asan/scudo/libfdt/libhidlbase/"
-        "libunwindstack/libselinux/libprocessgroup/libnativewindow"
+        "verified native providers: gwp_asan/scudo/libfdt/tinyxml2/lzma/pcre2/"
+        "libhidlbase/libunwindstack_no_dex/libselinux/libvintf/"
+        "libprocessgroup/libpackagelistparser/libnativewindow/libhidl-gen-utils"
     )
+
+
+def validate_known_soong_plugins(aosp_root: Path) -> None:
+    plugin_checks = {
+        "system/tools/aidl/build": 'RegisterModuleType("aidl_interface"',
+        "system/tools/hidl/build": 'RegisterModuleType("hidl_interface"',
+    }
+    failures: list[str] = []
+    for relative, marker in plugin_checks.items():
+        root = aosp_root / relative
+        if not root.is_dir():
+            failures.append(f"{relative}: missing")
+            continue
+        found = False
+        for path in root.rglob("*.go"):
+            try:
+                if marker in path.read_text(encoding="utf-8", errors="ignore"):
+                    found = True
+                    break
+            except OSError:
+                pass
+        if not found:
+            failures.append(f"{relative}: registration marker {marker!r} missing")
+
+    # xsd_config is intentionally eliminated rather than importing xsdc's
+    # Java/tooling graph into this native module build.
+    active_xsd: list[str] = []
+    for bp in aosp_root.rglob("Android.bp"):
+        if ".repo" in bp.parts or "out" in bp.parts:
+            continue
+        try:
+            text = bp.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if re.search(r"(?m)^\s*xsd_config\s*\{", text):
+            active_xsd.append(str(bp.relative_to(aosp_root)))
+            if len(active_xsd) >= 10:
+                break
+    if active_xsd:
+        failures.append(f"active xsd_config modules without xsdc closure: {active_xsd}")
+
+    if failures:
+        fail("Soong custom-module preflight failed: " + "; ".join(failures))
+    print("verified Soong plugin surface: AIDL/HIDL registered; xsd_config absent")
 
 
 def newest_aosp_clang(aosp_root: Path) -> Path:
@@ -277,14 +369,7 @@ def newest_aosp_clang(aosp_root: Path) -> Path:
 
 
 def install_aaudio_abi_stub(aosp_root: Path) -> None:
-    """Create a CI-only Android ARM64 libaaudio link provider.
-
-    crosvm's android_audio Soong module links Android targets against libaaudio.
-    The full frameworks/av graph is intentionally not part of this reduced build,
-    so transiently sync the exact-tag AAudio symbol map, generate a minimal ARM64
-    ELF exporting that ABI, then remove frameworks/av before Soong scans the tree.
-    The prebuilt is installable:false; it exists only to satisfy the build link.
-    """
+    """Create a CI-only Android ARM64 libaaudio link provider."""
     av_dir = aosp_root / "frameworks/av"
     if av_dir.is_dir() and project_defines_module(av_dir, "libaaudio"):
         print("using real frameworks/av libaaudio provider")
@@ -325,11 +410,12 @@ def install_aaudio_abi_stub(aosp_root: Path) -> None:
     libdir.mkdir(parents=True)
     source = out / "aaudio_abi_stub.c"
     source.write_text(
-        "#define EXPORT __attribute__((visibility(\"default\")))\n\n"
+        '#define EXPORT __attribute__((visibility("default")))\n\n'
         + "\n".join(f"EXPORT void {symbol}(void) {{}}" for symbol in symbols)
         + "\n",
         encoding="utf-8",
     )
+
     dest = libdir / "libaaudio.so"
     clang = newest_aosp_clang(aosp_root)
     subprocess.run(
@@ -519,8 +605,10 @@ def main() -> None:
     if selective_aosp_checkout:
         print("selective AOSP checkout: completing native Android dependency closure")
         sync_native_dependency_closure(aosp_root)
+        prune_libvintf_for_minimal_build(aosp_root)
         restore_pruned_hardware_interface_inputs(aosp_root)
         validate_native_dependency_modules(aosp_root)
+        validate_known_soong_plugins(aosp_root)
         install_aaudio_abi_stub(aosp_root)
         validate_sqlite_icu(aosp_root)
         github_env = os.environ.get("GITHUB_ENV")
