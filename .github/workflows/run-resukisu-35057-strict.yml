@@ -1,5 +1,5 @@
 name: S928B ReSukiSU 35072 Exact Strict Build
-run-name: "S928BXXS6DZG1 EUX — exact strict branch updated to ReSukiSU 35072"
+run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35072 Samsung-safe + kallsyms hardening"
 
 on:
   workflow_dispatch:
@@ -11,9 +11,14 @@ on:
       - '.github/workflows/build-resukisu.yml'
       - '.github/workflows/cache-dependencies.yml'
       - '.github/actions/susfs-v2.2/**'
+      - 'android14-6.1/defconfig.fragment'
       - 'android14-6.1/build-helpers/clean-build-flags.sh'
+      - 'android14-6.1/build-helpers/apply-e3q-cgroup-pids-compat.sh'
+      - 'android14-6.1/build-helpers/apply-e3q-cmdline-governor-compat.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-vm-metadata-allocation.sh'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
+      - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
+      - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'
       - 'android14-6.1/resukisu-pin.txt'
 
 permissions:
