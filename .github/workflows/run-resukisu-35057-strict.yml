@@ -1,5 +1,5 @@
 name: S928B ReSukiSU 35072 Exact Strict Build
-run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35072 Samsung-safe + kallsyms hardening"
+run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35072 final kallsyms + idempotent umount"
 
 on:
   workflow_dispatch:
@@ -19,6 +19,7 @@ on:
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
       - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'
+      - 'android14-6.1/build-helpers/make-resukisu-umount-add-idempotent.sh'
       - 'android14-6.1/resukisu-pin.txt'
 
 permissions:
