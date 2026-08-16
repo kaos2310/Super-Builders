@@ -1,11 +1,12 @@
 name: S928B ReSukiSU 35072 Exact Strict Build
-run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35072 final kallsyms + idempotent umount"
+run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35072 + Gunyah mem-share watchdog guard"
 
 on:
   workflow_dispatch:
   push:
     branches:
       - agent/resukisu-35057-eux-dzg1-cmdline
+      - agent/avf-gunyah-memshare-guard
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -27,7 +28,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35072-exact-strict
+  group: s928b-resukisu-35072-exact-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
