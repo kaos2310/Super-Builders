@@ -174,6 +174,7 @@ def sync_native_dependency_closure(aosp_root: Path) -> None:
         "external/libcxx",
         "external/libcxxabi",
         "external/compiler-rt",
+        "external/arm-optimized-routines",
         "external/selinux",
         "external/pcre",
         "external/tinyxml2",
@@ -279,6 +280,10 @@ def validate_native_dependency_modules(aosp_root: Path) -> None:
         "external/gwp_asan": ("gwp_asan_headers", "gwp_asan"),
         "external/scudo": ("libscudo",),
         "external/dtc": ("libfdt",),
+        "external/arm-optimized-routines": (
+            "libarm-optimized-routines-math",
+            "libarm-optimized-routines-string",
+        ),
         "external/tinyxml2": ("libtinyxml2",),
         "external/lzma": ("liblzma",),
         "external/pcre": ("libpcre2",),
@@ -302,9 +307,10 @@ def validate_native_dependency_modules(aosp_root: Path) -> None:
     if failures:
         fail("native dependency preflight failed: " + "; ".join(failures))
     print(
-        "verified native providers: gwp_asan/scudo/libfdt/tinyxml2/lzma/pcre2/"
-        "libhidlbase/libunwindstack_no_dex/libselinux/libvintf/"
-        "libprocessgroup/libpackagelistparser/libnativewindow/libhidl-gen-utils"
+        "verified native providers: gwp_asan/scudo/libfdt/arm-optimized-routines-math/"
+        "arm-optimized-routines-string/tinyxml2/lzma/pcre2/libhidlbase/"
+        "libunwindstack_no_dex/libselinux/libvintf/libprocessgroup/"
+        "libpackagelistparser/libnativewindow/libhidl-gen-utils"
     )
 
 
