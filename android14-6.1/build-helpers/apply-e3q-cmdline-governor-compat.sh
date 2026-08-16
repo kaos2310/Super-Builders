@@ -3,9 +3,15 @@ set -euo pipefail
 
 COMMON_TREE="${1:?common tree}"
 TARGET="$COMMON_TREE/init/main.c"
+CPUFREQ="$COMMON_TREE/drivers/cpufreq/cpufreq.c"
 
 [[ -f "$TARGET" ]] || {
   echo "::error::Kernel init source is unavailable: $TARGET"
+  exit 1
+}
+
+[[ -f "$CPUFREQ" ]] || {
+  echo "::error::CPUFreq source is unavailable: $CPUFREQ"
   exit 1
 }
 
@@ -90,4 +96,37 @@ print("S928B CPUFreq command-line override will be ignored and hidden")
 print("Samsung PowerHAL remains responsible for selecting the governor")
 print("S928B log_buf_len remains visible for post-boot ADB verification")
 print("CONFIG_LOG_BUF_SHIFT and AnyKernel both request the audited 4 MiB size")
+PY
+
+python3 - "$CPUFREQ" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+old_max = "module_param_array(max_freqs, int, NULL, 440);"
+old_min = "module_param_array(min_freqs, int, NULL, 440);"
+new_max = "module_param_array(max_freqs, int, NULL, 0440);"
+new_min = "module_param_array(min_freqs, int, NULL, 0440);"
+
+if old_max in text:
+    if text.count(old_max) != 1:
+        raise SystemExit("Unexpected duplicate max_freqs module parameter")
+    text = text.replace(old_max, new_max, 1)
+elif text.count(new_max) != 1:
+    raise SystemExit("Samsung max_freqs module parameter was not found")
+
+if old_min in text:
+    if text.count(old_min) != 1:
+        raise SystemExit("Unexpected duplicate min_freqs module parameter")
+    text = text.replace(old_min, new_min, 1)
+elif text.count(new_min) != 1:
+    raise SystemExit("Samsung min_freqs module parameter was not found")
+
+if text.count(new_max) != 1 or text.count(new_min) != 1:
+    raise SystemExit("S928B CPUFreq permission audit failed")
+
+path.write_text(text, encoding="utf-8")
+print("S928B CPUFreq max_freqs/min_freqs permissions corrected: 440 -> 0440")
+print("This removes the invalid sysfs 0670 mode without making the parameters writable")
 PY
