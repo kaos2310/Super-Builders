@@ -160,6 +160,17 @@ if cert_size and cert_hash:
     print(f"Configured paired manager certificate: size={cert_size} sha256={cert_hash}")
 PY
 
+# KernelSU userspace may submit the same try-umount path more than once during
+# boot. The kernel already rejects the duplicate without changing the list;
+# make that ADD idempotent so ksud does not report a harmless EEXIST as an error.
+HELPER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UMOUNT_HELPER="$HELPER_DIR/make-resukisu-umount-add-idempotent.sh"
+[[ -f "$UMOUNT_HELPER" ]] || {
+  echo "::error::Missing ReSukiSU umount idempotency helper: $UMOUNT_HELPER"
+  exit 1
+}
+bash "$UMOUNT_HELPER" "$KSU_ROOT"
+
 TAG=$(git -C "$KSU_ROOT" describe --abbrev=0 --tags 2>/dev/null || true)
 [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || {
   echo "::error::Unexpected ReSukiSU release tag at $EXPECTED_COMMIT: ${TAG:-none}"
