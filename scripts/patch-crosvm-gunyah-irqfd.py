@@ -12,31 +12,51 @@ HERE = Path(__file__).resolve().parent
 PREP = HERE / "prepare-crosvm-binder-deps.py"
 CORE = HERE / "patch-crosvm-gunyah-irqfd-core.py"
 
+
+def fail(message: str) -> None:
+    raise SystemExit(f"ERROR: {message}")
+
+
+def require_tokens(path: Path, tokens: tuple[str, ...], label: str) -> str:
+    if not path.is_file():
+        fail(f"{label} missing: {path}")
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    missing = [token for token in tokens if token not in text]
+    if missing:
+        fail(f"{label} validation failed for {path}: {missing}")
+    return text
+
+
+def require_aidl_snapshot(root: Path, interface: str, version: int) -> None:
+    path = root / "aidl_api" / interface / str(version)
+    if not path.is_dir():
+        fail(f"Stable AIDL snapshot missing: {path}")
+    if not (path / ".hash").is_file():
+        fail(f"Stable AIDL snapshot hash missing: {path / '.hash'}")
+
+
 if not PREP.is_file():
-    raise SystemExit(f"ERROR: missing dependency preflight helper: {PREP}")
+    fail(f"missing dependency preflight helper: {PREP}")
 if not CORE.is_file():
-    raise SystemExit(f"ERROR: missing crosvm patch core helper: {CORE}")
+    fail(f"missing crosvm patch core helper: {CORE}")
 if len(sys.argv) < 2:
-    raise SystemExit(f"usage: {Path(sys.argv[0]).name} <path-to-external/crosvm>")
+    fail(f"usage: {Path(sys.argv[0]).name} <path-to-external/crosvm>")
 
 crosvm = Path(sys.argv[1]).resolve()
 if not crosvm.is_dir():
-    raise SystemExit(f"ERROR: crosvm source directory not found: {crosvm}")
+    fail(f"crosvm source directory not found: {crosvm}")
 if crosvm.name != "crosvm" or crosvm.parent.name != "external":
-    raise SystemExit(f"ERROR: expected <aosp>/external/crosvm, got: {crosvm}")
+    fail(f"expected <aosp>/external/crosvm, got: {crosvm}")
 
 aosp_root = crosvm.parent.parent
 bionic_bp = aosp_root / "bionic/libc/Android.bp"
-if not bionic_bp.is_file():
-    raise SystemExit(f"ERROR: missing Bionic build definition: {bionic_bp}")
+require_tokens(
+    bionic_bp,
+    ('//external/llvm-libc:llvmlibc',),
+    "Bionic build definition",
+)
 
-bionic_text = bionic_bp.read_text(encoding="utf-8", errors="ignore")
-if '//external/llvm-libc:llvmlibc' not in bionic_text:
-    raise SystemExit("ERROR: expected Bionic dependency //external/llvm-libc:llvmlibc is absent")
-
-# Close all dependency projects that are intentionally outside the workflow's
-# first minimal manifest selection. ALLOW_MISSING_DEPENDENCIES can defer these
-# omissions until Ninja, so sync and validate them before Soong starts.
+# Close dependency projects intentionally omitted from the first minimal sync.
 dependency_projects = (
     "platform/external/llvm-libc",
     "platform/system/libhidl",
@@ -46,86 +66,59 @@ dependency_projects = (
 print("Syncing deferred crosvm dependency providers: " + ", ".join(dependency_projects))
 subprocess.run(
     [
-        "repo",
-        "sync",
-        "-c",
-        "-j2",
-        "--no-tags",
-        "--no-clone-bundle",
-        "--force-sync",
-        *dependency_projects,
+        "repo", "sync", "-c", "-j2", "--no-tags", "--no-clone-bundle",
+        "--force-sync", *dependency_projects,
     ],
     cwd=aosp_root,
     check=True,
 )
 
-llvm_libc_bp = aosp_root / "external/llvm-libc/Android.bp"
-if not llvm_libc_bp.is_file():
-    raise SystemExit(f"ERROR: llvm-libc Android.bp missing after sync: {llvm_libc_bp}")
-llvm_libc_text = llvm_libc_bp.read_text(encoding="utf-8", errors="ignore")
-for required in (
-    'name: "llvmlibc"',
-    'system_shared_libs: []',
-    'header_libs: ["libc_headers"]',
-):
-    if required not in llvm_libc_text:
-        raise SystemExit(f"ERROR: llvm-libc provider validation failed: missing {required}")
+require_tokens(
+    aosp_root / "external/llvm-libc/Android.bp",
+    ('name: "llvmlibc"', 'system_shared_libs: []', 'header_libs: ["libc_headers"]'),
+    "llvm-libc provider",
+)
 print("Verified Bionic provider: //external/llvm-libc:llvmlibc")
 
-# The workflow keeps the complete graphics provider subtree from its initial
-# hardware/interfaces checkout. Restore it defensively here as well so the
-# patch helper remains safe when invoked outside that workflow.
+# Keep/restore the complete graphics subtree. The workflow already preserves it,
+# but this makes the helper safe when invoked from other full-AOSP callers.
 hw_interfaces = aosp_root / "hardware/interfaces"
 if not (hw_interfaces / ".git").exists():
-    raise SystemExit(f"ERROR: hardware/interfaces git worktree missing: {hw_interfaces}")
-
-graphics_provider_paths = (
-    "graphics",
-    "media/1.0",
-)
+    fail(f"hardware/interfaces git worktree missing: {hw_interfaces}")
 print("Restoring complete frameworks/native graphics HIDL/AIDL/stable-C provider closure")
 subprocess.run(
-    ["git", "checkout", "HEAD", "--", *graphics_provider_paths],
+    ["git", "checkout", "HEAD", "--", "graphics", "media/1.0"],
     cwd=hw_interfaces,
     check=True,
 )
 
-# Assert only literal consumer dependencies here. Stable AIDL backend names such
-# as android.hardware.graphics.allocator-V2-ndk are generated by Soong from the
-# aidl_interface provider and therefore are intentionally validated below at the
-# provider/version/API-dump level instead of requiring a literal libui string.
-ui_bp = aosp_root / "frameworks/native/libs/ui/Android.bp"
-gui_bp = aosp_root / "frameworks/native/libs/gui/Android.bp"
-for path in (ui_bp, gui_bp):
-    if not path.is_file():
-        raise SystemExit(f"ERROR: frameworks/native consumer definition missing: {path}")
-
-ui_text = ui_bp.read_text(encoding="utf-8", errors="ignore")
-ui_required = (
-    '"android.hardware.graphics.allocator@2.0"',
-    '"android.hardware.graphics.allocator@3.0"',
-    '"android.hardware.graphics.allocator@4.0"',
-    '"android.hardware.graphics.mapper@2.0"',
-    '"android.hardware.graphics.mapper@2.1"',
-    '"android.hardware.graphics.mapper@3.0"',
-    '"android.hardware.graphics.mapper@4.0"',
-    '"libimapper_stablec"',
-    '"libimapper_providerutils"',
+# Literal consumers: only dependencies that really appear in frameworks/native.
+require_tokens(
+    aosp_root / "frameworks/native/libs/ui/Android.bp",
+    (
+        '"android.hardware.graphics.allocator@2.0"',
+        '"android.hardware.graphics.allocator@3.0"',
+        '"android.hardware.graphics.allocator@4.0"',
+        '"android.hardware.graphics.mapper@2.0"',
+        '"android.hardware.graphics.mapper@2.1"',
+        '"android.hardware.graphics.mapper@3.0"',
+        '"android.hardware.graphics.mapper@4.0"',
+        '"libimapper_stablec"',
+        '"libimapper_providerutils"',
+    ),
+    "libui literal graphics dependency model",
 )
-ui_missing = [needle for needle in ui_required if needle not in ui_text]
-if ui_missing:
-    raise SystemExit(f"ERROR: libui literal graphics dependency model drifted: {ui_missing}")
-
-gui_text = gui_bp.read_text(encoding="utf-8", errors="ignore")
-gui_required = (
-    '"android.hardware.graphics.bufferqueue@1.0"',
-    '"android.hardware.graphics.bufferqueue@2.0"',
-    '"android.hidl.token@1.0-utils"',
+require_tokens(
+    aosp_root / "frameworks/native/libs/gui/Android.bp",
+    (
+        '"android.hardware.graphics.bufferqueue@1.0"',
+        '"android.hardware.graphics.bufferqueue@2.0"',
+        '"android.hidl.token@1.0-utils"',
+    ),
+    "libgui graphics dependency model",
 )
-gui_missing = [needle for needle in gui_required if needle not in gui_text]
-if gui_missing:
-    raise SystemExit(f"ERROR: libgui graphics dependency model drifted: {gui_missing}")
 
+# Legacy HIDL/stable-C provider closure.
 provider_checks = {
     aosp_root / "hardware/interfaces/graphics/allocator/2.0/Android.bp": (
         'name: "android.hardware.graphics.allocator@2.0"',
@@ -140,24 +133,6 @@ provider_checks = {
         'name: "android.hardware.graphics.allocator@4.0"',
         '"android.hardware.graphics.mapper@4.0"',
         '"android.hardware.graphics.common@1.2"',
-    ),
-    aosp_root / "hardware/interfaces/graphics/allocator/aidl/Android.bp": (
-        'name: "android.hardware.graphics.allocator"',
-        'vndk_use_version: "2"',
-        'version: "2"',
-        'frozen: true',
-        'ndk: {',
-        '"android.hardware.common-V2"',
-        '"android.hardware.graphics.common-V4"',
-    ),
-    aosp_root / "hardware/interfaces/common/aidl/Android.bp": (
-        'name: "android.hardware.common"',
-        'version: "2"',
-    ),
-    aosp_root / "hardware/interfaces/graphics/common/aidl/Android.bp": (
-        'name: "android.hardware.graphics.common"',
-        'version: "4"',
-        '"android.hardware.common-V2"',
     ),
     aosp_root / "hardware/interfaces/graphics/mapper/stable-c/Android.bp": (
         'name: "libimapper_stablec"',
@@ -223,35 +198,105 @@ provider_checks = {
         'name: "libfmq-base"',
     ),
 }
-for path, needles in provider_checks.items():
-    if not path.is_file():
-        raise SystemExit(f"ERROR: graphics/HIDL provider missing: {path}")
-    text = path.read_text(encoding="utf-8", errors="ignore")
-    missing = [needle for needle in needles if needle not in text]
-    if missing:
-        raise SystemExit(f"ERROR: provider validation failed for {path}: {missing}")
+for path, tokens in provider_checks.items():
+    require_tokens(path, tokens, "graphics/HIDL provider")
 
-# Validate the frozen Stable-AIDL snapshots that cause Soong to materialize the
-# generated -V*-ndk modules used by the native graphics dependency graph.
-aidl_snapshot_dirs = (
-    aosp_root / "hardware/interfaces/common/aidl/aidl_api/android.hardware.common/2",
-    aosp_root / "hardware/interfaces/graphics/common/aidl/aidl_api/android.hardware.graphics.common/4",
-    aosp_root / "hardware/interfaces/graphics/allocator/aidl/aidl_api/android.hardware.graphics.allocator/2",
+# Stable-AIDL provider validation.
+#
+# Android 16 r4 selects generated ABI modules through graphics/Android.bp.
+# Do not validate historical vndk_use_version/common-V4 properties: the r4
+# graphics stack keeps allocator V2 while graphics.common has advanced to V6.
+graphics_root = require_tokens(
+    aosp_root / "hardware/interfaces/graphics/Android.bp",
+    (
+        'name: "android.hardware.graphics.allocator-latest"',
+        'name: "android.hardware.graphics.common-latest"',
+        'name: "android.hardware.graphics.allocator-ndk_static"',
+        'name: "android.hardware.graphics.allocator-ndk_shared"',
+        'name: "android.hardware.graphics.common-ndk_static"',
+        'name: "android.hardware.graphics.common-ndk_shared"',
+    ),
+    "graphics Stable-AIDL defaults",
 )
-for path in aidl_snapshot_dirs:
-    if not path.is_dir():
-        raise SystemExit(f"ERROR: Stable AIDL snapshot missing: {path}")
-    if not (path / ".hash").is_file():
-        raise SystemExit(f"ERROR: Stable AIDL snapshot hash missing: {path / '.hash'}")
+
+alloc_match = re.search(r'"android\.hardware\.graphics\.allocator-V(\d+)"', graphics_root)
+common_match = re.search(r'"android\.hardware\.graphics\.common-V(\d+)"', graphics_root)
+if not alloc_match or not common_match:
+    fail("cannot derive graphics Stable-AIDL latest versions from graphics/Android.bp")
+allocator_version = int(alloc_match.group(1))
+graphics_common_version = int(common_match.group(1))
+
+allocator_ndk = f"android.hardware.graphics.allocator-V{allocator_version}-ndk"
+graphics_common_ndk = f"android.hardware.graphics.common-V{graphics_common_version}-ndk"
+for generated in (allocator_ndk, graphics_common_ndk):
+    if f'"{generated}"' not in graphics_root:
+        fail(f"generated graphics NDK default missing from graphics/Android.bp: {generated}")
+
+require_tokens(
+    aosp_root / "hardware/interfaces/graphics/allocator/aidl/Android.bp",
+    (
+        'name: "android.hardware.graphics.allocator"',
+        'frozen: true',
+        'ndk: {',
+        f'version: "{allocator_version}"',
+        '"android.hardware.common-V2"',
+        f'"android.hardware.graphics.common-V{graphics_common_version}"',
+    ),
+    "graphics allocator Stable-AIDL provider",
+)
+require_tokens(
+    aosp_root / "hardware/interfaces/graphics/common/aidl/Android.bp",
+    (
+        'name: "android.hardware.graphics.common"',
+        'ndk: {',
+        f'version: "{graphics_common_version}"',
+        '"android.hardware.common-V2"',
+    ),
+    "graphics common Stable-AIDL provider",
+)
+require_tokens(
+    aosp_root / "hardware/interfaces/common/aidl/Android.bp",
+    (
+        'name: "android.hardware.common"',
+        'ndk: {',
+    ),
+    "hardware common Stable-AIDL provider",
+)
+
+# The generated module versions are backed by frozen API snapshots.
+require_aidl_snapshot(
+    aosp_root / "hardware/interfaces/common/aidl",
+    "android.hardware.common",
+    2,
+)
+require_aidl_snapshot(
+    aosp_root / "hardware/interfaces/graphics/common/aidl",
+    "android.hardware.graphics.common",
+    graphics_common_version,
+)
+require_aidl_snapshot(
+    aosp_root / "hardware/interfaces/graphics/allocator/aidl",
+    "android.hardware.graphics.allocator",
+    allocator_version,
+)
 print(
-    "Verified generated Stable-AIDL providers: android.hardware.common-V2, "
-    "android.hardware.graphics.common-V4 and android.hardware.graphics.allocator-V2-ndk"
+    "Verified generated Stable-AIDL providers: "
+    f"android.hardware.common-V2, {graphics_common_ndk}, {allocator_ndk}"
 )
 
-# The workflow creates ownership-only team stubs before this late provider sync
-# and restore. Refresh them so any default_team/team references introduced by
-# llvm-libc, libhidl or the restored HAL Android.bp files cannot become the next
-# Soong failure.
+# Stable-C transitives are local to already-synced projects; validate them now.
+require_tokens(
+    aosp_root / "frameworks/native/libs/arect/Android.bp",
+    ('name: "libarect_headers"',),
+    "libarect_headers provider",
+)
+require_tokens(
+    aosp_root / "system/libbase/Android.bp",
+    ('name: "libbase_headers"',),
+    "libbase_headers provider",
+)
+
+# Refresh ownership-only team stubs after all late sync/restore operations.
 team_stub_root = aosp_root / "local-missing-teams"
 if team_stub_root.exists():
     shutil.rmtree(team_stub_root)
@@ -261,11 +306,7 @@ ref_re = re.compile(r'\b(?:team|default_team)\s*:\s*"(?P<name>trendy_team_[^"]+)
 name_re = re.compile(r'\bname\s*:\s*"(?P<name>trendy_team_[^"]+)"')
 refs, defs = set(), set()
 for base, dirs, files in os.walk(aosp_root):
-    dirs[:] = [
-        d
-        for d in dirs
-        if d not in {".repo", "out", "local-missing-teams"}
-    ]
+    dirs[:] = [d for d in dirs if d not in {".repo", "out", "local-missing-teams"}]
     if "Android.bp" not in files:
         continue
     bp = Path(base) / "Android.bp"
@@ -286,8 +327,9 @@ print(f"Refreshed {len(missing_teams)} missing trendy team stub(s)")
 
 print(
     "Verified graphics/HIDL follow-on closure: "
-    "full graphics subtree + stable-C IMapper + allocator/common AIDL + "
-    "legacy allocator/mapper/bufferqueue + media@1.0 + libhidl/libhwbinder/libfmq"
+    "legacy allocator/mapper/bufferqueue + stable-C IMapper + "
+    f"allocator-V{allocator_version}/graphics-common-V{graphics_common_version} Stable AIDL + "
+    "media@1.0 + libhidl/libhwbinder/libfmq"
 )
 
 subprocess.run([sys.executable, str(PREP), *sys.argv[1:]], check=True)
