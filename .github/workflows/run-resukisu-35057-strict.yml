@@ -1,5 +1,5 @@
-name: S928B ReSukiSU 35072 Exact Strict Build
-run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35072 + Gunyah mem-share watchdog guard"
+name: S928B ReSukiSU 35079 Exact Strict Build
+run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35079 + Gunyah mem-share watchdog guard"
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35072-exact-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35079-exact-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -57,9 +57,9 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 829f61fb008c895841b98aca5833c18daae6f145
+      sukisu_commit: cdce8bb8c8bf2167d21751e39ca6cdc4ad154678
       resukisu_source_branch: main
-      resukisu_version_code: "35072"
+      resukisu_version_code: "35079"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
