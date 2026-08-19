@@ -34,8 +34,9 @@ if marker in linux_rs.read_text(encoding="utf-8"):
     print("Experimental Gunyah CMA guest-memory backport already present")
     raise SystemExit(0)
 
-# 1) Add an experimental allocator ioctl on the existing /dev/gunyah descriptor.
-#    0x20 is deliberately outside the Android Gunyah VM ioctls used by this r4 tree (0x11..0x16).
+# 1) Custom compatibility allocator ioctl. This is intentionally NOT the later
+# upstream GH_ANDROID_CREATE_CMA_MEM_FD ABI: the e3q 6.1 kernel exposes the
+# compatibility allocator on /dev/gunyah to preserve existing AVF device policy.
 text = sys_rs.read_text(encoding="utf-8")
 anchor = '''ioctl_iow_nr!(
     GH_VM_ANDROID_SET_AUTH_TYPE,
@@ -45,41 +46,42 @@ anchor = '''ioctl_iow_nr!(
 );
 '''
 addition = anchor + '''ioctl_iow_nr!(
-    GH_ANDROID_CREATE_CMA_MEM_FD,
+    GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD,
     GH_ANDROID_IOCTL_TYPE,
     0x20,
     u64
 );
 '''
-text = replace_once(text, anchor, addition, "gunyah_sys allocator ioctl")
+text = replace_once(text, anchor, addition, "gunyah_sys CMA compat ioctl")
 sys_rs.write_text(text, encoding="utf-8")
 
-# 2) Teach the Gunyah hypervisor object to ask the kernel for a CMA-backed anonymous fd.
+# 2) Ask /dev/gunyah for an anonymous mmap-able CMA backing fd.
 text = gunyah_rs.read_text(encoding="utf-8")
 anchor = '''    pub fn new() -> Result<Gunyah> {
         Gunyah::new_with_path(&PathBuf::from("/dev/gunyah"))
     }
 '''
 addition = anchor + '''
-    /// Allocate one physically contiguous guest-memory backing object from the
-    /// Android Gunyah CMA compatibility ioctl. The returned fd owns the CMA pages.
-    pub fn create_cma_mem_fd(&self, size: u64) -> Result<SafeDescriptor> {
-        // SAFETY: GH_ANDROID_CREATE_CMA_MEM_FD only reads the u64 size argument and
-        // returns either a new owned file descriptor or a negative errno.
-        let ret = unsafe { ioctl_with_ref(self, GH_ANDROID_CREATE_CMA_MEM_FD, &size) };
+    /// Allocate physically contiguous userspace backing from the Samsung e3q
+    /// Android 14/6.1 Gunyah compatibility allocator.
+    pub fn create_cma_compat_mem_fd(&self, size: u64) -> Result<SafeDescriptor> {
+        // SAFETY: the kernel copies exactly one u64 size value from this pointer.
+        let ret = unsafe { ioctl_with_ref(self, GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD, &size) };
         if ret < 0 {
             return errno_result();
         }
-        // SAFETY: a non-negative return value is a new fd transferred to this process.
+        // SAFETY: a non-negative ioctl return is a newly allocated owned fd.
         Ok(unsafe { SafeDescriptor::from_raw_descriptor(ret) })
     }
 '''
-text = replace_once(text, anchor, addition, "Gunyah CMA allocator method")
+text = replace_once(text, anchor, addition, "Gunyah CMA compat allocator method")
 gunyah_rs.write_text(text, encoding="utf-8")
 
-# 3) Add a dedicated GuestMemory constructor that accepts already-open file-backed fds.
-#    MemoryRegionOptions itself is deliberately left unchanged so existing struct literals,
-#    derives and cross-platform users remain source-compatible.
+# 3) Extend GuestMemory internally with an optional map of already-open backing
+# fds. Crucially, MemoryRegionOptions is NOT changed and options.file_backed
+# remains None for these regions. Therefore GunyahVm::new continues to call
+# GH_VM_SET_USER_MEM_REGION and the Samsung 6.1 kernel continues through its
+# existing pin_user_pages() -> physical-run -> RM parcel path.
 text = guest_rs.read_text(encoding="utf-8")
 text = replace_once(
     text,
@@ -89,38 +91,49 @@ text = replace_once(
 ''',
     '''    fn new_with_options_internal(
         ranges: &[(GuestAddress, u64, MemoryRegionOptions)],
-        file_backed_fds: Option<&std::collections::BTreeMap<GuestAddress, RawDescriptor>>,
+        direct_file_fds: Option<&std::collections::BTreeMap<GuestAddress, RawDescriptor>>,
     ) -> Result<GuestMemory> {
 ''',
     "GuestMemory internal constructor",
 )
-text = replace_once(
-    text,
-    '''            if let Some(file_backed) = &range.2.file_backed {
-                assert_eq!(usize::try_from(file_backed.size).unwrap(), size);
-                let file = file_backed.open().map_err(Error::FiledBackedOpenFailed)?;
+
+anchor = '''            let size = usize::try_from(range.1)
+                .map_err(|_| Error::MemoryRegionTooLarge(range.1 as u128))?;
+            if let Some(file_backed) = &range.2.file_backed {
+'''
+replacement = '''            let size = usize::try_from(range.1)
+                .map_err(|_| Error::MemoryRegionTooLarge(range.1 as u128))?;
+
+            #[cfg(any(target_os = "android", target_os = "linux"))]
+            if let Some(fd) = direct_file_fds.and_then(|fds| fds.get(&range.0)) {
+                use std::os::fd::FromRawFd;
+                let dup_fd = unsafe { libc::dup(*fd) };
+                if dup_fd < 0 {
+                    return Err(Error::FiledBackedOpenFailed(std::io::Error::last_os_error()));
+                }
+                // SAFETY: dup() returned a new fd owned by this File.
+                let file = unsafe { File::from_raw_fd(dup_fd) };
                 let mapping = MemoryMappingBuilder::new(size)
-''',
-    '''            if let Some(file_backed) = &range.2.file_backed {
-                assert_eq!(usize::try_from(file_backed.size).unwrap(), size);
-                #[cfg(any(target_os = "android", target_os = "linux"))]
-                let file = if let Some(fd) = file_backed_fds.and_then(|fds| fds.get(&range.0)) {
-                    use std::os::fd::FromRawFd;
-                    let dup_fd = unsafe { libc::dup(*fd) };
-                    if dup_fd < 0 {
-                        return Err(Error::FiledBackedOpenFailed(std::io::Error::last_os_error()));
-                    }
-                    // SAFETY: dup() returned a new fd owned by this File.
-                    unsafe { File::from_raw_fd(dup_fd) }
-                } else {
-                    file_backed.open().map_err(Error::FiledBackedOpenFailed)?
-                };
-                #[cfg(windows)]
-                let file = file_backed.open().map_err(Error::FiledBackedOpenFailed)?;
-                let mapping = MemoryMappingBuilder::new(size)
-''',
-    "GuestMemory fd-backed open",
-)
+                    .from_file(&file)
+                    .offset(0)
+                    .align(range.2.align)
+                    .protection(base::Protection::read_write())
+                    .build()
+                    .map_err(Error::FiledBackedMemoryMappingFailed)?;
+                regions.push(MemoryRegion {
+                    mapping,
+                    guest_base: range.0,
+                    shared_obj: BackingObject::File(Arc::new(file)),
+                    obj_offset: 0,
+                    options: range.2.clone(),
+                });
+                continue;
+            }
+
+            if let Some(file_backed) = &range.2.file_backed {
+'''
+text = replace_once(text, anchor, replacement, "GuestMemory direct-fd mapping")
+
 anchor = '''        Ok(GuestMemory {
             regions: Arc::from(regions),
             locked: false,
@@ -139,21 +152,21 @@ replacement = '''        Ok(GuestMemory {
         })
     }
 
-    /// Creates guest memory with the normal path/open semantics.
+    /// Creates guest memory using the normal shm/path-backed behavior.
     pub fn new_with_options(
         ranges: &[(GuestAddress, u64, MemoryRegionOptions)],
     ) -> Result<GuestMemory> {
         Self::new_with_options_internal(ranges, None)
     }
 
-    /// Linux/Android-only constructor for callers that already own backing fds.
-    /// Keys are guest base addresses. The fds are duplicated into GuestMemory.
+    /// Linux/Android-only constructor for regions whose host backing fd already
+    /// exists. The fd is duplicated and MemoryRegionOptions remains unchanged.
     #[cfg(any(target_os = "android", target_os = "linux"))]
     pub fn new_with_options_and_file_fds(
         ranges: &[(GuestAddress, u64, MemoryRegionOptions)],
-        file_backed_fds: &std::collections::BTreeMap<GuestAddress, RawDescriptor>,
+        direct_file_fds: &std::collections::BTreeMap<GuestAddress, RawDescriptor>,
     ) -> Result<GuestMemory> {
-        Self::new_with_options_internal(ranges, Some(file_backed_fds))
+        Self::new_with_options_internal(ranges, Some(direct_file_fds))
     }
 
     /// Creates a container for guest memory regions.
@@ -163,8 +176,9 @@ replacement = '''        Ok(GuestMemory {
 text = replace_once(text, anchor, replacement, "GuestMemory public constructors")
 guest_rs.write_text(text, encoding="utf-8")
 
-# 4) Create primary non-protected Gunyah RAM from CMA fds while retaining the existing
-#    file-backed-region -> GH_VM_ANDROID_MAP_CMA_MEM path in hypervisor/src/gunyah/mod.rs.
+# 4) For non-protected Gunyah only, allocate primary GuestMemoryRegion backing
+# from CMA. Do not set options.file_backed: retaining None is what selects the
+# existing GH_VM_SET_USER_MEM_REGION path in GunyahVm::new.
 text = linux_rs.read_text(encoding="utf-8")
 anchor = '''use vm_memory::MemoryPolicy;
 use vm_memory::MemoryRegionOptions;
@@ -192,43 +206,34 @@ fn create_gunyah_cma_guest_memory(
 ) -> Result<GuestMemory> {
     let guest_mem_layout = Arch::guest_memory_layout(components, arch_memory_layout, gunyah)
         .context("failed to create Gunyah guest memory layout")?;
-    let mut guest_mem_layout =
+    let guest_mem_layout =
         punch_holes_in_guest_mem_layout_for_mappings(guest_mem_layout, &cfg.file_backed_mappings);
 
     // GUNYAH CMA: backing non-protected guest RAM with contiguous memory.
-    // The SafeDescriptors stay alive until GuestMemory duplicates the descriptors.
     let mut cma_fds = Vec::new();
-    let mut file_backed_fds = BTreeMap::new();
-    for (guest_addr, size, options) in guest_mem_layout.iter_mut() {
+    let mut direct_file_fds = BTreeMap::new();
+    for (guest_addr, size, options) in guest_mem_layout.iter() {
         if options.purpose != MemoryRegionPurpose::GuestMemoryRegion {
             continue;
         }
+        if options.file_backed.is_some() {
+            bail!("Gunyah CMA primary RAM unexpectedly has file_backed options");
+        }
 
         let cma_fd = gunyah
-            .create_cma_mem_fd(*size)
+            .create_cma_compat_mem_fd(*size)
             .with_context(|| format!(
                 "failed to allocate Gunyah CMA backing for guest RAM {:#x}+{:#x}",
                 guest_addr.offset(),
                 size
             ))?;
         info!(
-            "GUNYAH CMA: guest RAM {:#x}+{:#x} fd={} uses contiguous backing",
+            "GUNYAH CMA: guest RAM {:#x}+{:#x} fd={} uses contiguous host backing",
             guest_addr.offset(),
             size,
             cma_fd.as_raw_descriptor()
         );
-
-        options.file_backed = Some(FileBackedMappingParameters {
-            path: PathBuf::new(),
-            address: guest_addr.offset(),
-            size: *size,
-            offset: 0,
-            writable: true,
-            sync: false,
-            align: false,
-            ram: true,
-        });
-        file_backed_fds.insert(*guest_addr, cma_fd.as_raw_descriptor());
+        direct_file_fds.insert(*guest_addr, cma_fd.as_raw_descriptor());
         cma_fds.push(cma_fd);
     }
 
@@ -238,13 +243,16 @@ fn create_gunyah_cma_guest_memory(
 
     let mut guest_mem = GuestMemory::new_with_options_and_file_fds(
         &guest_mem_layout,
-        &file_backed_fds,
+        &direct_file_fds,
     )
     .context("failed to create CMA-backed Gunyah guest memory")?;
 
     let mut mem_policy = MemoryPolicy::empty();
-    if cfg.lock_guest_memory {
+    if cfg.lock_guest_memory || cfg.lock_guest_memory_dontneed {
         mem_policy |= MemoryPolicy::LOCK_GUEST_MEMORY;
+    }
+    if cfg.lock_guest_memory_dontneed {
+        mem_policy |= MemoryPolicy::USE_DONTNEED_LOCKED;
     }
     guest_mem.set_memory_policy(mem_policy);
 
@@ -252,7 +260,7 @@ fn create_gunyah_cma_guest_memory(
         guest_mem.use_dontfork().context("use_dontfork failed")?;
     }
 
-    // GuestMemory owns duplicated file descriptors from this point onward.
+    // GuestMemory now owns duplicate descriptors and mapped VMAs.
     drop(cma_fds);
     Ok(guest_mem)
 }
@@ -261,13 +269,11 @@ fn create_gunyah_cma_guest_memory(
 fn run_gz'''
 text = replace_once(text, anchor, helper, "Gunyah CMA guest-memory constructor")
 
-anchor = '''    let arch_memory_layout =
-        Arch::arch_memory_layout(&components).context("failed to create arch memory layout")?;
-    let guest_mem = create_guest_memory(&cfg, &components, &arch_memory_layout, &gunyah)?;
+# The THP comparison patch, when present, leaves this exact guest_mem line.
+# Replace only that line so its preceding Gunyah-only setup remains harmless.
+anchor = '''    let guest_mem = create_guest_memory(&cfg, &components, &arch_memory_layout, &gunyah)?;
 '''
-replacement = '''    let arch_memory_layout =
-        Arch::arch_memory_layout(&components).context("failed to create arch memory layout")?;
-    let guest_mem = if cfg.protection_type.isolates_memory() {
+replacement = '''    let guest_mem = if cfg.protection_type.isolates_memory() {
         create_guest_memory(&cfg, &components, &arch_memory_layout, &gunyah)?
     } else {
         create_gunyah_cma_guest_memory(&cfg, &components, &arch_memory_layout, &gunyah)?
@@ -277,22 +283,23 @@ text = replace_once(text, anchor, replacement, "run_gunyah CMA selection")
 linux_rs.write_text(text, encoding="utf-8")
 
 checks = {
-    sys_rs: ("GH_ANDROID_CREATE_CMA_MEM_FD", "0x20"),
+    sys_rs: ("GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD", "0x20"),
     gunyah_rs: (
-        "pub fn create_cma_mem_fd",
-        "GH_ANDROID_CREATE_CMA_MEM_FD",
-        "GH_VM_ANDROID_MAP_CMA_MEM",
+        "pub fn create_cma_compat_mem_fd",
+        "GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD",
+        "GH_VM_SET_USER_MEM_REGION",
     ),
     guest_rs: (
         "new_with_options_and_file_fds",
+        "direct_file_fds.and_then",
         "libc::dup(*fd)",
-        "Self::new_with_options_internal(ranges, None)",
+        "options: range.2.clone()",
     ),
     linux_rs: (
         marker,
         "create_gunyah_cma_guest_memory",
         "MemoryRegionPurpose::GuestMemoryRegion",
-        "file_backed_fds.insert(*guest_addr, cma_fd.as_raw_descriptor())",
+        "direct_file_fds.insert(*guest_addr, cma_fd.as_raw_descriptor())",
     ),
 }
 for path, tokens in checks.items():
@@ -301,7 +308,16 @@ for path, tokens in checks.items():
     if missing:
         fail(f"post-patch verification failed for {path}: {missing}")
 
+# Critical invariant: CMA-backed primary RAM must NOT select the later
+# GH_VM_ANDROID_MAP_CMA_MEM branch in GunyahVm::new.
+linux_data = linux_rs.read_text(encoding="utf-8")
+helper_start = linux_data.index("fn create_gunyah_cma_guest_memory(")
+helper_end = linux_data.index("fn run_gz", helper_start)
+helper_text = linux_data[helper_start:helper_end]
+if "options.file_backed =" in helper_text:
+    fail("CMA helper must leave MemoryRegionOptions.file_backed unchanged")
+
 print(
-    "Applied experimental Gunyah CMA guest-memory backport: non-protected primary RAM "
-    "uses kernel-provided contiguous fd backing and existing GH_VM_ANDROID_MAP_CMA_MEM"
+    "Applied experimental e3q Gunyah CMA backing: primary non-protected RAM uses "
+    "CMA file mappings while Gunyah retains GH_VM_SET_USER_MEM_REGION/GUP semantics"
 )
