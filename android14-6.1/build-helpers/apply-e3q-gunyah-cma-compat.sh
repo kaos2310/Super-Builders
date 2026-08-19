@@ -32,6 +32,7 @@ cat > "$CMA_SRC" <<'EOF'
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
+#include <linux/module.h>
 #include <linux/sizes.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -112,7 +113,6 @@ long gh_cma_compat_create_mem_fd(unsigned long arg)
 	struct file *file;
 	u64 size;
 	size_t count;
-	unsigned int align;
 	int fd;
 
 	if (copy_from_user(&size, (void __user *)arg, sizeof(size)))
@@ -123,17 +123,19 @@ long gh_cma_compat_create_mem_fd(unsigned long arg)
 		return -EOVERFLOW;
 
 	count = size >> PAGE_SHIFT;
-	align = get_order(size);
-
 	buf = kzalloc(sizeof(*buf), GFP_KERNEL_ACCOUNT);
 	if (!buf)
 		return -ENOMEM;
 
 	buf->size = size;
-	buf->base = dma_alloc_from_contiguous(NULL, count, align, false);
+	/*
+	 * align=0 asks CMA for any physically contiguous run of the requested
+	 * page count. Requiring get_order(size) here would unnecessarily require
+	 * the 256 MiB guest block to also start on a 256 MiB boundary.
+	 */
+	buf->base = dma_alloc_from_contiguous(NULL, count, 0, false);
 	if (!buf->base) {
-		pr_err("allocation failed bytes=%llu pages=%zu align_order=%u\n",
-		       size, count, align);
+		pr_err("allocation failed bytes=%llu pages=%zu\n", size, count);
 		kfree(buf);
 		return -ENOMEM;
 	}
@@ -150,8 +152,8 @@ long gh_cma_compat_create_mem_fd(unsigned long arg)
 	}
 
 	fd_install(fd, file);
-	pr_info("allocated fd=%d base_pfn=%#lx pages=%zu bytes=%llu align_order=%u\n",
-		fd, page_to_pfn(buf->base), count, size, align);
+	pr_info("allocated fd=%d base_pfn=%#lx pages=%zu bytes=%llu\n",
+		fd, page_to_pfn(buf->base), count, size);
 	return fd;
 
 err_put_fd:
@@ -170,7 +172,6 @@ import sys
 
 makefile, hdr, vm, uapi = map(Path, sys.argv[1:])
 
-# Compile the compatibility allocator into the existing Gunyah composite object.
 text = makefile.read_text()
 if "cma_compat.o" not in text:
     pat = re.compile(r"(?m)^(gunyah-y\s*\+=\s*.*\bvm_mgr_mm\.o\s*)$")
@@ -180,7 +181,6 @@ if "cma_compat.o" not in text:
     text = text[:m.start()] + m.group(1).rstrip() + " cma_compat.o" + text[m.end():]
 makefile.write_text(text)
 
-# Internal allocator entry point.
 text = hdr.read_text()
 proto = "long gh_cma_compat_create_mem_fd(unsigned long arg);"
 if proto not in text:
@@ -190,8 +190,6 @@ if proto not in text:
     text = text.replace(anchor, anchor + proto + "\n", 1)
 hdr.write_text(text)
 
-# Custom Android ioctl on the existing /dev/gunyah descriptor. 0x20 is outside
-# the Android 16 r4 Gunyah VM ioctl range used by this device (0x11..0x16).
 text = uapi.read_text()
 macro = "GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD"
 if macro not in text:
@@ -207,8 +205,6 @@ if macro not in text:
     text = text.replace(anchor, addition, 1)
 uapi.write_text(text)
 
-# Route the allocator through /dev/gunyah so existing AVF SELinux/device policy
-# remains valid; VM fd ioctls are untouched.
 text = vm.read_text()
 case = "case GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD:"
 if case not in text:
@@ -227,17 +223,14 @@ if case not in text:
 vm.write_text(text)
 PY
 
-# Fail closed: verify ABI, build integration, and safety invariants.
 grep -qF 'cma_compat.o' "$MAKEFILE"
 grep -qF 'long gh_cma_compat_create_mem_fd(unsigned long arg);' "$VM_HDR"
 grep -qF 'GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD' "$UAPI"
 grep -qF 'case GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD:' "$VM_MGR"
-grep -qF 'dma_alloc_from_contiguous(NULL' "$CMA_SRC"
+grep -qF 'dma_alloc_from_contiguous(NULL, count, 0, false)' "$CMA_SRC"
 grep -qF 'vm_map_pages_zero' "$CMA_SRC"
 grep -qF 'dma_release_from_contiguous(NULL' "$CMA_SRC"
 
-# The mem-share safety guard must remain exactly as before; this patch reduces
-# the physical extent count instead of relaxing the RM parcel limit.
 grep -qF 'mapping->parcel.n_mem_entries > 8192' "$VM_MGR"
 grep -qF 'ret = -E2BIG;' "$VM_MGR"
 
