@@ -12,6 +12,7 @@ HERE = Path(__file__).resolve().parent
 PREP = HERE / "prepare-crosvm-binder-deps.py"
 CORE = HERE / "patch-crosvm-gunyah-irqfd-core.py"
 MEMORY = HERE / "patch-crosvm-gunyah-memory-contiguity.py"
+CMA = HERE / "patch-crosvm-gunyah-cma-backport.py"
 
 
 def fail(message: str) -> None:
@@ -95,7 +96,6 @@ subprocess.run(
     check=True,
 )
 
-# Literal consumers: only dependencies that really appear in frameworks/native.
 require_tokens(
     aosp_root / "frameworks/native/libs/ui/Android.bp",
     (
@@ -121,7 +121,6 @@ require_tokens(
     "libgui graphics dependency model",
 )
 
-# Legacy HIDL/stable-C provider closure.
 provider_checks = {
     aosp_root / "hardware/interfaces/graphics/allocator/2.0/Android.bp": (
         'name: "android.hardware.graphics.allocator@2.0"',
@@ -204,11 +203,6 @@ provider_checks = {
 for path, tokens in provider_checks.items():
     require_tokens(path, tokens, "graphics/HIDL provider")
 
-# Stable-AIDL provider validation.
-#
-# Android 16 r4 selects generated ABI modules through graphics/Android.bp.
-# Do not validate historical vndk_use_version/common-V4 properties: the r4
-# graphics stack keeps allocator V2 while graphics.common has advanced to V6.
 graphics_root = require_tokens(
     aosp_root / "hardware/interfaces/graphics/Android.bp",
     (
@@ -259,19 +253,11 @@ require_tokens(
 )
 require_tokens(
     aosp_root / "hardware/interfaces/common/aidl/Android.bp",
-    (
-        'name: "android.hardware.common"',
-        'ndk: {',
-    ),
+    ('name: "android.hardware.common"', 'ndk: {'),
     "hardware common Stable-AIDL provider",
 )
 
-# The generated module versions are backed by frozen API snapshots.
-require_aidl_snapshot(
-    aosp_root / "hardware/interfaces/common/aidl",
-    "android.hardware.common",
-    2,
-)
+require_aidl_snapshot(aosp_root / "hardware/interfaces/common/aidl", "android.hardware.common", 2)
 require_aidl_snapshot(
     aosp_root / "hardware/interfaces/graphics/common/aidl",
     "android.hardware.graphics.common",
@@ -287,7 +273,6 @@ print(
     f"android.hardware.common-V2, {graphics_common_ndk}, {allocator_ndk}"
 )
 
-# Stable-C transitives are local to already-synced projects; validate them now.
 require_tokens(
     aosp_root / "frameworks/native/libs/arect/Android.bp",
     ('name: "libarect_headers"',),
@@ -299,7 +284,6 @@ require_tokens(
     "libbase_headers provider",
 )
 
-# Refresh ownership-only team stubs after all late sync/restore operations.
 team_stub_root = aosp_root / "local-missing-teams"
 if team_stub_root.exists():
     shutil.rmtree(team_stub_root)
@@ -338,3 +322,5 @@ print(
 subprocess.run([sys.executable, str(PREP), *sys.argv[1:]], check=True)
 runpy.run_path(str(CORE), run_name="__main__")
 subprocess.run([sys.executable, str(MEMORY), *sys.argv[1:]], check=True)
+if CMA.is_file():
+    subprocess.run([sys.executable, str(CMA), *sys.argv[1:]], check=True)
