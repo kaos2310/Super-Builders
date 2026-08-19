@@ -11,6 +11,7 @@ import sys
 HERE = Path(__file__).resolve().parent
 PREP = HERE / "prepare-crosvm-binder-deps.py"
 CORE = HERE / "patch-crosvm-gunyah-irqfd-core.py"
+MEMORY = HERE / "patch-crosvm-gunyah-memory-contiguity.py"
 
 
 def fail(message: str) -> None:
@@ -39,6 +40,8 @@ if not PREP.is_file():
     fail(f"missing dependency preflight helper: {PREP}")
 if not CORE.is_file():
     fail(f"missing crosvm patch core helper: {CORE}")
+if not MEMORY.is_file():
+    fail(f"missing Gunyah memory contiguity helper: {MEMORY}")
 if len(sys.argv) < 2:
     fail(f"usage: {Path(sys.argv[0]).name} <path-to-external/crosvm>")
 
@@ -334,3 +337,4 @@ print(
 
 subprocess.run([sys.executable, str(PREP), *sys.argv[1:]], check=True)
 runpy.run_path(str(CORE), run_name="__main__")
+subprocess.run([sys.executable, str(MEMORY), *sys.argv[1:]], check=True)
