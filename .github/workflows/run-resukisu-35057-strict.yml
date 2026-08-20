@@ -1,5 +1,5 @@
-name: S928B ReSukiSU 35080 Exact Strict Build
-run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35080 + Gunyah mem-share watchdog guard"
+name: S928B ReSukiSU 35080 Gunyah Bounded-Extent Build
+run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35080 + Gunyah bounded-extents / E2BIG guard"
 
 on:
   workflow_dispatch:
@@ -17,6 +17,7 @@ on:
       - 'android14-6.1/build-helpers/apply-e3q-cgroup-pids-compat.sh'
       - 'android14-6.1/build-helpers/apply-e3q-cmdline-governor-compat.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-vm-metadata-allocation.sh'
+      - 'android14-6.1/build-helpers/apply-e3q-gunyah-cma-compat.sh'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
       - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'
@@ -36,7 +37,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 6.1.145
+    name: Full strict KMI gate / ReSukiSU 6.1.145 / Gunyah bounded extents
     needs: dependencies
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
