@@ -1,3 +1,4 @@
+# CI retrigger: build current avf-crosvm-irq16 head including local Gunyah bounded-backing helpers.
 diff --git a/aarch64/src/lib.rs b/aarch64/src/lib.rs
 --- a/aarch64/src/lib.rs
 +++ b/aarch64/src/lib.rs
