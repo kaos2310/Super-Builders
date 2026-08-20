@@ -270,8 +270,8 @@ cat > "$REPORT_DIR/summary.md" <<EOF
 - Baseline symbols absent from selected Module.symvers: **${MISSING_COUNT}**
 - Module-loader CRC policy: **${RUNTIME_FALLBACK}**
 - CONFIG_CGROUP_PIDS: **${CGROUP_PIDS_ENABLED}**
-- Module.symvers: `${SYMVERS#"$KERNEL_ROOT"/}`
-- Module.symvers SHA-256: `${SYMVERS_SHA256}`
+- Module.symvers: \`${SYMVERS#"$KERNEL_ROOT"/}\`
+- Module.symvers SHA-256: \`${SYMVERS_SHA256}\`
 EOF
 
 cat "$REPORT_DIR/summary.md"
