@@ -90,7 +90,8 @@ static void gh_extent_destroy(struct gh_extent_buffer *buf)
 
 static int gh_extent_allocate(struct gh_extent_buffer *buf)
 {
-	const gfp_t gfp = GFP_HIGHUSER_MOVABLE | __GFP_ZERO |
+	/* vm_insert_page() requires higher-order allocations to be compound or split. */
+	const gfp_t gfp = GFP_HIGHUSER_MOVABLE | __GFP_ZERO | __GFP_COMP |
 			  __GFP_NOWARN | __GFP_RETRY_MAYFAIL;
 	unsigned long page_index = 0;
 	unsigned long remaining = buf->nr_pages;
@@ -345,6 +346,7 @@ grep -qF '_IOW(GH_ANDROID_IOCTL_TYPE, 0x20, __u64)' "$UAPI"
 grep -qF 'case GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD:' "$VM_MGR"
 grep -qF '#define GH_EXTENT_MIN_ORDER 3U' "$BACKING_SRC"
 grep -qF '#define GH_EXTENT_LIMIT 8192UL' "$BACKING_SRC"
+grep -qF '__GFP_COMP' "$BACKING_SRC"
 grep -qF 'alloc_pages(gfp, order)' "$BACKING_SRC"
 grep -qF 'vm_map_pages_zero(vma, buf->pages, nr_pages)' "$BACKING_SRC"
 grep -qF '__free_pages(buf->chunks[i].base, buf->chunks[i].order)' "$BACKING_SRC"
@@ -353,4 +355,4 @@ grep -qF '__free_pages(buf->chunks[i].base, buf->chunks[i].order)' "$BACKING_SRC
 grep -qF 'mapping->parcel.n_mem_entries > 8192' "$VM_MGR"
 grep -qF 'ret = -E2BIG;' "$VM_MGR"
 
-echo 'e3q Gunyah bounded backing verified: min order=3, max 8192 extents, normal GUP path retained'
+echo 'e3q Gunyah bounded backing verified: compound chunks, min order=3, max 8192 extents, normal GUP path retained'
