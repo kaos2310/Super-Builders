@@ -13,6 +13,7 @@ PREP = HERE / "prepare-crosvm-binder-deps.py"
 CORE = HERE / "patch-crosvm-gunyah-irqfd-core.py"
 MEMORY = HERE / "patch-crosvm-gunyah-memory-contiguity.py"
 CMA = HERE / "patch-crosvm-gunyah-cma-backport.py"
+TRACE = HERE / "patch-crosvm-gunyah-init-trace.py"
 
 
 def fail(message: str) -> None:
@@ -69,7 +70,7 @@ def require_aidl_current(root: Path, interface: str, generated_version: int) -> 
     )
 
 
-for helper in (PREP, CORE, MEMORY, CMA):
+for helper in (PREP, CORE, MEMORY, CMA, TRACE):
     if not helper.is_file():
         fail(f"required crosvm patch helper missing: {helper}")
 
@@ -220,6 +221,7 @@ subprocess.run([sys.executable, str(PREP), str(crosvm)], check=True)
 runpy.run_path(str(CORE), run_name="__main__")
 subprocess.run([sys.executable, str(MEMORY), str(crosvm)], check=True)
 subprocess.run([sys.executable, str(CMA), str(crosvm)], check=True)
+subprocess.run([sys.executable, str(TRACE), str(crosvm)], check=True)
 
 # Fail closed on the source invariants required by the target device.
 post_checks = {
@@ -242,11 +244,19 @@ post_checks = {
         "new_with_options_and_file_fds",
         "libc::dup(*fd)",
     ),
+    crosvm / "hypervisor/src/gunyah/aarch64.rs": (
+        "GUNYAH INIT: SET_DTB_CONFIG begin",
+        "GUNYAH INIT: SET_DTB_CONFIG FAILED errno=",
+        "GUNYAH INIT: SET_BOOT_PC begin",
+        "GUNYAH INIT: SET_BOOT_PC FAILED errno=",
+        "GUNYAH INIT: GH_VM_START begin",
+        "GUNYAH INIT: GH_VM_START FAILED errno=",
+    ),
 }
 for path, tokens in post_checks.items():
     require_tokens(path, tokens, "post-patch crosvm source")
 
 print(
     "Applied Android 16 r4 crosvm/Gunyah patch chain: IRQ15 reservation + IRQFD logging + "
-    "THP preconditioning + bounded-backing compatibility ioctl/GUP path"
+    "THP preconditioning + bounded-backing compatibility ioctl/GUP path + init_arch errno tracing"
 )
