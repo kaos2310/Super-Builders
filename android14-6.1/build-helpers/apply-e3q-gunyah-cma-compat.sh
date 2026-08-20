@@ -7,29 +7,35 @@ MAKEFILE="$GUNYAH_DIR/Makefile"
 VM_MGR="$GUNYAH_DIR/vm_mgr.c"
 VM_HDR="$GUNYAH_DIR/vm_mgr.h"
 UAPI="$KERNEL_TREE/include/uapi/linux/gunyah.h"
-CMA_SRC="$GUNYAH_DIR/cma_compat.c"
+BACKING_SRC="$GUNYAH_DIR/cma_compat.c"
 
 for f in "$MAKEFILE" "$VM_MGR" "$VM_HDR" "$UAPI"; do
   test -f "$f" || { echo "FATAL: required Gunyah source missing: $f" >&2; exit 1; }
 done
 
-cat > "$CMA_SRC" <<'EOF'
+cat > "$BACKING_SRC" <<'EOF'
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Samsung e3q / Android 14-6.1 Gunyah CMA compatibility allocator.
+ * Samsung e3q / Android 14-6.1 Gunyah bounded-extent userspace backing.
  *
- * Allocate physically contiguous pages from the existing global CMA area and
- * expose them through an anonymous mmap-able fd. crosvm maps that fd as normal
- * userspace guest RAM. The existing Samsung 6.1 GH_VM_SET_USER_MEM_REGION ->
- * pin_user_pages() path therefore remains unchanged, while the resulting RM
- * parcel should collapse to a single physical extent.
+ * Historical experimental ABI name retains "CMA_COMPAT", but this revision no
+ * longer asks one CMA area for the whole 256 MiB guest. The S928B boot DT has a
+ * 32 MiB default linux,cma pool, so a single 256 MiB CMA allocation cannot work.
+ *
+ * Instead allocate guest backing from physically contiguous buddy blocks. The
+ * smallest block is order-3 (8 pages / 32 KiB). Therefore a 256 MiB mapping has
+ * at most 8192 physical runs even in the worst case; larger successful blocks
+ * reduce that count further. crosvm still maps this as ordinary userspace RAM,
+ * and Samsung's existing GH_VM_SET_USER_MEM_REGION -> pin_user_pages() path is
+ * left untouched.
  */
-#define pr_fmt(fmt) "gh_cma_compat: " fmt
+#define pr_fmt(fmt) "gh_extent_compat: " fmt
 
 #include <linux/anon_inodes.h>
-#include <linux/dma-contiguous.h>
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/gfp.h>
+#include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/sizes.h>
@@ -39,88 +45,157 @@ cat > "$CMA_SRC" <<'EOF'
 
 #include <uapi/linux/gunyah.h>
 
-struct gh_cma_compat_buffer {
+#define GH_EXTENT_MIN_ORDER 3U
+#define GH_EXTENT_MAX_ORDER 6U
+#define GH_EXTENT_MIN_PAGES (1UL << GH_EXTENT_MIN_ORDER)
+#define GH_EXTENT_LIMIT 8192UL
+
+struct gh_extent_chunk {
 	struct page *base;
-	u64 size;
-	unsigned long nr_pages;
+	unsigned int order;
 };
 
-static bool gh_cma_compat_release_pages(struct gh_cma_compat_buffer *buf)
-{
-	if (!buf || !buf->base)
-		return true;
+struct gh_extent_buffer {
+	struct page **pages;
+	struct gh_extent_chunk *chunks;
+	unsigned long nr_pages;
+	unsigned long nr_chunks;
+	unsigned long chunk_capacity;
+	u64 size;
+};
 
-	/* Max accepted size is 512 MiB, so nr_pages is safely representable as int. */
-	return dma_release_from_contiguous(NULL, buf->base, (int)buf->nr_pages);
-}
-
-static int gh_cma_compat_release(struct inode *inode, struct file *file)
+static void gh_extent_free_chunks(struct gh_extent_buffer *buf)
 {
-	struct gh_cma_compat_buffer *buf = file->private_data;
+	unsigned long i;
 
 	if (!buf)
-		return 0;
+		return;
 
-	if (buf->base && !gh_cma_compat_release_pages(buf))
-		pr_err("CMA release failed base_pfn=%#lx pages=%lu\n",
-		       page_to_pfn(buf->base), buf->nr_pages);
-	else if (buf->base)
-		pr_info("released base_pfn=%#lx pages=%lu bytes=%llu\n",
-			page_to_pfn(buf->base), buf->nr_pages,
-			(unsigned long long)buf->size);
+	for (i = 0; i < buf->nr_chunks; i++) {
+		if (buf->chunks[i].base)
+			__free_pages(buf->chunks[i].base, buf->chunks[i].order);
+	}
+	buf->nr_chunks = 0;
+}
 
+static void gh_extent_destroy(struct gh_extent_buffer *buf)
+{
+	if (!buf)
+		return;
+	gh_extent_free_chunks(buf);
+	kvfree(buf->chunks);
+	kvfree(buf->pages);
 	kfree(buf);
+}
+
+static int gh_extent_allocate(struct gh_extent_buffer *buf)
+{
+	const gfp_t gfp = GFP_HIGHUSER_MOVABLE | __GFP_ZERO |
+			  __GFP_NOWARN | __GFP_RETRY_MAYFAIL;
+	unsigned long page_index = 0;
+	unsigned long remaining = buf->nr_pages;
+
+	while (remaining) {
+		struct page *base = NULL;
+		unsigned long chunk_pages;
+		unsigned long i;
+		unsigned int order = GH_EXTENT_MAX_ORDER;
+
+		while ((1UL << order) > remaining && order > GH_EXTENT_MIN_ORDER)
+			order--;
+
+		for (;;) {
+			base = alloc_pages(gfp, order);
+			if (base || order == GH_EXTENT_MIN_ORDER)
+				break;
+			order--;
+		}
+		if (!base) {
+			pr_err("allocation failed remaining_pages=%lu chunks=%lu min_order=%u\n",
+			       remaining, buf->nr_chunks, GH_EXTENT_MIN_ORDER);
+			return -ENOMEM;
+		}
+
+		if (buf->nr_chunks >= buf->chunk_capacity ||
+		    buf->nr_chunks >= GH_EXTENT_LIMIT) {
+			__free_pages(base, order);
+			pr_err("extent limit exceeded chunks=%lu capacity=%lu limit=%lu\n",
+			       buf->nr_chunks, buf->chunk_capacity, GH_EXTENT_LIMIT);
+			return -E2BIG;
+		}
+
+		chunk_pages = 1UL << order;
+		buf->chunks[buf->nr_chunks].base = base;
+		buf->chunks[buf->nr_chunks].order = order;
+		buf->nr_chunks++;
+
+		for (i = 0; i < chunk_pages; i++)
+			buf->pages[page_index + i] = nth_page(base, i);
+
+		page_index += chunk_pages;
+		remaining -= chunk_pages;
+	}
+
+	if (page_index != buf->nr_pages)
+		return -EFAULT;
+
+	pr_info("allocated bounded backing pages=%lu chunks=%lu max_extents=%lu min_order=%u max_order=%u\n",
+		buf->nr_pages, buf->nr_chunks, GH_EXTENT_LIMIT,
+		GH_EXTENT_MIN_ORDER, GH_EXTENT_MAX_ORDER);
 	return 0;
 }
 
-static int gh_cma_compat_mmap(struct file *file, struct vm_area_struct *vma)
+static int gh_extent_release(struct inode *inode, struct file *file)
 {
-	struct gh_cma_compat_buffer *buf = file->private_data;
+	struct gh_extent_buffer *buf = file->private_data;
+
+	if (buf)
+		pr_info("released bounded backing pages=%lu chunks=%lu bytes=%llu\n",
+			buf->nr_pages, buf->nr_chunks,
+			(unsigned long long)buf->size);
+	gh_extent_destroy(buf);
+	return 0;
+}
+
+static int gh_extent_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	struct gh_extent_buffer *buf = file->private_data;
 	unsigned long len = vma->vm_end - vma->vm_start;
 	unsigned long nr_pages = PAGE_ALIGN(len) >> PAGE_SHIFT;
-	struct page **pages;
-	unsigned long i;
 	int ret;
 
-	if (!buf || !buf->base)
+	if (!buf || !buf->pages)
 		return -EINVAL;
 	if (vma->vm_pgoff != 0)
 		return -EINVAL;
 	if (!len || len > buf->size || nr_pages > buf->nr_pages)
 		return -EINVAL;
 
-	pages = kvmalloc_array(nr_pages, sizeof(*pages), GFP_KERNEL);
-	if (!pages)
-		return -ENOMEM;
-
-	for (i = 0; i < nr_pages; i++)
-		pages[i] = nth_page(buf->base, i);
-
 	file_accessed(file);
-	ret = vm_map_pages_zero(vma, pages, nr_pages);
-	kvfree(pages);
+	ret = vm_map_pages_zero(vma, buf->pages, nr_pages);
 	if (ret)
-		pr_err("mmap failed base_pfn=%#lx pages=%lu ret=%d\n",
-		       page_to_pfn(buf->base), nr_pages, ret);
+		pr_err("mmap failed pages=%lu chunks=%lu ret=%d\n",
+		       nr_pages, buf->nr_chunks, ret);
 	else
-		pr_info("mapped base_pfn=%#lx pages=%lu bytes=%lu\n",
-			page_to_pfn(buf->base), nr_pages, len);
+		pr_info("mapped bounded backing pages=%lu chunks=%lu bytes=%lu\n",
+			nr_pages, buf->nr_chunks, len);
 	return ret;
 }
 
-static const struct file_operations gh_cma_compat_fops = {
+static const struct file_operations gh_extent_fops = {
 	.owner = THIS_MODULE,
 	.llseek = no_llseek,
-	.mmap = gh_cma_compat_mmap,
-	.release = gh_cma_compat_release,
+	.mmap = gh_extent_mmap,
+	.release = gh_extent_release,
 };
 
 long gh_cma_compat_create_mem_fd(unsigned long arg)
 {
-	struct gh_cma_compat_buffer *buf;
+	struct gh_extent_buffer *buf;
 	struct file *file;
 	u64 size;
 	unsigned long nr_pages;
+	int ret;
 	int fd;
 
 	if (copy_from_user(&size, (void __user *)arg, sizeof(size)))
@@ -129,8 +204,10 @@ long gh_cma_compat_create_mem_fd(unsigned long arg)
 		return -EINVAL;
 
 	nr_pages = (unsigned long)(size >> PAGE_SHIFT);
-	if (!nr_pages)
+	if (!nr_pages || (nr_pages % GH_EXTENT_MIN_PAGES) != 0)
 		return -EINVAL;
+	if (DIV_ROUND_UP(nr_pages, GH_EXTENT_MIN_PAGES) > GH_EXTENT_LIMIT)
+		return -E2BIG;
 
 	buf = kzalloc(sizeof(*buf), GFP_KERNEL_ACCOUNT);
 	if (!buf)
@@ -138,44 +215,41 @@ long gh_cma_compat_create_mem_fd(unsigned long arg)
 
 	buf->size = size;
 	buf->nr_pages = nr_pages;
-	/*
-	 * align=0 requests any contiguous run of nr_pages from CMA. Requiring
-	 * get_order(size) would additionally require a 256 MiB RAM block to start
-	 * on a 256 MiB boundary, which is unnecessary for the Gunyah parcel.
-	 */
-	buf->base = dma_alloc_from_contiguous(NULL, nr_pages, 0, false);
-	if (!buf->base) {
-		pr_err("allocation failed bytes=%llu pages=%lu\n",
-		       (unsigned long long)size, nr_pages);
-		kfree(buf);
-		return -ENOMEM;
+	buf->chunk_capacity = DIV_ROUND_UP(nr_pages, GH_EXTENT_MIN_PAGES);
+	buf->pages = kvmalloc_array(nr_pages, sizeof(*buf->pages), GFP_KERNEL_ACCOUNT);
+	buf->chunks = kvcalloc(buf->chunk_capacity, sizeof(*buf->chunks),
+			       GFP_KERNEL_ACCOUNT);
+	if (!buf->pages || !buf->chunks) {
+		ret = -ENOMEM;
+		goto err_destroy;
 	}
 
-	fd = get_unused_fd_flags(O_CLOEXEC);
-	if (fd < 0)
-		goto err_release;
+	ret = gh_extent_allocate(buf);
+	if (ret)
+		goto err_destroy;
 
-	file = anon_inode_getfile("[gunyah-cma-compat]", &gh_cma_compat_fops,
+	fd = get_unused_fd_flags(O_CLOEXEC);
+	if (fd < 0) {
+		ret = fd;
+		goto err_destroy;
+	}
+
+	file = anon_inode_getfile("[gunyah-bounded-extents]", &gh_extent_fops,
 				  buf, O_RDWR);
 	if (IS_ERR(file)) {
-		fd = PTR_ERR(file);
-		goto err_put_fd;
+		ret = PTR_ERR(file);
+		put_unused_fd(fd);
+		goto err_destroy;
 	}
 
 	fd_install(fd, file);
-	pr_info("allocated fd=%d base_pfn=%#lx pages=%lu bytes=%llu\n",
-		fd, page_to_pfn(buf->base), nr_pages,
-		(unsigned long long)size);
+	pr_info("allocated fd=%d pages=%lu chunks=%lu bytes=%llu\n",
+		fd, nr_pages, buf->nr_chunks, (unsigned long long)size);
 	return fd;
 
-err_put_fd:
-	put_unused_fd(fd);
-err_release:
-	if (!gh_cma_compat_release_pages(buf))
-		pr_err("CMA release after fd failure failed base_pfn=%#lx pages=%lu\n",
-		       page_to_pfn(buf->base), buf->nr_pages);
-	kfree(buf);
-	return fd;
+err_destroy:
+	gh_extent_destroy(buf);
+	return ret;
 }
 EOF
 
@@ -186,8 +260,6 @@ import sys
 
 makefile, hdr, vm, uapi = map(Path, sys.argv[1:])
 
-# Makefile: tolerate Samsung/AOSP object ordering. Append to the one gunyah-y
-# line that contains vm_mgr_mm.o rather than requiring it to be the final token.
 text = makefile.read_text()
 if "cma_compat.o" not in text:
     lines = text.splitlines(keepends=True)
@@ -205,8 +277,6 @@ if "cma_compat.o" not in text:
     text = "".join(lines)
 makefile.write_text(text)
 
-# Header: tolerate whitespace/wrapping differences while requiring one canonical
-# gh_dev_vm_mgr_ioctl declaration.
 text = hdr.read_text()
 proto = "long gh_cma_compat_create_mem_fd(unsigned long arg);"
 if proto not in text:
@@ -220,12 +290,9 @@ if proto not in text:
             f"FATAL: expected one gh_dev_vm_mgr_ioctl declaration, found {len(matches)}"
         )
     m = matches[0]
-    insertion = m.group("decl").rstrip() + "\n" + proto
-    text = text[:m.start()] + insertion + text[m.end():]
+    text = text[:m.start()] + m.group("decl").rstrip() + "\n" + proto + text[m.end():]
 hdr.write_text(text)
 
-# UAPI: nr 0x20 is deliberately outside the Android r4 VM ioctl range in this
-# tree. Match the Android ioctl type independent of spacing/comment layout.
 text = uapi.read_text()
 macro = "GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD"
 if macro not in text:
@@ -238,15 +305,13 @@ if macro not in text:
     m = matches[0]
     addition = (
         m.group(0)
-        + "\n\n/* Samsung e3q Android 14/6.1 CMA-backed userspace RAM compatibility. */\n"
+        + "\n\n/* e3q bounded-extent userspace RAM compatibility ABI. */\n"
         + "#define GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD \\\n"
         + "\t_IOW(GH_ANDROID_IOCTL_TYPE, 0x20, __u64)"
     )
     text = text[:m.start()] + addition + text[m.end():]
 uapi.write_text(text)
 
-# /dev/gunyah dispatcher: find the function semantically rather than requiring
-# an exact single-line signature.
 text = vm.read_text()
 case = "case GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD:"
 if case not in text:
@@ -278,12 +343,14 @@ grep -qF 'long gh_cma_compat_create_mem_fd(unsigned long arg);' "$VM_HDR"
 grep -qF 'GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD' "$UAPI"
 grep -qF '_IOW(GH_ANDROID_IOCTL_TYPE, 0x20, __u64)' "$UAPI"
 grep -qF 'case GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD:' "$VM_MGR"
-grep -qF 'dma_alloc_from_contiguous(NULL, nr_pages, 0, false)' "$CMA_SRC"
-grep -qF 'dma_release_from_contiguous(NULL, buf->base, (int)buf->nr_pages)' "$CMA_SRC"
-grep -qF 'vm_map_pages_zero' "$CMA_SRC"
+grep -qF '#define GH_EXTENT_MIN_ORDER 3U' "$BACKING_SRC"
+grep -qF '#define GH_EXTENT_LIMIT 8192UL' "$BACKING_SRC"
+grep -qF 'alloc_pages(gfp, order)' "$BACKING_SRC"
+grep -qF 'vm_map_pages_zero(vma, buf->pages, nr_pages)' "$BACKING_SRC"
+grep -qF '__free_pages(buf->chunks[i].base, buf->chunks[i].order)' "$BACKING_SRC"
 
-# Never relax the memory parcel safety guard as part of the CMA fix.
+# Never relax the Gunyah memory parcel safety guard as part of this fix.
 grep -qF 'mapping->parcel.n_mem_entries > 8192' "$VM_MGR"
 grep -qF 'ret = -E2BIG;' "$VM_MGR"
 
-echo 'e3q Gunyah CMA compat verified: robust anchors, normal GUP path, 8192 guard retained'
+echo 'e3q Gunyah bounded backing verified: min order=3, max 8192 extents, normal GUP path retained'
