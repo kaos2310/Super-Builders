@@ -8,7 +8,8 @@ COMMON_TREE="${1:?common kernel tree is required}"
   exit 1
 }
 
-# Samsung SM-S928B / e3q vendor modules are built against the stock cgroup
-# layout with CONFIG_CGROUP_PIDS disabled. Do not patch cgroup core in an
-# attempt to make the PIDs controller coexist with those prebuilts.
-echo "Samsung e3q: CONFIG_CGROUP_PIDS remains disabled; no cgroup core compatibility patch applied"
+# Do not patch Samsung's cgroup core to fake compatibility. The final Kleaf
+# fragment owns CONFIG_CGROUP_PIDS: runtime-compat Droidspaces builds enable
+# the controller, while the strict Samsung KMI path explicitly disables it
+# later to preserve the stock DLKM structure layout.
+echo "Samsung e3q: no cgroup core compatibility patch applied; final KMI mode controls CONFIG_CGROUP_PIDS"
