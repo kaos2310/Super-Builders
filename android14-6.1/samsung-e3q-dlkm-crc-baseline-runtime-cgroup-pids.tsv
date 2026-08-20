@@ -1,0 +1,12 @@
+# Samsung SM-S928B / e3q runtime-compat CRC variants for CONFIG_CGROUP_PIDS=y
+# Source: GitHub Actions run 32360165659, head 944005e68f71816cea9ed08773426ff0da747eb2
+# These entries are activated only when the final kernel .config contains CONFIG_CGROUP_PIDS=y.
+# symbol expected_runtime_crc
+kmalloc_caches 0xfebab7b4
+kmalloc_node_trace 0x73e7362b
+kmalloc_trace 0x08a894a1
+kmem_cache_alloc 0x46ab1b28
+kmem_cache_create 0x87c6ceb2
+kmem_cache_create_usercopy 0x5e3fdfd4
+kmem_cache_destroy 0xaa63a6db
+kmem_cache_free 0x629e15a6
