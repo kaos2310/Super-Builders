@@ -4,11 +4,13 @@ set -euo pipefail
 KERNEL_TREE="${1:?usage: apply-e3q-gunyah-qcom-vmid-compat.sh <kernel-tree>}"
 GUNYAH_DIR="$KERNEL_TREE/drivers/virt/gunyah"
 QCOM_SRC="$GUNYAH_DIR/gunyah_qcom.c"
-MAKEFILE="$GUNYAH_DIR/Makefile"
+GUNYAH_MAKEFILE="$GUNYAH_DIR/Makefile"
+FIRMWARE_MAKEFILE="$KERNEL_TREE/drivers/firmware/Makefile"
+MODULES_BZL="$KERNEL_TREE/modules.bzl"
 BACKING_SRC="$GUNYAH_DIR/cma_compat.c"
 RM_HEADER="$KERNEL_TREE/include/linux/gunyah_rsc_mgr.h"
 
-for f in "$QCOM_SRC" "$MAKEFILE" "$BACKING_SRC" "$RM_HEADER"; do
+for f in "$QCOM_SRC" "$GUNYAH_MAKEFILE" "$FIRMWARE_MAKEFILE" "$MODULES_BZL" "$BACKING_SRC" "$RM_HEADER"; do
   test -f "$f" || { echo "FATAL: required e3q Gunyah source missing: $f" >&2; exit 1; }
 done
 
@@ -17,14 +19,16 @@ grep -qF 'gh_rm_get_vmid' "$RM_HEADER" || {
   exit 1
 }
 
-python3 - "$QCOM_SRC" "$MAKEFILE" "$BACKING_SRC" <<'PY'
+python3 - "$QCOM_SRC" "$GUNYAH_MAKEFILE" "$FIRMWARE_MAKEFILE" "$MODULES_BZL" "$BACKING_SRC" <<'PY'
 from pathlib import Path
 import re
 import sys
 
-qcom_path, makefile_path, backing_path = map(Path, sys.argv[1:])
+qcom_path, gunyah_makefile_path, firmware_makefile_path, modules_bzl_path, backing_path = map(Path, sys.argv[1:])
 qcom = qcom_path.read_text()
-makefile = makefile_path.read_text()
+gunyah_makefile = gunyah_makefile_path.read_text()
+firmware_makefile = firmware_makefile_path.read_text()
+modules_bzl = modules_bzl_path.read_text()
 backing = backing_path.read_text()
 
 
@@ -156,14 +160,49 @@ if "GH_QCOM_SCM post_reclaim" not in qcom:
 
     qcom = patch_func(qcom, "static int qcom_scm_gh_rm_post_mem_reclaim(", patch_post)
 
-# Keep the final kernel config aligned with Samsung (CONFIG_GUNYAH_QCOM_PLATFORM=n),
-# but force this one vendor-compatible module to be produced as a build artifact.
-conditional = "obj-$(CONFIG_GUNYAH_QCOM_PLATFORM) += gunyah_qcom.o"
-forced = "obj-m += gunyah_qcom.o # e3q vendor_boot test module; not packaged by AnyKernel"
-if forced not in makefile:
-    if makefile.count(conditional) != 1:
+# Keep the final kernel config aligned with Samsung: do not turn on either
+# CONFIG_GUNYAH_QCOM_PLATFORM or CONFIG_QCOM_SCM. Instead, force both existing
+# vendor_boot modules as build-only objects. qcom-scm supplies the modpost export
+# used by gunyah_qcom, while the flashed AnyKernel still contains only Image.
+gunyah_conditional = "obj-$(CONFIG_GUNYAH_QCOM_PLATFORM) += gunyah_qcom.o"
+gunyah_forced = "obj-m += gunyah_qcom.o # e3q vendor_boot test module; not packaged by AnyKernel"
+if gunyah_forced not in gunyah_makefile:
+    if gunyah_makefile.count(gunyah_conditional) != 1:
         raise SystemExit("FATAL: expected one conditional gunyah_qcom Makefile target")
-    makefile = makefile.replace(conditional, forced, 1)
+    gunyah_makefile = gunyah_makefile.replace(gunyah_conditional, gunyah_forced, 1)
+
+scm_conditional = "obj-$(CONFIG_QCOM_SCM)\t\t+= qcom-scm.o"
+scm_forced = "obj-m\t\t\t+= qcom-scm.o # e3q vendor_boot test dependency; not packaged by AnyKernel"
+if scm_forced not in firmware_makefile:
+    if firmware_makefile.count(scm_conditional) != 1:
+        raise SystemExit("FATAL: expected one conditional qcom-scm Makefile target")
+    firmware_makefile = firmware_makefile.replace(scm_conditional, scm_forced, 1)
+
+# Kleaf's kernel_aarch64 target validates every produced module against
+# module_implicit_outs. Declare the two build-only ARM64 modules explicitly.
+module_entries = [
+    '    "drivers/firmware/qcom-scm.ko",\n',
+    '    "drivers/virt/gunyah/gunyah_qcom.ko",\n',
+]
+if any(entry.strip() not in modules_bzl for entry in module_entries):
+    list_start = modules_bzl.find("_ARM64_GKI_MODULES_LIST = [")
+    if list_start < 0:
+        raise SystemExit("FATAL: ARM64 GKI module list not found")
+    list_end = modules_bzl.find("\n]", list_start)
+    if list_end < 0:
+        raise SystemExit("FATAL: ARM64 GKI module list terminator not found")
+    block = modules_bzl[list_start:list_end]
+    if '"arch/arm64/geniezone/gzvm.ko"' not in block:
+        raise SystemExit("FATAL: unexpected ARM64 GKI module-list baseline")
+    existing = re.findall(r'^\s*"([^"]+\.ko)",\s*$', block, re.MULTILINE)
+    wanted = sorted(set(existing + ["drivers/firmware/qcom-scm.ko", "drivers/virt/gunyah/gunyah_qcom.ko"]))
+    prefix = modules_bzl[list_start:]
+    header_end = prefix.find("# keep sorted\n")
+    if header_end < 0 or header_end > (list_end - list_start):
+        raise SystemExit("FATAL: ARM64 GKI module-list sorted marker not found")
+    content_start = list_start + header_end + len("# keep sorted\n")
+    rendered = "".join(f'    "{name}",\n' for name in wanted)
+    modules_bzl = modules_bzl[:content_start] + rendered + modules_bzl[list_end:]
 
 # free_contig_range() warns when GUP still owns references. It ultimately drops
 # each page with __free_page(); do that directly for the anon-inode allocator ref.
@@ -204,11 +243,13 @@ if "__free_page(nth_page(chunk->base, i));" not in backing:
     backing = backing.replace(old, new, 1)
 
 qcom_path.write_text(qcom)
-makefile_path.write_text(makefile)
+gunyah_makefile_path.write_text(gunyah_makefile)
+firmware_makefile_path.write_text(firmware_makefile)
+modules_bzl_path.write_text(modules_bzl)
 backing_path.write_text(backing)
 PY
 
-# Fail closed on the exact runtime fixes we intend to test.
+# Fail closed on the exact runtime/build fixes we intend to test.
 grep -qF 'static u16 qcom_scm_map_vmid(u16 vmid)' "$QCOM_SRC"
 grep -qF 'gh_rm_get_vmid(rm, &self_vmid)' "$QCOM_SRC"
 grep -qF 'GH_QCOM_SCM pre_share self_vmid=' "$QCOM_SRC"
@@ -216,10 +257,13 @@ grep -qF 'src = BIT_ULL(qcom_scm_map_vmid(self_vmid));' "$QCOM_SRC"
 grep -qF 'new_perms[n].vmid = qcom_scm_map_vmid(vmid);' "$QCOM_SRC"
 grep -qF 'GH_QCOM_SCM post_reclaim self_vmid=' "$QCOM_SRC"
 grep -qF 'src |= BIT_ULL(qcom_scm_map_vmid(vmid));' "$QCOM_SRC"
-grep -qF 'obj-m += gunyah_qcom.o # e3q vendor_boot test module; not packaged by AnyKernel' "$MAKEFILE"
+grep -qF 'obj-m += gunyah_qcom.o # e3q vendor_boot test module; not packaged by AnyKernel' "$GUNYAH_MAKEFILE"
+grep -qF 'qcom-scm.o # e3q vendor_boot test dependency; not packaged by AnyKernel' "$FIRMWARE_MAKEFILE"
+grep -qF '"drivers/firmware/qcom-scm.ko",' "$MODULES_BZL"
+grep -qF '"drivers/virt/gunyah/gunyah_qcom.ko",' "$MODULES_BZL"
 grep -qF '__free_page(nth_page(chunk->base, i));' "$BACKING_SRC"
 ! grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BACKING_SRC"
 grep -qF 'mapping->parcel.n_mem_entries > 8192' "$GUNYAH_DIR/vm_mgr.c"
 grep -qF 'ret = -E2BIG;' "$GUNYAH_DIR/vm_mgr.c"
 
-echo 'e3q Gunyah follow-up applied: Qualcomm SCM RM-VMID mapping + safe contig ref teardown + gunyah_qcom test module target'
+echo 'e3q Gunyah follow-up applied: SCM RM-VMID mapping + safe contig teardown + Kleaf-declared vendor_boot test modules'
