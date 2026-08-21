@@ -66,3 +66,5 @@ jobs:
       kmi_profile: full-strict
       kmi_minimal_config: false
       package_strict_anykernel: true
+
+# Manual retrigger 2026-08-21: sync bounded-backing wrapper audit with alloc_contig_pages fallback.
