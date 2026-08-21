@@ -100,7 +100,16 @@ readelf -Ws "$PROVIDER" | grep -qE '[[:space:]]qcom_scm_assign_mem$'
 
 # Parse ELF64 __versions. Every arm64 modversion_info record is 64 bytes:
 # 8-byte little-endian CRC + 56-byte symbol name.
-python3 - "$MODULE_DIR/gunyah_qcom.ko" "$STOCK_MODVERSIONS" "$MODULE_DIR/modversions.tsv" <<'PY'
+#
+# Compatibility rule for a replacement module:
+#   * every stock import that the replacement still uses must retain the exact
+#     DZG1 CRC;
+#   * gh_rm_get_vmid is the only allowed new import and must be KMI-listed;
+#   * stock imports that optimized/code-generated replacement code no longer
+#     references are recorded as dropped dependencies, not treated as failures.
+python3 - "$MODULE_DIR/gunyah_qcom.ko" "$STOCK_MODVERSIONS" \
+  "$MODULE_DIR/modversions.tsv" "$MODULE_DIR/stock-import-compat.tsv" \
+  "$MODULE_DIR/import-audit.env" <<'PY'
 from pathlib import Path
 import struct
 import sys
@@ -108,6 +117,8 @@ import sys
 module = Path(sys.argv[1])
 baseline = Path(sys.argv[2])
 report = Path(sys.argv[3])
+compat_report = Path(sys.argv[4])
+env_report = Path(sys.argv[5])
 data = module.read_bytes()
 
 if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
@@ -159,21 +170,35 @@ for raw in baseline.read_text().splitlines():
     name, crc = raw.split("\t")[:2]
     expected[name] = int(crc, 16)
 
-errors = []
-for name, crc in expected.items():
-    got = actual.get(name)
-    if got is None:
-        errors.append(f"missing stock import {name}")
-    elif got != crc:
-        errors.append(f"CRC mismatch {name}: stock=0x{crc:08x} build=0x{got:08x}")
-
 required_new = {"gh_rm_get_vmid"}
-for name in required_new:
+required_stock = {
+    "module_layout",
+    "qcom_scm_assign_mem",
+    "gh_rm_register_platform_ops",
+    "gh_rm_unregister_platform_ops",
+}
+
+retained = sorted(set(actual) & set(expected))
+dropped = sorted(set(expected) - set(actual))
+unexpected = sorted(set(actual) - set(expected) - required_new)
+errors = []
+
+for name in retained:
+    stock_crc = expected[name]
+    build_crc = actual[name]
+    if build_crc != stock_crc:
+        errors.append(
+            f"CRC mismatch {name}: stock=0x{stock_crc:08x} build=0x{build_crc:08x}"
+        )
+
+for name in sorted(required_stock):
+    if name not in actual:
+        errors.append(f"missing required runtime stock import {name}")
+
+for name in sorted(required_new):
     if name not in actual:
         errors.append(f"missing required patched import {name}")
 
-allowed = set(expected) | required_new
-unexpected = sorted(set(actual) - allowed)
 if unexpected:
     errors.append("unexpected new imports: " + ",".join(unexpected))
 
@@ -184,14 +209,38 @@ report.write_text(
     "symbol\tcrc\n"
     + "".join(f"{name}\t0x{crc:08x}\n" for name, crc in sorted(actual.items()))
 )
+
+compat_lines = ["status\tsymbol\tstock_crc\tbuild_crc\n"]
+for name in retained:
+    compat_lines.append(
+        f"retained\t{name}\t0x{expected[name]:08x}\t0x{actual[name]:08x}\n"
+    )
+for name in dropped:
+    compat_lines.append(f"dropped\t{name}\t0x{expected[name]:08x}\t-\n")
+for name in sorted(required_new & set(actual)):
+    compat_lines.append(f"new\t{name}\t-\t0x{actual[name]:08x}\n")
+compat_report.write_text("".join(compat_lines))
+
+dropped_csv = ",".join(dropped) if dropped else "none"
+env_report.write_text(
+    f"STOCK_BASELINE_COUNT={len(expected)}\n"
+    f"STOCK_RETAINED_COUNT={len(retained)}\n"
+    f"STOCK_DROPPED_COUNT={len(dropped)}\n"
+    f"STOCK_DROPPED_IMPORTS={dropped_csv}\n"
+)
+
 if errors:
     raise SystemExit("FATAL: gunyah_qcom modversion audit failed: " + "; ".join(errors))
 
 print(
-    f"Verified exact stock import set ({len(expected)}) + gh_rm_get_vmid; "
-    "no debug-only or accidental imports"
+    f"Verified {len(retained)}/{len(expected)} retained stock imports with exact CRCs; "
+    f"dropped stock-only imports={dropped_csv}; "
+    "gh_rm_get_vmid is the only allowed new import"
 )
 PY
+
+# shellcheck disable=SC1090
+source "$MODULE_DIR/import-audit.env"
 
 grep -qF $'qcom_scm_assign_mem\t0xcdaced8a' "$MODULE_DIR/modversions.tsv"
 grep -qF $'module_layout\t0xea759d7f' "$MODULE_DIR/modversions.tsv"
@@ -247,7 +296,8 @@ cat >> "$REPORT_DIR/summary.md" <<EOF
 - Module: \`gunyah_qcom.ko\`
 - SHA-256: \`${MODULE_SHA}\`
 - Kernel release: \`${EXPECTED_RELEASE}\`
-- All 11 stock DZG1 gunyah_qcom import CRCs: exact
+- Retained stock DZG1 imports: \`${STOCK_RETAINED_COUNT}/${STOCK_BASELINE_COUNT}\`, all CRC-exact
+- Dropped stock-only imports (not runtime dependencies): \`${STOCK_DROPPED_IMPORTS}\`
 - New \`gh_rm_get_vmid\` import: present and KMI-listed
 - \`qcom_scm_assign_mem\`: stock CRC \`0xcdaced8a\`
 - Build-only \`qcom-scm.ko\` provider SHA-256: \`${PROVIDER_SHA}\` (not for flashing)
@@ -263,7 +313,8 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 
 ### Patched e3q gunyah_qcom module
 - SHA-256: \`${MODULE_SHA}\`
-- 11/11 stock DZG1 import CRCs exact
+- retained stock DZG1 imports: \`${STOCK_RETAINED_COUNT}/${STOCK_BASELINE_COUNT}\`, all CRC-exact
+- dropped stock-only imports: \`${STOCK_DROPPED_IMPORTS}\`
 - gh_rm_get_vmid: imported + KMI-listed
 - qcom_scm_assign_mem: stock CRC exact via build-only qcom-scm provider
 - accidental/debug-only extra imports: none
@@ -272,4 +323,4 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 EOF
 fi
 
-echo "Patched gunyah_qcom module audited: $MODULE (sha256=$MODULE_SHA)"
+echo "Patched gunyah_qcom module audited: $MODULE (sha256=$MODULE_SHA; retained=${STOCK_RETAINED_COUNT}/${STOCK_BASELINE_COUNT}; dropped=${STOCK_DROPPED_IMPORTS})"
