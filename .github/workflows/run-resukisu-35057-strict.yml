@@ -1,5 +1,5 @@
-name: S928B ReSukiSU 35088 Gunyah Bounded-Extent Build
-run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35088 + Gunyah bounded-extents / E2BIG guard"
+name: S928B ReSukiSU 35088 Gunyah SCM-VMID Build
+run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35088 + Gunyah SCM-VMID / bounded extents"
 
 on:
   workflow_dispatch:
@@ -18,6 +18,9 @@ on:
       - 'android14-6.1/build-helpers/apply-e3q-cmdline-governor-compat.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-vm-metadata-allocation.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-cma-compat.sh'
+      - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
+      - 'android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh'
+      - 'android14-6.1/e3q-gunyah-qcom-stock-modversions.tsv'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
       - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'
@@ -37,7 +40,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 6.1.145 / Gunyah bounded extents
+    name: Full strict KMI gate / ReSukiSU 6.1.145 / Gunyah SCM-VMID + bounded extents
     needs: dependencies
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -67,4 +70,5 @@ jobs:
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# Manual retrigger 2026-08-21: ReSukiSU 35088 with bounded-backing alloc_contig_pages fallback.
+# Final 2026-08-21 follow-up: dynamic RM-VMID SCM mapping, safe contig teardown,
+# and an audited vendor_boot-compatible gunyah_qcom.ko live-test artifact.
