@@ -4,7 +4,7 @@ set -euo pipefail
 KERNEL_TREE="${1:?usage: apply-e3q-gunyah-vm-metadata-allocation.sh <kernel-tree>}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BASE_COMMIT="9bf8da21bb7e5891bb9b4ef917893a5792874608"
-# Final ReSukiSU 35088 SCM-VMID/module-audit retrigger after all follow-up helpers landed.
+# Final preflighted ReSukiSU 35088 build: bounded RAM + SCM VMID + Kleaf-declared vendor_boot modules.
 TMP_DIR="$(mktemp -d -t e3q-gunyah-35088.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -27,7 +27,9 @@ bash "$FOLLOWUP" "$KERNEL_TREE"
 GUNYAH_DIR="$KERNEL_TREE/drivers/virt/gunyah"
 QCOM_SRC="$GUNYAH_DIR/gunyah_qcom.c"
 BACKING_SRC="$GUNYAH_DIR/cma_compat.c"
-MAKEFILE="$GUNYAH_DIR/Makefile"
+GUNYAH_MAKEFILE="$GUNYAH_DIR/Makefile"
+FIRMWARE_MAKEFILE="$KERNEL_TREE/drivers/firmware/Makefile"
+MODULES_BZL="$KERNEL_TREE/modules.bzl"
 VM_TARGET="$GUNYAH_DIR/vm_mgr.c"
 
 grep -qF 'mapping->parcel.n_mem_entries > 8192' "$VM_TARGET"
@@ -38,6 +40,9 @@ grep -qF '__free_page(nth_page(chunk->base, i));' "$BACKING_SRC"
 grep -qF 'gh_rm_get_vmid(rm, &self_vmid)' "$QCOM_SRC"
 grep -qF 'GH_QCOM_SCM pre_share self_vmid=' "$QCOM_SRC"
 grep -qF 'src = BIT_ULL(qcom_scm_map_vmid(self_vmid));' "$QCOM_SRC"
-grep -qF 'obj-m += gunyah_qcom.o # e3q vendor_boot test module; not packaged by AnyKernel' "$MAKEFILE"
+grep -qF 'obj-m += gunyah_qcom.o # e3q vendor_boot test module; not packaged by AnyKernel' "$GUNYAH_MAKEFILE"
+grep -qF 'qcom-scm.o # e3q vendor_boot test dependency; not packaged by AnyKernel' "$FIRMWARE_MAKEFILE"
+grep -qF '"drivers/firmware/qcom-scm.ko",' "$MODULES_BZL"
+grep -qF '"drivers/virt/gunyah/gunyah_qcom.ko",' "$MODULES_BZL"
 
-echo 'e3q Gunyah 35088 follow-up verified: bounded extents + SCM VMID mapping + patched vendor_boot test module target'
+echo 'e3q Gunyah 35088 follow-up verified: bounded extents + SCM VMID mapping + qcom-scm/gunyah_qcom Kleaf test outputs'
