@@ -1,5 +1,5 @@
-name: S928B ReSukiSU 35080 Gunyah Bounded-Extent Build
-run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35080 + Gunyah bounded-extents / E2BIG guard"
+name: S928B ReSukiSU 35088 Gunyah Bounded-Extent Build
+run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35088 + Gunyah bounded-extents / E2BIG guard"
 
 on:
   workflow_dispatch:
@@ -29,7 +29,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35080-exact-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35088-exact-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -58,13 +58,13 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 9918a8dbf1647cfb21c5ba7c91905972b4f22488
+      sukisu_commit: 746686390b0cf2256818a97b2f620eadbd079995
       resukisu_source_branch: main
-      resukisu_version_code: "35080"
+      resukisu_version_code: "35088"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# Manual retrigger 2026-08-21: sync bounded-backing wrapper audit with alloc_contig_pages fallback.
+# Manual retrigger 2026-08-21: ReSukiSU 35088 with bounded-backing alloc_contig_pages fallback.
