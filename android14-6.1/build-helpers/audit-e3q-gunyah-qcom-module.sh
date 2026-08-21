@@ -10,6 +10,7 @@ ABI_LIST="$KERNEL_ROOT/common/android/abi_gki_aarch64"
 QCOM_SRC="$KERNEL_ROOT/common/drivers/virt/gunyah/gunyah_qcom.c"
 BACKING_SRC="$KERNEL_ROOT/common/drivers/virt/gunyah/cma_compat.c"
 GUNYAH_MAKEFILE="$KERNEL_ROOT/common/drivers/virt/gunyah/Makefile"
+FIRMWARE_MAKEFILE="$KERNEL_ROOT/common/drivers/firmware/Makefile"
 QCOM_SCM_HEADER="$KERNEL_ROOT/common/include/linux/qcom_scm.h"
 
 test -s "$STOCK_MODVERSIONS" || { echo '::error::Stock gunyah_qcom modversion baseline missing'; exit 1; }
@@ -45,15 +46,43 @@ done < <(
   exit 1
 }
 
+# qcom-scm.ko is a build-only provider so modpost sees the same real
+# qcom_scm_assign_mem export that Samsung supplies from vendor_boot at runtime.
+# It is deliberately not packaged for flashing.
+PROVIDER=""
+declare -A PROVIDER_SEEN=()
+while IFS= read -r candidate; do
+  [[ -s "$candidate" ]] || continue
+  resolved=$(realpath "$candidate")
+  [[ -z "${PROVIDER_SEEN[$resolved]:-}" ]] || continue
+  PROVIDER_SEEN[$resolved]=1
+  strings "$resolved" | grep -qF "vermagic=${EXPECTED_RELEASE}" || continue
+  readelf -Ws "$resolved" 2>/dev/null | grep -qE '[[:space:]]qcom_scm_assign_mem$' || continue
+  PROVIDER="$resolved"
+  break
+done < <(
+  find -L "$KERNEL_ROOT/out/android14-6.1" "$KERNEL_ROOT/bazel-bin/common" \
+    -type f -name 'qcom-scm.ko' -print 2>/dev/null || true
+)
+
+[[ -n "$PROVIDER" ]] || {
+  echo '::error::Build-only qcom-scm.ko provider with qcom_scm_assign_mem was not found'
+  find -L "$KERNEL_ROOT/out/android14-6.1" "$KERNEL_ROOT/bazel-bin/common" \
+    -type f -name 'qcom-scm.ko' -print 2>/dev/null | head -30 || true
+  exit 1
+}
+
 MODULE_DIR="$REPORT_DIR/gunyah-qcom-module"
 mkdir -p "$MODULE_DIR"
 cp "$MODULE" "$MODULE_DIR/gunyah_qcom.ko"
 sha256sum "$MODULE_DIR/gunyah_qcom.ko" > "$MODULE_DIR/gunyah_qcom.ko.sha256"
 readelf -p .modinfo "$MODULE_DIR/gunyah_qcom.ko" > "$MODULE_DIR/modinfo.txt"
 readelf -Ws "$MODULE_DIR/gunyah_qcom.ko" > "$MODULE_DIR/symbols.txt"
+PROVIDER_SHA=$(sha256sum "$PROVIDER" | awk '{print $1}')
+printf '%s  %s\n' "$PROVIDER_SHA" "$PROVIDER" > "$MODULE_DIR/qcom-scm-build-provider.sha256.txt"
 git -C "$KERNEL_ROOT/common" diff -- \
   android/abi_gki_aarch64 \
-  include/linux/qcom_scm.h \
+  drivers/firmware/Makefile \
   drivers/virt/gunyah/gunyah_qcom.c \
   drivers/virt/gunyah/cma_compat.c \
   drivers/virt/gunyah/Makefile \
@@ -67,6 +96,7 @@ strings "$MODULE_DIR/gunyah_qcom.ko" | grep -qF 'qcom_scm_assign_mem'
 ! strings "$MODULE_DIR/gunyah_qcom.ko" | grep -qF 'GH_QCOM_SCM'
 grep -qF 'gh_rm_get_vmid' "$MODULE_DIR/symbols.txt"
 grep -qF 'qcom_scm_assign_mem' "$MODULE_DIR/symbols.txt"
+readelf -Ws "$PROVIDER" | grep -qE '[[:space:]]qcom_scm_assign_mem$'
 
 # Parse ELF64 __versions. Every arm64 modversion_info record is 64 bytes:
 # 8-byte little-endian CRC + 56-byte symbol name.
@@ -172,8 +202,11 @@ grep -qF 'gh_rm_get_vmid(rm, &self_vmid)' "$QCOM_SRC"
 ! grep -qF 'GH_QCOM_SCM' "$QCOM_SRC"
 grep -qF '__free_page(nth_page(chunk->base, i));' "$BACKING_SRC"
 ! grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BACKING_SRC"
-grep -qF 'CFLAGS_gunyah_qcom.o += -DE3Q_GUNYAH_VENDOR_SCM_API' "$GUNYAH_MAKEFILE"
-grep -qF '#if IS_ENABLED(CONFIG_QCOM_SCM) || defined(E3Q_GUNYAH_VENDOR_SCM_API)' "$QCOM_SCM_HEADER"
+grep -qF 'obj-m += gunyah_qcom.o # e3q vendor_boot live-test module; not packaged by AnyKernel' "$GUNYAH_MAKEFILE"
+grep -qF 'obj-m += qcom-scm.o # e3q vendor_boot build-only provider; not packaged by AnyKernel' "$FIRMWARE_MAKEFILE"
+grep -qF 'extern int qcom_scm_assign_mem(' "$QCOM_SCM_HEADER"
+! grep -qF 'E3Q_GUNYAH_VENDOR_SCM_API' "$GUNYAH_MAKEFILE"
+! grep -qF 'E3Q_GUNYAH_VENDOR_SCM_API' "$QCOM_SCM_HEADER"
 
 CONFIG_FILE=""
 for candidate in \
@@ -195,8 +228,8 @@ if [[ -z "$CONFIG_FILE" ]]; then
 fi
 [[ -n "$CONFIG_FILE" ]] || { echo '::error::Final config missing for module audit'; exit 1; }
 
-# Keep Samsung's vendor_boot ownership model. Missing symbols are also accepted
-# as disabled; only y/m would alter the final kernel integration model.
+# Keep Samsung's vendor_boot ownership model. Build-only obj-m targets above do
+# not enable either Kconfig symbol in the final GKI configuration.
 if grep -Eq '^CONFIG_GUNYAH_QCOM_PLATFORM=[ym]$' "$CONFIG_FILE"; then
   echo '::error::Final kernel config unexpectedly enables GUNYAH_QCOM_PLATFORM'
   exit 1
@@ -216,12 +249,13 @@ cat >> "$REPORT_DIR/summary.md" <<EOF
 - Kernel release: \`${EXPECTED_RELEASE}\`
 - All 11 stock DZG1 gunyah_qcom import CRCs: exact
 - New \`gh_rm_get_vmid\` import: present and KMI-listed
-- \`qcom_scm_assign_mem\`: real vendor-SCM import with stock CRC \`0xcdaced8a\`
-- Unexpected additional module imports: none
+- \`qcom_scm_assign_mem\`: stock CRC \`0xcdaced8a\`
+- Build-only \`qcom-scm.ko\` provider SHA-256: \`${PROVIDER_SHA}\` (not for flashing)
+- Unexpected additional gunyah_qcom imports: none
 - Debug-only \`_printk\` import: absent
 - Final \`CONFIG_GUNYAH_QCOM_PLATFORM\` / \`CONFIG_QCOM_SCM\`: not enabled
 - Contig teardown: per-page \`__free_page()\`; no \`free_contig_range()\` warning path
-- Packaging: module is CI/live-test artifact only; AnyKernel and vendor_boot remain untouched
+- Packaging: gunyah_qcom is CI/live-test artifact only; AnyKernel and vendor_boot remain untouched
 EOF
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
@@ -231,7 +265,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 - SHA-256: \`${MODULE_SHA}\`
 - 11/11 stock DZG1 import CRCs exact
 - gh_rm_get_vmid: imported + KMI-listed
-- qcom_scm_assign_mem: real vendor-SCM import, stock CRC exact
+- qcom_scm_assign_mem: stock CRC exact via build-only qcom-scm provider
 - accidental/debug-only extra imports: none
 - CONFIG_GUNYAH_QCOM_PLATFORM / CONFIG_QCOM_SCM remain disabled
 - Saved inside Samsung DLKM CRC audit artifact for live ADB testing
