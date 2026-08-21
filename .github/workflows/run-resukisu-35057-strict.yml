@@ -73,5 +73,5 @@ jobs:
       package_strict_anykernel: true
 
 # Final 2026-08-21 follow-up: dynamic RM-VMID SCM mapping, additive gh_rm_get_vmid
-# KMI allowance, vendor_boot SCM import without enabling CONFIG_QCOM_SCM,
-# safe contig teardown, and an audited gunyah_qcom.ko live-test artifact.
+# KMI allowance, qcom-scm build-only provider for modpost, safe contig teardown,
+# and audited vendor_boot-compatible gunyah_qcom.ko. Final restart marker.
