@@ -4,6 +4,7 @@ set -euo pipefail
 KERNEL_TREE="${1:?usage: apply-e3q-gunyah-vm-metadata-allocation.sh <kernel-tree>}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BASE_COMMIT="9bf8da21bb7e5891bb9b4ef917893a5792874608"
+# Final ReSukiSU 35088 SCM-VMID/module-audit retrigger after all follow-up helpers landed.
 TMP_DIR="$(mktemp -d -t e3q-gunyah-35088.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
