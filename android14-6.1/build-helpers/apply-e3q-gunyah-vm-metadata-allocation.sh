@@ -7,9 +7,9 @@ BASE_COMMIT="9bf8da21bb7e5891bb9b4ef917893a5792874608"
 TMP_DIR="$(mktemp -d -t e3q-gunyah-35088.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# Replay the last runtime-proven 8192/memshare baseline, but let it consume the
-# current bounded-backing generator. The follow-up below changes only the newly
-# diagnosed SCM-VMID and contig teardown paths plus one CI-only test module.
+# Replay the last runtime-proven 8192/memshare baseline while consuming the
+# current bounded-backing generator. The follow-up changes only the diagnosed
+# SCM-VMID path, contig teardown, and CI-only vendor_boot module outputs.
 BASE_HELPER="$TMP_DIR/apply-e3q-gunyah-vm-metadata-allocation.sh"
 cp "$SCRIPT_DIR/apply-e3q-gunyah-cma-compat.sh" "$TMP_DIR/apply-e3q-gunyah-cma-compat.sh"
 curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
@@ -33,14 +33,15 @@ GUNYAH_DIR="$KERNEL_TREE/drivers/virt/gunyah"
 QCOM_SRC="$GUNYAH_DIR/gunyah_qcom.c"
 BACKING_SRC="$GUNYAH_DIR/cma_compat.c"
 GUNYAH_MAKEFILE="$GUNYAH_DIR/Makefile"
+FIRMWARE_MAKEFILE="$KERNEL_TREE/drivers/firmware/Makefile"
 MODULES_BZL="$KERNEL_TREE/modules.bzl"
 VM_TARGET="$GUNYAH_DIR/vm_mgr.c"
 RM_RPC="$GUNYAH_DIR/rsc_mgr_rpc.c"
 QCOM_SCM_HEADER="$KERNEL_TREE/include/linux/qcom_scm.h"
 ABI_LIST="$KERNEL_TREE/android/abi_gki_aarch64"
 
-# Final pre-build assertions. These intentionally fail before ReSukiSU/SUSFS
-# patching or the expensive Kleaf build if Samsung/AOSP source layout changed.
+# Final pre-build assertions. Fail here rather than after the expensive Kleaf
+# build if Samsung/AOSP source shape or one of our layered assumptions changed.
 grep -qF 'mapping->parcel.n_mem_entries > 8192' "$VM_TARGET"
 grep -qF 'ret = -E2BIG;' "$VM_TARGET"
 grep -qF 'alloc_contig_pages(1UL << try_order, gfp, NUMA_NO_NODE, NULL)' "$BACKING_SRC"
@@ -56,10 +57,18 @@ grep -qF 'src |= BIT_ULL(qcom_scm_map_vmid(vmid));' "$QCOM_SRC"
 
 grep -qF 'EXPORT_SYMBOL_GPL(gh_rm_get_vmid);' "$RM_RPC"
 grep -Eq '^[[:space:]]*gh_rm_get_vmid[[:space:]]*$' "$ABI_LIST"
-grep -qF 'qcom_scm_assign_mem' "$QCOM_SCM_HEADER"
-grep -qF '#if IS_ENABLED(CONFIG_QCOM_SCM) || defined(E3Q_GUNYAH_VENDOR_SCM_API)' "$QCOM_SCM_HEADER"
+grep -qF 'extern int qcom_scm_assign_mem(' "$QCOM_SCM_HEADER"
+
 grep -qF 'obj-m += gunyah_qcom.o # e3q vendor_boot live-test module; not packaged by AnyKernel' "$GUNYAH_MAKEFILE"
-grep -qF 'CFLAGS_gunyah_qcom.o += -DE3Q_GUNYAH_VENDOR_SCM_API' "$GUNYAH_MAKEFILE"
+grep -qF 'obj-m += qcom-scm.o # e3q vendor_boot build-only provider; not packaged by AnyKernel' "$FIRMWARE_MAKEFILE"
+grep -Eq '^qcom-scm-objs[[:space:]]*\+=[[:space:]]*qcom_scm\.o[[:space:]]+qcom_scm-smc\.o[[:space:]]+qcom_scm-legacy\.o' "$FIRMWARE_MAKEFILE"
+grep -qF '"drivers/firmware/qcom-scm.ko",' "$MODULES_BZL"
 grep -qF '"drivers/virt/gunyah/gunyah_qcom.ko",' "$MODULES_BZL"
 
-echo 'e3q Gunyah 35088 preflight complete: 8192 guard + bounded RAM + SCM VMID mapping + vendor-SCM import + additive KMI allowance + safe teardown'
+# Explicitly reject the abandoned header/CFLAG workaround. Samsung's DZG1
+# qcom_scm.h exposes qcom_scm_assign_mem as an unconditional extern and does
+# not need CONFIG_QCOM_SCM to be changed for this build-only provider path.
+! grep -qF 'E3Q_GUNYAH_VENDOR_SCM_API' "$GUNYAH_MAKEFILE"
+! grep -qF 'E3Q_GUNYAH_VENDOR_SCM_API' "$QCOM_SCM_HEADER"
+
+echo 'e3q Gunyah 35088 preflight complete: 8192 guard + bounded RAM + SCM VMID mapping + qcom-scm CI provider + additive KMI allowance + safe teardown'
