@@ -43,7 +43,16 @@ grep -qF 'cma_compat.o' "$MAKEFILE"
 grep -qF 'GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD' "$UAPI"
 grep -qF '#define GH_EXTENT_MIN_ORDER 3U' "$BACKING_SRC"
 grep -qF '#define GH_EXTENT_LIMIT 8192UL' "$BACKING_SRC"
-grep -qF 'alloc_pages(gfp, order)' "$BACKING_SRC"
+
+# Verify both allocation paths and their matching teardown semantics. Keep these
+# checks synchronized with apply-e3q-gunyah-cma-compat.sh so stale CI assertions
+# cannot fail after a deliberate allocator refactor.
+grep -qF 'alloc_pages(gfp, try_order)' "$BACKING_SRC"
+grep -qF 'alloc_contig_pages(1UL << try_order, gfp, NUMA_NO_NODE, NULL)' "$BACKING_SRC"
+grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BACKING_SRC"
+grep -qF '__free_pages(chunk->base, chunk->order)' "$BACKING_SRC"
+grep -qF 'clear_highpage(nth_page(base, i))' "$BACKING_SRC"
+grep -qF 'cond_resched();' "$BACKING_SRC"
 grep -qF 'vm_map_pages_zero(vma, buf->pages, nr_pages)' "$BACKING_SRC"
 
 # Explicitly reject accidental regression to the impossible 256 MiB default-CMA
@@ -53,4 +62,4 @@ if grep -qF 'dma_alloc_from_contiguous(NULL' "$BACKING_SRC"; then
   exit 1
 fi
 
-echo 'e3q Gunyah bounded-extent backing layered on exact memshare-guard baseline'
+echo 'e3q Gunyah bounded-extent backing layered on exact memshare-guard baseline (buddy + alloc_contig_pages verified)'
