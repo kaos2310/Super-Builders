@@ -21,12 +21,14 @@ grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BASE_HELPER"
 bash "$BASE_HELPER" "$KERNEL_TREE"
 
 FOLLOWUP="$SCRIPT_DIR/apply-e3q-gunyah-qcom-vmid-compat.sh"
+STRIP_DEBUG="$SCRIPT_DIR/strip-e3q-gunyah-qcom-debug-imports.sh"
 KMI_HELPER="$SCRIPT_DIR/allow-e3q-gunyah-rm-vmid-kmi.sh"
-for helper in "$FOLLOWUP" "$KMI_HELPER"; do
+for helper in "$FOLLOWUP" "$STRIP_DEBUG" "$KMI_HELPER"; do
   test -s "$helper" || { echo "FATAL: missing e3q Gunyah helper: $helper" >&2; exit 1; }
   bash -n "$helper"
 done
 bash "$FOLLOWUP" "$KERNEL_TREE"
+bash "$STRIP_DEBUG" "$KERNEL_TREE"
 bash "$KMI_HELPER" "$KERNEL_TREE"
 
 GUNYAH_DIR="$KERNEL_TREE/drivers/virt/gunyah"
@@ -48,9 +50,9 @@ grep -qF 'alloc_contig_pages(1UL << try_order, gfp, NUMA_NO_NODE, NULL)' "$BACKI
 grep -qF '__free_page(nth_page(chunk->base, i));' "$BACKING_SRC"
 ! grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BACKING_SRC"
 grep -qF 'gh_rm_get_vmid(rm, &self_vmid)' "$QCOM_SRC"
-grep -qF 'GH_QCOM_SCM pre_share self_vmid=' "$QCOM_SRC"
-grep -qF 'GH_QCOM_SCM post_reclaim self_vmid=' "$QCOM_SRC"
 grep -qF 'src = BIT_ULL(qcom_scm_map_vmid(self_vmid));' "$QCOM_SRC"
+grep -qF 'src |= BIT_ULL(qcom_scm_map_vmid(vmid));' "$QCOM_SRC"
+! grep -qF 'GH_QCOM_SCM' "$QCOM_SRC"
 grep -qF 'EXPORT_SYMBOL_GPL(gh_rm_get_vmid);' "$RM_RPC"
 grep -Eq '^[[:space:]]*gh_rm_get_vmid[[:space:]]*$' "$ABI_LIST"
 grep -qF 'qcom_scm_assign_mem' "$QCOM_SCM_HEADER"
@@ -60,4 +62,4 @@ grep -Eq '^qcom-scm-objs[[:space:]]*\+=[[:space:]]*qcom_scm\.o[[:space:]]+qcom_s
 grep -qF '"drivers/firmware/qcom-scm.ko",' "$MODULES_BZL"
 grep -qF '"drivers/virt/gunyah/gunyah_qcom.ko",' "$MODULES_BZL"
 
-echo 'e3q Gunyah 35088 preflight complete: 8192 guard + bounded RAM + SCM VMID mapping + additive KMI allowance + safe teardown + Kleaf test-module outputs'
+echo 'e3q Gunyah 35088 preflight complete: 8192 guard + bounded RAM + SCM VMID mapping + additive KMI allowance + no debug-only printk import + safe teardown + Kleaf test-module outputs'
