@@ -19,6 +19,7 @@ on:
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-vm-metadata-allocation.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-cma-compat.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
+      - 'android14-6.1/build-helpers/allow-e3q-gunyah-rm-vmid-kmi.sh'
       - 'android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh'
       - 'android14-6.1/e3q-gunyah-qcom-stock-modversions.tsv'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
@@ -70,5 +71,6 @@ jobs:
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# Final 2026-08-21 follow-up: dynamic RM-VMID SCM mapping, safe contig teardown,
-# and an audited vendor_boot-compatible gunyah_qcom.ko live-test artifact.
+# Final 2026-08-21 follow-up: dynamic RM-VMID SCM mapping, additive gh_rm_get_vmid
+# KMI allowance, safe contig teardown, and an audited vendor_boot-compatible
+# gunyah_qcom.ko live-test artifact.
