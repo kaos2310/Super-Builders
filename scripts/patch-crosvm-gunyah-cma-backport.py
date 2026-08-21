@@ -65,6 +65,42 @@ elif "if components.hugepages" not in helper:
     fail("cannot place USE_HUGEPAGES policy in Gunyah backing helper")
 
 text = text[:helper_start] + helper + text[helper_end:]
+
+# CMA on the target e3q device is a best-effort optimization, not a hard
+# requirement. A running phone can legitimately have little or no CMA free.
+# Preserve the original normal GuestMemory path as a diagnostic/runtime fallback
+# so Gunyah init_arch tracing can still reach SET_DTB_CONFIG / SET_BOOT_PC /
+# GH_VM_START when the single large CMA allocation returns ENOMEM.
+fallback_marker = "GUNYAH CMA: allocation failed"
+fallback_old = '''    let guest_mem = if cfg.protection_type.isolates_memory() {
+        create_guest_memory(&cfg, &components, &arch_memory_layout, &gunyah)?
+    } else {
+        create_gunyah_cma_guest_memory(&cfg, &components, &arch_memory_layout, &gunyah)?
+    };
+'''
+fallback_new = '''    let guest_mem = if cfg.protection_type.isolates_memory() {
+        create_guest_memory(&cfg, &components, &arch_memory_layout, &gunyah)?
+    } else {
+        match create_gunyah_cma_guest_memory(&cfg, &components, &arch_memory_layout, &gunyah) {
+            Ok(mem) => mem,
+            Err(e) => {
+                warn!(
+                    "GUNYAH CMA: allocation failed ({:#}); falling back to normal guest memory",
+                    e
+                );
+                create_guest_memory(&cfg, &components, &arch_memory_layout, &gunyah)?
+            }
+        }
+    };
+'''
+if fallback_marker not in text:
+    if text.count(fallback_old) != 1:
+        fail(
+            "cannot place Gunyah CMA best-effort fallback: expected exactly one "
+            f"run_gunyah selection anchor, found {text.count(fallback_old)}"
+        )
+    text = text.replace(fallback_old, fallback_new, 1)
+
 linux_rs.write_text(text, encoding="utf-8")
 
 final = linux_rs.read_text(encoding="utf-8")
@@ -77,6 +113,9 @@ checks = {
     "memory policy retained": "MemoryPolicy::USE_HUGEPAGES" in helper,
     "custom backing allocator retained": "create_cma_compat_mem_fd" in helper,
     "normal GUP semantics retained": "options.file_backed =" not in helper,
+    "CMA failure falls back": fallback_marker in final
+    and "falling back to normal guest memory" in final
+    and "match create_gunyah_cma_guest_memory" in final,
 }
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
@@ -84,5 +123,6 @@ if failed:
 
 print(
     "Applied local Android 16 r4 Gunyah backing fixup: "
-    "file_backed_mappings_ram + Result propagation + normal GUP semantics"
+    "file_backed_mappings_ram + Result propagation + normal GUP semantics + "
+    "best-effort CMA fallback"
 )
