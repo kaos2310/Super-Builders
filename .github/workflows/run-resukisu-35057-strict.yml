@@ -20,7 +20,6 @@ on:
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-cma-compat.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
       - 'android14-6.1/build-helpers/allow-e3q-gunyah-rm-vmid-kmi.sh'
-      - 'android14-6.1/build-helpers/strip-e3q-gunyah-qcom-debug-imports.sh'
       - 'android14-6.1/build-helpers/audit-e3q-gunyah-qcom-module.sh'
       - 'android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh'
       - 'android14-6.1/e3q-gunyah-qcom-stock-modversions.tsv'
@@ -74,5 +73,5 @@ jobs:
       package_strict_anykernel: true
 
 # Final 2026-08-21 follow-up: dynamic RM-VMID SCM mapping, additive gh_rm_get_vmid
-# KMI allowance, safe contig teardown, no debug-only printk import, and an
-# audited vendor_boot-compatible gunyah_qcom.ko live-test artifact.
+# KMI allowance, vendor_boot SCM import without enabling CONFIG_QCOM_SCM,
+# safe contig teardown, and an audited gunyah_qcom.ko live-test artifact.

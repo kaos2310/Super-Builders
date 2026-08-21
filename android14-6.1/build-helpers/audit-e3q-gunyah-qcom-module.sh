@@ -9,6 +9,8 @@ STOCK_MODVERSIONS="$SCRIPT_DIR/../e3q-gunyah-qcom-stock-modversions.tsv"
 ABI_LIST="$KERNEL_ROOT/common/android/abi_gki_aarch64"
 QCOM_SRC="$KERNEL_ROOT/common/drivers/virt/gunyah/gunyah_qcom.c"
 BACKING_SRC="$KERNEL_ROOT/common/drivers/virt/gunyah/cma_compat.c"
+GUNYAH_MAKEFILE="$KERNEL_ROOT/common/drivers/virt/gunyah/Makefile"
+QCOM_SCM_HEADER="$KERNEL_ROOT/common/include/linux/qcom_scm.h"
 
 test -s "$STOCK_MODVERSIONS" || { echo '::error::Stock gunyah_qcom modversion baseline missing'; exit 1; }
 test -s "$ABI_LIST" || { echo '::error::Final GKI ABI symbol list missing'; exit 1; }
@@ -17,7 +19,6 @@ grep -Eq '^[[:space:]]*gh_rm_get_vmid[[:space:]]*$' "$ABI_LIST" || {
 }
 
 MODULE=""
-SCM_MODULE=""
 declare -A SEEN=()
 while IFS= read -r candidate; do
   [[ -s "$candidate" ]] || continue
@@ -37,25 +38,10 @@ done < <(
     -type f -name 'gunyah_qcom.ko' -print 2>/dev/null || true
 )
 
-while IFS= read -r candidate; do
-  [[ -s "$candidate" ]] || continue
-  resolved=$(realpath "$candidate")
-  strings "$resolved" | grep -qF "vermagic=${EXPECTED_RELEASE}" || continue
-  SCM_MODULE="$resolved"
-  break
-done < <(
-  find -L "$KERNEL_ROOT/out/android14-6.1" "$KERNEL_ROOT/bazel-bin/common" \
-    -type f -name 'qcom-scm.ko' -print 2>/dev/null || true
-)
-
 [[ -n "$MODULE" ]] || {
-  echo '::error::Patched gunyah_qcom.ko was not found in kernel build outputs'
+  echo '::error::Patched gunyah_qcom.ko with required imports was not found in kernel build outputs'
   find -L "$KERNEL_ROOT/out/android14-6.1" "$KERNEL_ROOT/bazel-bin/common" \
     -type f -name '*gunyah*qcom*.ko' -print 2>/dev/null | head -30 || true
-  exit 1
-}
-[[ -n "$SCM_MODULE" ]] || {
-  echo '::error::Build-only qcom-scm.ko dependency was not found in kernel build outputs'
   exit 1
 }
 
@@ -63,15 +49,14 @@ MODULE_DIR="$REPORT_DIR/gunyah-qcom-module"
 mkdir -p "$MODULE_DIR"
 cp "$MODULE" "$MODULE_DIR/gunyah_qcom.ko"
 sha256sum "$MODULE_DIR/gunyah_qcom.ko" > "$MODULE_DIR/gunyah_qcom.ko.sha256"
-sha256sum "$SCM_MODULE" > "$MODULE_DIR/qcom-scm-build-only.ko.sha256"
 readelf -p .modinfo "$MODULE_DIR/gunyah_qcom.ko" > "$MODULE_DIR/modinfo.txt"
 readelf -Ws "$MODULE_DIR/gunyah_qcom.ko" > "$MODULE_DIR/symbols.txt"
 git -C "$KERNEL_ROOT/common" diff -- \
   android/abi_gki_aarch64 \
+  include/linux/qcom_scm.h \
   drivers/virt/gunyah/gunyah_qcom.c \
   drivers/virt/gunyah/cma_compat.c \
   drivers/virt/gunyah/Makefile \
-  drivers/firmware/Makefile \
   modules.bzl > "$MODULE_DIR/source.diff"
 
 strings "$MODULE_DIR/gunyah_qcom.ko" | grep -qF "vermagic=${EXPECTED_RELEASE}"
@@ -83,6 +68,8 @@ strings "$MODULE_DIR/gunyah_qcom.ko" | grep -qF 'qcom_scm_assign_mem'
 grep -qF 'gh_rm_get_vmid' "$MODULE_DIR/symbols.txt"
 grep -qF 'qcom_scm_assign_mem' "$MODULE_DIR/symbols.txt"
 
+# Parse ELF64 __versions. Every arm64 modversion_info record is 64 bytes:
+# 8-byte little-endian CRC + 56-byte symbol name.
 python3 - "$MODULE_DIR/gunyah_qcom.ko" "$STOCK_MODVERSIONS" "$MODULE_DIR/modversions.tsv" <<'PY'
 from pathlib import Path
 import struct
@@ -92,6 +79,7 @@ module = Path(sys.argv[1])
 baseline = Path(sys.argv[2])
 report = Path(sys.argv[3])
 data = module.read_bytes()
+
 if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
     raise SystemExit("FATAL: gunyah_qcom.ko is not little-endian ELF64")
 
@@ -112,6 +100,7 @@ def sh(index):
 
 _, str_off, str_size = sh(shstrndx)
 strtab = data[str_off:str_off + str_size]
+
 def cstr(buf, off):
     end = buf.find(b"\0", off)
     return buf[off:end if end >= 0 else len(buf)].decode("utf-8", "replace")
@@ -147,18 +136,31 @@ for name, crc in expected.items():
         errors.append(f"missing stock import {name}")
     elif got != crc:
         errors.append(f"CRC mismatch {name}: stock=0x{crc:08x} build=0x{got:08x}")
-if "gh_rm_get_vmid" not in actual:
-    errors.append("missing required patched import gh_rm_get_vmid")
+
+required_new = {"gh_rm_get_vmid"}
+for name in required_new:
+    if name not in actual:
+        errors.append(f"missing required patched import {name}")
+
+allowed = set(expected) | required_new
+unexpected = sorted(set(actual) - allowed)
+if unexpected:
+    errors.append("unexpected new imports: " + ",".join(unexpected))
+
 if "_printk" in actual:
     errors.append("unexpected debug-only _printk import")
 
 report.write_text(
-    "symbol\tcrc\n" +
-    "".join(f"{name}\t0x{crc:08x}\n" for name, crc in sorted(actual.items()))
+    "symbol\tcrc\n"
+    + "".join(f"{name}\t0x{crc:08x}\n" for name, crc in sorted(actual.items()))
 )
 if errors:
     raise SystemExit("FATAL: gunyah_qcom modversion audit failed: " + "; ".join(errors))
-print(f"Verified {len(expected)} stock import CRCs + gh_rm_get_vmid; no _printk import")
+
+print(
+    f"Verified exact stock import set ({len(expected)}) + gh_rm_get_vmid; "
+    "no debug-only or accidental imports"
+)
 PY
 
 grep -qF $'qcom_scm_assign_mem\t0xcdaced8a' "$MODULE_DIR/modversions.tsv"
@@ -170,6 +172,8 @@ grep -qF 'gh_rm_get_vmid(rm, &self_vmid)' "$QCOM_SRC"
 ! grep -qF 'GH_QCOM_SCM' "$QCOM_SRC"
 grep -qF '__free_page(nth_page(chunk->base, i));' "$BACKING_SRC"
 ! grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BACKING_SRC"
+grep -qF 'CFLAGS_gunyah_qcom.o += -DE3Q_GUNYAH_VENDOR_SCM_API' "$GUNYAH_MAKEFILE"
+grep -qF '#if IS_ENABLED(CONFIG_QCOM_SCM) || defined(E3Q_GUNYAH_VENDOR_SCM_API)' "$QCOM_SCM_HEADER"
 
 CONFIG_FILE=""
 for candidate in \
@@ -182,29 +186,40 @@ done
 if [[ -z "$CONFIG_FILE" ]]; then
   while IFS= read -r candidate; do
     grep -qx 'CONFIG_ARM64=y' "$candidate" 2>/dev/null || continue
-    CONFIG_FILE="$candidate"; break
-  done < <(find -L "$KERNEL_ROOT/bazel-bin/common" "$KERNEL_ROOT/out/android14-6.1" \
-    -type f -name .config -print 2>/dev/null || true)
+    CONFIG_FILE="$candidate"
+    break
+  done < <(
+    find -L "$KERNEL_ROOT/bazel-bin/common" "$KERNEL_ROOT/out/android14-6.1" \
+      -type f -name .config -print 2>/dev/null || true
+  )
 fi
 [[ -n "$CONFIG_FILE" ]] || { echo '::error::Final config missing for module audit'; exit 1; }
-grep -qx '# CONFIG_GUNYAH_QCOM_PLATFORM is not set' "$CONFIG_FILE" || {
-  echo '::error::Final kernel config unexpectedly enables GUNYAH_QCOM_PLATFORM'; exit 1;
-}
+
+# Keep Samsung's vendor_boot ownership model. Missing symbols are also accepted
+# as disabled; only y/m would alter the final kernel integration model.
+if grep -Eq '^CONFIG_GUNYAH_QCOM_PLATFORM=[ym]$' "$CONFIG_FILE"; then
+  echo '::error::Final kernel config unexpectedly enables GUNYAH_QCOM_PLATFORM'
+  exit 1
+fi
+if grep -Eq '^CONFIG_QCOM_SCM=[ym]$' "$CONFIG_FILE"; then
+  echo '::error::Final kernel config unexpectedly enables QCOM_SCM'
+  exit 1
+fi
 
 MODULE_SHA=$(awk '{print $1}' "$MODULE_DIR/gunyah_qcom.ko.sha256")
-SCM_SHA=$(awk '{print $1}' "$MODULE_DIR/qcom-scm-build-only.ko.sha256")
 cat >> "$REPORT_DIR/summary.md" <<EOF
 
 ## Patched e3q Gunyah Qualcomm module
 
 - Module: \`gunyah_qcom.ko\`
 - SHA-256: \`${MODULE_SHA}\`
-- Build-only dependency qcom-scm SHA-256: \`${SCM_SHA}\`
 - Kernel release: \`${EXPECTED_RELEASE}\`
 - All 11 stock DZG1 gunyah_qcom import CRCs: exact
 - New \`gh_rm_get_vmid\` import: present and KMI-listed
+- \`qcom_scm_assign_mem\`: real vendor-SCM import with stock CRC \`0xcdaced8a\`
+- Unexpected additional module imports: none
 - Debug-only \`_printk\` import: absent
-- Final \`CONFIG_GUNYAH_QCOM_PLATFORM\`: disabled (Samsung vendor_boot model retained)
+- Final \`CONFIG_GUNYAH_QCOM_PLATFORM\` / \`CONFIG_QCOM_SCM\`: not enabled
 - Contig teardown: per-page \`__free_page()\`; no \`free_contig_range()\` warning path
 - Packaging: module is CI/live-test artifact only; AnyKernel and vendor_boot remain untouched
 EOF
@@ -216,8 +231,9 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 - SHA-256: \`${MODULE_SHA}\`
 - 11/11 stock DZG1 import CRCs exact
 - gh_rm_get_vmid: imported + KMI-listed
-- _printk debug import: absent
-- CONFIG_GUNYAH_QCOM_PLATFORM=n retained
+- qcom_scm_assign_mem: real vendor-SCM import, stock CRC exact
+- accidental/debug-only extra imports: none
+- CONFIG_GUNYAH_QCOM_PLATFORM / CONFIG_QCOM_SCM remain disabled
 - Saved inside Samsung DLKM CRC audit artifact for live ADB testing
 EOF
 fi
