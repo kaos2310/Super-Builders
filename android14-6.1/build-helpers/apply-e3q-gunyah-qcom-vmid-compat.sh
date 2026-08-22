@@ -10,10 +10,11 @@ MODULES_BZL="$KERNEL_TREE/modules.bzl"
 BACKING_SRC="$GUNYAH_DIR/cma_compat.c"
 RM_HEADER="$KERNEL_TREE/include/linux/gunyah_rsc_mgr.h"
 RM_RPC="$GUNYAH_DIR/rsc_mgr_rpc.c"
+VM_TARGET="$GUNYAH_DIR/vm_mgr.c"
 QCOM_SCM_HEADER="$KERNEL_TREE/include/linux/qcom_scm.h"
 
 for f in "$QCOM_SRC" "$GUNYAH_MAKEFILE" "$FIRMWARE_MAKEFILE" "$MODULES_BZL" \
-         "$BACKING_SRC" "$RM_HEADER" "$RM_RPC" "$QCOM_SCM_HEADER"; do
+         "$BACKING_SRC" "$RM_HEADER" "$RM_RPC" "$VM_TARGET" "$QCOM_SCM_HEADER"; do
   test -f "$f" || { echo "FATAL: required e3q Gunyah source missing: $f" >&2; exit 1; }
 done
 
@@ -243,24 +244,60 @@ backing_path.write_text(backing)
 PY
 
 # Fail closed on runtime semantics, provider availability, build packaging and cleanup.
-grep -qF 'static u16 qcom_scm_map_vmid(u16 vmid)' "$QCOM_SRC"
-grep -qF 'gh_rm_get_vmid(rm, &self_vmid)' "$QCOM_SRC"
-grep -qF 'src = BIT_ULL(qcom_scm_map_vmid(self_vmid));' "$QCOM_SRC"
-grep -qF 'new_perms[n].vmid = qcom_scm_map_vmid(vmid);' "$QCOM_SRC"
-grep -qF 'src |= BIT_ULL(qcom_scm_map_vmid(vmid));' "$QCOM_SRC"
-! grep -qF 'GH_QCOM_SCM' "$QCOM_SRC"
+require_fixed() {
+  local needle="$1" file="$2" label="$3"
+  grep -qF "$needle" "$file" || {
+    echo "FATAL: missing ${label}: ${needle} in ${file}" >&2
+    exit 1
+  }
+}
 
-grep -qF 'obj-m += gunyah_qcom.o # e3q vendor_boot live-test module; not packaged by AnyKernel' "$GUNYAH_MAKEFILE"
-grep -qF 'obj-m += qcom-scm.o # e3q vendor_boot build-only provider; not packaged by AnyKernel' "$FIRMWARE_MAKEFILE"
-grep -Eq '^qcom-scm-objs[[:space:]]*\+=[[:space:]]*qcom_scm\.o[[:space:]]+qcom_scm-smc\.o[[:space:]]+qcom_scm-legacy\.o' "$FIRMWARE_MAKEFILE"
-grep -qF '"drivers/firmware/qcom-scm.ko",' "$MODULES_BZL"
-grep -qF '"drivers/virt/gunyah/gunyah_qcom.ko",' "$MODULES_BZL"
+require_regex() {
+  local regex="$1" file="$2" label="$3"
+  grep -Eq "$regex" "$file" || {
+    echo "FATAL: missing ${label}: ${regex} in ${file}" >&2
+    exit 1
+  }
+}
 
-grep -qF '__free_page(nth_page(chunk->base, i));' "$BACKING_SRC"
-! grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BACKING_SRC"
-grep -qF 'mapping->parcel.n_mem_entries > 8192' "$GUNYAH_DIR/vm_mgr.c"
-grep -qF 'ret = -E2BIG;' "$GUNYAH_DIR/vm_mgr.c"
-grep -qF 'EXPORT_SYMBOL_GPL(gh_rm_get_vmid);' "$RM_RPC"
-grep -qF 'extern int qcom_scm_assign_mem(' "$QCOM_SCM_HEADER"
+require_absent() {
+  local needle="$1" file="$2" label="$3"
+  if grep -qF "$needle" "$file"; then
+    echo "FATAL: unexpected ${label}: ${needle} in ${file}" >&2
+    exit 1
+  fi
+}
 
-echo 'e3q Gunyah follow-up applied: SCM RM-VMID mapping + qcom-scm CI provider + safe contig teardown'
+require_fixed 'static u16 qcom_scm_map_vmid(u16 vmid)' "$QCOM_SRC" 'SCM VMID mapping helper'
+require_fixed 'gh_rm_get_vmid(rm, &self_vmid)' "$QCOM_SRC" 'dynamic RM self-VMID lookup'
+require_fixed 'src = BIT_ULL(qcom_scm_map_vmid(self_vmid));' "$QCOM_SRC" 'SCM source VMID mapping'
+require_fixed 'new_perms[n].vmid = qcom_scm_map_vmid(vmid);' "$QCOM_SRC" 'SCM destination VMID mapping'
+require_fixed 'src |= BIT_ULL(qcom_scm_map_vmid(vmid));' "$QCOM_SRC" 'SCM reclaim VMID mapping'
+require_absent 'GH_QCOM_SCM' "$QCOM_SRC" 'abandoned GH_QCOM_SCM workaround'
+
+require_fixed 'obj-m += gunyah_qcom.o # e3q vendor_boot live-test module; not packaged by AnyKernel' "$GUNYAH_MAKEFILE" 'gunyah_qcom CI module target'
+require_fixed 'obj-m += qcom-scm.o # e3q vendor_boot build-only provider; not packaged by AnyKernel' "$FIRMWARE_MAKEFILE" 'qcom-scm CI provider target'
+require_regex '^qcom-scm-objs[[:space:]]*\+=[[:space:]]*qcom_scm\.o[[:space:]]+qcom_scm-smc\.o[[:space:]]+qcom_scm-legacy\.o' "$FIRMWARE_MAKEFILE" 'qcom-scm composite target'
+require_fixed '"drivers/firmware/qcom-scm.ko",' "$MODULES_BZL" 'qcom-scm Kleaf implicit output'
+require_fixed '"drivers/virt/gunyah/gunyah_qcom.ko",' "$MODULES_BZL" 'gunyah_qcom Kleaf implicit output'
+
+require_fixed '__free_page(nth_page(chunk->base, i));' "$BACKING_SRC" 'safe contiguous backing teardown'
+require_absent 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BACKING_SRC" 'unsafe contiguous teardown'
+
+# The S24 runtime trace proved the old total-parcel guard itself is the blocker.
+# It must stay absent here; large parcels are intentionally delegated to RM's
+# existing 512-entry MEM_APPEND batching protocol.
+require_absent 'mapping->parcel.n_mem_entries > 8192' "$VM_TARGET" 'synthetic 8192 total-entry guard'
+require_absent 'GH_DIAG mem_share refused' "$VM_TARGET" 'synthetic mem-share refusal path'
+require_fixed 'GH_DIAG mem_share begin' "$VM_TARGET" 'VM memory-share diagnostics'
+require_fixed 'GH_DIAG mem_share end' "$VM_TARGET" 'VM memory-share completion diagnostics'
+require_fixed 'GH_RM_RPC_MEM_APPEND' "$RM_RPC" 'RM MEM_APPEND opcode'
+require_fixed 'static int gh_rm_mem_append(' "$RM_RPC" 'RM append batching helper'
+require_fixed 'static int _gh_rm_mem_append(' "$RM_RPC" 'RM append RPC helper'
+require_fixed 'GH_DIAG rm_mem_share call begin' "$RM_RPC" 'RM initial share diagnostics'
+require_fixed 'GH_DIAG rm_append sequence begin' "$RM_RPC" 'RM append-sequence diagnostics'
+require_fixed 'GH_DIAG rm_append batch begin' "$RM_RPC" 'RM append-batch diagnostics'
+require_fixed 'EXPORT_SYMBOL_GPL(gh_rm_get_vmid);' "$RM_RPC" 'gh_rm_get_vmid export'
+require_fixed 'extern int qcom_scm_assign_mem(' "$QCOM_SCM_HEADER" 'qcom_scm_assign_mem declaration'
+
+echo 'e3q Gunyah follow-up applied: RM MEM_APPEND large-parcel path + SCM RM-VMID mapping + qcom-scm CI provider + safe contig teardown'
