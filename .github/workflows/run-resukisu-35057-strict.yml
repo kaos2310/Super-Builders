@@ -1,5 +1,5 @@
-name: S928B ReSukiSU 35088 Gunyah SCM-VMID Build
-run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35088 + Gunyah SCM-VMID / bounded extents"
+name: S928B ReSukiSU 35089 Gunyah RM-Append Build
+run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35089 + Gunyah RM MEM_APPEND / SCM-VMID"
 
 on:
   workflow_dispatch:
@@ -34,7 +34,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35088-exact-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35089-exact-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -42,7 +42,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 6.1.145 / Gunyah SCM-VMID + bounded extents
+    name: Full strict KMI gate / ReSukiSU 6.1.145 / Gunyah RM MEM_APPEND + SCM-VMID
     needs: dependencies
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -63,15 +63,18 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 746686390b0cf2256818a97b2f620eadbd079995
+      sukisu_commit: b2ac2fc8703ce9f5226e2a38a59f8b72f8a3005c
       resukisu_source_branch: main
-      resukisu_version_code: "35088"
+      resukisu_version_code: "35089"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# Final 2026-08-21 follow-up: dynamic RM-VMID SCM mapping, additive gh_rm_get_vmid
-# KMI allowance, qcom-scm build-only provider for modpost, safe contig teardown,
-# and audited vendor_boot-compatible gunyah_qcom.ko. Final restart marker.
+# 2026-08-22 follow-up from runtime tracing on SM-S928B/DZG1:
+# remove only the synthetic total-parcel 8192/E2BIG guard so the existing
+# Gunyah RM MEM_APPEND protocol can handle highly fragmented AVF guest RAM.
+# Keep IRQFD edge/level compatibility, bounded backing, dynamic RM-VMID SCM
+# mapping, additive gh_rm_get_vmid KMI allowance, safe contig teardown, and
+# the audited vendor_boot-compatible gunyah_qcom.ko as a CI/live-test artifact.
