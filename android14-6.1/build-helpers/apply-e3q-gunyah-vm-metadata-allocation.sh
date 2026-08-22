@@ -4,12 +4,15 @@ set -euo pipefail
 KERNEL_TREE="${1:?usage: apply-e3q-gunyah-vm-metadata-allocation.sh <kernel-tree>}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BASE_COMMIT="9bf8da21bb7e5891bb9b4ef917893a5792874608"
-TMP_DIR="$(mktemp -d -t e3q-gunyah-35088.XXXXXX)"
+TMP_DIR="$(mktemp -d -t e3q-gunyah-35089.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# Replay the last runtime-proven 8192/memshare baseline while consuming the
-# current bounded-backing generator. The follow-up changes only the diagnosed
-# SCM-VMID path, contig teardown, and CI-only vendor_boot module outputs.
+# Replay the last runtime-proven IRQFD/RM diagnostic baseline while consuming
+# the current bounded-backing generator. The device-side trace proved that the
+# synthetic 8192-total-entry guard aborts before gh_rm_mem_share() can use the
+# existing MEM_APPEND protocol, so remove only that guard after the baseline
+# has been applied. Keep all diagnostics, IRQFD compatibility, SCM-VMID work,
+# bounded backing, safe teardown, and CI-only vendor_boot module outputs.
 BASE_HELPER="$TMP_DIR/apply-e3q-gunyah-vm-metadata-allocation.sh"
 cp "$SCRIPT_DIR/apply-e3q-gunyah-cma-compat.sh" "$TMP_DIR/apply-e3q-gunyah-cma-compat.sh"
 curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
@@ -20,6 +23,90 @@ grep -qF 'mapping->parcel.n_mem_entries > 8192' "$BASE_HELPER"
 grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BASE_HELPER"
 bash "$BASE_HELPER" "$KERNEL_TREE"
 
+GUNYAH_DIR="$KERNEL_TREE/drivers/virt/gunyah"
+VM_TARGET="$GUNYAH_DIR/vm_mgr.c"
+RM_RPC="$GUNYAH_DIR/rsc_mgr_rpc.c"
+
+# Runtime proof from SM-S928B/DZG1:
+#   pinned=65536/65536, VMID allocation succeeds, then parcels with
+#   41k-54k physical entries are rejected locally at limit=8192 with -E2BIG.
+# Android Gunyah RM already chunks large parcels through GH_RM_RPC_MEM_APPEND.
+# Remove the synthetic total-parcel guard so gh_rm_mem_share()/lend() can reach
+# that protocol. Fail closed if the exact diagnosed guard or append machinery
+# is not present in the replayed source.
+python3 - "$VM_TARGET" "$RM_RPC" <<'PY'
+from pathlib import Path
+import sys
+
+vm = Path(sys.argv[1])
+rpc = Path(sys.argv[2])
+source = vm.read_text()
+rpc_source = rpc.read_text()
+
+marker = "if (mapping->parcel.n_mem_entries > 8192) {"
+if source.count(marker) != 1:
+    raise SystemExit(
+        f"FATAL: expected exactly one diagnosed 8192 mem-share guard, found {source.count(marker)}"
+    )
+if source.count("GH_DIAG mem_share refused") != 1:
+    raise SystemExit("FATAL: diagnosed GH_DIAG mem_share refusal marker is not unique")
+
+start = source.index(marker)
+brace = source.index("{", start)
+depth = 0
+end = None
+for pos in range(brace, len(source)):
+    ch = source[pos]
+    if ch == "{":
+        depth += 1
+    elif ch == "}":
+        depth -= 1
+        if depth == 0:
+            end = pos + 1
+            break
+if end is None:
+    raise SystemExit("FATAL: unterminated 8192 mem-share guard")
+
+block = source[start:end]
+for required in (
+    "GH_DIAG mem_share refused",
+    "mapping->parcel.n_mem_entries > 8192",
+    "ret = -E2BIG;",
+    "goto err;",
+):
+    if required not in block:
+        raise SystemExit(f"FATAL: diagnosed guard shape changed; missing {required!r}")
+
+# Remove only the guard and one following blank line if present.
+remove_end = end
+if source[remove_end:remove_end + 2] == "\n\n":
+    remove_end += 2
+elif source[remove_end:remove_end + 1] == "\n":
+    remove_end += 1
+source = source[:start] + source[remove_end:]
+
+checks = {
+    "8192 total-entry guard removed": marker not in source,
+    "refusal marker removed": "GH_DIAG mem_share refused" not in source,
+    "mem-share diagnostics retained": "GH_DIAG mem_share begin" in source,
+    "mem-share completion diagnostics retained": "GH_DIAG mem_share end" in source,
+    "RM MEM_APPEND opcode present": "GH_RM_RPC_MEM_APPEND" in rpc_source,
+    "RM append helper present": "static int gh_rm_mem_append(" in rpc_source,
+    "RM append RPC helper present": "static int _gh_rm_mem_append(" in rpc_source,
+    "RM initial share diagnostics retained": "GH_DIAG rm_mem_share call begin" in rpc_source,
+    "RM append sequence diagnostics retained": "GH_DIAG rm_append sequence begin" in rpc_source,
+}
+failed = [name for name, ok in checks.items() if not ok]
+if failed:
+    raise SystemExit("FATAL: unsafe Gunyah mem-share guard removal: " + ", ".join(failed))
+
+vm.write_text(source)
+print(
+    "Removed synthetic e3q 8192-total-entry Gunyah guard; "
+    "large AVF parcels now proceed to the existing RM MEM_APPEND path"
+)
+PY
+
 FOLLOWUP="$SCRIPT_DIR/apply-e3q-gunyah-qcom-vmid-compat.sh"
 KMI_HELPER="$SCRIPT_DIR/allow-e3q-gunyah-rm-vmid-kmi.sh"
 for helper in "$FOLLOWUP" "$KMI_HELPER"; do
@@ -29,21 +116,25 @@ done
 bash "$FOLLOWUP" "$KERNEL_TREE"
 bash "$KMI_HELPER" "$KERNEL_TREE"
 
-GUNYAH_DIR="$KERNEL_TREE/drivers/virt/gunyah"
 QCOM_SRC="$GUNYAH_DIR/gunyah_qcom.c"
 BACKING_SRC="$GUNYAH_DIR/cma_compat.c"
 GUNYAH_MAKEFILE="$GUNYAH_DIR/Makefile"
 FIRMWARE_MAKEFILE="$KERNEL_TREE/drivers/firmware/Makefile"
 MODULES_BZL="$KERNEL_TREE/modules.bzl"
-VM_TARGET="$GUNYAH_DIR/vm_mgr.c"
-RM_RPC="$GUNYAH_DIR/rsc_mgr_rpc.c"
 QCOM_SCM_HEADER="$KERNEL_TREE/include/linux/qcom_scm.h"
 ABI_LIST="$KERNEL_TREE/android/abi_gki_aarch64"
 
 # Final pre-build assertions. Fail here rather than after the expensive Kleaf
 # build if Samsung/AOSP source shape or one of our layered assumptions changed.
-grep -qF 'mapping->parcel.n_mem_entries > 8192' "$VM_TARGET"
-grep -qF 'ret = -E2BIG;' "$VM_TARGET"
+! grep -qF 'mapping->parcel.n_mem_entries > 8192' "$VM_TARGET"
+! grep -qF 'GH_DIAG mem_share refused' "$VM_TARGET"
+grep -qF 'GH_DIAG mem_share begin' "$VM_TARGET"
+grep -qF 'GH_DIAG mem_share end' "$VM_TARGET"
+grep -qF 'GH_RM_RPC_MEM_APPEND' "$RM_RPC"
+grep -qF 'static int gh_rm_mem_append(' "$RM_RPC"
+grep -qF 'static int _gh_rm_mem_append(' "$RM_RPC"
+grep -qF 'GH_DIAG rm_mem_share call begin' "$RM_RPC"
+grep -qF 'GH_DIAG rm_append sequence begin' "$RM_RPC"
 grep -qF 'alloc_contig_pages(1UL << try_order, gfp, NUMA_NO_NODE, NULL)' "$BACKING_SRC"
 grep -qF '__free_page(nth_page(chunk->base, i));' "$BACKING_SRC"
 ! grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BACKING_SRC"
@@ -71,4 +162,4 @@ grep -qF '"drivers/virt/gunyah/gunyah_qcom.ko",' "$MODULES_BZL"
 ! grep -qF 'E3Q_GUNYAH_VENDOR_SCM_API' "$GUNYAH_MAKEFILE"
 ! grep -qF 'E3Q_GUNYAH_VENDOR_SCM_API' "$QCOM_SCM_HEADER"
 
-echo 'e3q Gunyah 35088 preflight complete: 8192 guard + bounded RAM + SCM VMID mapping + qcom-scm CI provider + additive KMI allowance + safe teardown'
+echo 'e3q Gunyah 35089 preflight complete: RM MEM_APPEND enabled for large parcels + bounded RAM + SCM VMID mapping + qcom-scm CI provider + additive KMI allowance + safe teardown'
