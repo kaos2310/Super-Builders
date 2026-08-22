@@ -7,12 +7,11 @@ BASE_COMMIT="9bf8da21bb7e5891bb9b4ef917893a5792874608"
 TMP_DIR="$(mktemp -d -t e3q-gunyah-35089.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-# Replay the last runtime-proven IRQFD/RM diagnostic baseline while consuming
-# the current bounded-backing generator. The device-side trace proved that the
-# synthetic 8192-total-entry guard aborts before gh_rm_mem_share() can use the
-# existing MEM_APPEND protocol, so remove only that guard after the baseline
-# has been applied. Keep all diagnostics, IRQFD compatibility, SCM-VMID work,
-# bounded backing, safe teardown, and CI-only vendor_boot module outputs.
+# Replay the runtime-proven IRQFD/RM diagnostic baseline while consuming the
+# current bounded-backing generator. The e3q runtime now proves that removing
+# the 8192 total-entry guard lets a heavily fragmented normal-GuestMemory
+# fallback enter a host-stalling RM path. Keep the guard as a safety circuit
+# breaker, while preserving RM MEM_APPEND for valid parcels <= 8192 entries.
 BASE_HELPER="$TMP_DIR/apply-e3q-gunyah-vm-metadata-allocation.sh"
 cp "$SCRIPT_DIR/apply-e3q-gunyah-cma-compat.sh" "$TMP_DIR/apply-e3q-gunyah-cma-compat.sh"
 curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
@@ -20,6 +19,10 @@ curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
   -o "$BASE_HELPER"
 grep -qF 'GH_DIAG mem_share refused' "$BASE_HELPER"
 grep -qF 'mapping->parcel.n_mem_entries > 8192' "$BASE_HELPER"
+grep -qF 'ret = -E2BIG;' "$BASE_HELPER"
+grep -qF 'GH_DIAG rm_mem_share call begin' "$BASE_HELPER"
+grep -qF 'GH_DIAG rm_append sequence begin' "$BASE_HELPER"
+grep -qF 'GH_RM_RPC_MEM_APPEND' "$BASE_HELPER"
 grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BASE_HELPER"
 bash "$BASE_HELPER" "$KERNEL_TREE"
 
@@ -27,13 +30,10 @@ GUNYAH_DIR="$KERNEL_TREE/drivers/virt/gunyah"
 VM_TARGET="$GUNYAH_DIR/vm_mgr.c"
 RM_RPC="$GUNYAH_DIR/rsc_mgr_rpc.c"
 
-# Runtime proof from SM-S928B/DZG1:
-#   pinned=65536/65536, VMID allocation succeeds, then parcels with
-#   41k-54k physical entries are rejected locally at limit=8192 with -E2BIG.
-# Android Gunyah RM already chunks large parcels through GH_RM_RPC_MEM_APPEND.
-# Remove the synthetic total-parcel guard so gh_rm_mem_share()/lend() can reach
-# that protocol. Fail closed if the exact diagnosed guard or append machinery
-# is not present in the replayed source.
+# The existing QCOM follow-up helper was written during the guard-removal
+# experiment and validates that temporary source shape. Remove the exact guard
+# only while that source transform runs, then restore it before any kernel build.
+# No compiled artifact is ever allowed to leave this helper without the guard.
 python3 - "$VM_TARGET" "$RM_RPC" <<'PY'
 from pathlib import Path
 import sys
@@ -42,8 +42,8 @@ vm = Path(sys.argv[1])
 rpc = Path(sys.argv[2])
 source = vm.read_text()
 rpc_source = rpc.read_text()
-
 marker = "if (mapping->parcel.n_mem_entries > 8192) {"
+
 if source.count(marker) != 1:
     raise SystemExit(
         f"FATAL: expected exactly one diagnosed 8192 mem-share guard, found {source.count(marker)}"
@@ -77,7 +77,9 @@ for required in (
     if required not in block:
         raise SystemExit(f"FATAL: diagnosed guard shape changed; missing {required!r}")
 
-# Remove only the guard and one following blank line if present.
+# Persist the exact baseline block so the same text is restored after the QCOM
+# transform. This avoids reconstructing indentation or error flow by hand.
+Path(str(vm) + ".e3q_guard").write_text(block)
 remove_end = end
 if source[remove_end:remove_end + 2] == "\n\n":
     remove_end += 2
@@ -86,10 +88,10 @@ elif source[remove_end:remove_end + 1] == "\n":
 source = source[:start] + source[remove_end:]
 
 checks = {
-    "8192 total-entry guard removed": marker not in source,
-    "refusal marker removed": "GH_DIAG mem_share refused" not in source,
-    "mem-share diagnostics retained": "GH_DIAG mem_share begin" in source,
-    "mem-share completion diagnostics retained": "GH_DIAG mem_share end" in source,
+    "temporary guard removal": marker not in source,
+    "temporary refusal removal": "GH_DIAG mem_share refused" not in source,
+    "mem-share begin retained": "GH_DIAG mem_share begin" in source,
+    "mem-share end retained": "GH_DIAG mem_share end" in source,
     "RM MEM_APPEND opcode present": "GH_RM_RPC_MEM_APPEND" in rpc_source,
     "RM append helper present": "static int gh_rm_mem_append(" in rpc_source,
     "RM append RPC helper present": "static int _gh_rm_mem_append(" in rpc_source,
@@ -98,13 +100,10 @@ checks = {
 }
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
-    raise SystemExit("FATAL: unsafe Gunyah mem-share guard removal: " + ", ".join(failed))
+    raise SystemExit("FATAL: temporary Gunyah source preparation failed: " + ", ".join(failed))
 
 vm.write_text(source)
-print(
-    "Removed synthetic e3q 8192-total-entry Gunyah guard; "
-    "large AVF parcels now proceed to the existing RM MEM_APPEND path"
-)
+print("Temporarily removed e3q 8192 guard for legacy QCOM source transform; guard will be restored before build")
 PY
 
 FOLLOWUP="$SCRIPT_DIR/apply-e3q-gunyah-qcom-vmid-compat.sh"
@@ -116,6 +115,54 @@ done
 bash "$FOLLOWUP" "$KERNEL_TREE"
 bash "$KMI_HELPER" "$KERNEL_TREE"
 
+# Restore the exact proven 8192 safety guard before compilation. Insert it
+# immediately before GH_DIAG mem_share begin, which is the same location used
+# by the diagnosed baseline helper.
+python3 - "$VM_TARGET" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+vm = Path(sys.argv[1])
+guard_file = Path(str(vm) + ".e3q_guard")
+if not guard_file.is_file():
+    raise SystemExit("FATAL: saved e3q 8192 guard block is missing")
+source = vm.read_text()
+guard = guard_file.read_text()
+marker = "if (mapping->parcel.n_mem_entries > 8192) {"
+
+if marker in source or "GH_DIAG mem_share refused" in source:
+    raise SystemExit("FATAL: guard unexpectedly present before controlled restoration")
+
+pattern = re.compile(
+    r'(?P<i>^[ \t]*)pr_info\("GH_DIAG mem_share begin vmid=%u label=%u type=%u entries=%zu\\n",',
+    re.MULTILINE,
+)
+matches = list(pattern.finditer(source))
+if len(matches) != 1:
+    raise SystemExit(
+        f"FATAL: expected one GH_DIAG mem_share begin insertion point, found {len(matches)}"
+    )
+insert = matches[0].start()
+source = source[:insert] + guard + "\n\n" + source[insert:]
+vm.write_text(source)
+guard_file.unlink()
+
+checks = {
+    "8192 guard restored once": source.count(marker) == 1,
+    "refusal marker restored once": source.count("GH_DIAG mem_share refused") == 1,
+    "E2BIG retained": "ret = -E2BIG;" in source,
+    "mem-share begin retained": "GH_DIAG mem_share begin" in source,
+    "guard precedes share": source.index(marker) < source.index("GH_DIAG mem_share begin"),
+    "obsolete 512 total guard absent": "mapping->parcel.n_mem_entries > 512" not in source,
+}
+failed = [name for name, ok in checks.items() if not ok]
+if failed:
+    raise SystemExit("FATAL: e3q 8192 guard restoration failed: " + ", ".join(failed))
+
+print("Restored e3q 8192-total-entry Gunyah safety guard before kernel compilation")
+PY
+
 QCOM_SRC="$GUNYAH_DIR/gunyah_qcom.c"
 BACKING_SRC="$GUNYAH_DIR/cma_compat.c"
 GUNYAH_MAKEFILE="$GUNYAH_DIR/Makefile"
@@ -124,17 +171,25 @@ MODULES_BZL="$KERNEL_TREE/modules.bzl"
 QCOM_SCM_HEADER="$KERNEL_TREE/include/linux/qcom_scm.h"
 ABI_LIST="$KERNEL_TREE/android/abi_gki_aarch64"
 
-# Final pre-build assertions. Fail here rather than after the expensive Kleaf
-# build if Samsung/AOSP source shape or one of our layered assumptions changed.
-! grep -qF 'mapping->parcel.n_mem_entries > 8192' "$VM_TARGET"
-! grep -qF 'GH_DIAG mem_share refused' "$VM_TARGET"
+# Final fail-closed assertions. The compiled kernel must contain the 8192 total
+# parcel guard AND the 512-entry RM MEM_APPEND implementation/diagnostics.
+grep -qF 'mapping->parcel.n_mem_entries > 8192' "$VM_TARGET"
+grep -qF 'GH_DIAG mem_share refused' "$VM_TARGET"
+grep -qF 'ret = -E2BIG;' "$VM_TARGET"
 grep -qF 'GH_DIAG mem_share begin' "$VM_TARGET"
 grep -qF 'GH_DIAG mem_share end' "$VM_TARGET"
+! grep -qF 'mapping->parcel.n_mem_entries > 512' "$VM_TARGET"
+
 grep -qF 'GH_RM_RPC_MEM_APPEND' "$RM_RPC"
 grep -qF 'static int gh_rm_mem_append(' "$RM_RPC"
 grep -qF 'static int _gh_rm_mem_append(' "$RM_RPC"
 grep -qF 'GH_DIAG rm_mem_share call begin' "$RM_RPC"
 grep -qF 'GH_DIAG rm_append sequence begin' "$RM_RPC"
+grep -qF 'GH_DIAG rm_append batch begin' "$RM_RPC"
+grep -qF 'GH_DIAG rm_append call begin' "$RM_RPC"
+
+grep -qF '#define GH_EXTENT_MIN_ORDER 3U' "$BACKING_SRC"
+grep -qF '#define GH_EXTENT_LIMIT 8192UL' "$BACKING_SRC"
 grep -qF 'alloc_contig_pages(1UL << try_order, gfp, NUMA_NO_NODE, NULL)' "$BACKING_SRC"
 grep -qF '__free_page(nth_page(chunk->base, i));' "$BACKING_SRC"
 ! grep -qF 'free_contig_range(page_to_pfn(chunk->base), nr_pages)' "$BACKING_SRC"
@@ -156,10 +211,7 @@ grep -Eq '^qcom-scm-objs[[:space:]]*\+=[[:space:]]*qcom_scm\.o[[:space:]]+qcom_s
 grep -qF '"drivers/firmware/qcom-scm.ko",' "$MODULES_BZL"
 grep -qF '"drivers/virt/gunyah/gunyah_qcom.ko",' "$MODULES_BZL"
 
-# Explicitly reject the abandoned header/CFLAG workaround. Samsung's DZG1
-# qcom_scm.h exposes qcom_scm_assign_mem as an unconditional extern and does
-# not need CONFIG_QCOM_SCM to be changed for this build-only provider path.
 ! grep -qF 'E3Q_GUNYAH_VENDOR_SCM_API' "$GUNYAH_MAKEFILE"
 ! grep -qF 'E3Q_GUNYAH_VENDOR_SCM_API' "$QCOM_SCM_HEADER"
 
-echo 'e3q Gunyah 35089 preflight complete: RM MEM_APPEND enabled for large parcels + bounded RAM + SCM VMID mapping + qcom-scm CI provider + additive KMI allowance + safe teardown'
+echo 'e3q Gunyah 35089 preflight complete: 8192 safety guard restored + 512-entry RM MEM_APPEND + bounded RAM + SCM VMID mapping + qcom-scm CI provider + additive KMI allowance + safe teardown'
