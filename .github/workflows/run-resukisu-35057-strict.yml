@@ -72,9 +72,10 @@ jobs:
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# 2026-08-22 follow-up from runtime tracing on SM-S928B/DZG1:
-# remove only the synthetic total-parcel 8192/E2BIG guard so the existing
-# Gunyah RM MEM_APPEND protocol can handle highly fragmented AVF guest RAM.
-# Keep IRQFD edge/level compatibility, bounded backing, dynamic RM-VMID SCM
-# mapping, additive gh_rm_get_vmid KMI allowance, safe contig teardown, and
-# the audited vendor_boot-compatible gunyah_qcom.ko as a CI/live-test artifact.
+# 2026-08-22 runtime-safe e3q policy:
+# retain the 8192-total-entry E2BIG safety guard as a circuit breaker for
+# fragmented normal GuestMemory, while keeping the upstream 512-entry Gunyah
+# RM MEM_APPEND batching path for valid parcels <= 8192 entries. Keep IRQFD
+# edge/level compatibility, bounded backing, dynamic RM-VMID SCM mapping,
+# additive gh_rm_get_vmid KMI allowance, safe contig teardown, and the audited
+# vendor_boot-compatible gunyah_qcom.ko as a CI/live-test artifact.
