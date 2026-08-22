@@ -1,4 +1,4 @@
-# CI retrigger: build current avf-crosvm-irq16 head including best-effort Gunyah CMA fallback + init tracing.
+# CI retrigger: build current avf-crosvm-irq16 head with FAIL-CLOSED bounded Gunyah backing + init tracing.
 diff --git a/aarch64/src/lib.rs b/aarch64/src/lib.rs
 --- a/aarch64/src/lib.rs
 +++ b/aarch64/src/lib.rs
