@@ -95,4 +95,120 @@ bash -n "$BASE_HELPER"
 # kernel compilation starts.
 bash "$BASE_HELPER" "$KERNEL_TREE"
 
-echo 'e3q Gunyah QCOM/boot-context helper complete; outer 8192 guard restore gate remains authoritative'
+# Follow-on preflight: validate the complete boot-context source state now,
+# before the expensive kernel build. This intentionally does not check the
+# temporarily-removed 8192 guard; the caller restores and audits it next.
+GUNYAH_DIR="$KERNEL_TREE/drivers/virt/gunyah"
+VM_SRC="$GUNYAH_DIR/vm_mgr.c"
+VM_HDR="$GUNYAH_DIR/vm_mgr.h"
+RM_RPC="$GUNYAH_DIR/rsc_mgr_rpc.c"
+RM_HDR="$KERNEL_TREE/include/linux/gunyah_rsc_mgr.h"
+UAPI_HDR="$KERNEL_TREE/include/uapi/linux/gunyah.h"
+
+for file in "$VM_SRC" "$VM_HDR" "$RM_RPC" "$RM_HDR" "$UAPI_HDR"; do
+  test -s "$file" || {
+    echo "FATAL: boot-context preflight source missing: $file" >&2
+    exit 1
+  }
+done
+
+for token in \
+  '#define GH_RM_RPC_VM_SET_BOOT_CONTEXT 0x56000031' \
+  'struct gh_rm_vm_set_boot_context_req {' \
+  'int gh_rm_set_boot_context(struct gh_rm *rm,' \
+  'GH_RM_RPC_MEM_APPEND' \
+  'GH_DIAG rm_append sequence begin'; do
+  grep -qF "$token" "$RM_RPC" || {
+    echo "FATAL: RM boot-context/MEM_APPEND preflight token missing: $token" >&2
+    exit 1
+  }
+done
+
+grep -qF 'int gh_rm_set_boot_context(struct gh_rm *rm, u16 vmid, u8 reg_set, u8 reg_idx, u64 value);' "$RM_HDR" || {
+  echo 'FATAL: gh_rm_set_boot_context declaration missing' >&2
+  exit 1
+}
+
+for token in \
+  'enum gh_vm_boot_context_reg {' \
+  'GH_VM_BOOT_CONTEXT_REG_SHIFT 8' \
+  'struct gh_vm_boot_context {' \
+  'GH_VM_SET_BOOT_CONTEXT'; do
+  grep -qF "$token" "$UAPI_HDR" || {
+    echo "FATAL: boot-context UAPI token missing: $token" >&2
+    exit 1
+  }
+done
+
+for token in \
+  'struct xarray boot_context;' \
+  '#include <linux/xarray.h>'; do
+  grep -qF "$token" "$VM_HDR" || {
+    echo "FATAL: VM-manager header boot-context token missing: $token" >&2
+    exit 1
+  }
+done
+
+for token in \
+  'xa_init(&ghvm->boot_context);' \
+  'static long gh_vm_set_boot_context(struct gh_vm *ghvm,' \
+  'static int gh_vm_fill_boot_context(struct gh_vm *ghvm)' \
+  'ret = gh_vm_fill_boot_context(ghvm);' \
+  'case GH_VM_SET_BOOT_CONTEXT:' \
+  'xa_destroy(&ghvm->boot_context);' \
+  'GH_DIAG mem_share begin'; do
+  grep -qF "$token" "$VM_SRC" || {
+    echo "FATAL: VM-manager boot-context preflight token missing: $token" >&2
+    exit 1
+  }
+done
+
+# Verify that the generated gh_vm_start() actually applies boot context after
+# RM VM_INIT and before hypervisor-resource discovery and RM VM_START. This is
+# the lifecycle ordering required by the runtime diagnosis.
+python3 - "$VM_SRC" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+sig = 'static int gh_vm_start(struct gh_vm *ghvm)'
+start = text.find(sig)
+if start < 0:
+    raise SystemExit('FATAL: gh_vm_start function missing during lifecycle audit')
+brace = text.find('{', start)
+if brace < 0:
+    raise SystemExit('FATAL: gh_vm_start opening brace missing')
+depth = 0
+end = None
+for pos in range(brace, len(text)):
+    ch = text[pos]
+    if ch == '{':
+        depth += 1
+    elif ch == '}':
+        depth -= 1
+        if depth == 0:
+            end = pos + 1
+            break
+if end is None:
+    raise SystemExit('FATAL: gh_vm_start function is unterminated')
+block = text[start:end]
+
+ordered = [
+    ('VM_INIT', 'gh_rm_vm_init('),
+    ('SET_BOOT_CONTEXT', 'gh_vm_fill_boot_context('),
+    ('GET_HYP_RESOURCES', 'gh_rm_get_hyp_resources('),
+    ('VM_START', 'gh_rm_vm_start('),
+]
+positions = []
+for label, token in ordered:
+    pos = block.find(token)
+    if pos < 0:
+        raise SystemExit(f'FATAL: gh_vm_start missing lifecycle token {label}: {token}')
+    positions.append((label, pos))
+if [pos for _, pos in positions] != sorted(pos for _, pos in positions):
+    raise SystemExit('FATAL: Gunyah lifecycle order invalid: ' + ' -> '.join(f'{label}@{pos}' for label, pos in positions))
+print('e3q Gunyah lifecycle verified: ' + ' -> '.join(label for label, _ in positions))
+PY
+
+echo 'e3q Gunyah QCOM/boot-context preflight complete; outer 8192 guard restore gate remains authoritative'
