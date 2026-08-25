@@ -269,11 +269,29 @@ jobs:
 
         repo --trace sync -c -j$(nproc --all) --fail-fast --no-tags --force-sync --no-clone-bundle
 
+        if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
+          # The manifest commit is immutable, but its common project still
+          # names a moving branch. Restore the audited Samsung base explicitly
+          # when that branch advances after the source profile was recorded.
+          RESOLVED_COMMON_COMMIT=$(git -C common rev-parse HEAD)
+          if [[ "$RESOLVED_COMMON_COMMIT" != "$AOSP_COMMON_COMMIT" ]]; then
+            echo "::notice::common resolved to $RESOLVED_COMMON_COMMIT; restoring audited pin $AOSP_COMMON_COMMIT"
+            git -C common fetch --depth=1 --no-tags origin "$AOSP_COMMON_COMMIT"
+            git -C common checkout --detach "$AOSP_COMMON_COMMIT"
+          fi
+        fi
+
         COMMON_UPSTREAM_COMMIT=$(git -C common rev-parse HEAD)
         MANIFEST_UPSTREAM_COMMIT=$(git -C .repo/manifests rev-parse HEAD)
         if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
-          test "$COMMON_UPSTREAM_COMMIT" = "$AOSP_COMMON_COMMIT"
-          test "$MANIFEST_UPSTREAM_COMMIT" = "$AOSP_MANIFEST_COMMIT"
+          [[ "$COMMON_UPSTREAM_COMMIT" == "$AOSP_COMMON_COMMIT" ]] || {
+            echo "::error::AOSP common pin mismatch: expected $AOSP_COMMON_COMMIT, got $COMMON_UPSTREAM_COMMIT"
+            exit 1
+          }
+          [[ "$MANIFEST_UPSTREAM_COMMIT" == "$AOSP_MANIFEST_COMMIT" ]] || {
+            echo "::error::AOSP manifest pin mismatch: expected $AOSP_MANIFEST_COMMIT, got $MANIFEST_UPSTREAM_COMMIT"
+            exit 1
+          }
         fi
         {
           echo "COMMON_UPSTREAM_COMMIT=$COMMON_UPSTREAM_COMMIT"
