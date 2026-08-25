@@ -276,7 +276,8 @@ jobs:
           RESOLVED_COMMON_COMMIT=$(git -C common rev-parse HEAD)
           if [[ "$RESOLVED_COMMON_COMMIT" != "$AOSP_COMMON_COMMIT" ]]; then
             echo "::notice::common resolved to $RESOLVED_COMMON_COMMIT; restoring audited pin $AOSP_COMMON_COMMIT"
-            git -C common fetch --depth=1 --no-tags origin "$AOSP_COMMON_COMMIT"
+            git -C common fetch --depth=1 --no-tags \
+              https://android.googlesource.com/kernel/common "$AOSP_COMMON_COMMIT"
             git -C common checkout --detach "$AOSP_COMMON_COMMIT"
           fi
         fi
