@@ -31,7 +31,7 @@ runs:
           android13-5.10) SUSFS_COMMIT="8de71447d9d53fdb317d890181f13d35ef738a49" ;;
           android13-5.15) SUSFS_COMMIT="9f0415bb2c8fc581e93d384e09aba088bd36733a" ;;
           android14-5.15) SUSFS_COMMIT="841412d1f3eae63605979099714e6cf3866457de" ;;
-          android14-6.1)  SUSFS_COMMIT="8199bb6534174117ad907f726231484872ac345a" ;;
+          android14-6.1)  SUSFS_COMMIT="0ff932799d898366d57b3b5984d85cdbcfcfad0a" ;;
           android15-6.6)  SUSFS_COMMIT="a652208b593826f39534d6a881818a7ae0c4dc5d" ;;
           android16-6.12) SUSFS_COMMIT="5857c396b50da6b70a4e04b2994012ab961457a2" ;;
           *)
@@ -53,7 +53,7 @@ runs:
         # Android 14 / 6.1 uses the immutable upstream SUSFS stack above.
         # The former Pershoot overlays are no longer reachable and are not
         # required: the pinned stack plus the Samsung DZG1 repair/verification
-        # below produced an exact 2476/2476 live-DLKM CRC match.
+        # below is revalidated against all 2476 live-DLKM CRCs by the strict build.
 
         # Later defconfig reconciliation needs the exact pinned patch tree.
         # Keep it until the ephemeral runner is torn down and publish its path

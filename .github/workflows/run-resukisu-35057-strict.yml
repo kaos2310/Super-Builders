@@ -1,5 +1,5 @@
-name: S928B ReSukiSU 35089 Gunyah RM-Append Build
-run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35089 + Gunyah RM MEM_APPEND / SCM-VMID"
+name: S928B ReSukiSU 35090 Gunyah RM-Append Build
+run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35090 + Gunyah RM MEM_APPEND / SCM-VMID"
 
 on:
   workflow_dispatch:
@@ -34,7 +34,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35089-exact-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35090-exact-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -63,9 +63,9 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: b2ac2fc8703ce9f5226e2a38a59f8b72f8a3005c
+      sukisu_commit: 03b60f260cce36f23efbd26c9c334edfdc9ce7eb
       resukisu_source_branch: main
-      resukisu_version_code: "35089"
+      resukisu_version_code: "35090"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
