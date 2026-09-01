@@ -113,6 +113,7 @@ test_strict_daily_config() {
     }
   ' "$DAILY_AUDIT" > "$config"
   cat >> "$config" <<'EOF'
+CONFIG_KSU_MULTI_MANAGER_SUPPORT=y
 # CONFIG_CGROUP_PIDS is not set
 # CONFIG_LRU_GEN_STATS is not set
 CONFIG_LOG_BUF_SHIFT=22
@@ -123,6 +124,8 @@ CONFIG_IP6_NF_NAT=y
 EOF
 
   "$DAILY_AUDIT" "$config" false false strict
+  grep -v '^CONFIG_KSU_MULTI_MANAGER_SUPPORT=' "$config" > "$TMP_DIR/strict-sukisu-daily.config"
+  "$DAILY_AUDIT" "$TMP_DIR/strict-sukisu-daily.config" false false strict SukiSU
   if "$DAILY_AUDIT" "$config" false false runtime-compat; then
     echo "Runtime-compatible audit unexpectedly accepted strict-disabled features" >&2
     exit 1

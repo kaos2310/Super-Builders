@@ -5,10 +5,18 @@ CONFIG_FILE="${1:?final kernel config}"
 REQUIRE_KPM="${2:-true}"
 REQUIRE_CUSTOM_MANAGER="${3:-false}"
 KMI_MODE="${4:-runtime-compat}"
+RELEASE_VARIANT="${5:-ReSukiSU}"
 case "$KMI_MODE" in
   runtime-compat|symtypes|strict) ;;
   *)
     echo "::error::Unsupported KMI mode for daily config audit: $KMI_MODE"
+    exit 1
+    ;;
+esac
+case "$RELEASE_VARIANT" in
+  ReSukiSU|SukiSU) ;;
+  *)
+    echo "::error::Unsupported release variant for daily config audit: $RELEASE_VARIANT"
     exit 1
     ;;
 esac
@@ -20,7 +28,6 @@ esac
 REQUIRED=(
   CONFIG_MODULE_ALLOW_BTF_MISMATCH
   CONFIG_KSU
-  CONFIG_KSU_MULTI_MANAGER_SUPPORT
   CONFIG_KSU_SUSFS
   CONFIG_KSU_SUSFS_SUS_PATH
   CONFIG_KSU_SUSFS_SUS_MOUNT
@@ -73,6 +80,9 @@ REQUIRED=(
   CONFIG_VIRTUALIZATION
   CONFIG_KVM
 )
+if [[ "$RELEASE_VARIANT" == "ReSukiSU" ]]; then
+  REQUIRED+=(CONFIG_KSU_MULTI_MANAGER_SUPPORT)
+fi
 if [[ "$KMI_MODE" == "strict" ]]; then
   STRICT_KMI_DISABLED=(CONFIG_CGROUP_PIDS CONFIG_LRU_GEN_STATS)
 else
@@ -156,6 +166,9 @@ if grep -Eq '^CONFIG_(KFENCE|KASAN(_[A-Z0-9_]+)?|UBSAN(_TRAP|_BOUNDS|_LOCAL_BOUN
 fi
 
 echo "Verified ${#REQUIRED[@]} S928B daily features in $CONFIG_FILE"
+if [[ "$RELEASE_VARIANT" == "SukiSU" ]]; then
+  echo "Verified SukiSU config without a synthetic ReSukiSU multi-manager Kconfig requirement"
+fi
 if [[ "$KMI_MODE" == "strict" ]]; then
   echo "Verified strict Samsung KMI layout: CONFIG_CGROUP_PIDS=n and CONFIG_LRU_GEN_STATS=n"
 fi
