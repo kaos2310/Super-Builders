@@ -10,6 +10,10 @@ on:
       - 'patches/crosvm/android-16.0.0_r4-gunyah-irq16.patch'
       - 'scripts/patch-crosvm-gunyah-irqfd.py'
       - 'scripts/patch-crosvm-gunyah-irqfd-core.py'
+      - 'scripts/patch-crosvm-gunyah-memory-contiguity.py'
+      - 'scripts/patch-crosvm-gunyah-cma-base.py'
+      - 'scripts/patch-crosvm-gunyah-cma-backport.py'
+      - 'scripts/patch-crosvm-gunyah-init-trace.py'
       - 'scripts/prepare-crosvm-binder-deps.py'
 
 permissions:
@@ -354,7 +358,7 @@ jobs:
           grep -q 'const AARCH64_VMWDT_IRQ: u32 = 15;' aarch64/src/lib.rs
           grep -n 'pub fn register_irqfd' hypervisor/src/gunyah/mod.rs
 
-      - name: Apply Gunyah IRQFD collision patch
+      - name: Apply Samsung Gunyah dynamic-VM patch chain
         shell: bash
         run: |
           set -euxo pipefail
@@ -363,8 +367,15 @@ jobs:
           grep -q 'reserve_irq(AARCH64_VMWDT_IRQ)' aarch64/src/lib.rs
           grep -q 'GUNYAH IRQFD add:' hypervisor/src/gunyah/mod.rs
           grep -q 'GUNYAH IRQFD add failed:' hypervisor/src/gunyah/mod.rs
+          grep -q 'GH_ANDROID_CREATE_CMA_COMPAT_MEM_FD' hypervisor/src/gunyah/gunyah_sys.rs
+          grep -q 'create_cma_compat_mem_fd' hypervisor/src/gunyah/mod.rs
+          grep -q 'GUNYAH CMA: bounded guest backing SUCCESS' src/crosvm/sys/linux.rs
+          grep -q 'fragmented normal GuestMemory fallback disabled' src/crosvm/sys/linux.rs
+          grep -q 'GUNYAH INIT: GH_VM_START begin' hypervisor/src/gunyah/aarch64.rs
+          grep -q 'GUNYAH INIT: GH_VM_START FAILED errno=' hypervisor/src/gunyah/aarch64.rs
+          grep -q 'avf-final-dtb' aarch64/src/fdt.rs
           git diff --check
-          git diff -- aarch64/src/lib.rs hypervisor/src/gunyah/mod.rs
+          git diff --stat
 
       - name: Build ARM64 Android crosvm
         shell: bash
@@ -448,6 +459,20 @@ jobs:
             | tee "$DEST/dt-needed.txt" || true
           awk '$7 == "UND" {print}' "$DEST/readelf-symbols.txt" \
             | tee "$DEST/undefined-dynamic-symbols.txt"
+
+          strings "$CROSVM" | grep -F 'GUNYAH CMA: bounded guest backing SUCCESS' >/dev/null
+          strings "$CROSVM" | grep -F 'fragmented normal GuestMemory fallback disabled' >/dev/null
+          strings "$CROSVM" | grep -F 'GUNYAH INIT: GH_VM_START begin' >/dev/null
+          strings "$CROSVM" | grep -F 'GUNYAH INIT: GH_VM_START FAILED errno=' >/dev/null
+          strings "$CROSVM" | grep -F 'GUNYAH IRQFD add: label=' >/dev/null
+          {
+            echo 'GUNYAH CMA: bounded guest backing SUCCESS'
+            echo 'fragmented normal GuestMemory fallback disabled'
+            echo 'GUNYAH INIT: GH_VM_START begin'
+            echo 'GUNYAH INIT: GH_VM_START FAILED errno='
+            echo 'GUNYAH IRQFD add: label='
+          } > "$DEST/verified-binary-markers.txt"
+
           {
             echo 'Binary not executed during CI.'
             echo 'Target architecture: Android ARM64/AArch64'
@@ -455,14 +480,29 @@ jobs:
           } > "$DEST/version.txt"
           cp -a "$CROSVM" "$DEST/crosvm"
           cp "$PATCH_FILE" "$DEST/"
-          cp "$GITHUB_WORKSPACE/scripts/patch-crosvm-gunyah-irqfd.py" "$DEST/"
-          cp "$GITHUB_WORKSPACE/scripts/patch-crosvm-gunyah-irqfd-core.py" "$DEST/"
-          cp "$GITHUB_WORKSPACE/scripts/prepare-crosvm-binder-deps.py" "$DEST/"
+          for helper in \
+            patch-crosvm-gunyah-irqfd.py \
+            patch-crosvm-gunyah-irqfd-core.py \
+            patch-crosvm-gunyah-memory-contiguity.py \
+            patch-crosvm-gunyah-cma-base.py \
+            patch-crosvm-gunyah-cma-backport.py \
+            patch-crosvm-gunyah-init-trace.py \
+            prepare-crosvm-binder-deps.py; do
+            cp "$GITHUB_WORKSPACE/scripts/$helper" "$DEST/"
+          done
+          sha256sum \
+            "$DEST/android-16.0.0_r4-gunyah-irq16.patch" \
+            "$DEST/patch-crosvm-gunyah-"*.py \
+            "$DEST/prepare-crosvm-binder-deps.py" \
+            > "$DEST/patch-chain-sha256.txt"
           cat > "$DEST/build-info.txt" <<EOF
           AOSP_TAG=$AOSP_TAG
           CROSVM_SOURCE_COMMIT=$(cd external/crosvm && git rev-parse HEAD)
-          PATCH=RESERVE_VMWDT_IRQ15_PLUS_GUNYAH_IRQFD_LOGGING
-          PATCH_METHOD=SOURCE_ANCHORS
+          PATCH=IRQ15_IRQFD_PLUS_SAMSUNG_CMA_COMPAT_UAPI_FAIL_CLOSED_PLUS_GUNYAH_INIT_TRACE
+          PATCH_METHOD=FAIL_CLOSED_SOURCE_ANCHOR_CHAIN
+          SAMSUNG_CMA_COMPAT_IOCTL=0x40084120
+          SAMSUNG_CMA_COMPAT_MAX_BYTES=268435456
+          SAMSUNG_GUNYAH_DEVICE=/dev/gunyah
           TARGET=module_arm64-trunk_staging-eng
           OUT_DIR=$OUT_DIR
           SOURCE_BINARY=$CROSVM
