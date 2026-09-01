@@ -25,6 +25,11 @@ on:
       - 'android14-6.1/e3q-gunyah-qcom-stock-modversions.tsv'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
       - 'android14-6.1/build-helpers/configure-sukisu-ultra-release.sh'
+      - 'android14-6.1/build-helpers/prepare-sukisu-40901-susfs-port.sh'
+      - 'android14-6.1/build-helpers/audit-sukisu-40901-susfs-rebase.sh'
+      - 'android14-6.1/build-helpers/finalize-sukisu-40901-susfs-port.sh'
+      - 'android14-6.1/build-helpers/verify-zeromount-susfs-source.sh'
+      - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
       - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'
       - 'android14-6.1/build-helpers/make-resukisu-umount-add-idempotent.sh'
@@ -82,6 +87,10 @@ jobs:
 # Exact root source compiled by this workflow:
 #   SukiSU Ultra v4.2.0 / 40901
 #   9fbe8fe8ca90c62c259c5894bf96d02ac31209b9
+# SUSFS is integrated through a SukiSU-specific ABI/lifecycle port. The generic
+# upstream 10_enable_susfs_for_ksu.patch is audited but deliberately not applied,
+# so SukiSU 40901 execveat, WebView/isolated-process umount and hook-manager
+# semantics remain intact and are protected by the seven-file SHA gate.
 # All non-root properties remain identical to successful run 33471532297.
 # Runtime-safe e3q policy is retained: 8192-total-entry E2BIG guard, upstream
 # 512-entry Gunyah RM MEM_APPEND batching, IRQFD edge/level compatibility,
