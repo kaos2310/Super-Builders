@@ -34,7 +34,7 @@ edit("drivers/input/input.c", [
 edit("fs/exec.c", [
     (r'\n#ifdef CONFIG_KSU_SUSFS\n#include <linux/susfs_def.h>\n#endif\n', '\n', 'generic SUSFS exec include'),
     (r'\n#ifdef CONFIG_KSU_SUSFS\nextern struct static_key_true ksu_su_compat_enabled;\nextern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;\nextern bool __ksu_is_allow_uid_for_current\(uid_t uid\);\nextern int ksu_handle_execveat\(int \*fd, struct filename \*\*filename_ptr, void \*argv,\n\s*void \*envp, int \*flags\);\nextern int ksu_handle_execveat_sucompat\(int \*fd, struct filename \*\*filename_ptr, void \*argv,\n\s*void \*envp, int \*flags\);\n#endif\n', '\n', 'generic SUSFS exec declarations'),
-    (r'\n#ifdef CONFIG_KSU_SUSFS\n\s*if \(likely\(susfs_is_current_proc_umounted\(\)\)\)\n\s*goto orig_flow;\n\n\s*if \(static_branch_likely\(&ksu_su_compat_enabled\)\) \{\n\s*if \(static_branch_unlikely\(&susfs_is_sdcard_android_data_not_decrypted\)\)\n\s*ksu_handle_execveat\(&fd, &filename, &argv, &envp, &flags\);\n\s*else\n\s*ksu_handle_execveat_sucompat\(&fd, &filename, &argv, &envp, &flags\);\n\s*\}\n\norig_flow:\n#endif\n', '\n', 'generic SUSFS direct exec hook'),
+    (r'\n#ifdef CONFIG_KSU_SUSFS\n\s*if \(likely\(susfs_is_current_proc_(?:no_su|umounted)\(\)\)\)\n\s*goto orig_flow;\n\n\s*if \(static_branch_likely\(&ksu_su_compat_enabled\)\) \{\n\s*if \(static_branch_unlikely\(&susfs_is_sdcard_android_data_not_decrypted\)\)\n\s*ksu_handle_execveat\(&fd, &filename, &argv, &envp, &flags\);\n\s*else\n\s*ksu_handle_execveat_sucompat\(&fd, &filename, &argv, &envp, &flags\);\n\s*\}\n\norig_flow:\n#endif\n', '\n', 'generic SUSFS direct exec hook'),
 ])
 
 edit("kernel/sys.c", [
@@ -47,15 +47,26 @@ PY
 
 # Hard gates: the GKI side must now defer execve/execveat/setresuid/input handling
 # to SukiSU's native hook stack, while the SUSFS reboot ABI remains wired.
-! grep -qF 'ksu_handle_execveat(&fd, &filename' "$COMMON/fs/exec.c"
-! grep -qF 'ksu_handle_setresuid(ruid, euid, suid)' "$COMMON/kernel/sys.c"
-! grep -qF 'ksu_is_input_hook_enabled' "$COMMON/drivers/input/input.c"
+reject_direct_hook() {
+  local path="$1"
+  local needle="$2"
+  local label="$3"
+  if grep -qF "$needle" "$path"; then
+    echo "::error::Generic SUSFS direct $label hook remains in $path"
+    exit 1
+  fi
+}
+
+reject_direct_hook "$COMMON/fs/exec.c" 'ksu_handle_execveat(&fd, &filename' 'execveat'
+reject_direct_hook "$COMMON/kernel/sys.c" 'ksu_handle_setresuid(ruid, euid, suid)' 'setresuid'
+reject_direct_hook "$COMMON/drivers/input/input.c" 'ksu_is_input_hook_enabled' 'input'
 grep -qF 'ksu_handle_sys_reboot(magic1, magic2, cmd, &arg)' "$COMMON/kernel/reboot.c"
 
 grep -qF 'int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg)' \
   "$KSU_ROOT/kernel/supercall/dispatch.c"
 grep -qF 'case CMD_SUSFS_ADD_SUS_KSTAT_REDIRECT:' "$KSU_ROOT/kernel/supercall/dispatch.c"
 grep -qF 'ksu_susfs_dispatch_path_compat' "$KSU_ROOT/kernel/supercall/dispatch.c"
+grep -qF '#include "selinux/selinux.h"' "$KSU_ROOT/kernel/hook/setuid_hook.c"
 
 # Preserve the requested SukiSU 40901 execution paths.
 grep -qF 'new_uid != WEBVIEW_ZYGOTE_UID' "$KSU_ROOT/kernel/feature/kernel_umount.c"

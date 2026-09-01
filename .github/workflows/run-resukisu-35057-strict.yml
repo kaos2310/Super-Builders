@@ -78,6 +78,7 @@ jobs:
       sukisu_commit: aa7c82a7f5b5f8693118854383d88d522bdcd0f1
       resukisu_source_branch: main
       resukisu_version_code: "40901"
+      release_variant: SukiSU
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict

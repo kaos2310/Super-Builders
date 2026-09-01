@@ -9,6 +9,8 @@ COMPARATOR="$HELPERS_DIR/compare-kmi-variants.sh"
 COLLECTOR="$HELPERS_DIR/collect-kmi-symtypes.sh"
 CLEAN_FLAGS="$HELPERS_DIR/clean-build-flags.sh"
 KASAN_STUB_HELPER="$HELPERS_DIR/apply-kasan-kmi-stub.sh"
+SUKISU_PREPARE_HELPER="$HELPERS_DIR/prepare-sukisu-40901-susfs-port.sh"
+SUKISU_FINALIZE_HELPER="$HELPERS_DIR/finalize-sukisu-40901-susfs-port.sh"
 XHCI_HOOK_HELPER="$HELPERS_DIR/apply-s928b-dzg1-xhci-hooks.sh"
 SAMSUNG_SOURCE_HELPER="$HELPERS_DIR/apply-s928b-dzg1-source-overlay.sh"
 SAMSUNG_SOURCE_PROFILE="$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
@@ -382,6 +384,106 @@ test_s928b_dzg1_susfs_patch_context() {
 }
 
 test_s928b_dzg1_susfs_patch_context
+
+test_sukisu_40901_compile_guards() {
+  local fixture="$TMP_DIR/sukisu-40901-finalize"
+  local common="$fixture/common"
+  local ksu="$fixture/KernelSU"
+
+  grep -qF '#include "selinux/selinux.h"' "$SUKISU_PREPARE_HELPER"
+  grep -qF 'susfs_is_current_proc_(?:no_su|umounted)' "$SUKISU_FINALIZE_HELPER"
+  grep -qF 'reject_direct_hook "$COMMON/fs/exec.c"' "$SUKISU_FINALIZE_HELPER"
+  grep -qF 'reject_direct_hook "$COMMON/kernel/sys.c"' "$SUKISU_FINALIZE_HELPER"
+  grep -qF 'reject_direct_hook "$COMMON/drivers/input/input.c"' "$SUKISU_FINALIZE_HELPER"
+  if grep -qE '^! grep -qF .*ksu_handle_(execveat|setresuid)' "$SUKISU_FINALIZE_HELPER"; then
+    echo "SukiSU 40901 compile guard still relies on non-failing negated grep" >&2
+    exit 1
+  fi
+
+  mkdir -p \
+    "$common/drivers/input" \
+    "$common/fs" \
+    "$common/kernel" \
+    "$ksu/kernel/feature" \
+    "$ksu/kernel/hook" \
+    "$ksu/kernel/policy" \
+    "$ksu/kernel/runtime" \
+    "$ksu/kernel/supercall"
+
+  cat > "$common/drivers/input/input.c" <<'EOF'
+/* fixture preamble */
+#ifdef CONFIG_KSU_SUSFS
+extern struct static_key_true ksu_is_input_hook_enabled;
+extern __attribute__((cold)) int ksu_handle_input_handle_event(
+        unsigned int *type, unsigned int *code, int *value);
+#endif
+
+#ifdef CONFIG_KSU_SUSFS
+    if (static_branch_unlikely(&ksu_is_input_hook_enabled))
+        ksu_handle_input_handle_event(&type, &code, &value);
+#endif
+EOF
+  cat > "$common/fs/exec.c" <<'EOF'
+/* fixture preamble */
+#ifdef CONFIG_KSU_SUSFS
+#include <linux/susfs_def.h>
+#endif
+
+#ifdef CONFIG_KSU_SUSFS
+extern struct static_key_true ksu_su_compat_enabled;
+extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;
+extern bool __ksu_is_allow_uid_for_current(uid_t uid);
+extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
+        void *envp, int *flags);
+extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,
+        void *envp, int *flags);
+#endif
+
+#ifdef CONFIG_KSU_SUSFS
+    if (likely(susfs_is_current_proc_no_su()))
+        goto orig_flow;
+
+    if (static_branch_likely(&ksu_su_compat_enabled)) {
+        if (static_branch_unlikely(&susfs_is_sdcard_android_data_not_decrypted))
+            ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
+        else
+            ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
+    }
+
+orig_flow:
+#endif
+EOF
+  cat > "$common/kernel/sys.c" <<'EOF'
+/* fixture preamble */
+#ifdef CONFIG_KSU_SUSFS
+extern int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);
+#endif
+
+#ifdef CONFIG_KSU_SUSFS
+    (void)ksu_handle_setresuid(ruid, euid, suid);
+#endif
+EOF
+  printf '%s\n' 'ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);' > "$common/kernel/reboot.c"
+  cat > "$ksu/kernel/supercall/dispatch.c" <<'EOF'
+int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg)
+case CMD_SUSFS_ADD_SUS_KSTAT_REDIRECT:
+ksu_susfs_dispatch_path_compat
+EOF
+  printf '%s\n' '#include "selinux/selinux.h"' > "$ksu/kernel/hook/setuid_hook.c"
+  printf '%s\n' 'new_uid != WEBVIEW_ZYGOTE_UID' > "$ksu/kernel/feature/kernel_umount.c"
+  printf '%s\n' 'ksu_handle_execveat_sucompat' > "$ksu/kernel/feature/sucompat.c"
+  printf '%s\n' 'long __nocfi ksu_hook_execveat' > "$ksu/kernel/hook/syscall_event_bridge.c"
+  printf '%s\n' 'ksu_register_syscall_hook(__NR_execveat, ksu_hook_execveat);' > "$ksu/kernel/hook/syscall_hook_manager.c"
+  printf '%s\n' 'bool ksu_uid_should_umount(uid_t uid)' > "$ksu/kernel/policy/allowlist.c"
+  printf '%s\n' 'void ksu_handle_execveat_ksud' > "$ksu/kernel/runtime/ksud_integration.c"
+
+  "$SUKISU_FINALIZE_HELPER" "$common" "$ksu"
+  ! grep -qF 'ksu_handle_execveat(&fd, &filename' "$common/fs/exec.c"
+  ! grep -qF 'ksu_is_input_hook_enabled' "$common/drivers/input/input.c"
+  ! grep -qF 'ksu_handle_setresuid(ruid, euid, suid)' "$common/kernel/sys.c"
+}
+
+test_sukisu_40901_compile_guards
 
 test_s928b_dzg1_wakeup_patch() {
   grep -qF 'SAMSUNG_SOURCE_BASE_APPLIED:-false' "$KERNEL_PATCH_HELPER"

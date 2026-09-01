@@ -233,6 +233,13 @@ write("kernel/runtime/boot_event.c", text)
 p, text = read("kernel/hook/setuid_hook.c")
 if "#include <linux/susfs_def.h>" not in text:
     text = replace_once(text, "#include <linux/uidgid.h>\n", "#include <linux/uidgid.h>\n#include <linux/susfs_def.h>\n", "setuid SUSFS include")
+if '#include "selinux/selinux.h"' not in text:
+    text = replace_once(
+        text,
+        "#include <linux/susfs_def.h>\n",
+        '#include <linux/susfs_def.h>\n#include "selinux/selinux.h"\n',
+        "setuid SELinux declaration include",
+    )
 mark = r'''
 #ifdef CONFIG_KSU_SUSFS
     if ((is_appuid(new_uid) || new_uid == WEBVIEW_ZYGOTE_UID || is_isolated_process(new_uid)) &&

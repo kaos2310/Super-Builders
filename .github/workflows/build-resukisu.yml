@@ -58,6 +58,10 @@ on:
       resukisu_version_code:
         type: string
         default: "35071"
+      release_variant:
+        description: "Compiled root implementation used for job and artifact identity"
+        type: string
+        default: "ReSukiSU"
       resukisu_expected_size:
         type: string
         default: ""
@@ -86,15 +90,16 @@ on:
 
 jobs:
   build:
-    name: "ReSukiSU ${{ inputs.kernel_version }}.${{ inputs.sub_level }}"
+    name: "${{ inputs.release_variant }} ${{ inputs.kernel_version }}.${{ inputs.sub_level }}"
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
       KSU_VARIANT: ReSukiSU
       KSU_DIR: KernelSU
+      RELEASE_VARIANT: ${{ inputs.release_variant }}
       RESUKISU_VERSION_CODE: ${{ inputs.resukisu_version_code }}
       RESUKISU_VERSION_LABEL: ${{ inputs.resukisu_version_code }}
-      RESUKISU_VERSION_FULL: ReSukiSU-${{ inputs.resukisu_version_code }}
+      RESUKISU_VERSION_FULL: ${{ inputs.release_variant }}-${{ inputs.resukisu_version_code }}
 
     steps:
     - name: Checkout Repository
@@ -107,8 +112,13 @@ jobs:
         KMI_MINIMAL_CONFIG: ${{ inputs.kmi_minimal_config }}
         PACKAGE_STRICT_ANYKERNEL: ${{ inputs.package_strict_anykernel }}
         DEVICE_CODENAME: ${{ inputs.device_codename }}
+        RELEASE_VARIANT: ${{ inputs.release_variant }}
       run: |
         set -euo pipefail
+        case "$RELEASE_VARIANT" in
+          ReSukiSU|SukiSU) ;;
+          *) echo "::error::Unsupported release variant: $RELEASE_VARIANT"; exit 1 ;;
+        esac
         case "$KMI_MODE" in
           runtime-compat|symtypes|strict) ;;
           *) echo "::error::Unsupported KMI mode: $KMI_MODE"; exit 1 ;;
@@ -343,8 +353,9 @@ jobs:
           [[ -n "$EXTRACTED" ]] && SUBLEVEL="$EXTRACTED"
         fi
 
-        ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-ReSukiSU-${RESUKISU_VERSION_LABEL}"
+        ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-${RELEASE_VARIANT}-${RESUKISU_VERSION_LABEL}"
         [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]] && ARTIFACT_BASE+="-OpenRedirect-Test"
+        [[ "${{ inputs.add_kpm }}" == "true" ]] && ARTIFACT_BASE+="-KPM"
         if [[ "${{ inputs.kmi_mode }}" != "runtime-compat" ]]; then
           ARTIFACT_BASE+="-KMI-${{ inputs.kmi_profile }}-${{ inputs.kmi_mode }}"
         fi
@@ -354,7 +365,7 @@ jobs:
           echo "FILE_NAME=$ARTIFACT_BASE"
         } >> "$GITHUB_ENV"
 
-    - name: Setup ReSukiSU
+    - name: Setup ${{ inputs.release_variant }}
       working-directory: ${{ env.KERNEL_ROOT }}
       env:
         SUKISU_COMMIT: ${{ inputs.sukisu_commit }}
@@ -386,7 +397,7 @@ jobs:
           "$TARGET_VERSION_CODE" "$MANAGER_CERT_SIZE" "$MANAGER_CERT_HASH"
         RELEASE_TAG=$(git -C "$KERNEL_ROOT/$KSU_DIR" describe --abbrev=0 --tags)
         echo "RESUKISU_VERSION_FULL=${RELEASE_TAG}-${TARGET_VERSION_CODE}" >> "$GITHUB_ENV"
-        echo "Resolved ReSukiSU release: ${RELEASE_TAG}-${TARGET_VERSION_CODE}"
+        echo "Resolved ${RELEASE_VARIANT} release: ${RELEASE_TAG}-${TARGET_VERSION_CODE}"
 
         cd "$KERNEL_ROOT/common"
 
@@ -670,7 +681,7 @@ jobs:
           echo "Strict KMI mode: build-time ABI and defconfig checks remain enabled."
         fi
 
-    - name: Verify ReSukiSU build identity
+    - name: Verify ${{ inputs.release_variant }} build identity
       if: inputs.device_codename == 'e3q'
       env:
         EXPECTED_PIN: ${{ inputs.sukisu_commit }}
@@ -708,13 +719,13 @@ jobs:
           ! grep -Rqx 'config KPM' "$KERNEL_ROOT/$KSU_DIR" --include='Kconfig*'
         fi
 
-        echo "ReSukiSU: ${RESUKISU_VERSION_FULL}"
+        echo "${RELEASE_VARIANT}: ${RESUKISU_VERSION_FULL}"
         echo "RESUKISU_VERSION_CODE=${RESUKISU_VERSION_CODE}"
         echo "RESUKISU_SOURCE_BRANCH=${EXPECTED_BRANCH}"
         echo "RESUKISU_COMMIT=$PIN"
         [[ "$ADD_SUSFS" == "true" ]] && echo "SUSFS_VERSION=v2.2.0" || echo "SUSFS disabled for KMI attribution"
         [[ "$ADD_ZEROMOUNT" == "true" ]] && echo "ZeroMount SUSFS v2.2 dual-ABI compatibility enabled" || echo "ZeroMount disabled for KMI attribution"
-        [[ "$ADD_KPM" == "true" ]] && echo "KPM enabled" || echo "KPM unavailable in ReSukiSU ${RESUKISU_VERSION_CODE}"
+        [[ "$ADD_KPM" == "true" ]] && echo "KPM enabled" || echo "KPM disabled for ${RELEASE_VARIANT} ${RESUKISU_VERSION_CODE}"
 
     - name: Clean Module Lists
       if: inputs.add_zram
@@ -740,7 +751,7 @@ jobs:
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
         HELPERS="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers"
-        bash "$HELPERS/clean-build-flags.sh" . "$KERNEL_VER" "ReSukiSU" "${{ inputs.kmi_mode }}"
+        bash "$HELPERS/clean-build-flags.sh" . "$KERNEL_VER" "$RELEASE_VARIANT" "${{ inputs.kmi_mode }}"
 
     - name: Set Stock Build Identity
       working-directory: ${{ env.KERNEL_ROOT }}/common
@@ -1077,7 +1088,8 @@ jobs:
           cat > "$ANYKERNEL3/STRICT-KMI.txt" <<EOF
         S928B strict Samsung DLKM KMI build
         ===================================
-        ReSukiSU: ${RESUKISU_VERSION_FULL}
+        ${RELEASE_VARIANT}: ${RESUKISU_VERSION_FULL}
+        KPM: ${{ inputs.add_kpm }}
         Target firmware: ${STOCK_FIRMWARE_EXPECTED} (${STOCK_CSC_EXPECTED})
         Kernel identity: ${KERNEL_VER}.${SUBLEVEL}${STOCK_RELEASE_EXPECTED}
         Samsung source: ${SAMSUNG_OSS_PACKAGE} (${SAMSUNG_OSS_SHA256})
@@ -1171,8 +1183,13 @@ jobs:
             exit 1
           }
         fi
-        grep -aF 'd3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64' "$ANYKERNEL3/Image" >/dev/null || {
-          echo "::error::Official ReSukiSU manager certificate hash is missing from the kernel image"
+        case "$RELEASE_VARIANT" in
+          SukiSU) OFFICIAL_MANAGER_HASH='947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef' ;;
+          ReSukiSU) OFFICIAL_MANAGER_HASH='d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64' ;;
+          *) echo "::error::Unsupported release variant: $RELEASE_VARIANT"; exit 1 ;;
+        esac
+        grep -aF "$OFFICIAL_MANAGER_HASH" "$ANYKERNEL3/Image" >/dev/null || {
+          echo "::error::Official ${RELEASE_VARIANT} manager certificate hash is missing from the kernel image"
           exit 1
         }
 
@@ -1309,7 +1326,7 @@ jobs:
       run: |
         S() { [[ "$1" == "true" ]] && echo "Enabled" || echo "Disabled"; }
         {
-          echo "## ReSukiSU | ${KERNEL_VER}.${SUBLEVEL}"
+          echo "## ${RELEASE_VARIANT} | ${KERNEL_VER}.${SUBLEVEL}"
           echo ""
           echo "| Feature | Status |"
           echo "|---------|--------|"
