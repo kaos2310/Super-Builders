@@ -109,6 +109,25 @@ if marker not in init_text:
     lines[pos:pos] = ['', marker]
     init_text = '\n'.join(lines) + '\n'
     init_c.write_text(init_text, encoding="utf-8")
+
+# SukiSU 40901 has two reset_avc_cache() call sites. Anchor the SUSFS SID
+# refresh specifically to apply_kernelsu_rules() so the generic pre-port helper
+# does not need an ambiguous text match and the initial KSU policy install
+# always refreshes the SUSFS SID cache.
+rules = root / "kernel/selinux/rules.c"
+rules_text = rules.read_text(encoding="utf-8")
+if "    susfs_set_batch_sid();\n" not in rules_text:
+    anchor = "    reset_avc_cache();\nout_unlock:\n"
+    replacement = (
+        "    reset_avc_cache();\n"
+        "#ifdef CONFIG_KSU_SUSFS\n"
+        "    susfs_set_batch_sid();\n"
+        "#endif\n"
+        "out_unlock:\n"
+    )
+    if rules_text.count(anchor) != 1:
+        raise SystemExit(f"Cannot locate unique apply_kernelsu_rules SUSFS SID anchor: {rules_text.count(anchor)}")
+    rules.write_text(rules_text.replace(anchor, replacement, 1), encoding="utf-8")
 PY
 
 PREPARE="$GITHUB_WORKSPACE/android14-6.1/build-helpers/prepare-sukisu-40901-susfs-port.sh"
