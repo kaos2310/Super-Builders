@@ -1,5 +1,5 @@
-name: S928B ReSukiSU 35113 Gunyah RM-Append Build
-run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35113 + Gunyah RM MEM_APPEND / SCM-VMID"
+name: S928B SukiSU Ultra 40901 Gunyah RM-Append Build
+run-name: "S928BXXS6DZG1 EUX — SukiSU Ultra 40901 + Gunyah RM MEM_APPEND / SCM-VMID"
 
 on:
   workflow_dispatch:
@@ -24,6 +24,7 @@ on:
       - 'android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh'
       - 'android14-6.1/e3q-gunyah-qcom-stock-modversions.tsv'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
+      - 'android14-6.1/build-helpers/configure-sukisu-ultra-release.sh'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
       - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'
       - 'android14-6.1/build-helpers/make-resukisu-umount-add-idempotent.sh'
@@ -34,6 +35,8 @@ permissions:
   actions: write
 
 concurrency:
+  # Keep the previous group key so any intermediate conversion run is cancelled
+  # when this final exact SukiSU Ultra configuration is pushed.
   group: s928b-resukisu-35113-exact-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
@@ -42,7 +45,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 6.1.145 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / SukiSU Ultra 6.1.145 / Gunyah RM MEM_APPEND + SCM-VMID
     needs: dependencies
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -63,19 +66,24 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
+      # The reusable workflow still bootstraps its KernelSU git metadata from
+      # this immutable ReSukiSU commit. configure-resukisu-release.sh replaces
+      # only the working tree with exact SukiSU Ultra 40901 source while keeping
+      # that metadata stable for the existing strict pin checks.
       sukisu_commit: aa7c82a7f5b5f8693118854383d88d522bdcd0f1
       resukisu_source_branch: main
-      resukisu_version_code: "35113"
+      resukisu_version_code: "40901"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# 2026-08-22 runtime-safe e3q policy:
-# retain the 8192-total-entry E2BIG safety guard as a circuit breaker for
-# fragmented normal GuestMemory, while keeping the upstream 512-entry Gunyah
-# RM MEM_APPEND batching path for valid parcels <= 8192 entries. Keep IRQFD
-# edge/level compatibility, bounded backing, dynamic RM-VMID SCM mapping,
-# additive gh_rm_get_vmid KMI allowance, safe contig teardown, and the audited
-# vendor_boot-compatible gunyah_qcom.ko as a CI/live-test artifact.
+# Exact root source compiled by this workflow:
+#   SukiSU Ultra v4.2.0 / 40901
+#   9fbe8fe8ca90c62c259c5894bf96d02ac31209b9
+# All non-root properties remain identical to successful run 33471532297.
+# Runtime-safe e3q policy is retained: 8192-total-entry E2BIG guard, upstream
+# 512-entry Gunyah RM MEM_APPEND batching, IRQFD edge/level compatibility,
+# bounded backing, dynamic RM-VMID SCM mapping, additive gh_rm_get_vmid KMI
+# allowance, safe contig teardown, and audited vendor_boot gunyah_qcom.ko.
