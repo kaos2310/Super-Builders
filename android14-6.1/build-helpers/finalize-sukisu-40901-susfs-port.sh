@@ -76,12 +76,12 @@ reject_direct_hook() {
 }
 
 reject_direct_hook "$COMMON/fs/exec.c" 'ksu_handle_execveat(&fd, &filename' 'execveat'
-reject_direct_hook "$COMMON/fs/open.c" 'ksu_handle_faccessat(' 'faccessat'
-reject_direct_hook "$COMMON/fs/read_write.c" 'ksu_handle_sys_read(' 'read'
-reject_direct_hook "$COMMON/fs/read_write.c" 'ksu_is_init_rc_hook_enabled' 'read static-key'
-reject_direct_hook "$COMMON/fs/stat.c" 'ksu_handle_vfs_fstat(' 'fstat'
-reject_direct_hook "$COMMON/fs/stat.c" 'ksu_handle_stat(' 'stat'
-reject_direct_hook "$COMMON/fs/stat.c" 'ksu_is_init_rc_hook_enabled' 'fstat static-key'
+reject_direct_hook "$COMMON/fs/open.c" 'ksu_handle_faccessat(&dfd' 'faccessat'
+reject_direct_hook "$COMMON/fs/read_write.c" 'ksu_handle_sys_read(fd);' 'read'
+reject_direct_hook "$COMMON/fs/read_write.c" 'static_branch_unlikely(&ksu_is_init_rc_hook_enabled)' 'read static-key'
+reject_direct_hook "$COMMON/fs/stat.c" 'ksu_handle_vfs_fstat(fd, &stat->size);' 'fstat'
+reject_direct_hook "$COMMON/fs/stat.c" 'ksu_handle_stat(&dfd' 'stat'
+reject_direct_hook "$COMMON/fs/stat.c" 'static_branch_unlikely(&ksu_is_init_rc_hook_enabled)' 'fstat static-key'
 reject_direct_hook "$COMMON/kernel/sys.c" 'ksu_handle_setresuid(ruid, euid, suid)' 'setresuid'
 reject_direct_hook "$COMMON/drivers/input/input.c" 'ksu_is_input_hook_enabled' 'input'
 grep -qF 'ksu_handle_sys_reboot(magic1, magic2, cmd, &arg)' "$COMMON/kernel/reboot.c"
