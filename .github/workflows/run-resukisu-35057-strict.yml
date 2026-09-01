@@ -1,5 +1,5 @@
-name: S928B SukiSU Ultra 40901 KPM Gunyah RM-Append Build
-run-name: "S928BXXS6DZG1 EUX — SukiSU Ultra 40901 + KPM + Gunyah RM MEM_APPEND / SCM-VMID"
+name: S928B SukiSU Ultra 40901 KPM Full KSTAT Redirect Gunyah RM-Append Build
+run-name: "S928BXXS6DZG1 EUX — SukiSU Ultra 40901 + KPM + Full KSTAT Redirect + Gunyah RM MEM_APPEND / SCM-VMID"
 
 on:
   workflow_dispatch:
@@ -29,6 +29,7 @@ on:
       - 'android14-6.1/build-helpers/audit-sukisu-40901-susfs-rebase.sh'
       - 'android14-6.1/build-helpers/finalize-sukisu-40901-susfs-port.sh'
       - 'android14-6.1/build-helpers/verify-zeromount-susfs-source.sh'
+      - 'android14-6.1/build-helpers/verify-susfs-kstat-redirect.sh'
       - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
       - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'
@@ -50,7 +51,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / SukiSU Ultra 6.1.145 + KPM / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / SukiSU Ultra 6.1.145 + KPM + Full KSTAT Redirect / Gunyah RM MEM_APPEND + SCM-VMID
     needs: dependencies
     uses: ./.github/workflows/build-resukisu.yml
     permissions:

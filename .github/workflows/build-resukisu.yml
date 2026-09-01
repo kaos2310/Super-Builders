@@ -919,6 +919,7 @@ jobs:
       working-directory: ${{ env.KERNEL_ROOT }}
       env:
         ADD_DROIDSPACES: ${{ inputs.add_droidspaces }}
+        ADD_SUSFS: ${{ inputs.add_susfs }}
         ADD_ZRAM: ${{ inputs.add_zram }}
         ADD_KPM: ${{ inputs.add_kpm }}
         REQUIRE_CUSTOM_MANAGER: ${{ inputs.resukisu_expected_hash != '' }}
@@ -1005,6 +1006,13 @@ jobs:
         fi
 
         if [ "$DEVICE_CODENAME" = "e3q" ]; then
+          if [[ "$ADD_SUSFS" == "true" && "$KMI_MINIMAL_CONFIG" != "true" ]]; then
+            KSTAT_REDIRECT_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/verify-susfs-kstat-redirect.sh"
+            chmod +x "$KSTAT_REDIRECT_AUDIT"
+            "$KSTAT_REDIRECT_AUDIT" "$KERNEL_ROOT" "$KERNEL_ROOT/common" \
+              "$KERNEL_ROOT/$KSU_DIR" "$CONFIG_FILE"
+          fi
+
           if [[ "$KMI_MINIMAL_CONFIG" != "true" && ( "$KMI_MODE" == "runtime-compat" || "$KMI_PROFILE" == "full" || "$KMI_MODE" == "strict" ) ]]; then
             DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
             chmod +x "$DAILY_AUDIT"
@@ -1114,6 +1122,8 @@ jobs:
         CONFIG_CGROUP_PIDS and CONFIG_LRU_GEN_STATS are disabled to retain
         the stock Samsung structure layouts; CONFIG_LRU_GEN remains enabled.
         KASAN is disabled and the inactive KMI compatibility layout is retained.
+        SUSFS KSTAT redirect is fully compiled: virtual and real paths are
+        resolved, both inode cases are registered, and SukiSU dispatch is audited.
         AnyKernel removes invalid bare off/4M tokens and writes
         log_buf_len=4M to the kernel command line.
         Android GKI bootconfig is owned by vendor_boot and remains untouched.
