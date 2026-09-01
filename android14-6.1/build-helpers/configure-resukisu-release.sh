@@ -51,6 +51,10 @@ if [[ -f "$MARKER" && "$(tr -d '[:space:]' < "$MARKER")" == "$SUKISU_ULTRA_PIN" 
     echo "::error::Existing SukiSU tree lost the official manager certificate hash"
     exit 1
   }
+  grep -Rqx 'config KPM' "$KSU_ROOT" --include='Kconfig*' || {
+    echo "::error::Existing SukiSU tree lost the KPM Kconfig symbol"
+    exit 1
+  }
   [[ -f "$KSU_ROOT/kernel/supercall/dispatch.c" ]] || {
     echo "::error::Existing SukiSU dispatcher is missing"
     exit 1
@@ -61,6 +65,7 @@ if [[ -f "$MARKER" && "$(tr -d '[:space:]' < "$MARKER")" == "$SUKISU_ULTRA_PIN" 
   echo "SukiSU Ultra version code: $SUKISU_ULTRA_VERSION_CODE"
   echo "SukiSU Ultra version full: $SUKISU_ULTRA_VERSION_FULL"
   echo "SukiSU Ultra manager hash: $SUKISU_ULTRA_MANAGER_HASH"
+  echo "SukiSU Ultra KPM source: present"
   exit 0
 fi
 
@@ -115,20 +120,13 @@ if official_hash not in text:
     raise SystemExit("Official SukiSU Ultra manager hash missing from Kbuild")
 kbuild.write_text(text, encoding="utf-8")
 
-# Preserve the exact feature state of the source run: KPM disabled. The KPM
-# implementation remains in the source tree but its Kconfig switch is hidden
-# from this exact build so it cannot be enabled accidentally.
+# Preserve SukiSU Ultra 40901's upstream KPM implementation. Actual KPM
+# enablement is controlled by the reusable workflow's --kpm defconfig flag and
+# is verified later by the strict identity/config gate as CONFIG_KPM=y.
 kconfig = root / "kernel/Kconfig"
 kcfg = kconfig.read_text(encoding="utf-8")
-kcfg = re.sub(
-    r'\nconfig KPM\n(?:.*\n)*?(?=\nconfig KSU_DISABLE_MANAGER\n)',
-    '\n',
-    kcfg,
-    count=1,
-)
-kconfig.write_text(kcfg, encoding="utf-8")
-if re.search(r'^config KPM$', kcfg, re.MULTILINE):
-    raise SystemExit("KPM must remain disabled for this exact build")
+if not re.search(r'^config KPM$', kcfg, re.MULTILINE):
+    raise SystemExit("SukiSU Ultra 40901 KPM Kconfig symbol is missing")
 
 # Keep the previous packaging audit marker inertly in .rodata. It does not
 # participate in manager certificate validation.
@@ -175,4 +173,5 @@ echo "SukiSU Ultra compiled source: $SUKISU_ULTRA_PIN"
 echo "SukiSU Ultra version code: $SUKISU_ULTRA_VERSION_CODE"
 echo "SukiSU Ultra version full: $SUKISU_ULTRA_VERSION_FULL"
 echo "SukiSU Ultra manager hash: $SUKISU_ULTRA_MANAGER_HASH"
+echo "SukiSU Ultra KPM source: present"
 echo "SukiSU Ultra SUSFS native pre-port applied"
