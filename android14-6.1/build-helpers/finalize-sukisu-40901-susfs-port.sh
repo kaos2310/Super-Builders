@@ -37,6 +37,24 @@ edit("fs/exec.c", [
     (r'\n#ifdef CONFIG_KSU_SUSFS\n\s*if \(likely\(susfs_is_current_proc_(?:no_su|umounted)\(\)\)\)\n\s*goto orig_flow;\n\n\s*if \(static_branch_likely\(&ksu_su_compat_enabled\)\) \{\n\s*if \(static_branch_unlikely\(&susfs_is_sdcard_android_data_not_decrypted\)\)\n\s*ksu_handle_execveat\(&fd, &filename, &argv, &envp, &flags\);\n\s*else\n\s*ksu_handle_execveat_sucompat\(&fd, &filename, &argv, &envp, &flags\);\n\s*\}\n\norig_flow:\n#endif\n', '\n', 'generic SUSFS direct exec hook'),
 ])
 
+edit("fs/open.c", [
+    (r'\n#ifdef CONFIG_KSU_SUSFS\nextern struct static_key_true ksu_su_compat_enabled;\nextern bool __ksu_is_allow_uid_for_current\(uid_t uid\);\nextern int ksu_handle_faccessat\(int \*dfd, struct filename \*\*filename, int \*mode, int \*__unused_flags\);\n#endif\n', '\n', 'generic SUSFS faccessat declarations'),
+    (r'\n#ifdef CONFIG_KSU_SUSFS\n[ \t]*struct filename \*fname = NULL;\n#endif\n', '\n', 'generic SUSFS faccessat filename'),
+    (r'#ifdef CONFIG_KSU_SUSFS\n[ \t]*fname = getname_flags\(filename, lookup_flags, NULL\);\n\n[ \t]*if \(likely\(susfs_is_current_proc_no_su\(\)\)\)\n[ \t]*goto orig_flow;\n\n[ \t]*if \(static_branch_likely\(&ksu_su_compat_enabled\)\) \{\n[ \t]*if \(unlikely\(__ksu_is_allow_uid_for_current\(current_uid\(\)\.val\)\)\)\n[ \t]*ksu_handle_faccessat\(&dfd, &fname, &mode, NULL\);\n[ \t]*\}\n\norig_flow:\n[ \t]*res = filename_lookup\(dfd, fname, lookup_flags, &path, NULL\);\n[ \t]*putname\(fname\);\n#else\n([ \t]*res = user_path_at\(dfd, filename, lookup_flags, &path\);)\n#endif\n', r'\1\n', 'generic SUSFS direct faccessat hook'),
+])
+
+edit("fs/read_write.c", [
+    (r'\n#ifdef CONFIG_KSU_SUSFS\nextern struct static_key_true ksu_is_init_rc_hook_enabled;\nextern __attribute__\(\(cold\)\) void ksu_handle_sys_read\(unsigned int fd\);\n#endif\n', '\n', 'generic SUSFS read declarations'),
+    (r'\n#ifdef CONFIG_KSU_SUSFS\n[ \t]*if \(static_branch_unlikely\(&ksu_is_init_rc_hook_enabled\)\)\n[ \t]*ksu_handle_sys_read\(fd\);\n#endif\n', '\n', 'generic SUSFS direct read hook'),
+])
+
+edit("fs/stat.c", [
+    (r'\n#ifdef CONFIG_KSU_SUSFS\nextern struct static_key_true ksu_is_init_rc_hook_enabled;\nextern void ksu_handle_vfs_fstat\(int fd, loff_t \*kstat_size_ptr\);\n#endif // #ifdef CONFIG_KSU_SUSFS\n', '\n', 'generic SUSFS fstat declarations'),
+    (r'\n#ifdef CONFIG_KSU_SUSFS\n[ \t]*if \(static_branch_unlikely\(&ksu_is_init_rc_hook_enabled\)\)\n[ \t]*ksu_handle_vfs_fstat\(fd, &stat->size\);\n#endif // #ifdef CONFIG_KSU_SUSFS\n', '\n', 'generic SUSFS direct fstat hook'),
+    (r'\n#ifdef CONFIG_KSU_SUSFS\nextern struct static_key_true ksu_su_compat_enabled;\nextern bool __ksu_is_allow_uid_for_current\(uid_t uid\);\nextern int ksu_handle_stat\(int \*dfd, struct filename \*\*filename, int \*flags\);\n#endif\n', '\n', 'generic SUSFS stat declarations'),
+    (r'\n#ifdef CONFIG_KSU_SUSFS\n[ \t]*if \(likely\(susfs_is_current_proc_no_su\(\)\)\)\n[ \t]*goto orig_flow;\n\n[ \t]*if \(static_branch_likely\(&ksu_su_compat_enabled\)\) \{\n[ \t]*if \(unlikely\(__ksu_is_allow_uid_for_current\(current_uid\(\)\.val\)\)\)\n[ \t]*ksu_handle_stat\(&dfd, &filename, &flags\);\n[ \t]*\}\n\norig_flow:\n#endif\n', '\n', 'generic SUSFS direct stat hook'),
+])
+
 edit("kernel/sys.c", [
     (r'\n#ifdef CONFIG_KSU_SUSFS\nextern int ksu_handle_setresuid\(uid_t ruid, uid_t euid, uid_t suid\);\n#endif\n', '\n', 'generic SUSFS setresuid declaration'),
     (r'\n#ifdef CONFIG_KSU_SUSFS\n\s*\(void\)ksu_handle_setresuid\(ruid, euid, suid\);\n#endif\n', '\n', 'generic SUSFS direct setresuid hook'),
@@ -58,6 +76,12 @@ reject_direct_hook() {
 }
 
 reject_direct_hook "$COMMON/fs/exec.c" 'ksu_handle_execveat(&fd, &filename' 'execveat'
+reject_direct_hook "$COMMON/fs/open.c" 'ksu_handle_faccessat(' 'faccessat'
+reject_direct_hook "$COMMON/fs/read_write.c" 'ksu_handle_sys_read(' 'read'
+reject_direct_hook "$COMMON/fs/read_write.c" 'ksu_is_init_rc_hook_enabled' 'read static-key'
+reject_direct_hook "$COMMON/fs/stat.c" 'ksu_handle_vfs_fstat(' 'fstat'
+reject_direct_hook "$COMMON/fs/stat.c" 'ksu_handle_stat(' 'stat'
+reject_direct_hook "$COMMON/fs/stat.c" 'ksu_is_init_rc_hook_enabled' 'fstat static-key'
 reject_direct_hook "$COMMON/kernel/sys.c" 'ksu_handle_setresuid(ruid, euid, suid)' 'setresuid'
 reject_direct_hook "$COMMON/drivers/input/input.c" 'ksu_is_input_hook_enabled' 'input'
 grep -qF 'ksu_handle_sys_reboot(magic1, magic2, cmd, &arg)' "$COMMON/kernel/reboot.c"

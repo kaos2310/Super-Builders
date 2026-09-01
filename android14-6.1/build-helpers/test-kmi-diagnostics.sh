@@ -393,6 +393,9 @@ test_sukisu_40901_compile_guards() {
   grep -qF '#include "selinux/selinux.h"' "$SUKISU_PREPARE_HELPER"
   grep -qF 'susfs_is_current_proc_(?:no_su|umounted)' "$SUKISU_FINALIZE_HELPER"
   grep -qF 'reject_direct_hook "$COMMON/fs/exec.c"' "$SUKISU_FINALIZE_HELPER"
+  grep -qF 'reject_direct_hook "$COMMON/fs/open.c"' "$SUKISU_FINALIZE_HELPER"
+  grep -qF 'reject_direct_hook "$COMMON/fs/read_write.c"' "$SUKISU_FINALIZE_HELPER"
+  grep -qF 'reject_direct_hook "$COMMON/fs/stat.c"' "$SUKISU_FINALIZE_HELPER"
   grep -qF 'reject_direct_hook "$COMMON/kernel/sys.c"' "$SUKISU_FINALIZE_HELPER"
   grep -qF 'reject_direct_hook "$COMMON/drivers/input/input.c"' "$SUKISU_FINALIZE_HELPER"
   if grep -qE '^! grep -qF .*ksu_handle_(execveat|setresuid)' "$SUKISU_FINALIZE_HELPER"; then
@@ -453,6 +456,88 @@ extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
 orig_flow:
 #endif
 EOF
+  cat > "$common/fs/open.c" <<'EOF'
+/* fixture preamble */
+#ifdef CONFIG_KSU_SUSFS
+extern struct static_key_true ksu_su_compat_enabled;
+extern bool __ksu_is_allow_uid_for_current(uid_t uid);
+extern int ksu_handle_faccessat(int *dfd, struct filename **filename, int *mode, int *__unused_flags);
+#endif
+
+#ifdef CONFIG_KSU_SUSFS
+	struct filename *fname = NULL;
+#endif
+
+retry:
+#ifdef CONFIG_KSU_SUSFS
+	fname = getname_flags(filename, lookup_flags, NULL);
+
+	if (likely(susfs_is_current_proc_no_su()))
+		goto orig_flow;
+
+	if (static_branch_likely(&ksu_su_compat_enabled)) {
+		if (unlikely(__ksu_is_allow_uid_for_current(current_uid().val)))
+			ksu_handle_faccessat(&dfd, &fname, &mode, NULL);
+	}
+
+orig_flow:
+	res = filename_lookup(dfd, fname, lookup_flags, &path, NULL);
+	putname(fname);
+#else
+	res = user_path_at(dfd, filename, lookup_flags, &path);
+#endif
+EOF
+  cat > "$common/fs/read_write.c" <<'EOF'
+/* fixture preamble */
+#ifdef CONFIG_KSU_SUSFS
+extern struct static_key_true ksu_is_init_rc_hook_enabled;
+extern __attribute__((cold)) void ksu_handle_sys_read(unsigned int fd);
+#endif
+
+SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+{
+#ifdef CONFIG_KSU_SUSFS
+	if (static_branch_unlikely(&ksu_is_init_rc_hook_enabled))
+		ksu_handle_sys_read(fd);
+#endif
+}
+EOF
+  cat > "$common/fs/stat.c" <<'EOF'
+/* fixture preamble */
+#ifdef CONFIG_KSU_SUSFS
+extern struct static_key_true ksu_is_init_rc_hook_enabled;
+extern void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr);
+#endif // #ifdef CONFIG_KSU_SUSFS
+
+int vfs_fstat(int fd, struct kstat *stat)
+{
+#ifdef CONFIG_KSU_SUSFS
+	if (static_branch_unlikely(&ksu_is_init_rc_hook_enabled))
+		ksu_handle_vfs_fstat(fd, &stat->size);
+#endif // #ifdef CONFIG_KSU_SUSFS
+}
+
+#ifdef CONFIG_KSU_SUSFS
+extern struct static_key_true ksu_su_compat_enabled;
+extern bool __ksu_is_allow_uid_for_current(uid_t uid);
+extern int ksu_handle_stat(int *dfd, struct filename **filename, int *flags);
+#endif
+
+static int vfs_statx(int dfd, struct filename *filename, int flags)
+{
+#ifdef CONFIG_KSU_SUSFS
+	if (likely(susfs_is_current_proc_no_su()))
+		goto orig_flow;
+
+	if (static_branch_likely(&ksu_su_compat_enabled)) {
+		if (unlikely(__ksu_is_allow_uid_for_current(current_uid().val)))
+			ksu_handle_stat(&dfd, &filename, &flags);
+	}
+
+orig_flow:
+#endif
+}
+EOF
   cat > "$common/kernel/sys.c" <<'EOF'
 /* fixture preamble */
 #ifdef CONFIG_KSU_SUSFS
@@ -479,6 +564,12 @@ EOF
 
   "$SUKISU_FINALIZE_HELPER" "$common" "$ksu"
   ! grep -qF 'ksu_handle_execveat(&fd, &filename' "$common/fs/exec.c"
+  ! grep -qF 'ksu_handle_faccessat(' "$common/fs/open.c"
+  ! grep -qF 'ksu_handle_sys_read(' "$common/fs/read_write.c"
+  ! grep -qF 'ksu_is_init_rc_hook_enabled' "$common/fs/read_write.c"
+  ! grep -qF 'ksu_handle_vfs_fstat(' "$common/fs/stat.c"
+  ! grep -qF 'ksu_handle_stat(' "$common/fs/stat.c"
+  ! grep -qF 'ksu_is_init_rc_hook_enabled' "$common/fs/stat.c"
   ! grep -qF 'ksu_is_input_hook_enabled' "$common/drivers/input/input.c"
   ! grep -qF 'ksu_handle_setresuid(ruid, euid, suid)' "$common/kernel/sys.c"
 }
