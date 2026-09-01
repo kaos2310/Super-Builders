@@ -4,6 +4,20 @@ set -euo pipefail
 COMMON_TREE="${1:?common kernel tree}"
 KSU_TREE="${2:?KernelSU tree}"
 
+[[ -d "$KSU_TREE" ]] || {
+  echo "::error::KernelSU tree not found: $KSU_TREE"
+  exit 1
+}
+
+# Finalize the SukiSU-specific port after the generic GKI SUSFS filesystem
+# patch and ZeroMount have been applied. This removes only the generic direct
+# KSU callbacks that conflict with SukiSU Ultra 40901's native hook manager.
+if [[ -f "$KSU_TREE/.sukisu-ultra-source-pin" ]]; then
+  FINALIZE="$GITHUB_WORKSPACE/android14-6.1/build-helpers/finalize-sukisu-40901-susfs-port.sh"
+  chmod +x "$FINALIZE"
+  "$FINALIZE" "$COMMON_TREE" "$KSU_TREE"
+fi
+
 require_source() {
   local relative="$1"
   local needle="$2"
@@ -38,10 +52,6 @@ require_source fs/xattr.c 'zeromount_spoof_xattr'
 require_source fs/susfs.c 'susfs_add_sus_kstat_redirect'
 require_source fs/susfs.c 'susfs_add_sus_map'
 
-[[ -d "$KSU_TREE" ]] || {
-  echo "::error::KernelSU tree not found: $KSU_TREE"
-  exit 1
-}
 for needle in \
   'ksu_susfs_ack_deprecated_external_dir' \
   'case CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH:' \
@@ -60,14 +70,12 @@ if grep -qF 'zeromount_spoof_mmap_metadata' "$COMMON_TREE/fs/proc/task_mmu.c"; t
   exit 1
 fi
 
-# SukiSU Ultra 40901 is intentionally rebased around SUSFS rather than having
-# the generic upstream KernelSU 10_enable_susfs_for_ksu.patch applied over it.
-# Verify the seven rebase-sensitive SukiSU files are still exactly the baseline
-# captured immediately before SUSFS was applied.
+# Verify the seven requested SukiSU 40901 rebase-sensitive files are still the
+# exact baseline captured before SUSFS was applied.
 if [[ -n "${SUKISU_REBASE_MANIFEST:-}" ]]; then
   AUDIT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/audit-sukisu-40901-susfs-rebase.sh"
-  [[ -x "$AUDIT" ]] || chmod +x "$AUDIT"
+  chmod +x "$AUDIT"
   "$AUDIT" verify "$KSU_TREE" "$SUKISU_REBASE_MANIFEST"
 fi
 
-echo "Verified ZeroMount VFS hooks, full statfs spoofing, SUSFS 2.2 bridge, SukiSU 40901 rebase gate, and external-directory compatibility"
+echo "Verified ZeroMount VFS hooks, SUSFS 2.2 native SukiSU ABI, 40901 rebase gate, and external-directory compatibility"
