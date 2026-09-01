@@ -32,6 +32,38 @@ git -C "$KSU_ROOT" show-ref --verify --quiet "$BRANCH_REF" || {
   exit 1
 }
 
+# This helper is invoked once during source setup and again by the strict build
+# identity gate. The second invocation must be read-only: replacing the working
+# tree again would erase the SUSFS/ZeroMount port that was deliberately applied
+# between those two calls. When the exact immutable SukiSU source marker and
+# release identity are already present, validate them and preserve the tree.
+MARKER="$KSU_ROOT/.sukisu-ultra-source-pin"
+if [[ -f "$MARKER" && "$(tr -d '[:space:]' < "$MARKER")" == "$SUKISU_ULTRA_PIN" ]]; then
+  grep -Eq "^KSU_VERSION[[:space:]]*:=[[:space:]]*$SUKISU_ULTRA_VERSION_CODE$" "$KSU_ROOT/kernel/Kbuild" || {
+    echo "::error::Existing SukiSU tree lost KSU_VERSION=$SUKISU_ULTRA_VERSION_CODE"
+    exit 1
+  }
+  grep -Fqx "KSU_VERSION_FULL := $SUKISU_ULTRA_VERSION_FULL" "$KSU_ROOT/kernel/Kbuild" || {
+    echo "::error::Existing SukiSU tree lost KSU_VERSION_FULL=$SUKISU_ULTRA_VERSION_FULL"
+    exit 1
+  }
+  grep -Fq "$SUKISU_ULTRA_MANAGER_HASH" "$KSU_ROOT/kernel/Kbuild" || {
+    echo "::error::Existing SukiSU tree lost the official manager certificate hash"
+    exit 1
+  }
+  [[ -f "$KSU_ROOT/kernel/supercall/dispatch.c" ]] || {
+    echo "::error::Existing SukiSU dispatcher is missing"
+    exit 1
+  }
+  git -C "$KSU_ROOT" tag -f "$SUKISU_ULTRA_TAG" "$EXPECTED_COMMIT" >/dev/null
+  echo "SukiSU Ultra $SUKISU_ULTRA_VERSION_CODE source already configured; preserving post-setup SUSFS/ZeroMount integration"
+  echo "SukiSU Ultra compiled source: $SUKISU_ULTRA_PIN"
+  echo "SukiSU Ultra version code: $SUKISU_ULTRA_VERSION_CODE"
+  echo "SukiSU Ultra version full: $SUKISU_ULTRA_VERSION_FULL"
+  echo "SukiSU Ultra manager hash: $SUKISU_ULTRA_MANAGER_HASH"
+  exit 0
+fi
+
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
@@ -43,7 +75,7 @@ git -C "$TMP/SukiSU-Ultra" checkout --detach "$SUKISU_ULTRA_PIN"
 # Keep only the bootstrap .git metadata required by the reusable workflow.
 # The compiled working tree itself is an exact immutable SukiSU Ultra snapshot.
 rsync -a --delete --exclude='.git/' "$TMP/SukiSU-Ultra/" "$KSU_ROOT/"
-printf '%s\n' "$SUKISU_ULTRA_PIN" > "$KSU_ROOT/.sukisu-ultra-source-pin"
+printf '%s\n' "$SUKISU_ULTRA_PIN" > "$MARKER"
 
 python3 - "$KSU_ROOT" "$TARGET_VERSION_CODE" "$SUKISU_ULTRA_VERSION_FULL" \
   "$SUKISU_ULTRA_MANAGER_HASH" "$LEGACY_AUDIT_MANAGER_HASH" <<'PY'
