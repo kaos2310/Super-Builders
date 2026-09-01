@@ -60,4 +60,14 @@ if grep -qF 'zeromount_spoof_mmap_metadata' "$COMMON_TREE/fs/proc/task_mmu.c"; t
   exit 1
 fi
 
-echo "Verified ZeroMount VFS hooks, full statfs spoofing, SUSFS 2.2 bridge, and external-directory compatibility"
+# SukiSU Ultra 40901 is intentionally rebased around SUSFS rather than having
+# the generic upstream KernelSU 10_enable_susfs_for_ksu.patch applied over it.
+# Verify the seven rebase-sensitive SukiSU files are still exactly the baseline
+# captured immediately before SUSFS was applied.
+if [[ -n "${SUKISU_REBASE_MANIFEST:-}" ]]; then
+  AUDIT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/audit-sukisu-40901-susfs-rebase.sh"
+  [[ -x "$AUDIT" ]] || chmod +x "$AUDIT"
+  "$AUDIT" verify "$KSU_TREE" "$SUKISU_REBASE_MANIFEST"
+fi
+
+echo "Verified ZeroMount VFS hooks, full statfs spoofing, SUSFS 2.2 bridge, SukiSU 40901 rebase gate, and external-directory compatibility"
