@@ -31,7 +31,7 @@ runs:
           android13-5.10) SUSFS_COMMIT="8de71447d9d53fdb317d890181f13d35ef738a49" ;;
           android13-5.15) SUSFS_COMMIT="9f0415bb2c8fc581e93d384e09aba088bd36733a" ;;
           android14-5.15) SUSFS_COMMIT="841412d1f3eae63605979099714e6cf3866457de" ;;
-          android14-6.1)  SUSFS_COMMIT="0ff932799d898366d57b3b5984d85cdbcfcfad0a" ;;
+          android14-6.1)  SUSFS_COMMIT="598370fe" ;;
           android15-6.6)  SUSFS_COMMIT="a652208b593826f39534d6a881818a7ae0c4dc5d" ;;
           android16-6.12) SUSFS_COMMIT="5857c396b50da6b70a4e04b2994012ab961457a2" ;;
           *)
@@ -47,18 +47,37 @@ runs:
         git clone --branch "gki-$TARGET" \
           https://gitlab.com/simonpunk/susfs4ksu.git "$SUSFS_DIR"
         git -C "$SUSFS_DIR" checkout --detach "$SUSFS_COMMIT"
+        RESOLVED_SUSFS_COMMIT=$(git -C "$SUSFS_DIR" rev-parse HEAD)
+        if [[ "$TARGET" == "android14-6.1" && "$RESOLVED_SUSFS_COMMIT" != 598370fe* ]]; then
+          echo "::error::Expected current android14-6.1 SUSFS commit 598370fe..., got $RESOLVED_SUSFS_COMMIT"
+          exit 1
+        fi
         git -C "$SUSFS_DIR" config user.name "github-actions[bot]"
         git -C "$SUSFS_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-        # Android 14 / 6.1 uses the immutable upstream SUSFS stack above.
-        # The former Pershoot overlays are no longer reachable and are not
-        # required: the pinned stack plus the Samsung DZG1 repair/verification
-        # below is revalidated against all 2476 live-DLKM CRCs by the strict build.
-
-        # Later defconfig reconciliation needs the exact pinned patch tree.
-        # Keep it until the ephemeral runner is torn down and publish its path
-        # for subsequent workflow steps instead of guessing a temp directory.
         echo "SUSFS_FOLDER=$SUSFS_DIR" >> "$GITHUB_ENV"
+        echo "SUSFS_COMMIT=$RESOLVED_SUSFS_COMMIT" >> "$GITHUB_ENV"
+
+        if [[ "$TARGET" == "android14-6.1" ]]; then
+          # The current upstream KernelSU patch contains the latest static-key
+          # atomic-context fix. It is audited here but deliberately NOT applied
+          # to SukiSU Ultra, because that generic patch replaces SukiSU-specific
+          # execveat/zygote/umount semantics. Our dedicated bridge is applied in
+          # apply-enhanced-susfs-v2.2.sh instead.
+          GENERIC_KSU_PATCH="$SUSFS_DIR/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
+          test -s "$GENERIC_KSU_PATCH"
+          grep -qF 'We cannot call static_branch_disable() here' "$GENERIC_KSU_PATCH" || {
+            echo "::error::Current SUSFS KernelSU static-key atomic-context fix is missing"
+            exit 1
+          }
+          echo "::notice::Validated current SUSFS KernelSU patch $RESOLVED_SUSFS_COMMIT; generic 10_enable_susfs_for_ksu.patch will not be applied to SukiSU Ultra"
+
+          AUDIT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/audit-sukisu-40901-susfs-rebase.sh"
+          MANIFEST="$RUNNER_TEMP/sukisu-40901-critical.sha256"
+          chmod +x "$AUDIT"
+          "$AUDIT" capture "$KERNEL_ROOT/KernelSU" "$MANIFEST"
+          echo "SUKISU_REBASE_MANIFEST=$MANIFEST" >> "$GITHUB_ENV"
+        fi
 
         cd "$KERNEL_COMMON"
         cp "$SUSFS_DIR/kernel_patches/fs/"* fs/
@@ -154,9 +173,6 @@ runs:
 
         PATCH_FUZZ=2
         if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
-          # Samsung DZG1 carries adjacent VFS/proc changes in namespace.c,
-          # open.c and proc/base.c. The SUSFS v2.2 hunks remain semantically
-          # identical but need one additional context-line relaxation.
           PATCH_FUZZ=3
         fi
         patch -p1 -F"$PATCH_FUZZ" --no-backup-if-mismatch < "$PATCH_FILE"
