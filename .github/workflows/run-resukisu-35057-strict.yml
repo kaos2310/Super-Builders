@@ -1,5 +1,5 @@
-name: S928B SukiSU Ultra 40901 Gunyah RM-Append Build
-run-name: "S928BXXS6DZG1 EUX — SukiSU Ultra 40901 + Gunyah RM MEM_APPEND / SCM-VMID"
+name: S928B SukiSU Ultra 40901 KPM Gunyah RM-Append Build
+run-name: "S928BXXS6DZG1 EUX — SukiSU Ultra 40901 + KPM + Gunyah RM MEM_APPEND / SCM-VMID"
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
     branches:
       - agent/resukisu-35057-eux-dzg1-cmdline
       - agent/avf-gunyah-memshare-guard
+      - agent/sukisu-ultra-40901-native
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -50,7 +51,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / SukiSU Ultra 6.1.145 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / SukiSU Ultra 6.1.145 + KPM / Gunyah RM MEM_APPEND + SCM-VMID
     needs: dependencies
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -67,7 +68,7 @@ jobs:
       add_zram: true
       add_bbg: true
       add_overlayfs_support: true
-      add_kpm: false
+      add_kpm: true
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
@@ -87,6 +88,8 @@ jobs:
 # Exact root source compiled by this workflow:
 #   SukiSU Ultra v4.2.0 / 40901
 #   9fbe8fe8ca90c62c259c5894bf96d02ac31209b9
+# KPM is mandatory for this build. The reusable workflow adds --kpm during
+# defconfig assembly and the strict identity/config gate requires CONFIG_KPM=y.
 # SUSFS is integrated through a SukiSU-specific ABI/lifecycle port. The generic
 # upstream 10_enable_susfs_for_ksu.patch is audited but deliberately not applied,
 # so SukiSU 40901 execveat, WebView/isolated-process umount and hook-manager
