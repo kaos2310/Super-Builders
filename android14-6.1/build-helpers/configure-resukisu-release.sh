@@ -13,8 +13,6 @@ SUKISU_ULTRA_TAG="v4.2.0"
 SUKISU_ULTRA_VERSION_CODE="40901"
 SUKISU_ULTRA_VERSION_FULL="v4.2.0-9fbe8fe8@main"
 SUKISU_ULTRA_MANAGER_HASH="947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef"
-RESUKISU_MANAGER_SIZE="0x377"
-RESUKISU_MANAGER_HASH="d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64"
 
 [[ "$TARGET_VERSION_CODE" == "$SUKISU_ULTRA_VERSION_CODE" ]] || {
   echo "::error::This exact S928B workflow is pinned to SukiSU Ultra $SUKISU_ULTRA_VERSION_CODE"
@@ -52,19 +50,10 @@ if [[ -f "$MARKER" && "$(tr -d '[:space:]' < "$MARKER")" == "$SUKISU_ULTRA_PIN" 
     echo "::error::Existing SukiSU tree lost the official manager certificate hash"
     exit 1
   }
-  grep -Fqx "KSU_EXPECTED_SIZE2 := $RESUKISU_MANAGER_SIZE" "$KSU_ROOT/kernel/Kbuild" || {
-    echo "::error::Existing SukiSU tree lost the ReSukiSU secondary manager certificate size"
+  if grep -Eq '^KSU_EXPECTED_(SIZE|HASH)2[[:space:]]*:=' "$KSU_ROOT/kernel/Kbuild"; then
+    echo "::error::SukiSU production build contains a secondary/PR manager signature"
     exit 1
-  }
-  grep -Fqx "KSU_EXPECTED_HASH2 := $RESUKISU_MANAGER_HASH" "$KSU_ROOT/kernel/Kbuild" || {
-    echo "::error::Existing SukiSU tree lost the ReSukiSU secondary manager certificate hash"
-    exit 1
-  }
-  grep -qF 'return check_v2_signature(path, EXPECTED_SIZE2, EXPECTED_HASH2);' \
-    "$KSU_ROOT/kernel/manager/apk_sign.c" || {
-    echo "::error::Existing SukiSU tree lost native secondary manager validation"
-    exit 1
-  }
+  fi
   grep -Rqx 'config KPM' "$KSU_ROOT" --include='Kconfig*' || {
     echo "::error::Existing SukiSU tree lost the KPM Kconfig symbol"
     exit 1
@@ -79,7 +68,7 @@ if [[ -f "$MARKER" && "$(tr -d '[:space:]' < "$MARKER")" == "$SUKISU_ULTRA_PIN" 
   echo "SukiSU Ultra version code: $SUKISU_ULTRA_VERSION_CODE"
   echo "SukiSU Ultra version full: $SUKISU_ULTRA_VERSION_FULL"
   echo "SukiSU Ultra manager hash: $SUKISU_ULTRA_MANAGER_HASH"
-  echo "SukiSU Ultra secondary ReSukiSU manager: $RESUKISU_MANAGER_SIZE / $RESUKISU_MANAGER_HASH"
+  echo "SukiSU Ultra manager policy: official production signature only"
   echo "SukiSU Ultra KPM source: present"
   exit 0
 fi
@@ -98,7 +87,7 @@ rsync -a --delete --exclude='.git/' "$TMP/SukiSU-Ultra/" "$KSU_ROOT/"
 printf '%s\n' "$SUKISU_ULTRA_PIN" > "$MARKER"
 
 python3 - "$KSU_ROOT" "$TARGET_VERSION_CODE" "$SUKISU_ULTRA_VERSION_FULL" \
-  "$SUKISU_ULTRA_MANAGER_HASH" "$RESUKISU_MANAGER_SIZE" "$RESUKISU_MANAGER_HASH" <<'PY'
+  "$SUKISU_ULTRA_MANAGER_HASH" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -107,8 +96,6 @@ root = Path(sys.argv[1])
 target = sys.argv[2]
 version_full = sys.argv[3]
 official_hash = sys.argv[4]
-secondary_size = sys.argv[5]
-secondary_hash = sys.argv[6]
 
 kbuild = root / "kernel/Kbuild"
 text = kbuild.read_text(encoding="utf-8")
@@ -135,19 +122,12 @@ if n != 1 and f'KSU_VERSION_FULL := {version_full}' not in text:
 if official_hash not in text:
     raise SystemExit("Official SukiSU Ultra manager hash missing from Kbuild")
 
-# SukiSU implements dual-manager validation natively through its second
-# certificate slot. Bind that slot to the official ReSukiSU manager used by the
-# successful reference build instead of pretending that SukiSU owns ReSukiSU's
-# CONFIG_KSU_MULTI_MANAGER_SUPPORT symbol.
-secondary = (
-    f"KSU_EXPECTED_SIZE2 := {secondary_size}\n"
-    f"KSU_EXPECTED_HASH2 := {secondary_hash}\n"
-)
-if secondary not in text:
-    anchor = f"KSU_EXPECTED_HASH := {official_hash}\nendif\n"
-    if text.count(anchor) != 1:
-        raise SystemExit(f"Cannot locate unique SukiSU manager certificate anchor: {text.count(anchor)}")
-    text = text.replace(anchor, f"{anchor}\n{secondary}", 1)
+# SukiSU exposes KSU_EXPECTED_SIZE2/HASH2 for PR testing. Defining that slot
+# deliberately sets KSU_GET_INFO_FLAG_PR_BUILD and makes the manager reject the
+# kernel as a production build. Release artifacts must use only the official
+# SukiSU manager certificate above.
+if re.search(r'^KSU_EXPECTED_(?:SIZE|HASH)2\s*:=', text, re.MULTILINE):
+    raise SystemExit("SukiSU production build contains a secondary/PR manager signature")
 kbuild.write_text(text, encoding="utf-8")
 
 # Preserve SukiSU Ultra 40901's upstream KPM implementation. Actual KPM
@@ -191,6 +171,6 @@ echo "SukiSU Ultra compiled source: $SUKISU_ULTRA_PIN"
 echo "SukiSU Ultra version code: $SUKISU_ULTRA_VERSION_CODE"
 echo "SukiSU Ultra version full: $SUKISU_ULTRA_VERSION_FULL"
 echo "SukiSU Ultra manager hash: $SUKISU_ULTRA_MANAGER_HASH"
-echo "SukiSU Ultra secondary ReSukiSU manager: $RESUKISU_MANAGER_SIZE / $RESUKISU_MANAGER_HASH"
+echo "SukiSU Ultra manager policy: official production signature only"
 echo "SukiSU Ultra KPM source: present"
 echo "SukiSU Ultra SUSFS native pre-port applied"

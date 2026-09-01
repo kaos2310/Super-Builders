@@ -11,6 +11,7 @@ CLEAN_FLAGS="$HELPERS_DIR/clean-build-flags.sh"
 KASAN_STUB_HELPER="$HELPERS_DIR/apply-kasan-kmi-stub.sh"
 SUKISU_PREPARE_HELPER="$HELPERS_DIR/prepare-sukisu-40901-susfs-port.sh"
 SUKISU_FINALIZE_HELPER="$HELPERS_DIR/finalize-sukisu-40901-susfs-port.sh"
+SUKISU_RELEASE_HELPER="$HELPERS_DIR/configure-resukisu-release.sh"
 XHCI_HOOK_HELPER="$HELPERS_DIR/apply-s928b-dzg1-xhci-hooks.sh"
 SAMSUNG_SOURCE_HELPER="$HELPERS_DIR/apply-s928b-dzg1-source-overlay.sh"
 SAMSUNG_SOURCE_PROFILE="$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
@@ -133,6 +134,45 @@ EOF
 }
 
 test_strict_daily_config
+
+test_sukisu_production_signature_policy() {
+  local fixture="$TMP_DIR/sukisu-production-signature"
+  local head
+  mkdir -p "$fixture/kernel/supercall"
+
+  cat > "$fixture/kernel/Kbuild" <<'EOF'
+KSU_VERSION     := 40901
+KSU_VERSION_FULL := v4.2.0-9fbe8fe8@main
+KSU_EXPECTED_SIZE := 0x35c
+KSU_EXPECTED_HASH := 947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef
+EOF
+  printf '%s\n' 'config KPM' > "$fixture/kernel/Kconfig"
+  : > "$fixture/kernel/supercall/dispatch.c"
+  printf '%s\n' '9fbe8fe8ca90c62c259c5894bf96d02ac31209b9' > \
+    "$fixture/.sukisu-ultra-source-pin"
+
+  git -C "$fixture" init --quiet
+  git -C "$fixture" config user.name test
+  git -C "$fixture" config user.email test@example.invalid
+  git -C "$fixture" add .
+  git -C "$fixture" commit --quiet -m fixture
+  head=$(git -C "$fixture" rev-parse HEAD)
+  git -C "$fixture" update-ref refs/remotes/origin/main "$head"
+
+  "$SUKISU_RELEASE_HELPER" "$fixture" main "$head" 40901
+  ! grep -Eq '^KSU_EXPECTED_(SIZE|HASH)2[[:space:]]*:=' "$fixture/kernel/Kbuild"
+
+  cat >> "$fixture/kernel/Kbuild" <<'EOF'
+KSU_EXPECTED_SIZE2 := 0x377
+KSU_EXPECTED_HASH2 := d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64
+EOF
+  if "$SUKISU_RELEASE_HELPER" "$fixture" main "$head" 40901; then
+    echo "SukiSU production gate unexpectedly accepted a secondary/PR signature" >&2
+    exit 1
+  fi
+}
+
+test_sukisu_production_signature_policy
 
 test_kleaf_kmi_flags() {
   grep -qF 'BAZEL_FLAGS+=(--nokmi_symbol_list_strict_mode --nokmi_symbol_list_violations_check)' \

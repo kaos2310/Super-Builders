@@ -603,8 +603,9 @@ jobs:
         fi
 
         if [[ "$RELEASE_VARIANT" == "SukiSU" ]]; then
-          # SukiSU provides native dual-manager validation through
-          # KSU_EXPECTED_SIZE2/HASH2, not ReSukiSU's Kconfig symbol.
+          # SukiSU does not own ReSukiSU's Kconfig symbol. Its release helper
+          # separately enforces one official production manager signature and
+          # rejects KSU_EXPECTED_SIZE2/HASH2 because that marks a PR kernel.
           sed -i '/^CONFIG_KSU_MULTI_MANAGER_SUPPORT=/d' "$DEFCONFIG_FRAGMENT"
         fi
 
@@ -1193,12 +1194,8 @@ jobs:
             exit 1
           }
         fi
-        SECONDARY_MANAGER_HASH=''
         case "$RELEASE_VARIANT" in
-          SukiSU)
-            OFFICIAL_MANAGER_HASH='947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef'
-            SECONDARY_MANAGER_HASH='d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64'
-            ;;
+          SukiSU) OFFICIAL_MANAGER_HASH='947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef' ;;
           ReSukiSU) OFFICIAL_MANAGER_HASH='d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64' ;;
           *) echo "::error::Unsupported release variant: $RELEASE_VARIANT"; exit 1 ;;
         esac
@@ -1206,12 +1203,18 @@ jobs:
           echo "::error::Official ${RELEASE_VARIANT} manager certificate hash is missing from the kernel image"
           exit 1
         }
-        if [[ -n "$SECONDARY_MANAGER_HASH" ]]; then
-          grep -aF "$SECONDARY_MANAGER_HASH" "$ANYKERNEL3/Image" >/dev/null || {
-            echo "::error::SukiSU native secondary ReSukiSU manager certificate hash is missing from the kernel image"
+        if [[ "$RELEASE_VARIANT" == "SukiSU" ]]; then
+          ! grep -Eq '^KSU_EXPECTED_(SIZE|HASH)2[[:space:]]*:=' \
+            "$KERNEL_ROOT/$KSU_DIR/kernel/Kbuild" || {
+            echo "::error::SukiSU Kbuild enables a secondary/PR manager signature"
             exit 1
           }
-          echo "Verified SukiSU native dual-manager certificate slots in the kernel image"
+          SECONDARY_MANAGER_HASH='d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64'
+          ! grep -aF "$SECONDARY_MANAGER_HASH" "$ANYKERNEL3/Image" >/dev/null || {
+            echo "::error::SukiSU image contains the ReSukiSU secondary/PR manager signature"
+            exit 1
+          }
+          echo "Verified SukiSU production single-manager signature policy"
         fi
 
         if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
