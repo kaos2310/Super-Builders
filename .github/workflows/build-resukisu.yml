@@ -241,6 +241,7 @@ jobs:
           test "$SAMSUNG_TARGET_DEVICE" = "e3q"
           test "$SAMSUNG_TARGET_CSC" = "EUX"
           test "$SAMSUNG_TARGET_FIRMWARE" = "S928BXXS6DZH2"
+          test "$SAMSUNG_TARGET_AP" = "S928BXXS6DZH2"
           test "$SAMSUNG_TARGET_CSC_BUILD" = "S928BOXM6DZH2"
           test "$SAMSUNG_TARGET_CP" = "S928BXXS6DZH2"
           test "$SAMSUNG_TARGET_KERNEL_RELEASE" = "6.1.145-android14-11-33419968-abS928BXXS6DZH2"
@@ -273,8 +274,12 @@ jobs:
             echo "SAMSUNG_BUILD_TARGET=$SAMSUNG_BUILD_TARGET"
             echo "SAMSUNG_CHIPSET=$SAMSUNG_CHIPSET"
             echo "SAMSUNG_COMMON_OVERLAY_SHA256=$SAMSUNG_COMMON_OVERLAY_SHA256"
+            echo "SAMSUNG_TARGET_CSC=$SAMSUNG_TARGET_CSC"
             echo "SAMSUNG_TARGET_FIRMWARE=$SAMSUNG_TARGET_FIRMWARE"
             echo "SAMSUNG_TARGET_PACKAGE=$SAMSUNG_TARGET_PACKAGE"
+            echo "SAMSUNG_TARGET_AP=$SAMSUNG_TARGET_AP"
+            echo "SAMSUNG_TARGET_CSC_BUILD=$SAMSUNG_TARGET_CSC_BUILD"
+            echo "SAMSUNG_TARGET_CP=$SAMSUNG_TARGET_CP"
             echo "SAMSUNG_TARGET_KERNEL_RELEASE=$SAMSUNG_TARGET_KERNEL_RELEASE"
             echo "SAMSUNG_TARGET_BOOT_IMAGE_SHA256=$SAMSUNG_TARGET_BOOT_IMAGE_SHA256"
             echo "SAMSUNG_TARGET_VENDOR_BOOT_IMAGE_SHA256=$SAMSUNG_TARGET_VENDOR_BOOT_IMAGE_SHA256"
@@ -845,7 +850,7 @@ jobs:
             echo "::error::e3q firmware package does not match the DZH2 target"
             exit 1
           }
-          [ "$STOCK_AP" = "$SAMSUNG_TARGET_FIRMWARE" ] && \
+          [ "$STOCK_AP" = "$SAMSUNG_TARGET_AP" ] && \
             [ "$STOCK_CSC_BUILD" = "$SAMSUNG_TARGET_CSC_BUILD" ] && \
             [ "$STOCK_CP" = "$SAMSUNG_TARGET_CP" ] || {
               echo "::error::e3q AP/CSC/CP identity does not match the DZH2 target"
