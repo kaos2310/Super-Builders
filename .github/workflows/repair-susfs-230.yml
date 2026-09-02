@@ -1,0 +1,122 @@
+name: One-shot SUSFS 2.3 workflow repair
+
+on:
+  push:
+    branches:
+      - agent/resukisu-35113-eux-dzh2
+    paths:
+      - '.github/workflows/repair-susfs-230.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/resukisu-35113-eux-dzh2
+          fetch-depth: 0
+
+      - name: Patch SUSFS 2.3 and ZeroMount integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_required(path, old, new, minimum=1):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count < minimum:
+                  raise SystemExit(f'{path}: expected marker not found: {old!r}')
+              p.write_text(text.replace(old, new), encoding='utf-8')
+              print(f'{path}: replaced {count} occurrence(s): {old!r}')
+
+          workflow = '.github/workflows/build-resukisu.yml'
+          replace_required(workflow, 'Apply SUSFS v2.2.0', 'Apply SUSFS v2.3.0')
+          replace_required(workflow, 'Apply Enhanced SUSFS v2.2 features', 'Apply Enhanced SUSFS v2.3.0 features')
+          replace_required(workflow, 'Apply ZeroMount to SUSFS v2.2.0', 'Apply ZeroMount to SUSFS v2.3.0')
+          replace_required(workflow, 'SUSFS v2.2 already modifies show_map_vma()', 'SUSFS v2.3.0 already modifies show_map_vma()')
+          replace_required(workflow, '#define SUSFS_VERSION \\"v2.2.0\\"', '#define SUSFS_VERSION \\"v2.3.0\\"')
+          replace_required(workflow, 'SUSFS_VERSION=v2.2.0', 'SUSFS_VERSION=v2.3.0')
+          replace_required(workflow, 'ZeroMount SUSFS v2.2 dual-ABI compatibility enabled', 'ZeroMount SUSFS v2.3.0 dual-ABI compatibility enabled')
+          replace_required(workflow, 'SUSFS v2.2 dual-ABI compatibility is missing', 'SUSFS v2.3.0 dual-ABI compatibility is missing')
+          replace_required(workflow, 'SUSFS v2.2 dual-ABI compatibility markers', 'SUSFS v2.3.0 dual-ABI compatibility markers')
+          replace_required(workflow, 'Verified SUSFS v2.2.0 source version marker', 'Verified SUSFS v2.3.0 source version marker')
+          replace_required(workflow, 'ERROR: SUSFS v2.2.0 source version marker missing', 'ERROR: SUSFS v2.3.0 source version marker missing')
+
+          assemble = 'android14-6.1/build-helpers/assemble-defconfig.sh'
+          replace_required(assemble, 'Verifying pinned SUSFS v2.2.0 hooks', 'Verifying pinned SUSFS v2.3.0 hooks')
+          replace_required(assemble, 'Pinned SUSFS v2.2.0 source audit failed', 'Pinned SUSFS v2.3.0 source audit failed')
+
+          enhanced = 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh'
+          replace_required(enhanced, 'susfs-enhanced-v2.2', 'susfs-enhanced-v2.3.0')
+          replace_required(enhanced, 'enhanced SUSFS v2.2 hooks', 'enhanced SUSFS v2.3.0 hooks')
+          replace_required(enhanced, 'pinned v2.2.0 tree', 'pinned v2.3.0 tree')
+          replace_required(enhanced, 'v2.2-specific structural anchors', 'v2.3.0-compatible structural anchors')
+
+          verify = 'android14-6.1/build-helpers/verify-zeromount-susfs-source.sh'
+          replace_required(verify, 'SUSFS 2.2 show_map_vma()', 'SUSFS 2.3.0 show_map_vma()')
+          replace_required(verify, 'SUSFS 2.2 bridge', 'SUSFS 2.3.0 bridge')
+
+          bbg = Path('android14-6.1/build-helpers/setup-bbg.sh')
+          text = bbg.read_text(encoding='utf-8')
+          old = '''KERNEL_ROOT="${1:?}"
+          DEFCONFIG="${2:?}"
+
+          cd "$KERNEL_ROOT"
+          curl -LSs https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
+          echo "CONFIG_BBG=y" >> "$DEFCONFIG"
+          '''
+          new = '''KERNEL_ROOT="${1:?}"
+          DEFCONFIG="${2:?}"
+          DEFCONFIG_FRAGMENT="${3:-}"
+
+          cd "$KERNEL_ROOT"
+          curl -LSs https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
+          if [[ -n "$DEFCONFIG_FRAGMENT" ]]; then
+            echo "CONFIG_BBG=y" >> "$DEFCONFIG_FRAGMENT"
+            echo "BBG config emitted directly into Kleaf fragment: $DEFCONFIG_FRAGMENT"
+          else
+            echo "CONFIG_BBG=y" >> "$DEFCONFIG"
+            echo "BBG config emitted into base defconfig fallback: $DEFCONFIG"
+          fi
+          '''
+          # Remove Python heredoc indentation before matching shell source.
+          old = '\n'.join(line[10:] if line.startswith('          ') else line for line in old.splitlines()) + '\n'
+          new = '\n'.join(line[10:] if line.startswith('          ') else line for line in new.splitlines()) + '\n'
+          if text.count(old) != 1:
+              raise SystemExit('setup-bbg.sh: expected legacy BBG emission block exactly once')
+          bbg.write_text(text.replace(old, new), encoding='utf-8')
+          print('setup-bbg.sh: BBG now honors the third DEFCONFIG_FRAGMENT argument')
+          PY
+
+          # The legacy helper/action filenames stay in place to avoid breaking
+          # path triggers. Only their active semantics and version sentinels are
+          # migrated to SUSFS 2.3.0.
+          git diff --check
+          git diff -- .github/workflows/build-resukisu.yml \
+            android14-6.1/build-helpers/assemble-defconfig.sh \
+            android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh \
+            android14-6.1/build-helpers/verify-zeromount-susfs-source.sh \
+            android14-6.1/build-helpers/setup-bbg.sh
+
+      - name: Commit repair and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/repair-susfs-230.yml
+          git add .github/workflows/build-resukisu.yml \
+            android14-6.1/build-helpers/assemble-defconfig.sh \
+            android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh \
+            android14-6.1/build-helpers/verify-zeromount-susfs-source.sh \
+            android14-6.1/build-helpers/setup-bbg.sh
+          git diff --cached --check
+          git commit -m 'Fix SUSFS 2.3 and ZeroMount strict integration'
+          git push origin HEAD:agent/resukisu-35113-eux-dzh2
