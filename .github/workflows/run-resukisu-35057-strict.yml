@@ -1,12 +1,11 @@
 name: S928B ReSukiSU 35113 Gunyah RM-Append Build
-run-name: "S928BXXS6DZG1 EUX — ReSukiSU 35113 + Gunyah RM MEM_APPEND / SCM-VMID"
+run-name: "S928BXXS6DZH2 EUX — ReSukiSU 35113 + Gunyah RM MEM_APPEND / SCM-VMID"
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - agent/resukisu-35057-eux-dzg1-cmdline
-      - agent/avf-gunyah-memshare-guard
+      - agent/resukisu-35113-eux-dzh2
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -23,6 +22,10 @@ on:
       - 'android14-6.1/build-helpers/audit-e3q-gunyah-qcom-module.sh'
       - 'android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh'
       - 'android14-6.1/e3q-gunyah-qcom-stock-modversions.tsv'
+      - 'android14-6.1/samsung-e3q-dlkm-crc-baseline.tsv'
+      - 'android14-6.1/samsung-s928bxxs6dzg1-source.env'
+      - 'android14-6.1/samsung-s928bxxs6dzh2-target.env'
+      - 'device-profiles.json'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
       - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'

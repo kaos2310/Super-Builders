@@ -35,8 +35,8 @@ grep -q 'uid=0(root)' <<< "$ROOT_ID" || {
   printf 'boot_completed=%s\n' "$("$ADB_BIN" shell getprop sys.boot_completed | tr -d '\r')"
 } > "$REPORT_DIR/device.env"
 
-grep -qx 'pda=S928BXXS6DZG1' "$REPORT_DIR/device.env" || {
-  echo "::error::Connected device is not running S928BXXS6DZG1"
+grep -qx 'pda=S928BXXS6DZH2' "$REPORT_DIR/device.env" || {
+  echo "::error::Connected device is not running S928BXXS6DZH2"
   cat "$REPORT_DIR/device.env"
   exit 1
 }
@@ -218,7 +218,7 @@ adb_root 'sha256sum /data/adb/modules/droidspaces/system/bin/droidspaces /system
 }
 
 cat > "$REPORT_DIR/summary.md" <<EOF
-# S928BXXS6DZG1 ZeroMount/SUSFS runtime audit
+# S928BXXS6DZH2 ZeroMount/SUSFS runtime audit
 
 - KernelSU root: verified
 - Android boot: complete

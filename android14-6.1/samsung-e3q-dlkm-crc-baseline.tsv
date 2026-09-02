@@ -1,8 +1,12 @@
 # Samsung SM-S928B (e3q) vendor-DLKM KMI CRC compatibility baseline
-# Firmware: S928BXXS6DZG1; live kernel: 6.1.145-android14-11-33419968-abS928BXXS6DZG1
-# Device CRCs captured over rooted ADB on 2026-08-09 from 351 persistent vendor_dlkm modules.
+# Firmware: S928BXXS6DZH2; live kernel: 6.1.145-android14-11-33419968-abS928BXXS6DZH2
+# Device CRCs revalidated on 2026-09-02 from all 351 ELF modules extracted from
+# the supplied DZH2 vendor_dlkm.img (SHA-256 83a88f51484c94c627019c78c5280f5b89706d661ed144b1c7ceb3f3b005d8f4).
+# All 2476 baseline symbols were present with 0 CRC changes; the DZH2 image also
+# contains 1635 vendor-internal imports outside this kernel-facing strict set.
+# DZH2 vendor_boot validation: 411 modules, 2142 overlapping symbols, 0 changes.
 # Build CRCs captured from Super-Builders run 31312547231 at commit 7e27cd1329e92fb7bdb278130145a4bd0a71aafd.
-# Scope: all observed S928BXXS6DZG1 vendor-DLKM kernel imports, including the Samsung XHCI hooks.
+# Scope: all kernel-facing S928BXXS6DZH2 vendor-DLKM imports in the strict set, including the Samsung XHCI hooks.
 # Device audit: 0 internal CRC conflicts, 0 DLKM link mismatches; two XHCI imports repaired below.
 # 1681 exact CRCs; 795 known Samsung/GKI CRC differences require the audited bad_version fallback.
 # symbol	device_crc	validated_build_crc	modules
