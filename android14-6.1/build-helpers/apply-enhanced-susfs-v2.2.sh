@@ -4,7 +4,8 @@ set -euo pipefail
 COMMON="${1:?kernel common tree is required}"
 KSU_ROOT="${2:?KernelSU root is required}"
 SOURCE_PATCH="${3:?enhanced SUSFS patch is required}"
-WORK_DIR="${RUNNER_TEMP:-/tmp}/susfs-enhanced-v2.2"
+SUSFS_VERSION_LABEL="${SUSFS_EXPECTED_VERSION:-pinned}"
+WORK_DIR="${RUNNER_TEMP:-/tmp}/susfs-enhanced"
 
 [[ -d "$COMMON" ]] || { echo "::error::Kernel common tree is missing: $COMMON"; exit 1; }
 [[ -d "$KSU_ROOT" ]] || { echo "::error::KernelSU tree is missing: $KSU_ROOT"; exit 1; }
@@ -77,17 +78,17 @@ apply_required_hunks() {
   extract_matching_hunks "$SOURCE_PATCH" "$target_path" "$hunk_pattern" "$output_patch"
 
   if patch -d "$COMMON" -p1 -F3 --forward --batch --dry-run < "$output_patch" >/dev/null 2>&1; then
-    echo "Applying enhanced SUSFS v2.2 hooks: $target_path"
+    echo "Applying enhanced SUSFS hooks for ${SUSFS_VERSION_LABEL}: $target_path"
     patch -d "$COMMON" -p1 -F3 --forward --batch --no-backup-if-mismatch < "$output_patch"
     return 0
   fi
 
   if patch -d "$COMMON" -R -p1 -F3 --forward --batch --dry-run < "$output_patch" >/dev/null 2>&1; then
-    echo "Enhanced SUSFS v2.2 hooks already present: $target_path"
+    echo "Enhanced SUSFS hooks for ${SUSFS_VERSION_LABEL} already present: $target_path"
     return 0
   fi
 
-  echo "::error::Required enhanced SUSFS v2.2 hunks do not apply cleanly: $target_path"
+  echo "::error::Required enhanced SUSFS hunks do not apply cleanly for ${SUSFS_VERSION_LABEL}: $target_path"
   patch -d "$COMMON" -p1 -F3 --forward --batch --dry-run < "$output_patch" || true
   return 1
 }
@@ -105,11 +106,12 @@ apply_required_hunks 'fs/open.c' \
 apply_required_hunks 'fs/stat.c' \
   'KSU_SUSFS_HIDDEN_NAME|KSU_SUSFS_UNICODE_FILTER|susfs_is_hidden_name|susfs_check_unicode_bypass'
 
-# fs/susfs.c in the pinned v2.2.0 tree has moved from spinlocks to mutexes and
+# fs/susfs.c in the pinned Android 14 / 6.1 tree uses mutexes instead of the
 # no longer matches the older enhanced-feature patch context.  GNU patch can
 # otherwise accept the legacy hunks with fuzz and place top-level helpers
 # inside susfs_run_sus_path_loop(), which only fails much later at compile
-# time.  Port the feature blocks using v2.2-specific structural anchors.
+# time. Port the feature blocks using fail-closed structural anchors shared by
+# the pinned v2.2.0 and v2.3.0 GKI sources.
 python3 - "$SOURCE_PATCH" "$COMMON/fs/susfs.c" <<'PY'
 from pathlib import Path
 import re
@@ -220,10 +222,10 @@ markers = (
 )
 present = tuple(marker in source for marker in markers)
 if all(present):
-    print("Enhanced SUSFS v2.2 source features already present: fs/susfs.c")
+    print("Enhanced SUSFS source features already present: fs/susfs.c")
     raise SystemExit(0)
 if any(present):
-    raise SystemExit("Partial enhanced SUSFS v2.2 source port detected in fs/susfs.c")
+    raise SystemExit("Partial enhanced SUSFS source port detected in fs/susfs.c")
 
 hunks = patch_section("fs/susfs.c")
 
@@ -401,7 +403,7 @@ for marker in markers:
 
 source_path.write_text(source, encoding="utf-8")
 print(
-    "Applied v2.2-specific fs/susfs.c port "
+    "Applied pinned-SUSFS fs/susfs.c port "
     f"(hidden inode anchors: fuse={registered_fuse}, inode={registered_inode})"
 )
 PY
@@ -479,7 +481,7 @@ if handled == 0:
     raise SystemExit("No SukiSU SUSFS dispatch source was found")
 PY
 
-# SUSFS 2.2 retains the two external-directory command IDs as deprecated
+# Pinned SUSFS retains the two external-directory command IDs as deprecated
 # compatibility calls, while ReSukiSU's new dispatcher no longer acknowledges
 # them. ZeroMount also still sends the pre-v2.2 SUS_PATH structure. Add a small
 # dual-layout adapter around the current SUSFS functions so both the current
@@ -687,4 +689,4 @@ grep -Rq 'case CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH:' \
 grep -Rq 'case CMD_SUSFS_SET_SDCARD_ROOT_PATH:' \
   "$KSU_ROOT/kernel" "$COMMON/drivers/kernelsu" 2>/dev/null
 
-echo "Enhanced SUSFS v2.2 features applied and audited."
+echo "Enhanced SUSFS features applied and audited for ${SUSFS_VERSION_LABEL}."

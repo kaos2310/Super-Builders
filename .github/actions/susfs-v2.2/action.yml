@@ -26,15 +26,14 @@ runs:
         TARGET="${{ inputs.android_version }}-${{ inputs.kernel_version }}"
         SUBLEVEL="${{ inputs.sub_level }}"
         OS_PATCH_LEVEL="${{ inputs.os_patch_level }}"
-        EXPECTED_SUSFS_VERSION=""
         case "$TARGET" in
-          android12-5.10) SUSFS_COMMIT="8c6faae6881c2eb8174842b9b00a9e85b9cfa47f" ;;
-          android13-5.10) SUSFS_COMMIT="8de71447d9d53fdb317d890181f13d35ef738a49" ;;
-          android13-5.15) SUSFS_COMMIT="9f0415bb2c8fc581e93d384e09aba088bd36733a" ;;
-          android14-5.15) SUSFS_COMMIT="841412d1f3eae63605979099714e6cf3866457de" ;;
+          android12-5.10) SUSFS_COMMIT="8c6faae6881c2eb8174842b9b00a9e85b9cfa47f"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
+          android13-5.10) SUSFS_COMMIT="8de71447d9d53fdb317d890181f13d35ef738a49"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
+          android13-5.15) SUSFS_COMMIT="9f0415bb2c8fc581e93d384e09aba088bd36733a"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
+          android14-5.15) SUSFS_COMMIT="841412d1f3eae63605979099714e6cf3866457de"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
           android14-6.1)  SUSFS_COMMIT="5727f79e3a7175cfb0e1a754fc2ed78eaf866237"; EXPECTED_SUSFS_VERSION="v2.3.0" ;;
-          android15-6.6)  SUSFS_COMMIT="a652208b593826f39534d6a881818a7ae0c4dc5d" ;;
-          android16-6.12) SUSFS_COMMIT="5857c396b50da6b70a4e04b2994012ab961457a2" ;;
+          android15-6.6)  SUSFS_COMMIT="a652208b593826f39534d6a881818a7ae0c4dc5d"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
+          android16-6.12) SUSFS_COMMIT="5857c396b50da6b70a4e04b2994012ab961457a2"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
           *)
             echo "::error::Pinned SUSFS stack does not support $TARGET"
             exit 1
@@ -45,9 +44,10 @@ runs:
         SUSFS_DIR="$RUNNER_TEMP/susfs4ksu-$TARGET"
         rm -rf "$SUSFS_DIR"
 
-        git clone --branch "gki-$TARGET" \
-          https://gitlab.com/simonpunk/susfs4ksu.git "$SUSFS_DIR"
-        git -C "$SUSFS_DIR" checkout --detach "$SUSFS_COMMIT"
+        git init --quiet "$SUSFS_DIR"
+        git -C "$SUSFS_DIR" remote add origin https://gitlab.com/simonpunk/susfs4ksu.git
+        git -C "$SUSFS_DIR" fetch --depth=1 --no-tags origin "$SUSFS_COMMIT"
+        git -C "$SUSFS_DIR" checkout --detach FETCH_HEAD
         git -C "$SUSFS_DIR" config user.name "github-actions[bot]"
         git -C "$SUSFS_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -56,16 +56,14 @@ runs:
           echo "::error::SUSFS pin mismatch: expected $SUSFS_COMMIT, got $ACTUAL_SUSFS_COMMIT"
           exit 1
         }
-        if [[ -n "$EXPECTED_SUSFS_VERSION" ]]; then
-          SUSFS_HEADER="$SUSFS_DIR/kernel_patches/include/linux/susfs.h"
-          test -s "$SUSFS_HEADER"
-          ACTUAL_SUSFS_VERSION=$(sed -n 's/^#define SUSFS_VERSION[[:space:]]*"\([^"]*\)".*/\1/p' "$SUSFS_HEADER" | head -1)
-          [[ "$ACTUAL_SUSFS_VERSION" == "$EXPECTED_SUSFS_VERSION" ]] || {
-            echo "::error::SUSFS version mismatch: expected $EXPECTED_SUSFS_VERSION, got ${ACTUAL_SUSFS_VERSION:-<empty>} at $ACTUAL_SUSFS_COMMIT"
-            exit 1
-          }
-          echo "::notice::Pinned SUSFS $ACTUAL_SUSFS_VERSION at $ACTUAL_SUSFS_COMMIT for $TARGET"
-        fi
+        SUSFS_HEADER="$SUSFS_DIR/kernel_patches/include/linux/susfs.h"
+        test -s "$SUSFS_HEADER"
+        ACTUAL_SUSFS_VERSION=$(sed -n 's/^#define SUSFS_VERSION[[:space:]]*"\([^"]*\)".*/\1/p' "$SUSFS_HEADER" | head -1)
+        [[ "$ACTUAL_SUSFS_VERSION" == "$EXPECTED_SUSFS_VERSION" ]] || {
+          echo "::error::SUSFS version mismatch: expected $EXPECTED_SUSFS_VERSION, got ${ACTUAL_SUSFS_VERSION:-<empty>} at $ACTUAL_SUSFS_COMMIT"
+          exit 1
+        }
+        echo "::notice::Pinned SUSFS $ACTUAL_SUSFS_VERSION at $ACTUAL_SUSFS_COMMIT for $TARGET"
 
         # Android 14 / 6.1 is pinned to the SUSFS v2.3.0 version-bump commit.
         # The Samsung DZG1 repair/verification below is revalidated against all
@@ -75,6 +73,8 @@ runs:
         # Keep it until the ephemeral runner is torn down and publish its path
         # for subsequent workflow steps instead of guessing a temp directory.
         echo "SUSFS_FOLDER=$SUSFS_DIR" >> "$GITHUB_ENV"
+        echo "SUSFS_EXPECTED_VERSION=$EXPECTED_SUSFS_VERSION" >> "$GITHUB_ENV"
+        echo "SUSFS_PINNED_COMMIT=$SUSFS_COMMIT" >> "$GITHUB_ENV"
 
         cd "$KERNEL_COMMON"
         cp "$SUSFS_DIR/kernel_patches/fs/"* fs/

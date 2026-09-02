@@ -77,8 +77,8 @@ grep -qiE 'rules:[[:space:]]*[1-9][0-9]*' "$REPORT_DIR/zeromount-vfs-status.txt"
   echo "::error::ZeroMount VFS has no active rules"
   exit 1
 }
-grep -qiE 'SUSFS[^0-9]*v?2\.2\.0|v2\.2\.0' "$REPORT_DIR/zeromount-detect.txt" || {
-  echo "::error::ZeroMount did not detect SUSFS v2.2.0"
+grep -qiE 'SUSFS[^0-9]*v?2\.3\.0|v2\.3\.0' "$REPORT_DIR/zeromount-detect.txt" || {
+  echo "::error::ZeroMount did not detect SUSFS v2.3.0"
   exit 1
 }
 for feature in kstat path maps kstat_redirect; do
@@ -133,7 +133,7 @@ PY
 adb_root 'ksu_susfs show version' > "$REPORT_DIR/susfs-version.txt"
 adb_root 'ksu_susfs show variant' > "$REPORT_DIR/susfs-variant.txt"
 adb_root 'ksu_susfs show enabled_features' > "$REPORT_DIR/susfs-enabled-features.txt"
-grep -q 'v2.2.0' "$REPORT_DIR/susfs-version.txt"
+grep -q 'v2.3.0' "$REPORT_DIR/susfs-version.txt"
 grep -qi 'GKI' "$REPORT_DIR/susfs-variant.txt"
 
 SUSFS_FEATURES=(
@@ -224,7 +224,7 @@ cat > "$REPORT_DIR/summary.md" <<EOF
 - Android boot: complete
 - ZeroMount VFS engine: active with non-zero rules and no reported failures
 - ZeroMount/SUSFS bridge: path, kstat, maps and kstat redirect detected
-- SUSFS: v2.2.0 GKI with every required compiled feature available
+- SUSFS: v2.3.0 GKI with every required compiled feature available
 - Samsung XHCI KMI hooks: present in the running kernel
 - Samsung USB-QMI DLKM live CRC probe: ${DLKM_PROBE_STATUS}
 - Droidspaces: executable ZeroMount injection with matching source/target SHA-256

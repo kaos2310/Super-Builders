@@ -452,7 +452,7 @@ jobs:
         FIX_SCRIPT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/fix-old-kernel-compat.sh"
         [ -f "$FIX_SCRIPT" ] && bash "$FIX_SCRIPT" "$KERNEL_ROOT/common" "$SUBLEVEL" || true
 
-    - name: Apply SUSFS v2.2.0
+    - name: Apply pinned SUSFS
       if: inputs.add_susfs
       uses: ./.github/actions/susfs-v2.2
       with:
@@ -461,7 +461,7 @@ jobs:
         sub_level: ${{ env.SUBLEVEL }}
         os_patch_level: ${{ inputs.os_patch_level }}
 
-    - name: Apply Enhanced SUSFS v2.2 features
+    - name: Apply Enhanced SUSFS features
       if: inputs.add_susfs
       run: |
         set -euo pipefail
@@ -470,14 +470,14 @@ jobs:
         chmod +x "$HELPER"
         "$HELPER" "$KERNEL_ROOT/common" "$KERNEL_ROOT/$KSU_DIR" "$PATCH"
 
-    - name: Apply ZeroMount to SUSFS v2.2.0
+    - name: Apply ZeroMount to pinned SUSFS
       if: inputs.add_susfs && inputs.add_zeromount
       working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |
         set -euo pipefail
         PATCH="$GITHUB_WORKSPACE/$VERSION_DIR/SukiSU-Ultra/patches/60_zeromount-${ANDROID_VER}-${KERNEL_VER}.patch"
         FILTERED_PATCH="$RUNNER_TEMP/zeromount-${ANDROID_VER}-${KERNEL_VER}-without-task-mmu.patch"
-        # SUSFS v2.2 already modifies show_map_vma(). The legacy ZeroMount
+        # The pinned SUSFS stack already modifies show_map_vma(). The legacy ZeroMount
         # metadata hook overlaps that code and caused an Oops while apexd read
         # /proc/*/maps on SM-S928B. Keep the remaining ZeroMount facilities.
         awk '
@@ -741,7 +741,9 @@ jobs:
           "$EXPECTED_VERSION_CODE" "$EXPECTED_MANAGER_SIZE" "$EXPECTED_MANAGER_HASH"
 
         if [[ "$ADD_SUSFS" == "true" ]]; then
-          grep -qx '#define SUSFS_VERSION "v2.2.0"' "$KERNEL_ROOT/common/include/linux/susfs.h"
+          test -n "${SUSFS_EXPECTED_VERSION:-}"
+          test -n "${SUSFS_PINNED_COMMIT:-}"
+          grep -qxF "#define SUSFS_VERSION \"${SUSFS_EXPECTED_VERSION}\"" "$KERNEL_ROOT/common/include/linux/susfs.h"
           grep -q 'ksu_susfs_dispatch_path_compat' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
           grep -q 'case CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH:' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
           grep -q 'case CMD_SUSFS_SET_SDCARD_ROOT_PATH:' "$KERNEL_ROOT/$KSU_DIR/kernel/supercall/dispatch.c"
@@ -760,8 +762,13 @@ jobs:
         echo "RESUKISU_VERSION_CODE=${RESUKISU_VERSION_CODE}"
         echo "RESUKISU_SOURCE_BRANCH=${EXPECTED_BRANCH}"
         echo "RESUKISU_COMMIT=$PIN"
-        [[ "$ADD_SUSFS" == "true" ]] && echo "SUSFS_VERSION=v2.2.0" || echo "SUSFS disabled for KMI attribution"
-        [[ "$ADD_ZEROMOUNT" == "true" ]] && echo "ZeroMount SUSFS v2.2 dual-ABI compatibility enabled" || echo "ZeroMount disabled for KMI attribution"
+        if [[ "$ADD_SUSFS" == "true" ]]; then
+          echo "SUSFS_VERSION=${SUSFS_EXPECTED_VERSION}"
+          echo "SUSFS_COMMIT=${SUSFS_PINNED_COMMIT}"
+        else
+          echo "SUSFS disabled for KMI attribution"
+        fi
+        [[ "$ADD_ZEROMOUNT" == "true" ]] && echo "ZeroMount SUSFS ${SUSFS_EXPECTED_VERSION:-unknown} dual-ABI compatibility enabled" || echo "ZeroMount disabled for KMI attribution"
         [[ "$ADD_KPM" == "true" ]] && echo "KPM enabled" || echo "KPM unavailable in ReSukiSU ${RESUKISU_VERSION_CODE}"
 
     - name: Clean Module Lists
@@ -1419,6 +1426,9 @@ jobs:
           echo "| **Kernel** | ${KERNEL_VER}.${SUBLEVEL} |"
           echo "| **Android** | ${ANDROID_VER} |"
           echo "| **OS Patch Level** | ${OS_PATCH} |"
+          if [[ "$ADD_SUSFS" == "true" ]]; then
+            echo "| **SUSFS source** | ${SUSFS_EXPECTED_VERSION:-not-recorded} @ ${SUSFS_PINNED_COMMIT:-not-recorded} |"
+          fi
           echo "| **Enhanced SUSFS** | $(S "$ADD_SUSFS") |"
           echo "| **SUSFS Open Redirect (Test)** | $(S "$SUSFS_OPEN_REDIRECT_TEST") |"
           echo "| **ZeroMount** | $(S "$ADD_ZEROMOUNT") |"

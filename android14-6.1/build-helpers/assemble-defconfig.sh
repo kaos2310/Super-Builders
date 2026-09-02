@@ -248,9 +248,10 @@ fi
 # prove that the pinned SUSFS action installed the complete functional hook set.
 if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" != "SukiSU" ]]; then
   chmod +x "$VERIFY_SCRIPT"
-  echo "Verifying pinned SUSFS v2.2.0 hooks for ${KSU_VARIANT:-ReSukiSU}"
+  EXPECTED_SUSFS_VERSION="${SUSFS_EXPECTED_VERSION:-v2.2.0}"
+  echo "Verifying pinned SUSFS ${EXPECTED_SUSFS_VERSION} hooks for ${KSU_VARIANT:-ReSukiSU}"
   if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
-    echo "::error::Pinned SUSFS v2.2.0 source audit failed for ${KSU_VARIANT:-ReSukiSU}. Check $AUDIT_FILE"
+    echo "::error::Pinned SUSFS ${EXPECTED_SUSFS_VERSION} source audit failed for ${KSU_VARIANT:-ReSukiSU}. Check $AUDIT_FILE"
     exit 1
   fi
 fi

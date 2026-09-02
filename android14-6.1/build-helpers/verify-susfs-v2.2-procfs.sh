@@ -2,7 +2,8 @@
 set -euo pipefail
 
 COMMON="${1:?kernel common tree is required}"
-REPORT="${2:-${RUNNER_TEMP:-/tmp}/susfs-v2.2-procfs-audit.txt}"
+REPORT="${2:-${RUNNER_TEMP:-/tmp}/susfs-procfs-audit.txt}"
+EXPECTED_SUSFS_VERSION="${SUSFS_EXPECTED_VERSION:-v2.2.0}"
 
 TASK_MMU="$COMMON/fs/proc/task_mmu.c"
 PROC_BASE="$COMMON/fs/proc/base.c"
@@ -29,6 +30,11 @@ require_file() {
 require_pattern() {
   local file="$1" pattern="$2" description="$3"
   if grep -Eq "$pattern" "$file" 2>/dev/null; then pass "$description"; else fail "$description"; fi
+}
+
+require_literal_line() {
+  local file="$1" literal="$2" description="$3"
+  if grep -qxF "$literal" "$file" 2>/dev/null; then pass "$description"; else fail "$description"; fi
 }
 
 require_any_pattern() {
@@ -58,7 +64,7 @@ SUS_MAP_RE='AS_FLAGS_SUS_MAP|PRE_CHECK_SUS_MAP|SUSFS_IS_INODE_SUS_MAP|susfs_is_i
 OPEN_REDIRECT_FLAG_RE='AS_FLAGS_OPEN_REDIRECT|SUSFS_IS_INODE_OPEN_REDIRECT|susfs_is_inode_open_redirect'
 OPEN_REDIRECT_LOOKUP_RE='susfs_get_redirected_path|susfs_get_redirected_pathname|susfs_get_open_redirect|susfs_lookup_open_redirect|susfs_get_redirected_inode|susfs_open_redirect_spoof_do_sys_openat|susfs_open_redirect_spoof_vfs_readlink|susfs_open_redirect_spoof_do_proc_readlink|susfs_open_redirect_spoof_seq_show|susfs_open_redirect_spoof_show_map_vma|susfs_open_redirect_spoof_vfs_statfs'
 
-log "SUSFS v2.2.0 Procfs/SUS_MAP/Open Redirect source audit"
+log "SUSFS ${EXPECTED_SUSFS_VERSION} Procfs/SUS_MAP/Open Redirect source audit"
 log "common tree: $COMMON"
 log ""
 
@@ -72,8 +78,8 @@ if (( failures > 0 )); then
   exit 1
 fi
 
-require_pattern "$SUSFS_H" '^#define[[:space:]]+SUSFS_VERSION[[:space:]]+"v2\.2\.0"' \
-  "SUSFS reports v2.2.0"
+require_literal_line "$SUSFS_H" "#define SUSFS_VERSION \"${EXPECTED_SUSFS_VERSION}\"" \
+  "SUSFS reports ${EXPECTED_SUSFS_VERSION}"
 require_pattern "$SUSFS_DEF" 'AS_FLAGS_SUS_MAP|SUSFS_IS_INODE_SUS_MAP' \
   "SUS_MAP inode test is defined"
 require_pattern "$SUSFS_C" 'susfs_add_sus_map' \
@@ -81,7 +87,7 @@ require_pattern "$SUSFS_C" 'susfs_add_sus_map' \
 require_pattern "$SUSFS_C" 'AS_FLAGS_SUS_MAP|SUSFS_SET_INODE_SUS_MAP|susfs_set_inode_sus_map' \
   "SUS_MAP inode/address-space flag is assigned"
 
-# Upstream v2.2.0 may use direct AS_FLAGS tests or the SUSFS_IS_INODE_SUS_MAP
+# Pinned upstream revisions may use direct AS_FLAGS tests or the SUSFS_IS_INODE_SUS_MAP
 # wrapper. Both represent the same reader integration and must be accepted.
 require_count "$TASK_MMU" "$SUS_MAP_RE" 4 \
   "task_mmu.c contains SUS_MAP hooks for maps/smaps/rollup/pagemap"
@@ -120,7 +126,7 @@ else
   fail "task_mmu.c lacks SUS_MAP hide/anonymize control flow"
 fi
 
-# Open Redirect changed shape across v2.2.0 revisions. Some trees put the open
+# Open Redirect changed shape across pinned SUSFS revisions. Some trees put the open
 # hook in namei.c, others in open.c; helper wrappers may hide the raw AS flag.
 require_pattern "$SUSFS_DEF" 'AS_FLAGS_OPEN_REDIRECT|SUSFS_IS_INODE_OPEN_REDIRECT' \
   "Open Redirect inode test is defined"

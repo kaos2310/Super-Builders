@@ -52,7 +52,7 @@ for needle in \
   }
 done
 
-# The legacy ZeroMount maps hook overlaps SUSFS 2.2 show_map_vma() and caused
+# The legacy ZeroMount maps hook overlaps the pinned SUSFS show_map_vma() and caused
 # a real apexd Oops on e3q. SUSFS SUS_MAP supplies map hiding, so the unsafe
 # duplicate task_mmu hook must remain absent.
 if grep -qF 'zeromount_spoof_mmap_metadata' "$COMMON_TREE/fs/proc/task_mmu.c"; then
@@ -60,4 +60,4 @@ if grep -qF 'zeromount_spoof_mmap_metadata' "$COMMON_TREE/fs/proc/task_mmu.c"; t
   exit 1
 fi
 
-echo "Verified ZeroMount VFS hooks, full statfs spoofing, SUSFS 2.2 bridge, and external-directory compatibility"
+echo "Verified ZeroMount VFS hooks, full statfs spoofing, SUSFS ${SUSFS_EXPECTED_VERSION:-pinned} bridge, and external-directory compatibility"

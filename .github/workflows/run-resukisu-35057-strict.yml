@@ -28,8 +28,15 @@ on:
       - 'device-profiles.json'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
+      - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh'
+      - 'android14-6.1/build-helpers/assemble-defconfig.sh'
       - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'
       - 'android14-6.1/build-helpers/make-resukisu-umount-add-idempotent.sh'
+      - 'android14-6.1/build-helpers/setup-bbg.sh'
+      - 'android14-6.1/build-helpers/verify-susfs-v2.2-procfs.sh'
+      - 'android14-6.1/build-helpers/verify-zeromount-susfs-source.sh'
+      - 'android14-6.1/SukiSU-Ultra/patches/51_enhanced_susfs-android14-6.1.patch'
+      - 'android14-6.1/SukiSU-Ultra/patches/60_zeromount-android14-6.1.patch'
       - 'android14-6.1/resukisu-pin.txt'
 
 permissions:
