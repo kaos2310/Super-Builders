@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - agent/resukisu-35115-eux-dzh2
+      - agent/resukisu-35113-eux-dzh2
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
