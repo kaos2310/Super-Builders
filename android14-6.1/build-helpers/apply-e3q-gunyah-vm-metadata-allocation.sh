@@ -11,16 +11,27 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 # RM MEM_APPEND batching, boot-context fallback, SCM VMID mapping, KMI allowance,
 # qcom-scm provider and safe teardown. Apply the new large-memory metadata fix
 # only after that immutable baseline has completed successfully.
-BASE_HELPER="$TMP_DIR/apply-e3q-gunyah-vm-metadata-allocation.sh"
-curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
-  "https://raw.githubusercontent.com/kaos2310/Super-Builders/${BASE_COMMIT}/android14-6.1/build-helpers/apply-e3q-gunyah-vm-metadata-allocation.sh" \
-  -o "$BASE_HELPER"
+BASE_HELPER_NAME="apply-e3q-gunyah-vm-metadata-allocation.sh"
+BASE_HELPER="$TMP_DIR/$BASE_HELPER_NAME"
+BASE_HELPER_URL="https://raw.githubusercontent.com/kaos2310/Super-Builders/${BASE_COMMIT}/android14-6.1/build-helpers"
 
-test -s "$BASE_HELPER" || {
-  echo 'FATAL: immutable e3q Gunyah baseline helper is empty' >&2
-  exit 1
-}
-bash -n "$BASE_HELPER"
+# The immutable wrapper resolves these helpers relative to its own directory.
+# Fetch the complete proven helper set beside it so nested CMA, QCOM/VMID and
+# additive-KMI stages cannot fail later with a misleading missing-file error.
+for helper in \
+  "$BASE_HELPER_NAME" \
+  'apply-e3q-gunyah-cma-compat.sh' \
+  'apply-e3q-gunyah-qcom-vmid-compat.sh' \
+  'allow-e3q-gunyah-rm-vmid-kmi.sh'; do
+  curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
+    "$BASE_HELPER_URL/$helper" \
+    -o "$TMP_DIR/$helper"
+  test -s "$TMP_DIR/$helper" || {
+    echo "FATAL: immutable e3q Gunyah helper is empty: $helper" >&2
+    exit 1
+  }
+  bash -n "$TMP_DIR/$helper"
+done
 
 for token in \
   'mapping->parcel.n_mem_entries > 8192' \
