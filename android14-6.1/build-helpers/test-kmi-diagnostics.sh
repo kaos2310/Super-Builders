@@ -427,7 +427,7 @@ test_s928b_zzhl_source_port() {
   [[ "$SAMSUNG_CHIPSET" == "pineapple" ]]
   [[ "$SAMSUNG_OSS_SHA256" == "512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c" ]]
   [[ "$AOSP_COMMON_COMMIT" == "4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c" ]]
-  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "2ff242f00f55bda10fc5d22baf406743bafb3c75c51ecb197fb6aa58f3b46f74" ]]
+  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "7ae2539c2d3906a87f42210d38fa563452453b68f288a77282c8478e45cde87f" ]]
   echo "$SAMSUNG_COMMON_OVERLAY_SHA256  $SAMSUNG_SOURCE_OVERLAY" | sha256sum -c -
 
   tar -tJf "$SAMSUNG_SOURCE_OVERLAY" > "$listing"
@@ -440,12 +440,26 @@ test_s928b_zzhl_source_port() {
 
   mkdir -p "$extracted"
   tar -xJf "$SAMSUNG_SOURCE_OVERLAY" -C "$extracted" \
+    files/arch/arm64/configs/gki_defconfig \
     files/include/trace/hooks/xhci.h \
     files/drivers/android/vendor_hooks.c \
-    files/drivers/usb/host/xhci-plat.c
+    files/drivers/usb/host/xhci-plat.c \
+    files/fs/f2fs/f2fs.h \
+    files/kernel/module/main.c
+  echo "$SAMSUNG_GKI_DEFCONFIG_SHA256  $extracted/files/arch/arm64/configs/gki_defconfig" | sha256sum -c -
   echo "$SAMSUNG_XHCI_HEADER_SHA256  $extracted/files/include/trace/hooks/xhci.h" | sha256sum -c -
   echo "$SAMSUNG_VENDOR_HOOKS_SHA256  $extracted/files/drivers/android/vendor_hooks.c" | sha256sum -c -
   echo "$SAMSUNG_XHCI_PLAT_SHA256  $extracted/files/drivers/usb/host/xhci-plat.c" | sha256sum -c -
+  echo "$SAMSUNG_F2FS_HEADER_SHA256  $extracted/files/fs/f2fs/f2fs.h" | sha256sum -c -
+  echo "$SAMSUNG_MODULE_MAIN_SHA256  $extracted/files/kernel/module/main.c" | sha256sum -c -
+  if grep -rIl $'\r' \
+      "$extracted/files/arch/arm64/configs/gki_defconfig" \
+      "$extracted/files/drivers/android/vendor_hooks.c" \
+      "$extracted/files/fs/f2fs/f2fs.h" \
+      "$extracted/files/kernel/module/main.c"; then
+    echo "Audited Samsung patch target still contains CR line endings" >&2
+    return 1
+  fi
 
   grep -qF 'Apply SM-S928B Samsung source port for ZZHL / 6.1.162' "$BUILD_WORKFLOW"
   grep -qF 'apply-s928b-zzhl-source-port.sh' "$BUILD_WORKFLOW"
@@ -457,11 +471,12 @@ test_s928b_zzhl_source_port
 test_s928b_dzg1_susfs_patch_context() {
   grep -qF 'SAMSUNG_SOURCE_BASE_APPLIED:-false' "$SUSFS_ACTION"
   grep -qF 'PATCH_FUZZ=3' "$SUSFS_ACTION"
-  grep -qF 'patch -p1 -F"$PATCH_FUZZ" --no-backup-if-mismatch' "$SUSFS_ACTION"
+  grep -qF 'patch -p1 -F"$PATCH_FUZZ" --forward --batch --dry-run' "$SUSFS_ACTION"
+  grep -qF 'patch -p1 -F"$PATCH_FUZZ" --forward --batch --no-backup-if-mismatch' "$SUSFS_ACTION"
   grep -qF '#define CL_COPY_MNT_NS BIT(25)' "$SUSFS_ACTION"
   grep -qF 'susfs_open_redirect_spoof_do_sys_openat(inode)' "$SUSFS_ACTION"
   grep -qF "require_exact_susfs_marker fs/proc/base.c '#include <linux/susfs_def.h>'" "$SUSFS_ACTION"
-  grep -qF 'Samsung DZG1 SUSFS integration left patch rejects' "$SUSFS_ACTION"
+  grep -qF 'Samsung SUSFS integration left patch rejects' "$SUSFS_ACTION"
 }
 
 test_s928b_dzg1_susfs_patch_context
@@ -474,6 +489,17 @@ test_s928b_dzg1_wakeup_patch() {
 }
 
 test_s928b_dzg1_wakeup_patch
+
+test_s928b_zzhl_patch_ports() {
+  grep -qF 'Samsung F2FS congestion patch port applied' "$KERNEL_PATCH_HELPER"
+  grep -qF "grep -cF 'msecs_to_jiffies(20)'" "$KERNEL_PATCH_HELPER"
+  grep -qF "grep -cF 'msecs_to_jiffies(6)'" "$KERNEL_PATCH_HELPER"
+  grep -qF 'patch -p1 -F3 --forward --batch --dry-run --no-backup-if-mismatch' "$BUILD_WORKFLOW"
+  grep -qF "grep -qF 'static char *custom_module_blacklist[] = {' kernel/module/main.c" "$BUILD_WORKFLOW"
+  grep -qF "grep -qF 'custom_blacklist:' kernel/module/main.c" "$BUILD_WORKFLOW"
+}
+
+test_s928b_zzhl_patch_ports
 
 test_kasan_kmi_layout() {
   local fixture="$TMP_DIR/kasan-kmi-layout"

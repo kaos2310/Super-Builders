@@ -68,7 +68,22 @@ apply "$COMMON/int_sqrt.patch"
 apply "$COMMON/force_tcp_nodelay.patch"
 apply "$COMMON/reduce_gc_thread_sleep_time.patch"
 apply "$COMMON/add_timeout_wakelocks_globally.patch"
-apply "$COMMON/f2fs_reduce_congestion.patch"
+if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
+  F2FS_HEADER=fs/f2fs/f2fs.h
+  [[ "$(grep -cF 'DEFAULT_IO_TIMEOUT' "$F2FS_HEADER")" -eq 1 ]]
+  [[ "$(grep -cF 'msecs_to_jiffies(20)' "$F2FS_HEADER")" -eq 1 ]]
+  [[ "$(grep -cF 'default: 20ms' "$F2FS_HEADER")" -eq 1 ]]
+  sed -i \
+    -e 's/default: 20ms/default: 6ms/' \
+    -e 's/msecs_to_jiffies(20)/msecs_to_jiffies(6)/' \
+    "$F2FS_HEADER"
+  [[ "$(grep -cF 'msecs_to_jiffies(6)' "$F2FS_HEADER")" -eq 1 ]]
+  [[ "$(grep -cF 'default: 6ms' "$F2FS_HEADER")" -eq 1 ]]
+  [[ ! -f "$F2FS_HEADER.rej" ]]
+  echo "apply-kernel-patches: Samsung F2FS congestion patch port applied"
+else
+  apply "$COMMON/f2fs_reduce_congestion.patch"
+fi
 apply "$COMMON/reduce_freeze_timeout.patch"
 
 if [ "$MAJOR" -ge 6 ]; then

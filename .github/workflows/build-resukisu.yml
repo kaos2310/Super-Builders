@@ -579,7 +579,14 @@ jobs:
           rm -f lib/lz4/lz4_compress.c lib/lz4/lz4_decompress.c lib/lz4/lz4defs.h lib/lz4/lz4hc_compress.c
           cp -r "$ZRAM_DIR/lz4/"* ./lib/lz4/ 2>/dev/null || true
           cp -r "$ZRAM_DIR/include/linux/"* ./include/linux/ 2>/dev/null || true
-          [ -f "$ZRAM_DIR/$KERNEL_VER/lz4_1.10.0.patch" ] && patch -p1 -F3 < "$ZRAM_DIR/$KERNEL_VER/lz4_1.10.0.patch" || true
+          LZ4_PATCH="$ZRAM_DIR/$KERNEL_VER/lz4_1.10.0.patch"
+          if [[ "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" == "true" ]]; then
+            test -s "$LZ4_PATCH"
+            patch -p1 -F3 --forward --batch --dry-run --no-backup-if-mismatch < "$LZ4_PATCH"
+            patch -p1 -F3 --forward --batch --no-backup-if-mismatch < "$LZ4_PATCH"
+          elif [[ -f "$LZ4_PATCH" ]]; then
+            patch -p1 -F3 < "$LZ4_PATCH" || true
+          fi
         fi
 
     - name: Add LZ4K/LZ4KD Compression
@@ -591,8 +598,23 @@ jobs:
         cp -r "$SUKISU/other/zram/lz4k/lib/"* ./lib/
         cp -r "$SUKISU/other/zram/lz4k/crypto/"* ./crypto/
         cp -r "$SUKISU/other/zram/lz4k_oplus" ./lib/
-        [ -f "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4kd.patch" ] && patch -p1 -F3 < "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4kd.patch" || true
-        [ -f "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch" ] && patch -p1 -F3 < "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch" || true
+        apply_zram_patch() {
+          local patch_file="$1"
+          if [[ "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" == "true" ]]; then
+            test -s "$patch_file"
+            patch -p1 -F3 --forward --batch --dry-run --no-backup-if-mismatch < "$patch_file"
+            patch -p1 -F3 --forward --batch --no-backup-if-mismatch < "$patch_file"
+          elif [[ -f "$patch_file" ]]; then
+            patch -p1 -F3 < "$patch_file" || true
+          fi
+        }
+        apply_zram_patch "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4kd.patch"
+        apply_zram_patch "$SUKISU/other/zram/zram_patch/$KERNEL_VER/lz4k_oplus.patch"
+        if [[ "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" == "true" ]]; then
+          [[ ! -f kernel/module/main.c.rej ]]
+          grep -qF 'static char *custom_module_blacklist[] = {' kernel/module/main.c
+          grep -qF 'custom_blacklist:' kernel/module/main.c
+        fi
 
     - name: Install KASAN-off KMI compatibility stub
       if: inputs.android_version == 'android14' && inputs.kernel_version == '6.1' && inputs.device_codename == 'e3q' && !inputs.kmi_minimal_config
@@ -1339,7 +1361,7 @@ jobs:
           grep -qF 'Samsung source baseline: S928BXXS6DZG1 / SM-S928B_16_Opensource.zip (512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c)' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'Exact ZZHL Samsung OSS source: not published when this build was prepared.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'Source method: audited DZG1 Samsung delta ported onto AOSP common 4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c.' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Source port archive SHA-256: 2ff242f00f55bda10fc5d22baf406743bafb3c75c51ecb197fb6aa58f3b46f74' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Source port archive SHA-256: 7ae2539c2d3906a87f42210d38fa563452453b68f288a77282c8478e45cde87f' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'Samsung common delta: 401 changed,' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF '421 added, 308 removed.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'All 2469 target Samsung DLKM symbols must match exactly.' "$ANYKERNEL3/STRICT-KMI.txt"

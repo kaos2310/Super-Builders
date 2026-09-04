@@ -94,7 +94,7 @@ source_markers = (
     "AOSP common base: 4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c",
     "Port base: 0f62335d867d7ccc2933ff1e3c5ae6a244d12994",
     "Port method: three-way merge retaining AOSP 6.1.162 and Samsung DZG1 changes",
-    "Line endings: fs/namespace.c normalized to LF for deterministic Linux patching",
+    "Line endings: 18 Samsung text payloads normalized to LF for deterministic Linux patching",
 )
 for marker in source_markers:
     if marker not in source_text:
@@ -180,8 +180,11 @@ for SPEC in \
   "Makefile:36a79f031105375d5ef92f3789e7856d72c14a2431c3a5a06d7342297bebcca2" \
   "fs/namespace.c:a0c3aae461f43272d7b789d713e2724e4326f719fb5ec49045fdaaefb4272a17" \
   "include/trace/hooks/xhci.h:fda469c283497303230ff7a145d26cc16a80cd8ea5bf4b4eff23705b59da4f29" \
-  "drivers/android/vendor_hooks.c:26d3461006c0e4d475147245a53238e066c6be0d286769ce2729e1a230aa1142" \
+  "drivers/android/vendor_hooks.c:15e58623fb929fcb47769983928952eb7234810892fa0000d567cee2d0c947fe" \
   "drivers/usb/host/xhci-plat.c:adcb2f8a1c1d923d10908e2ddaaa80db2b5be75b47396613d248d6d4aa877347" \
+  "arch/arm64/configs/gki_defconfig:e41b9d67b06ebf8a11ae7a4cf6a394d368a97d396cea1ae6001fe7aec05e7b1d" \
+  "fs/f2fs/f2fs.h:c2f98582c9f80fb15cea8a71bd3a1450abb9a7ce36e2d5149951ff6ce28eeab8" \
+  "kernel/module/main.c:e7cf07d5482191b6dec229ebba591d7139a9f4a21a9070795a3b4c23c0b8125b" \
   "android/abi_gki_aarch64_galaxy:8a33aa1742becd1b334bbfb16f88dbad5086a1220f14a586ea47589d7672ef2c"; do
   RELATIVE=${SPEC%%:*}
   EXPECTED=${SPEC#*:}
@@ -192,6 +195,18 @@ for SPEC in \
     echo "actual=$ACTUAL"
     exit 1
   }
+done
+
+for RELATIVE in \
+  arch/arm64/configs/gki_defconfig \
+  drivers/android/vendor_hooks.c \
+  fs/f2fs/f2fs.h \
+  fs/namespace.c \
+  kernel/module/main.c; do
+  if LC_ALL=C grep -q $'\r' "$COMMON_TREE/$RELATIVE"; then
+    echo "::error::Audited Samsung patch target contains CR line endings: $RELATIVE"
+    exit 1
+  fi
 done
 
 grep -qx 'VERSION = 6' "$COMMON_TREE/Makefile"
