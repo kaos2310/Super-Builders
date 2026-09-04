@@ -1,11 +1,11 @@
-name: S928B ReSukiSU 35115 Gunyah RM-Append Build
-run-name: "S928BXXS6DZH2 EUX — ReSukiSU 35115 + Gunyah RM MEM_APPEND / SCM-VMID"
+name: S928B ZZHL ReSukiSU 35115 Gunyah RM-Append Build
+run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35115 + Gunyah RM MEM_APPEND / SCM-VMID"
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - agent/resukisu-35113-eux-dzh2
+      - agent/resukisu-35115-eux-zzhl
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -20,11 +20,13 @@ on:
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
       - 'android14-6.1/build-helpers/allow-e3q-gunyah-rm-vmid-kmi.sh'
       - 'android14-6.1/build-helpers/audit-e3q-gunyah-qcom-module.sh'
+      - 'android14-6.1/build-helpers/apply-s928b-zzhl-source-port.sh'
       - 'android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh'
-      - 'android14-6.1/e3q-gunyah-qcom-stock-modversions.tsv'
-      - 'android14-6.1/samsung-e3q-dlkm-crc-baseline.tsv'
-      - 'android14-6.1/samsung-s928bxxs6dzg1-source.env'
-      - 'android14-6.1/samsung-s928bxxs6dzh2-target.env'
+      - 'android14-6.1/e3q-zzhl-gunyah-qcom-stock-modversions.tsv'
+      - 'android14-6.1/samsung-e3q-zzhl-dlkm-crc-baseline.tsv'
+      - 'android14-6.1/samsung-s928bxxu6zzhl-source.env'
+      - 'android14-6.1/samsung-s928bxxu6zzhl-target.env'
+      - 'android14-6.1/samsung-sm-s928b-17-zzhl-common-port.tar.xz'
       - 'device-profiles.json'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
@@ -52,7 +54,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 6.1.145 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 6.1.162 / Gunyah RM MEM_APPEND + SCM-VMID
     needs: dependencies
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -61,8 +63,8 @@ jobs:
     with:
       android_version: android14
       kernel_version: "6.1"
-      sub_level: "145"
-      os_patch_level: "2025-09"
+      sub_level: "162"
+      os_patch_level: "2026-03"
       add_susfs: true
       add_zeromount: true
       add_droidspaces: true

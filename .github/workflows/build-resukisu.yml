@@ -224,8 +224,8 @@ jobs:
         MANIFEST_BRANCH="common-${FORMATTED_BRANCH}"
 
         if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
-          SOURCE_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
-          TARGET_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxs6dzh2-target.env"
+          SOURCE_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxu6zzhl-source.env"
+          TARGET_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxu6zzhl-target.env"
           test -s "$SOURCE_PROFILE"
           test -s "$TARGET_PROFILE"
           # shellcheck disable=SC1090
@@ -240,21 +240,29 @@ jobs:
           test "$SAMSUNG_TARGET_MODEL" = "SM-S928B"
           test "$SAMSUNG_TARGET_DEVICE" = "e3q"
           test "$SAMSUNG_TARGET_CSC" = "EUX"
-          test "$SAMSUNG_TARGET_FIRMWARE" = "S928BXXS6DZH2"
-          test "$SAMSUNG_TARGET_AP" = "S928BXXS6DZH2"
-          test "$SAMSUNG_TARGET_CSC_BUILD" = "S928BOXM6DZH2"
-          test "$SAMSUNG_TARGET_CP" = "S928BXXS6DZH2"
-          test "$SAMSUNG_TARGET_KERNEL_RELEASE" = "6.1.145-android14-11-33419968-abS928BXXS6DZH2"
+          test "$SAMSUNG_TARGET_FIRMWARE" = "S928BXXU6ZZHL"
+          test "$SAMSUNG_TARGET_AP" = "S928BXXU6ZZHL"
+          test "$SAMSUNG_TARGET_CSC_BUILD" = "S928BOXM6ZZHL"
+          test "$SAMSUNG_TARGET_CP" = "S928BXXU6EZHK"
+          test "$SAMSUNG_TARGET_OTA_SOURCE" = "S928BXXS6DZH2"
+          test "$SAMSUNG_TARGET_OTA_SHA256" = "7a50de0d3da8140a2a4c354c65dd16fcb9c17ef70d549a73565d5c9607c11d39"
+          test "$SAMSUNG_TARGET_KERNEL_RELEASE" = "6.1.162-android14-11-34343818-abS928BXXU6ZZHL"
+          test "$SAMSUNG_TARGET_BOOT_IMAGE_SHA256" = "8efd0e667e187510ce5b3f7f3d289953e02375492cfb0c470d097e959d683d1e"
+          test "$SAMSUNG_TARGET_VENDOR_BOOT_IMAGE_SHA256" = "4548dc91b5749b679d1850b171d5550b9946ba7b09f8f4693a28c79d32230334"
+          test "$SAMSUNG_TARGET_SYSTEM_DLKM_IMAGE_SHA256" = "ceb2f6bb6bc2022129ecab0c1c3bd470301f6bbeb329a7822768c5ccd0cec841"
+          test "$SAMSUNG_TARGET_DTBO_IMAGE_SHA256" = "0019c8a830afab803841821dc7d7455e47811ec7b445e3efeb70755e440c5145"
+          test "$SAMSUNG_TARGET_VBMETA_IMAGE_SHA256" = "d64e2ae4621c307aa431e71303b8fa704cc228a024b3549b100ead3bf073c2a5"
+          test "$SAMSUNG_TARGET_GUNYAH_QCOM_SHA256" = "dc087e10ecda06ccd177307680c1cd70a8af6f0884195a8e5ad233519c04313b"
           test "$SAMSUNG_TARGET_VENDOR_BOOT_MODULE_COUNT" = "411"
-          test "$SAMSUNG_TARGET_VENDOR_BOOT_BASELINE_OVERLAP" = "2142"
+          test "$SAMSUNG_TARGET_VENDOR_BOOT_BASELINE_OVERLAP" = "2139"
           test "$SAMSUNG_TARGET_VENDOR_BOOT_CRC_CHANGES" = "0"
-          test "$SAMSUNG_TARGET_VENDOR_DLKM_IMAGE_SHA256" = "83a88f51484c94c627019c78c5280f5b89706d661ed144b1c7ceb3f3b005d8f4"
+          test "$SAMSUNG_TARGET_VENDOR_DLKM_IMAGE_SHA256" = "65840e49d5980d21dcb0db4732e1acc10116fd2169e98e79927c7f5ded19f7b2"
           test "$SAMSUNG_TARGET_VENDOR_DLKM_MODULE_COUNT" = "351"
           test "$SAMSUNG_TARGET_VENDOR_DLKM_IMPORT_SYMBOL_COUNT" = "4111"
-          test "$SAMSUNG_TARGET_VENDOR_DLKM_BASELINE_OVERLAP" = "2476"
+          test "$SAMSUNG_TARGET_VENDOR_DLKM_BASELINE_OVERLAP" = "2469"
           test "$SAMSUNG_TARGET_VENDOR_DLKM_CRC_CHANGES" = "0"
           test "$SAMSUNG_TARGET_TOTAL_STOCK_MODULE_COUNT" = "762"
-          test "$SAMSUNG_TARGET_TOTAL_IMPORT_SYMBOL_COUNT" = "4897"
+          test "$SAMSUNG_TARGET_TOTAL_IMPORT_SYMBOL_COUNT" = "4900"
           test "$SAMSUNG_TARGET_TOTAL_CRC_CONFLICTS" = "0"
           test "$SAMSUNG_BUILD_TARGET" = "e3q_eur_openx"
           test "$SAMSUNG_CHIPSET" = "pineapple"
@@ -280,10 +288,15 @@ jobs:
             echo "SAMSUNG_TARGET_AP=$SAMSUNG_TARGET_AP"
             echo "SAMSUNG_TARGET_CSC_BUILD=$SAMSUNG_TARGET_CSC_BUILD"
             echo "SAMSUNG_TARGET_CP=$SAMSUNG_TARGET_CP"
+            echo "SAMSUNG_TARGET_OTA_SOURCE=$SAMSUNG_TARGET_OTA_SOURCE"
+            echo "SAMSUNG_TARGET_OTA_SHA256=$SAMSUNG_TARGET_OTA_SHA256"
             echo "SAMSUNG_TARGET_KERNEL_RELEASE=$SAMSUNG_TARGET_KERNEL_RELEASE"
             echo "SAMSUNG_TARGET_BOOT_IMAGE_SHA256=$SAMSUNG_TARGET_BOOT_IMAGE_SHA256"
             echo "SAMSUNG_TARGET_VENDOR_BOOT_IMAGE_SHA256=$SAMSUNG_TARGET_VENDOR_BOOT_IMAGE_SHA256"
             echo "SAMSUNG_TARGET_VENDOR_DLKM_IMAGE_SHA256=$SAMSUNG_TARGET_VENDOR_DLKM_IMAGE_SHA256"
+            echo "SAMSUNG_TARGET_SYSTEM_DLKM_IMAGE_SHA256=$SAMSUNG_TARGET_SYSTEM_DLKM_IMAGE_SHA256"
+            echo "SAMSUNG_TARGET_DTBO_IMAGE_SHA256=$SAMSUNG_TARGET_DTBO_IMAGE_SHA256"
+            echo "SAMSUNG_TARGET_VBMETA_IMAGE_SHA256=$SAMSUNG_TARGET_VBMETA_IMAGE_SHA256"
             echo "SAMSUNG_TARGET_GUNYAH_QCOM_SHA256=$SAMSUNG_TARGET_GUNYAH_QCOM_SHA256"
             echo "SAMSUNG_TARGET_VENDOR_BOOT_MODULE_COUNT=$SAMSUNG_TARGET_VENDOR_BOOT_MODULE_COUNT"
             echo "SAMSUNG_TARGET_VENDOR_BOOT_BASELINE_OVERLAP=$SAMSUNG_TARGET_VENDOR_BOOT_BASELINE_OVERLAP"
@@ -350,15 +363,15 @@ jobs:
         printf 'Synced %s at common=%s manifest=%s\n' \
           "$MANIFEST_BRANCH" "$COMMON_UPSTREAM_COMMIT" "$MANIFEST_UPSTREAM_COMMIT"
 
-    - name: Apply exact SM-S928B Android 16 Samsung source delta
+    - name: Apply SM-S928B Samsung source port for ZZHL / 6.1.162
       if: inputs.device_codename == 'e3q'
       run: |
         set -euo pipefail
-        SOURCE_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
+        SOURCE_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxu6zzhl-source.env"
         # shellcheck disable=SC1090
         source "$SOURCE_PROFILE"
         OVERLAY="$GITHUB_WORKSPACE/$SAMSUNG_COMMON_OVERLAY"
-        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-s928b-dzg1-source-overlay.sh"
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-s928b-zzhl-source-port.sh"
         chmod +x "$HELPER"
         "$HELPER" \
           "$KERNEL_ROOT/common" \
@@ -487,7 +500,7 @@ jobs:
         ' "$PATCH" > "$FILTERED_PATCH"
         patch -p1 -F3 --no-backup-if-mismatch < "$FILTERED_PATCH"
 
-    - name: Apply audited DZG1-source Samsung XHCI hooks for DZH2
+    - name: Apply audited Samsung XHCI hooks for ZZHL
       if: inputs.device_codename == 'e3q'
       run: |
         set -euo pipefail
@@ -843,6 +856,9 @@ jobs:
         STOCK_BOOT_IMAGE_SHA256=$(jq -r ".devices.${DEVICE_CODENAME}.stock_images.boot_img_sha256 // empty" "$PROFILE_FILE")
         STOCK_VENDOR_BOOT_IMAGE_SHA256=$(jq -r ".devices.${DEVICE_CODENAME}.stock_images.vendor_boot_img_sha256 // empty" "$PROFILE_FILE")
         STOCK_VENDOR_DLKM_IMAGE_SHA256=$(jq -r ".devices.${DEVICE_CODENAME}.stock_images.vendor_dlkm_img_sha256 // empty" "$PROFILE_FILE")
+        STOCK_SYSTEM_DLKM_IMAGE_SHA256=$(jq -r ".devices.${DEVICE_CODENAME}.stock_images.system_dlkm_img_sha256 // empty" "$PROFILE_FILE")
+        STOCK_DTBO_IMAGE_SHA256=$(jq -r ".devices.${DEVICE_CODENAME}.stock_images.dtbo_img_sha256 // empty" "$PROFILE_FILE")
+        STOCK_VBMETA_IMAGE_SHA256=$(jq -r ".devices.${DEVICE_CODENAME}.stock_images.vbmeta_img_sha256 // empty" "$PROFILE_FILE")
 
         if [ "$DEVICE_CODENAME" = "e3q" ]; then
           [ "$STOCK_FIRMWARE" = "$SAMSUNG_TARGET_FIRMWARE" ] || {
@@ -854,19 +870,22 @@ jobs:
             exit 1
           }
           [ "$STOCK_PACKAGE" = "$SAMSUNG_TARGET_PACKAGE" ] || {
-            echo "::error::e3q firmware package does not match the DZH2 target"
+            echo "::error::e3q firmware package does not match the ZZHL target"
             exit 1
           }
           [ "$STOCK_AP" = "$SAMSUNG_TARGET_AP" ] && \
             [ "$STOCK_CSC_BUILD" = "$SAMSUNG_TARGET_CSC_BUILD" ] && \
             [ "$STOCK_CP" = "$SAMSUNG_TARGET_CP" ] || {
-              echo "::error::e3q AP/CSC/CP identity does not match the DZH2 target"
+              echo "::error::e3q AP/CSC/CP identity does not match the ZZHL target"
               exit 1
             }
           [ "$STOCK_BOOT_IMAGE_SHA256" = "$SAMSUNG_TARGET_BOOT_IMAGE_SHA256" ] && \
             [ "$STOCK_VENDOR_BOOT_IMAGE_SHA256" = "$SAMSUNG_TARGET_VENDOR_BOOT_IMAGE_SHA256" ] && \
-            [ "$STOCK_VENDOR_DLKM_IMAGE_SHA256" = "$SAMSUNG_TARGET_VENDOR_DLKM_IMAGE_SHA256" ] || {
-              echo "::error::e3q stock-image hashes do not match the DZH2 target"
+            [ "$STOCK_VENDOR_DLKM_IMAGE_SHA256" = "$SAMSUNG_TARGET_VENDOR_DLKM_IMAGE_SHA256" ] && \
+            [ "$STOCK_SYSTEM_DLKM_IMAGE_SHA256" = "$SAMSUNG_TARGET_SYSTEM_DLKM_IMAGE_SHA256" ] && \
+            [ "$STOCK_DTBO_IMAGE_SHA256" = "$SAMSUNG_TARGET_DTBO_IMAGE_SHA256" ] && \
+            [ "$STOCK_VBMETA_IMAGE_SHA256" = "$SAMSUNG_TARGET_VBMETA_IMAGE_SHA256" ] || {
+              echo "::error::e3q stock-image hashes do not match the ZZHL target"
               exit 1
             }
           case "$STOCK_RELEASE" in
@@ -1037,6 +1056,13 @@ jobs:
           fi
         fi
 
+        if [[ "$DEVICE_CODENAME" == "e3q" && "$KMI_MINIMAL_CONFIG" != "true" ]]; then
+          REQUIRED+=(
+            CONFIG_EROFS_FS CONFIG_EROFS_FS_ZIP CONFIG_EROFS_FS_ZIP_LZMA
+            CONFIG_XZ_DEC CONFIG_XZ_DEC_MICROLZMA
+          )
+        fi
+
         MISSING=()
         for SYMBOL in "${REQUIRED[@]}"; do
           grep -qx "${SYMBOL}=y" "$CONFIG_FILE" || MISSING+=("$SYMBOL")
@@ -1081,7 +1107,7 @@ jobs:
           fi
 
           SAMSUNG_DLKM_CRC_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/verify-samsung-dlkm-crcs.sh"
-          SAMSUNG_DLKM_CRC_BASELINE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-e3q-dlkm-crc-baseline.tsv"
+          SAMSUNG_DLKM_CRC_BASELINE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-e3q-zzhl-dlkm-crc-baseline.tsv"
           chmod +x "$SAMSUNG_DLKM_CRC_AUDIT"
           "$SAMSUNG_DLKM_CRC_AUDIT" "$KERNEL_ROOT" "$SAMSUNG_DLKM_CRC_BASELINE" \
             "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit" "$KMI_MODE" "${{ inputs.kmi_profile }}"
@@ -1164,28 +1190,38 @@ jobs:
         ReSukiSU: ${RESUKISU_VERSION_FULL}
         Target firmware: ${STOCK_FIRMWARE_EXPECTED} (${STOCK_CSC_EXPECTED})
         Target package: ${SAMSUNG_TARGET_PACKAGE}
+        Source OTA: ${SAMSUNG_TARGET_OTA_SOURCE}
+        Source OTA SHA-256: ${SAMSUNG_TARGET_OTA_SHA256}
         Kernel identity: ${KERNEL_VER}.${SUBLEVEL}${STOCK_RELEASE_EXPECTED}
         Stock boot.img SHA-256: ${SAMSUNG_TARGET_BOOT_IMAGE_SHA256}
         Stock vendor_boot.img SHA-256: ${SAMSUNG_TARGET_VENDOR_BOOT_IMAGE_SHA256}
         Stock vendor_dlkm.img SHA-256: ${SAMSUNG_TARGET_VENDOR_DLKM_IMAGE_SHA256}
+        Stock system_dlkm.img SHA-256: ${SAMSUNG_TARGET_SYSTEM_DLKM_IMAGE_SHA256}
+        Stock dtbo.img SHA-256: ${SAMSUNG_TARGET_DTBO_IMAGE_SHA256}
+        Stock vbmeta.img SHA-256: ${SAMSUNG_TARGET_VBMETA_IMAGE_SHA256}
         Samsung source baseline: ${SAMSUNG_SOURCE_FIRMWARE} / ${SAMSUNG_OSS_PACKAGE} (${SAMSUNG_OSS_SHA256})
+        Exact ZZHL Samsung OSS source: not published when this build was prepared.
+        Source method: audited DZG1 Samsung delta ported onto AOSP common ${COMMON_UPSTREAM_COMMIT}.
+        Source port archive SHA-256: ${SAMSUNG_COMMON_OVERLAY_SHA256}
         Samsung build target: ${SAMSUNG_BUILD_TARGET} / ${SAMSUNG_CHIPSET}
         Samsung common delta: ${SAMSUNG_COMMON_CHANGED_COUNT} changed,
         ${SAMSUNG_COMMON_ADDED_COUNT} added, ${SAMSUNG_COMMON_DELETED_COUNT} removed.
         KMI profile: full-strict
-        All 2476 live Samsung DLKM symbols must match exactly.
+        All ${SAMSUNG_TARGET_VENDOR_DLKM_BASELINE_OVERLAP} target Samsung DLKM symbols must match exactly.
         Samsung XHCI suspend/resume hooks are active at the real runtime call sites.
         CRC mismatches are rejected by the module loader.
-        DZH2 vendor_boot validation covered ${SAMSUNG_TARGET_VENDOR_BOOT_MODULE_COUNT}
+        ZZHL vendor_boot validation covered ${SAMSUNG_TARGET_VENDOR_BOOT_MODULE_COUNT}
         modules and ${SAMSUNG_TARGET_VENDOR_BOOT_BASELINE_OVERLAP} baseline-overlap
         symbols with ${SAMSUNG_TARGET_VENDOR_BOOT_CRC_CHANGES} CRC changes.
-        DZH2 vendor_dlkm validation covered all ${SAMSUNG_TARGET_VENDOR_DLKM_MODULE_COUNT}
+        ZZHL vendor_dlkm validation covered all ${SAMSUNG_TARGET_VENDOR_DLKM_MODULE_COUNT}
         modules and all ${SAMSUNG_TARGET_VENDOR_DLKM_BASELINE_OVERLAP} strict baseline
         symbols with ${SAMSUNG_TARGET_VENDOR_DLKM_CRC_CHANGES} CRC changes.
         Combined vendor_boot/vendor_dlkm validation covered
         ${SAMSUNG_TARGET_TOTAL_STOCK_MODULE_COUNT} modules and
         ${SAMSUNG_TARGET_TOTAL_IMPORT_SYMBOL_COUNT} imports with
         ${SAMSUNG_TARGET_TOTAL_CRC_CONFLICTS} CRC conflicts.
+        CONFIG_EROFS_FS_ZIP_LZMA and CONFIG_XZ_DEC_MICROLZMA are enabled for
+        One UI 9 EROFS-LZMA images and verified in the final kernel config.
         CONFIG_CGROUP_PIDS and CONFIG_LRU_GEN_STATS are disabled to retain
         the stock Samsung structure layouts; CONFIG_LRU_GEN remains enabled.
         KASAN is disabled and the inactive KMI compatibility layout is retained.
@@ -1276,11 +1312,11 @@ jobs:
 
         if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
           test "$SAMSUNG_SOURCE_BASE_APPLIED" = "true"
-          test "$SAMSUNG_COMMON_CHANGED_COUNT" = "405"
+          test "$SAMSUNG_COMMON_CHANGED_COUNT" = "401"
           test "$SAMSUNG_COMMON_ADDED_COUNT" = "421"
-          test "$SAMSUNG_COMMON_DELETED_COUNT" = "309"
-          test "$SAMSUNG_DLKM_BASELINE_COUNT" = "2476"
-          test "$SAMSUNG_DLKM_EXACT_COUNT" = "2476"
+          test "$SAMSUNG_COMMON_DELETED_COUNT" = "308"
+          test "$SAMSUNG_DLKM_BASELINE_COUNT" = "2469"
+          test "$SAMSUNG_DLKM_EXACT_COUNT" = "2469"
           test "$SAMSUNG_DLKM_COMPATIBLE_COUNT" = "0"
           test "$SAMSUNG_DLKM_UNEXPECTED_COUNT" = "0"
           test "$SAMSUNG_DLKM_MISSING_COUNT" = "0"
@@ -1288,23 +1324,32 @@ jobs:
           grep -qx '# CONFIG_CGROUP_PIDS is not set' "$IKCONFIG"
           grep -qx '# CONFIG_LRU_GEN_STATS is not set' "$IKCONFIG"
           grep -qx 'CONFIG_LRU_GEN=y' "$IKCONFIG"
-          test "$STOCK_FIRMWARE_EXPECTED" = "S928BXXS6DZH2"
+          grep -qx 'CONFIG_EROFS_FS_ZIP_LZMA=y' "$IKCONFIG"
+          grep -qx 'CONFIG_XZ_DEC_MICROLZMA=y' "$IKCONFIG"
+          test "$STOCK_FIRMWARE_EXPECTED" = "S928BXXU6ZZHL"
           test "$STOCK_CSC_EXPECTED" = "EUX"
           grep -qF 'patch_cmdline "log_buf_len=" "log_buf_len=4M"' "$ANYKERNEL3/anykernel.sh"
-          grep -qF 'Target firmware: S928BXXS6DZH2 (EUX)' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Target package: SM-S928B_4_20260811215435_lu9r8qs1p7_fac_S928BXXS6DZH2_S928BOXM6DZH2_S928BXXS6DZH2_S928BXXS6DZH2_EUX' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Stock vendor_dlkm.img SHA-256: 83a88f51484c94c627019c78c5280f5b89706d661ed144b1c7ceb3f3b005d8f4' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Target firmware: S928BXXU6ZZHL (EUX)' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Target package: EUX-OTA-S928BXXS6DZH2-to-S928BXXU6ZZHL-update.zip' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Source OTA SHA-256: 7a50de0d3da8140a2a4c354c65dd16fcb9c17ef70d549a73565d5c9607c11d39' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock vendor_dlkm.img SHA-256: 65840e49d5980d21dcb0db4732e1acc10116fd2169e98e79927c7f5ded19f7b2' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock system_dlkm.img SHA-256: ceb2f6bb6bc2022129ecab0c1c3bd470301f6bbeb329a7822768c5ccd0cec841' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock dtbo.img SHA-256: 0019c8a830afab803841821dc7d7455e47811ec7b445e3efeb70755e440c5145' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock vbmeta.img SHA-256: d64e2ae4621c307aa431e71303b8fa704cc228a024b3549b100ead3bf073c2a5' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'Samsung source baseline: S928BXXS6DZG1 / SM-S928B_16_Opensource.zip (512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c)' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Samsung common delta: 405 changed,' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF '421 added, 309 removed.' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'All 2476 live Samsung DLKM symbols must match exactly.' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Exact ZZHL Samsung OSS source: not published when this build was prepared.' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Source method: audited DZG1 Samsung delta ported onto AOSP common 4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c.' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Source port archive SHA-256: 581aa77c553aeb0bd5d33df8cf6f5f0364ba981b4147c121d445f2343ceec060' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Samsung common delta: 401 changed,' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF '421 added, 308 removed.' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'All 2469 target Samsung DLKM symbols must match exactly.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'Samsung XHCI suspend/resume hooks are active at the real runtime call sites.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'CRC mismatches are rejected by the module loader.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'symbols with 0 CRC changes.' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'DZH2 vendor_dlkm validation covered all 351' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'modules and all 2476 strict baseline' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'ZZHL vendor_dlkm validation covered all 351' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'modules and all 2469 strict baseline' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF '762 modules and' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF '4897 imports with' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF '4900 imports with' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF '0 CRC conflicts.' "$ANYKERNEL3/STRICT-KMI.txt"
         fi
 
@@ -1343,12 +1388,18 @@ jobs:
         fi
         if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
           unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len=" "log_buf_len=4M"'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target firmware: S928BXXS6DZH2 (EUX)'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target package: SM-S928B_4_20260811215435_lu9r8qs1p7_fac_S928BXXS6DZH2_S928BOXM6DZH2_S928BXXS6DZH2_S928BXXS6DZH2_EUX'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock vendor_dlkm.img SHA-256: 83a88f51484c94c627019c78c5280f5b89706d661ed144b1c7ceb3f3b005d8f4'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target firmware: S928BXXU6ZZHL (EUX)'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target package: EUX-OTA-S928BXXS6DZH2-to-S928BXXU6ZZHL-update.zip'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Source OTA SHA-256: 7a50de0d3da8140a2a4c354c65dd16fcb9c17ef70d549a73565d5c9607c11d39'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock vendor_dlkm.img SHA-256: 65840e49d5980d21dcb0db4732e1acc10116fd2169e98e79927c7f5ded19f7b2'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock system_dlkm.img SHA-256: ceb2f6bb6bc2022129ecab0c1c3bd470301f6bbeb329a7822768c5ccd0cec841'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock dtbo.img SHA-256: 0019c8a830afab803841821dc7d7455e47811ec7b445e3efeb70755e440c5145'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock vbmeta.img SHA-256: d64e2ae4621c307aa431e71303b8fa704cc228a024b3549b100ead3bf073c2a5'
           unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Samsung source baseline: S928BXXS6DZG1 / SM-S928B_16_Opensource.zip (512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c)'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'All 2476 live Samsung DLKM symbols must match exactly.'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'DZH2 vendor_dlkm validation covered all 351'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Exact ZZHL Samsung OSS source: not published when this build was prepared.'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Source method: audited DZG1 Samsung delta ported onto AOSP common 4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c.'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'All 2469 target Samsung DLKM symbols must match exactly.'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'ZZHL vendor_dlkm validation covered all 351'
           mkdir -p "$GITHUB_WORKSPACE/strict-flash"
           cp "$ANYKERNEL_ZIP" "$GITHUB_WORKSPACE/strict-flash/"
           sha256sum "$GITHUB_WORKSPACE/strict-flash/$(basename "$ANYKERNEL_ZIP")" \

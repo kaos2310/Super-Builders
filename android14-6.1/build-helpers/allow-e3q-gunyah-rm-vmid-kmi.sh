@@ -56,5 +56,5 @@ grep -Eq '^[[:space:]]*gh_rm_get_vmid[[:space:]]*$' "$ABI_LIST" || {
 }
 
 # This is an additive export allowance only; existing Samsung CRCs/types are
-# still enforced later by the unchanged 2476-symbol strict DLKM audit.
+# still enforced later by the exact 2469-symbol ZZHL strict DLKM audit.
 echo 'e3q Gunyah KMI allowance verified: gh_rm_get_vmid is exported and listed'

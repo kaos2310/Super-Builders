@@ -19,8 +19,9 @@ See the [root README](../README.md) for project overview and feature details.
 ├── WildKSU/patches/                      # same 50_/51_/60_, different 70_
 ├── build-helpers/                        # sublevel compat scripts
 ├── defconfig.fragment                    # kernel config toggles
-├── samsung-s928bxxs6dzg1-source.env      # immutable EUX/DZG1 source provenance
-├── samsung-sm-s928b-16-dzg1-common-overlay.tar.xz # exact Samsung common delta
+├── samsung-s928bxxu6zzhl-source.env      # immutable ZZHL source-port provenance
+├── samsung-s928bxxu6zzhl-target.env      # exact EUX/ZZHL firmware and image identity
+├── samsung-sm-s928b-17-zzhl-common-port.tar.xz # DZG1 delta ported to AOSP 6.1.162
 ├── sukisu-pin.txt                        # git commit pin for SukiSU fork
 ├── resukisu-pin.txt                      # git commit pin for ReSukiSU fork
 ├── kernelsu-next-pin.txt                 # git commit pin for KSU-Next fork
@@ -150,7 +151,7 @@ Scripts in `build-helpers/` are called by CI at specific stages. They handle dif
 | `bypass-abi-check.sh` | Pre-build | Skips GKI ABI compliance checks. Custom kernels break the stable driver ABI by design. |
 | `clean-build-flags.sh` | Pre-build | Strips debug/test config options for production builds. |
 | `clean-module-list.sh` | Pre-build | Removes modules not needed for the target device. |
-| `apply-s928b-dzg1-source-overlay.sh` | Post-sync | Verifies and applies the official SM-S928B Android 16 source delta to the pinned AOSP common tree. |
+| `apply-s928b-zzhl-source-port.sh` | Post-sync | Verifies and applies the audited DZG1 Samsung delta port onto the pinned AOSP 6.1.162 common tree used for ZZHL. |
 | `report-config.sh` | Post-config | Prints enabled features to CI logs for verification. |
 | `setup-bbg.sh` | Pre-build | Configures BBG support. |
 

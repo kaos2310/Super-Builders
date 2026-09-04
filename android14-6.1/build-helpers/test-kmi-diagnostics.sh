@@ -3,16 +3,16 @@ set -euo pipefail
 
 HELPERS_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION_DIR="$(cd "$HELPERS_DIR/.." && pwd)"
-BASELINE="$VERSION_DIR/samsung-e3q-dlkm-crc-baseline.tsv"
+BASELINE="$VERSION_DIR/samsung-e3q-zzhl-dlkm-crc-baseline.tsv"
 AUDITOR="$HELPERS_DIR/verify-samsung-dlkm-crcs.sh"
 COMPARATOR="$HELPERS_DIR/compare-kmi-variants.sh"
 COLLECTOR="$HELPERS_DIR/collect-kmi-symtypes.sh"
 CLEAN_FLAGS="$HELPERS_DIR/clean-build-flags.sh"
 KASAN_STUB_HELPER="$HELPERS_DIR/apply-kasan-kmi-stub.sh"
 XHCI_HOOK_HELPER="$HELPERS_DIR/apply-s928b-dzg1-xhci-hooks.sh"
-SAMSUNG_SOURCE_HELPER="$HELPERS_DIR/apply-s928b-dzg1-source-overlay.sh"
-SAMSUNG_SOURCE_PROFILE="$VERSION_DIR/samsung-s928bxxs6dzg1-source.env"
-SAMSUNG_SOURCE_OVERLAY="$VERSION_DIR/samsung-sm-s928b-16-dzg1-common-overlay.tar.xz"
+SAMSUNG_SOURCE_HELPER="$HELPERS_DIR/apply-s928b-zzhl-source-port.sh"
+SAMSUNG_SOURCE_PROFILE="$VERSION_DIR/samsung-s928bxxu6zzhl-source.env"
+SAMSUNG_SOURCE_OVERLAY="$VERSION_DIR/samsung-sm-s928b-17-zzhl-common-port.tar.xz"
 SAMSUNG_DEFCONFIG_NORMALIZER="$HELPERS_DIR/normalize-s928b-kleaf-defconfig.sh"
 SAMSUNG_SUSFS_NAMESPACE_REPAIR="$HELPERS_DIR/repair-s928b-dzg1-susfs-namespace.sh"
 DAILY_AUDIT="$HELPERS_DIR/audit-s928b-daily-config.sh"
@@ -256,7 +256,7 @@ test_strict_anykernel_gate() {
   grep -qF 'Strict AnyKernel packaging requires kmi_mode=strict' "$BUILD_WORKFLOW"
   grep -qF 'Strict AnyKernel packaging is restricted to kmi_profile=full-strict' "$BUILD_WORKFLOW"
   grep -qF 'Strict AnyKernel packaging is restricted to device_codename=e3q' "$BUILD_WORKFLOW"
-  grep -qF 'test "$SAMSUNG_DLKM_EXACT_COUNT" = "2476"' "$BUILD_WORKFLOW"
+  grep -qF 'test "$SAMSUNG_DLKM_EXACT_COUNT" = "2469"' "$BUILD_WORKFLOW"
   grep -qF 'test "$SAMSUNG_DLKM_COMPATIBLE_COUNT" = "0"' "$BUILD_WORKFLOW"
   grep -qF 'test "$SAMSUNG_DLKM_UNEXPECTED_COUNT" = "0"' "$BUILD_WORKFLOW"
   grep -qF 'test "$SAMSUNG_DLKM_MISSING_COUNT" = "0"' "$BUILD_WORKFLOW"
@@ -266,6 +266,8 @@ test_strict_anykernel_gate() {
   grep -qF '__tracepoint_android_vh_xhci_resume' "$BUILD_WORKFLOW"
   grep -qF 'test "$SAMSUNG_SOURCE_BASE_APPLIED" = "true"' "$BUILD_WORKFLOW"
   grep -qF 'Samsung source: ${SAMSUNG_OSS_PACKAGE} (${SAMSUNG_OSS_SHA256})' "$BUILD_WORKFLOW"
+  grep -qF 'CONFIG_EROFS_FS_ZIP_LZMA=y' "$BUILD_WORKFLOW"
+  grep -qF 'CONFIG_XZ_DEC_MICROLZMA=y' "$BUILD_WORKFLOW"
   grep -qF 'Upload exact flashable Strict KMI ZIP' "$BUILD_WORKFLOW"
 }
 
@@ -333,7 +335,7 @@ EOF
 
 test_s928b_dzg1_xhci_hooks
 
-test_s928b_dzg1_source_overlay() {
+test_s928b_zzhl_source_port() {
   local listing="$TMP_DIR/samsung-overlay-listing.txt"
   local manifest="$TMP_DIR/samsung-overlay-manifest.tsv"
   local deletes="$TMP_DIR/samsung-overlay-delete.txt"
@@ -344,16 +346,17 @@ test_s928b_dzg1_source_overlay() {
   [[ "$SAMSUNG_BUILD_TARGET" == "e3q_eur_openx" ]]
   [[ "$SAMSUNG_CHIPSET" == "pineapple" ]]
   [[ "$SAMSUNG_OSS_SHA256" == "512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c" ]]
-  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "762fa379cf1afe8c53154d47e99b58a28afce9db063eae1957877c829d87581e" ]]
+  [[ "$AOSP_COMMON_COMMIT" == "4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c" ]]
+  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "581aa77c553aeb0bd5d33df8cf6f5f0364ba981b4147c121d445f2343ceec060" ]]
   echo "$SAMSUNG_COMMON_OVERLAY_SHA256  $SAMSUNG_SOURCE_OVERLAY" | sha256sum -c -
 
   tar -tJf "$SAMSUNG_SOURCE_OVERLAY" > "$listing"
-  [[ "$(wc -l < "$listing")" -eq 829 ]]
+  [[ "$(wc -l < "$listing")" -eq 825 ]]
   tar -xOJf "$SAMSUNG_SOURCE_OVERLAY" manifest.tsv > "$manifest"
   tar -xOJf "$SAMSUNG_SOURCE_OVERLAY" delete.txt > "$deletes"
-  [[ "$(awk -F '\t' '$1 == "changed" { count++ } END { print count+0 }' "$manifest")" -eq 405 ]]
-  [[ "$(awk -F '\t' '$1 == "official-only" { count++ } END { print count+0 }' "$manifest")" -eq 421 ]]
-  [[ "$(grep -c . "$deletes")" -eq 309 ]]
+  [[ "$(awk -F '\t' '$1 == "changed" { count++ } END { print count+0 }' "$manifest")" -eq 401 ]]
+  [[ "$(awk -F '\t' '$1 == "ported-only" { count++ } END { print count+0 }' "$manifest")" -eq 421 ]]
+  [[ "$(grep -c . "$deletes")" -eq 308 ]]
 
   mkdir -p "$extracted"
   tar -xJf "$SAMSUNG_SOURCE_OVERLAY" -C "$extracted" \
@@ -364,12 +367,12 @@ test_s928b_dzg1_source_overlay() {
   echo "$SAMSUNG_VENDOR_HOOKS_SHA256  $extracted/files/drivers/android/vendor_hooks.c" | sha256sum -c -
   echo "$SAMSUNG_XHCI_PLAT_SHA256  $extracted/files/drivers/usb/host/xhci-plat.c" | sha256sum -c -
 
-  grep -qF 'Apply exact SM-S928B Android 16 Samsung source delta' "$BUILD_WORKFLOW"
-  grep -qF 'apply-s928b-dzg1-source-overlay.sh' "$BUILD_WORKFLOW"
-  grep -qF 'status_counts != {"changed": 405, "official-only": 421}' "$SAMSUNG_SOURCE_HELPER"
+  grep -qF 'Apply SM-S928B Samsung source port for ZZHL / 6.1.162' "$BUILD_WORKFLOW"
+  grep -qF 'apply-s928b-zzhl-source-port.sh' "$BUILD_WORKFLOW"
+  grep -qF 'status_counts != {"changed": 401, "ported-only": 421}' "$SAMSUNG_SOURCE_HELPER"
 }
 
-test_s928b_dzg1_source_overlay
+test_s928b_zzhl_source_port
 
 test_s928b_dzg1_susfs_patch_context() {
   grep -qF 'SAMSUNG_SOURCE_BASE_APPLIED:-false' "$SUSFS_ACTION"
