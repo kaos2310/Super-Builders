@@ -427,7 +427,7 @@ test_s928b_zzhl_source_port() {
   [[ "$SAMSUNG_CHIPSET" == "pineapple" ]]
   [[ "$SAMSUNG_OSS_SHA256" == "512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c" ]]
   [[ "$AOSP_COMMON_COMMIT" == "4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c" ]]
-  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "7ae2539c2d3906a87f42210d38fa563452453b68f288a77282c8478e45cde87f" ]]
+  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "bb597f0d854d2eb7ed20abd5217215c9f1e70946e0a8550dad739205deeb53fe" ]]
   echo "$SAMSUNG_COMMON_OVERLAY_SHA256  $SAMSUNG_SOURCE_OVERLAY" | sha256sum -c -
 
   tar -tJf "$SAMSUNG_SOURCE_OVERLAY" > "$listing"
@@ -441,21 +441,26 @@ test_s928b_zzhl_source_port() {
   mkdir -p "$extracted"
   tar -xJf "$SAMSUNG_SOURCE_OVERLAY" -C "$extracted" \
     files/arch/arm64/configs/gki_defconfig \
+    files/arch/arm64/include/asm/cputype.h \
     files/include/trace/hooks/xhci.h \
     files/drivers/android/vendor_hooks.c \
     files/drivers/usb/host/xhci-plat.c \
     files/fs/f2fs/f2fs.h \
+    files/fs/f2fs/super.c \
     files/kernel/module/main.c
   echo "$SAMSUNG_GKI_DEFCONFIG_SHA256  $extracted/files/arch/arm64/configs/gki_defconfig" | sha256sum -c -
+  echo "$SAMSUNG_CPUTYPE_SHA256  $extracted/files/arch/arm64/include/asm/cputype.h" | sha256sum -c -
   echo "$SAMSUNG_XHCI_HEADER_SHA256  $extracted/files/include/trace/hooks/xhci.h" | sha256sum -c -
   echo "$SAMSUNG_VENDOR_HOOKS_SHA256  $extracted/files/drivers/android/vendor_hooks.c" | sha256sum -c -
   echo "$SAMSUNG_XHCI_PLAT_SHA256  $extracted/files/drivers/usb/host/xhci-plat.c" | sha256sum -c -
   echo "$SAMSUNG_F2FS_HEADER_SHA256  $extracted/files/fs/f2fs/f2fs.h" | sha256sum -c -
+  echo "$SAMSUNG_F2FS_SUPER_SHA256  $extracted/files/fs/f2fs/super.c" | sha256sum -c -
   echo "$SAMSUNG_MODULE_MAIN_SHA256  $extracted/files/kernel/module/main.c" | sha256sum -c -
   if grep -rIl $'\r' \
       "$extracted/files/arch/arm64/configs/gki_defconfig" \
       "$extracted/files/drivers/android/vendor_hooks.c" \
       "$extracted/files/fs/f2fs/f2fs.h" \
+      "$extracted/files/fs/f2fs/super.c" \
       "$extracted/files/kernel/module/main.c"; then
     echo "Audited Samsung patch target still contains CR line endings" >&2
     return 1
@@ -464,6 +469,8 @@ test_s928b_zzhl_source_port() {
   grep -qF 'Apply SM-S928B Samsung source port for ZZHL / 6.1.162' "$BUILD_WORKFLOW"
   grep -qF 'apply-s928b-zzhl-source-port.sh' "$BUILD_WORKFLOW"
   grep -qF 'status_counts != {"changed": 401, "ported-only": 421}' "$SAMSUNG_SOURCE_HELPER"
+  grep -qF 'MIDR_ALL_VERSIONS(MIDR_NEOVERSE_V3AE)' "$SAMSUNG_SOURCE_HELPER"
+  grep -qF 'Stale F2FS checkpoint merge fragment remains' "$SAMSUNG_SOURCE_HELPER"
 }
 
 test_s928b_zzhl_source_port

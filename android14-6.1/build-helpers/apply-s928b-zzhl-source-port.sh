@@ -95,6 +95,8 @@ source_markers = (
     "Port base: 0f62335d867d7ccc2933ff1e3c5ae6a244d12994",
     "Port method: three-way merge retaining AOSP 6.1.162 and Samsung DZG1 changes",
     "Line endings: 18 Samsung text payloads normalized to LF for deterministic Linux patching",
+    "Port repair: retained AOSP 6.1.162 ARM CPU IDs required by cpu_errata.c",
+    "Port repair: removed stale timing and return locals from Samsung void f2fs_enable_checkpoint",
 )
 for marker in source_markers:
     if marker not in source_text:
@@ -183,7 +185,9 @@ for SPEC in \
   "drivers/android/vendor_hooks.c:15e58623fb929fcb47769983928952eb7234810892fa0000d567cee2d0c947fe" \
   "drivers/usb/host/xhci-plat.c:adcb2f8a1c1d923d10908e2ddaaa80db2b5be75b47396613d248d6d4aa877347" \
   "arch/arm64/configs/gki_defconfig:e41b9d67b06ebf8a11ae7a4cf6a394d368a97d396cea1ae6001fe7aec05e7b1d" \
+  "arch/arm64/include/asm/cputype.h:15f0de7fbe3a1497c624e7ab6cee78d8cdffdecaa2c8379dc4e51a2711a8b3bc" \
   "fs/f2fs/f2fs.h:c2f98582c9f80fb15cea8a71bd3a1450abb9a7ce36e2d5149951ff6ce28eeab8" \
+  "fs/f2fs/super.c:9ca984db09c2e4637530011c0777562d16f3fd8013b5871b1d825d8e3577dfab" \
   "kernel/module/main.c:e7cf07d5482191b6dec229ebba591d7139a9f4a21a9070795a3b4c23c0b8125b" \
   "android/abi_gki_aarch64_galaxy:8a33aa1742becd1b334bbfb16f88dbad5086a1220f14a586ea47589d7672ef2c"; do
   RELATIVE=${SPEC%%:*}
@@ -197,10 +201,29 @@ for SPEC in \
   }
 done
 
+grep -qx $'#define ARM_CPU_PART_NEOVERSE_V3AE\t0xD83' \
+  "$COMMON_TREE/arch/arm64/include/asm/cputype.h"
+grep -qx $'#define MIDR_NEOVERSE_V3AE\tMIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_PART_NEOVERSE_V3AE)' \
+  "$COMMON_TREE/arch/arm64/include/asm/cputype.h"
+grep -qF 'MIDR_ALL_VERSIONS(MIDR_NEOVERSE_V3AE)' \
+  "$COMMON_TREE/arch/arm64/kernel/cpu_errata.c"
+
+F2FS_CHECKPOINT=$(sed -n \
+  '/^static void f2fs_enable_checkpoint(struct f2fs_sb_info \*sbi)$/,/^static int f2fs_remount/p' \
+  "$COMMON_TREE/fs/f2fs/super.c")
+[[ "$(grep -cF 'f2fs_sync_fs(sbi->sb, 1);' <<< "$F2FS_CHECKPOINT")" -eq 1 ]]
+for STALE in 'long long start, writeback, end;' 'int ret;' 'ktime_get()'; do
+  if grep -qF "$STALE" <<< "$F2FS_CHECKPOINT"; then
+    echo "::error::Stale F2FS checkpoint merge fragment remains: $STALE"
+    exit 1
+  fi
+done
+
 for RELATIVE in \
   arch/arm64/configs/gki_defconfig \
   drivers/android/vendor_hooks.c \
   fs/f2fs/f2fs.h \
+  fs/f2fs/super.c \
   fs/namespace.c \
   kernel/module/main.c; do
   if LC_ALL=C grep -q $'\r' "$COMMON_TREE/$RELATIVE"; then
