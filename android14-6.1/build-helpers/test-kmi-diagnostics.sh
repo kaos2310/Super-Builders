@@ -483,6 +483,7 @@ test_s928b_zzhl_source_port() {
   grep -qF 'MIDR_ALL_VERSIONS(MIDR_NEOVERSE_V3AE)' "$SAMSUNG_SOURCE_HELPER"
   grep -qF 'Stale F2FS checkpoint merge fragment remains' "$SAMSUNG_SOURCE_HELPER"
   grep -qF 'Samsung source port calls undeclared Android vendor hooks' "$SAMSUNG_SOURCE_HELPER"
+  grep -qF 'hook.endswith("_enabled") and hook[:-8] in declared_hooks' "$SAMSUNG_SOURCE_HELPER"
   grep -qF 'EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_nf_conn_alloc);' \
     "$extracted/files/drivers/android/vendor_hooks.c"
   grep -qF '#include <trace/hooks/net.h>' \

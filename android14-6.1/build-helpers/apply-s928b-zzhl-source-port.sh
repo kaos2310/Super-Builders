@@ -193,7 +193,12 @@ for relative in manifest:
             (root / safe_relative(relative)).read_bytes(),
         )
     )
-missing_hooks = called_hooks - declared_hooks
+missing_hooks = {
+    hook
+    for hook in called_hooks
+    if hook not in declared_hooks
+    and not (hook.endswith("_enabled") and hook[:-8] in declared_hooks)
+}
 if missing_hooks:
     raise SystemExit(
         "Samsung source port calls undeclared Android vendor hooks: "
