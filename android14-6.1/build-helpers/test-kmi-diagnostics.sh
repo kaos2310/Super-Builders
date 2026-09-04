@@ -12,6 +12,7 @@ KASAN_STUB_HELPER="$HELPERS_DIR/apply-kasan-kmi-stub.sh"
 XHCI_HOOK_HELPER="$HELPERS_DIR/apply-s928b-dzg1-xhci-hooks.sh"
 SAMSUNG_SOURCE_HELPER="$HELPERS_DIR/apply-s928b-zzhl-source-port.sh"
 SAMSUNG_SOURCE_PROFILE="$VERSION_DIR/samsung-s928bxxu6zzhl-source.env"
+SAMSUNG_TARGET_PROFILE="$VERSION_DIR/samsung-s928bxxu6zzhl-target.env"
 SAMSUNG_SOURCE_OVERLAY="$VERSION_DIR/samsung-sm-s928b-17-zzhl-common-port.tar.xz"
 SAMSUNG_DEFCONFIG_NORMALIZER="$HELPERS_DIR/normalize-s928b-kleaf-defconfig.sh"
 SAMSUNG_SUSFS_NAMESPACE_REPAIR="$HELPERS_DIR/repair-s928b-dzg1-susfs-namespace.sh"
@@ -403,6 +404,10 @@ EOF
 
   [[ "$(grep -cF '#include <linux/tracepoint.h>' \
       "$fixture/include/trace/hooks/xhci.h")" -eq 1 ]]
+  grep -qxF '  __traceiter_android_rvh_nf_conn_alloc' "$fixture/android/abi_gki_aarch64_galaxy"
+  grep -qxF '  __traceiter_android_rvh_nf_conn_free' "$fixture/android/abi_gki_aarch64_galaxy"
+  grep -qxF '  __tracepoint_android_rvh_nf_conn_alloc' "$fixture/android/abi_gki_aarch64_galaxy"
+  grep -qxF '  __tracepoint_android_rvh_nf_conn_free' "$fixture/android/abi_gki_aarch64_galaxy"
   grep -qxF '  __traceiter_android_vh_xhci_resume' "$fixture/android/abi_gki_aarch64_galaxy"
   grep -qxF '  __traceiter_android_vh_xhci_suspend' "$fixture/android/abi_gki_aarch64_galaxy"
   grep -qxF '  __tracepoint_android_vh_xhci_resume' "$fixture/android/abi_gki_aarch64_galaxy"
@@ -427,14 +432,14 @@ test_s928b_zzhl_source_port() {
   [[ "$SAMSUNG_CHIPSET" == "pineapple" ]]
   [[ "$SAMSUNG_OSS_SHA256" == "512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c" ]]
   [[ "$AOSP_COMMON_COMMIT" == "4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c" ]]
-  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "bb597f0d854d2eb7ed20abd5217215c9f1e70946e0a8550dad739205deeb53fe" ]]
+  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "a9538364b3539754fcc4be676a02fff81694af61504a0afdcc0212a803042346" ]]
   echo "$SAMSUNG_COMMON_OVERLAY_SHA256  $SAMSUNG_SOURCE_OVERLAY" | sha256sum -c -
 
   tar -tJf "$SAMSUNG_SOURCE_OVERLAY" > "$listing"
-  [[ "$(wc -l < "$listing")" -eq 825 ]]
+  [[ "$(wc -l < "$listing")" -eq 826 ]]
   tar -xOJf "$SAMSUNG_SOURCE_OVERLAY" manifest.tsv > "$manifest"
   tar -xOJf "$SAMSUNG_SOURCE_OVERLAY" delete.txt > "$deletes"
-  [[ "$(awk -F '\t' '$1 == "changed" { count++ } END { print count+0 }' "$manifest")" -eq 401 ]]
+  [[ "$(awk -F '\t' '$1 == "changed" { count++ } END { print count+0 }' "$manifest")" -eq 402 ]]
   [[ "$(awk -F '\t' '$1 == "ported-only" { count++ } END { print count+0 }' "$manifest")" -eq 421 ]]
   [[ "$(grep -c . "$deletes")" -eq 308 ]]
 
@@ -443,37 +448,76 @@ test_s928b_zzhl_source_port() {
     files/arch/arm64/configs/gki_defconfig \
     files/arch/arm64/include/asm/cputype.h \
     files/include/trace/hooks/xhci.h \
+    files/include/trace/hooks/net.h \
     files/drivers/android/vendor_hooks.c \
     files/drivers/usb/host/xhci-plat.c \
     files/fs/f2fs/f2fs.h \
     files/fs/f2fs/super.c \
-    files/kernel/module/main.c
+    files/kernel/module/main.c \
+    files/net/netfilter/nf_conntrack_core.c
   echo "$SAMSUNG_GKI_DEFCONFIG_SHA256  $extracted/files/arch/arm64/configs/gki_defconfig" | sha256sum -c -
   echo "$SAMSUNG_CPUTYPE_SHA256  $extracted/files/arch/arm64/include/asm/cputype.h" | sha256sum -c -
   echo "$SAMSUNG_XHCI_HEADER_SHA256  $extracted/files/include/trace/hooks/xhci.h" | sha256sum -c -
+  echo "$SAMSUNG_NET_HOOKS_SHA256  $extracted/files/include/trace/hooks/net.h" | sha256sum -c -
   echo "$SAMSUNG_VENDOR_HOOKS_SHA256  $extracted/files/drivers/android/vendor_hooks.c" | sha256sum -c -
   echo "$SAMSUNG_XHCI_PLAT_SHA256  $extracted/files/drivers/usb/host/xhci-plat.c" | sha256sum -c -
   echo "$SAMSUNG_F2FS_HEADER_SHA256  $extracted/files/fs/f2fs/f2fs.h" | sha256sum -c -
   echo "$SAMSUNG_F2FS_SUPER_SHA256  $extracted/files/fs/f2fs/super.c" | sha256sum -c -
   echo "$SAMSUNG_MODULE_MAIN_SHA256  $extracted/files/kernel/module/main.c" | sha256sum -c -
+  echo "$SAMSUNG_NF_CONNTRACK_CORE_SHA256  $extracted/files/net/netfilter/nf_conntrack_core.c" | sha256sum -c -
   if grep -rIl $'\r' \
       "$extracted/files/arch/arm64/configs/gki_defconfig" \
       "$extracted/files/drivers/android/vendor_hooks.c" \
       "$extracted/files/fs/f2fs/f2fs.h" \
       "$extracted/files/fs/f2fs/super.c" \
-      "$extracted/files/kernel/module/main.c"; then
+      "$extracted/files/include/trace/hooks/net.h" \
+      "$extracted/files/kernel/module/main.c" \
+      "$extracted/files/net/netfilter/nf_conntrack_core.c"; then
     echo "Audited Samsung patch target still contains CR line endings" >&2
     return 1
   fi
 
   grep -qF 'Apply SM-S928B Samsung source port for ZZHL / 6.1.162' "$BUILD_WORKFLOW"
   grep -qF 'apply-s928b-zzhl-source-port.sh' "$BUILD_WORKFLOW"
-  grep -qF 'status_counts != {"changed": 401, "ported-only": 421}' "$SAMSUNG_SOURCE_HELPER"
+  grep -qF 'status_counts != {"changed": 402, "ported-only": 421}' "$SAMSUNG_SOURCE_HELPER"
   grep -qF 'MIDR_ALL_VERSIONS(MIDR_NEOVERSE_V3AE)' "$SAMSUNG_SOURCE_HELPER"
   grep -qF 'Stale F2FS checkpoint merge fragment remains' "$SAMSUNG_SOURCE_HELPER"
+  grep -qF 'Samsung source port calls undeclared Android vendor hooks' "$SAMSUNG_SOURCE_HELPER"
+  grep -qF 'EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_nf_conn_alloc);' \
+    "$extracted/files/drivers/android/vendor_hooks.c"
+  grep -qF '#include <trace/hooks/net.h>' \
+    "$extracted/files/net/netfilter/nf_conntrack_core.c"
 }
 
 test_s928b_zzhl_source_port
+
+test_s928b_zzhl_full_odin_identity() {
+  # shellcheck disable=SC1090
+  source "$SAMSUNG_TARGET_PROFILE"
+  [[ "$SAMSUNG_TARGET_PACKAGE" == "AP_S928BXXU6ZZHL_S928BXXU6ZZHL_MQB114051673_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5" ]]
+  [[ "$SAMSUNG_TARGET_AP_TAR_MD5" == "37edc3573e04577e4f0d44176f7733a5" ]]
+  [[ "$SAMSUNG_TARGET_AP_ARCHIVE_SHA256" == "605f5f8a9f15dd83cdbc34e1bad52df07720a8a7b6f3864cf2c94c9b5389d441" ]]
+  [[ "$SAMSUNG_TARGET_CP_PACKAGE" == "CP_S928BXXU6EZHK_CP36088022_MQB114028509_REV00_user_low_ship_MULTI_CERT.tar.md5" ]]
+  [[ "$SAMSUNG_TARGET_CP_TAR_MD5" == "b14852527539694ab53b4d82a9115a3d" ]]
+  [[ "$SAMSUNG_TARGET_CP_ARCHIVE_SHA256" == "64fe7c3e3480e46a604357cbcd5392962c8cb9bcbc7a7a8190005d41c3ee3641" ]]
+  [[ "$SAMSUNG_TARGET_CSC_PACKAGE" == "CSC_OXM_S928BOXM6ZZHL_MQB114051673_REV00_user_low_ship_MULTI_CERT.tar.md5" ]]
+  [[ "$SAMSUNG_TARGET_CSC_TAR_MD5" == "63a7ab94c3b148cb5d6abb511026d885" ]]
+  [[ "$SAMSUNG_TARGET_CSC_ARCHIVE_SHA256" == "9c353270143b7804e25b357d96fca3f08a7dfff1f63e5ef7eca48e65ad692912" ]]
+  [[ "$SAMSUNG_TARGET_HOME_CSC_PACKAGE" == "HOME_CSC_OXM_S928BOXM6ZZHL_MQB114051673_REV00_user_low_ship_MULTI_CERT.tar.md5" ]]
+  [[ "$SAMSUNG_TARGET_HOME_CSC_TAR_MD5" == "fb40e1b3f22a58444a7ee7e4aacd3a1c" ]]
+  [[ "$SAMSUNG_TARGET_HOME_CSC_ARCHIVE_SHA256" == "6ed22fcc99b42341b88d93e891e4dfacc638ec23f7684661d2a5831293121c42" ]]
+  [[ "$SAMSUNG_TARGET_INIT_BOOT_IMAGE_SHA256" == "d48469e0937636843d0c5533dcaa850f4213cbdb3d07998320b3a899b8391e7f" ]]
+  [[ "$SAMSUNG_TARGET_APNHLOS_IMAGE_SHA256" == "74ea46406663ebdf64c6d7c0e0fd08bca147d92713093857107d8ac1eae64dcd" ]]
+  [[ "$SAMSUNG_TARGET_MODEM_IMAGE_SHA256" == "fd4bed7db314670d2a5443c8af8805456c59c4337d97bdaa69596666b221ff94" ]]
+  [[ "$SAMSUNG_KEEP_BL_PACKAGE" == "BL_S928BXXU6ZZHL_KEEP_OEM_UNLOCK.tar.md5" ]]
+  [[ "$SAMSUNG_KEEP_BL_TAR_MD5" == "ab2ee0f0e4f171c87d353706135c25e1" ]]
+  [[ "$SAMSUNG_KEEP_BL_ARCHIVE_SHA256" == "2eaff7a27e10b7898246d200f8ebb2bd315ee3c7eec0e6669b74371bf2be16dd" ]]
+  [[ "$SAMSUNG_KEEP_BL_VBMETA_SHA256" == "67b8d114c5c1af81c473fb649f5b47cca340a5744baed548db9660e5907a4535" ]]
+  [[ "$SAMSUNG_KEEP_BL_VBMETA_FLAGS" == "3" ]]
+  [[ "$SAMSUNG_KEEP_BL_COMPATIBILITY" == "avb-flags-3-intentional-keep-oem-unlock" ]]
+}
+
+test_s928b_zzhl_full_odin_identity
 
 test_s928b_dzg1_susfs_patch_context() {
   grep -qF 'SAMSUNG_SOURCE_BASE_APPLIED:-false' "$SUSFS_ACTION"

@@ -190,6 +190,8 @@ abi_groups = (
     (
         "  __traceiter_android_vh_wq_lockup_pool\n",
         (
+            "__traceiter_android_rvh_nf_conn_alloc",
+            "__traceiter_android_rvh_nf_conn_free",
             "__traceiter_android_vh_xhci_resume",
             "__traceiter_android_vh_xhci_suspend",
         ),
@@ -197,6 +199,8 @@ abi_groups = (
     (
         "  __tracepoint_android_vh_wq_lockup_pool\n",
         (
+            "__tracepoint_android_rvh_nf_conn_alloc",
+            "__tracepoint_android_rvh_nf_conn_free",
             "__tracepoint_android_vh_xhci_resume",
             "__tracepoint_android_vh_xhci_suspend",
         ),
@@ -240,4 +244,4 @@ for path, needles in checks.items():
             raise SystemExit(f"{path}: expected one {needle!r}, found {count}")
 PY
 
-echo "Applied S928BXXS6DZG1 XHCI suspend/resume hooks and Samsung Galaxy KMI exports"
+echo "Applied S928BXXS6DZG1 Samsung vendor hooks and Galaxy KMI exports"

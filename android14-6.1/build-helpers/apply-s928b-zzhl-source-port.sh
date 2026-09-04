@@ -43,6 +43,7 @@ import hashlib
 import io
 import os
 from pathlib import Path, PurePosixPath
+import re
 import sys
 import tarfile
 
@@ -97,6 +98,7 @@ source_markers = (
     "Line endings: 18 Samsung text payloads normalized to LF for deterministic Linux patching",
     "Port repair: retained AOSP 6.1.162 ARM CPU IDs required by cpu_errata.c",
     "Port repair: removed stale timing and return locals from Samsung void f2fs_enable_checkpoint",
+    "Port repair: restored Samsung nf_conn alloc/free vendor-hook declaration, include, and exports",
 )
 for marker in source_markers:
     if marker not in source_text:
@@ -140,7 +142,7 @@ for row in reader:
 payload_paths = {name.removeprefix("files/") for name in members if name.startswith("files/")}
 if payload_paths != set(manifest):
     raise SystemExit("Samsung overlay payload and manifest path sets differ")
-if status_counts != {"changed": 401, "ported-only": 421}:
+if status_counts != {"changed": 402, "ported-only": 421}:
     raise SystemExit(f"unexpected Samsung overlay counts: {status_counts}")
 
 delete_paths = [line for line in members["delete.txt"][0].decode("utf-8").splitlines() if line]
@@ -171,24 +173,54 @@ for relative, row in manifest.items():
     if git_blob(target.read_bytes()) != row["ported_git_blob"]:
         raise SystemExit(f"post-apply Samsung port mismatch: {relative}")
 
+declared_hooks: set[str] = set()
+for header in (root / "include/trace/hooks").glob("*.h"):
+    declared_hooks.update(
+        match.decode("ascii")
+        for match in re.findall(
+            rb"DECLARE_(?:RESTRICTED_)?HOOK\(\s*(android_(?:r)?vh_[A-Za-z0-9_]+)",
+            header.read_bytes(),
+        )
+    )
+called_hooks: set[str] = set()
+for relative in manifest:
+    if Path(relative).suffix not in {".c", ".h"}:
+        continue
+    called_hooks.update(
+        match.decode("ascii")
+        for match in re.findall(
+            rb"\btrace_(android_(?:r)?vh_[A-Za-z0-9_]+)\s*\(",
+            (root / safe_relative(relative)).read_bytes(),
+        )
+    )
+missing_hooks = called_hooks - declared_hooks
+if missing_hooks:
+    raise SystemExit(
+        "Samsung source port calls undeclared Android vendor hooks: "
+        + ", ".join(sorted(missing_hooks))
+    )
+
 print(
     "Applied Samsung common source port for ZZHL: "
     f"{status_counts['changed']} changed, "
     f"{status_counts['ported-only']} added, {len(delete_paths)} removed"
 )
+print(f"Verified declarations for {len(called_hooks)} Android hook call sites in the port")
 PY
 
 for SPEC in \
   "Makefile:36a79f031105375d5ef92f3789e7856d72c14a2431c3a5a06d7342297bebcca2" \
   "fs/namespace.c:a0c3aae461f43272d7b789d713e2724e4326f719fb5ec49045fdaaefb4272a17" \
   "include/trace/hooks/xhci.h:fda469c283497303230ff7a145d26cc16a80cd8ea5bf4b4eff23705b59da4f29" \
-  "drivers/android/vendor_hooks.c:15e58623fb929fcb47769983928952eb7234810892fa0000d567cee2d0c947fe" \
+  "drivers/android/vendor_hooks.c:827e858bc81c13c77c0eb142080488ec167604cdee339e315b7ab999d42e695e" \
   "drivers/usb/host/xhci-plat.c:adcb2f8a1c1d923d10908e2ddaaa80db2b5be75b47396613d248d6d4aa877347" \
   "arch/arm64/configs/gki_defconfig:e41b9d67b06ebf8a11ae7a4cf6a394d368a97d396cea1ae6001fe7aec05e7b1d" \
   "arch/arm64/include/asm/cputype.h:15f0de7fbe3a1497c624e7ab6cee78d8cdffdecaa2c8379dc4e51a2711a8b3bc" \
+  "include/trace/hooks/net.h:8b98cdb3bafa9cb11dc16fc9dfb8c7276e877a6a3b88f727d7a3cf8a2d8c324f" \
   "fs/f2fs/f2fs.h:c2f98582c9f80fb15cea8a71bd3a1450abb9a7ce36e2d5149951ff6ce28eeab8" \
   "fs/f2fs/super.c:9ca984db09c2e4637530011c0777562d16f3fd8013b5871b1d825d8e3577dfab" \
   "kernel/module/main.c:e7cf07d5482191b6dec229ebba591d7139a9f4a21a9070795a3b4c23c0b8125b" \
+  "net/netfilter/nf_conntrack_core.c:cc6cedbe253432bfdc2772d0a823631a416ac919611172d11d1034672db83cbb" \
   "android/abi_gki_aarch64_galaxy:8a33aa1742becd1b334bbfb16f88dbad5086a1220f14a586ea47589d7672ef2c"; do
   RELATIVE=${SPEC%%:*}
   EXPECTED=${SPEC#*:}
@@ -208,6 +240,17 @@ grep -qx $'#define MIDR_NEOVERSE_V3AE\tMIDR_CPU_MODEL(ARM_CPU_IMP_ARM, ARM_CPU_P
 grep -qF 'MIDR_ALL_VERSIONS(MIDR_NEOVERSE_V3AE)' \
   "$COMMON_TREE/arch/arm64/kernel/cpu_errata.c"
 
+grep -qF 'DECLARE_RESTRICTED_HOOK(android_rvh_nf_conn_alloc,' \
+  "$COMMON_TREE/include/trace/hooks/net.h"
+grep -qF 'DECLARE_RESTRICTED_HOOK(android_rvh_nf_conn_free,' \
+  "$COMMON_TREE/include/trace/hooks/net.h"
+grep -qxF '#include <trace/hooks/net.h>' \
+  "$COMMON_TREE/net/netfilter/nf_conntrack_core.c"
+grep -qxF 'EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_nf_conn_alloc);' \
+  "$COMMON_TREE/drivers/android/vendor_hooks.c"
+grep -qxF 'EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_nf_conn_free);' \
+  "$COMMON_TREE/drivers/android/vendor_hooks.c"
+
 F2FS_CHECKPOINT=$(sed -n \
   '/^static void f2fs_enable_checkpoint(struct f2fs_sb_info \*sbi)$/,/^static int f2fs_remount/p' \
   "$COMMON_TREE/fs/f2fs/super.c")
@@ -225,7 +268,9 @@ for RELATIVE in \
   fs/f2fs/f2fs.h \
   fs/f2fs/super.c \
   fs/namespace.c \
-  kernel/module/main.c; do
+  include/trace/hooks/net.h \
+  kernel/module/main.c \
+  net/netfilter/nf_conntrack_core.c; do
   if LC_ALL=C grep -q $'\r' "$COMMON_TREE/$RELATIVE"; then
     echo "::error::Audited Samsung patch target contains CR line endings: $RELATIVE"
     exit 1

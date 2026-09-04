@@ -8,19 +8,51 @@
       "sub_level": "162",
       "os_patch_level": "2026-03",
       "firmware": "S928BXXU6ZZHL",
-      "firmware_package": "EUX-OTA-S928BXXS6DZH2-to-S928BXXU6ZZHL-update.zip",
+      "firmware_package": "AP_S928BXXU6ZZHL_S928BXXU6ZZHL_MQB114051673_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5",
       "firmware_build_datetime": "20260828022419",
       "ap": "S928BXXU6ZZHL",
       "csc_build": "S928BOXM6ZZHL",
       "cp": "S928BXXU6EZHK",
       "csc": "EUX",
+      "firmware_archives": {
+        "ap": {
+          "tar_md5": "37edc3573e04577e4f0d44176f7733a5",
+          "sha256": "605f5f8a9f15dd83cdbc34e1bad52df07720a8a7b6f3864cf2c94c9b5389d441"
+        },
+        "cp": {
+          "name": "CP_S928BXXU6EZHK_CP36088022_MQB114028509_REV00_user_low_ship_MULTI_CERT.tar.md5",
+          "tar_md5": "b14852527539694ab53b4d82a9115a3d",
+          "sha256": "64fe7c3e3480e46a604357cbcd5392962c8cb9bcbc7a7a8190005d41c3ee3641"
+        },
+        "csc": {
+          "name": "CSC_OXM_S928BOXM6ZZHL_MQB114051673_REV00_user_low_ship_MULTI_CERT.tar.md5",
+          "tar_md5": "63a7ab94c3b148cb5d6abb511026d885",
+          "sha256": "9c353270143b7804e25b357d96fca3f08a7dfff1f63e5ef7eca48e65ad692912"
+        },
+        "home_csc": {
+          "name": "HOME_CSC_OXM_S928BOXM6ZZHL_MQB114051673_REV00_user_low_ship_MULTI_CERT.tar.md5",
+          "tar_md5": "fb40e1b3f22a58444a7ee7e4aacd3a1c",
+          "sha256": "6ed22fcc99b42341b88d93e891e4dfacc638ec23f7684661d2a5831293121c42"
+        },
+        "keep_oem_unlock_bl": {
+          "name": "BL_S928BXXU6ZZHL_KEEP_OEM_UNLOCK.tar.md5",
+          "tar_md5": "ab2ee0f0e4f171c87d353706135c25e1",
+          "sha256": "2eaff7a27e10b7898246d200f8ebb2bd315ee3c7eec0e6669b74371bf2be16dd",
+          "vbmeta_img_sha256": "67b8d114c5c1af81c473fb649f5b47cca340a5744baed548db9660e5907a4535",
+          "vbmeta_flags": 3,
+          "compatibility": "avb-flags-3-intentional-keep-oem-unlock"
+        }
+      },
       "stock_images": {
         "boot_img_sha256": "8efd0e667e187510ce5b3f7f3d289953e02375492cfb0c470d097e959d683d1e",
+        "init_boot_img_sha256": "d48469e0937636843d0c5533dcaa850f4213cbdb3d07998320b3a899b8391e7f",
         "vendor_boot_img_sha256": "4548dc91b5749b679d1850b171d5550b9946ba7b09f8f4693a28c79d32230334",
         "vendor_dlkm_img_sha256": "65840e49d5980d21dcb0db4732e1acc10116fd2169e98e79927c7f5ded19f7b2",
         "system_dlkm_img_sha256": "ceb2f6bb6bc2022129ecab0c1c3bd470301f6bbeb329a7822768c5ccd0cec841",
         "dtbo_img_sha256": "0019c8a830afab803841821dc7d7455e47811ec7b445e3efeb70755e440c5145",
-        "vbmeta_img_sha256": "d64e2ae4621c307aa431e71303b8fa704cc228a024b3549b100ead3bf073c2a5"
+        "vbmeta_img_sha256": "d64e2ae4621c307aa431e71303b8fa704cc228a024b3549b100ead3bf073c2a5",
+        "apnhlos_bin_sha256": "74ea46406663ebdf64c6d7c0e0fd08bca147d92713093857107d8ac1eae64dcd",
+        "modem_bin_sha256": "fd4bed7db314670d2a5443c8af8805456c59c4337d97bdaa69596666b221ff94"
       },
       "stock_kernel": {
         "release": "-android14-11-34343818-abS928BXXU6ZZHL",
