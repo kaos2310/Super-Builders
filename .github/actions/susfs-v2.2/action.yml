@@ -170,12 +170,14 @@ runs:
 
         PATCH_FUZZ=2
         if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
-          # Samsung DZG1 carries adjacent VFS/proc changes in namespace.c,
-          # open.c and proc/base.c. The SUSFS hunks remain semantically
-          # compatible but need one additional context-line relaxation.
+          # The audited Samsung source port carries adjacent VFS/proc changes
+          # in namespace.c, open.c and proc/base.c. Its archive hash binds the
+          # LF-normalized sources, while the structural verifier below rejects
+          # any fuzz-relocated namespace block.
           PATCH_FUZZ=3
         fi
-        patch -p1 -F"$PATCH_FUZZ" --no-backup-if-mismatch < "$PATCH_FILE"
+        patch -p1 -F"$PATCH_FUZZ" --forward --batch --dry-run < "$PATCH_FILE"
+        patch -p1 -F"$PATCH_FUZZ" --forward --batch --no-backup-if-mismatch < "$PATCH_FILE"
 
         if [[ "$TARGET" = "android14-6.1" && "${SAMSUNG_SOURCE_BASE_APPLIED:-false}" = "true" ]]; then
           NAMESPACE_REPAIR="$GITHUB_WORKSPACE/android14-6.1/build-helpers/repair-s928b-dzg1-susfs-namespace.sh"
@@ -188,7 +190,7 @@ runs:
             local count
             count=$(grep -cF "$marker" "$file" || true)
             if [[ "$count" -ne 1 ]]; then
-              echo "::error::Expected one Samsung DZG1 SUSFS marker in $file, found $count: $marker"
+              echo "::error::Expected one Samsung SUSFS marker in $file, found $count: $marker"
               exit 1
             fi
           }
@@ -197,11 +199,11 @@ runs:
           require_exact_susfs_marker fs/namei.c 'extern struct filename *susfs_open_redirect_spoof_do_sys_openat(struct inode *inode);'
           require_exact_susfs_marker fs/proc/base.c '#include <linux/susfs_def.h>'
           if find fs -type f -name '*.rej' -print -quit | grep -q .; then
-            echo "::error::Samsung DZG1 SUSFS integration left patch rejects"
+            echo "::error::Samsung SUSFS integration left patch rejects"
             find fs -type f -name '*.rej' -print
             exit 1
           fi
-          echo "Verified Samsung DZG1 SUSFS VFS/proc compatibility hunks"
+          echo "Verified Samsung ZZHL SUSFS VFS/proc compatibility hunks"
         fi
 
         case "$TARGET" in

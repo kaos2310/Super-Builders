@@ -206,6 +206,79 @@ test_samsung_susfs_namespace_repair() {
   local source="$fixture/fs/namespace.c"
   mkdir -p "$(dirname "$source")"
   cat > "$source" <<'EOF'
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+#include <linux/susfs_def.h>
+#endif
+extern bool susfs_is_current_ksu_domain(void);
+extern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;
+#define CL_COPY_MNT_NS BIT(25)
+static unsigned int sysctl_mount_max;
+
+static void mnt_free_id(struct mount *mnt)
+{
+	if (mnt->mnt.mnt_flags & VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT)
+		return;
+	ida_free(&mnt_id_ida, mnt->mnt_id);
+}
+
+static int mnt_alloc_group_id(struct mount *mnt)
+{
+	if (susfs_is_current_ksu_domain())
+		res = ida_alloc_min(&mnt_group_ida, DEFAULT_KSU_MNT_GROUP_ID, GFP_KERNEL);
+bypass_orig_flow:
+	if (res < 0)
+		return res;
+}
+
+void mnt_release_group_id(struct mount *mnt) { }
+
+int mnt_get_count(struct mount *mnt) { return 1; }
+static struct mount *susfs_alloc_unshare_ksu_vfsmnt(const char *name, int old_mnt_id)
+{
+	return NULL;
+}
+static struct mount *susfs_alloc_non_unshare_ksu_vfsmnt(const char *name)
+{
+	return NULL;
+}
+static struct mount *alloc_vfsmnt(const char *name) { return NULL; }
+
+struct mount *__lookup_mnt(struct vfsmount *mnt, struct dentry *dentry)
+{
+	if (susfs_is_current_proc_umounted_for_zygote_next())
+		hlist_for_each_entry_rcu(p, head, mnt_hash)
+		if (p->mnt_id < DEFAULT_KSU_MNT_ID)
+			return p;
+	return NULL;
+	hlist_for_each_entry_rcu(p, head, mnt_hash) { }
+	return NULL;
+}
+
+struct vfsmount *lookup_mnt(const struct path *path) { return NULL; }
+
+struct vfsmount *vfs_create_mount(struct fs_context *fc)
+{
+	if (susfs_is_sdcard_android_data_not_decrypted)
+		mnt = susfs_alloc_non_unshare_ksu_vfsmnt(fc->source ?: "none");
+bypass_orig_flow:
+	if (!mnt)
+		return NULL;
+}
+EXPORT_SYMBOL(vfs_create_mount);
+
+static struct mount *clone_mnt(struct mount *old, struct dentry *root,
+		int flag)
+{
+	bool is_mnt_ksu_unshared = false;
+	mnt = susfs_alloc_unshare_ksu_vfsmnt(old->mnt_devname, old->mnt_id);
+	mnt = susfs_alloc_non_unshare_ksu_vfsmnt(old->mnt_devname);
+bypass_orig_flow:
+	mnt->mnt.mnt_flags |= VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT;
+	return mnt;
+}
+
+static void cleanup_mnt(struct mount *mnt) { }
+
 static void *copy_mount_options(const void __user *data)
 {
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
@@ -235,6 +308,13 @@ struct mnt_namespace *copy_mnt_ns(unsigned long flags, struct mnt_namespace *ns,
 struct dentry *mount_subtree(struct vfsmount *m, const char *name)
 {
 	return NULL;
+}
+
+#endif /* CONFIG_SYSCTL */
+int susfs_get_non_sus_mnt_id_from_mnt(struct mount *orig_mnt) { return 0; }
+struct vfsmount *susfs_get_non_sus_vfsmnt_from_vfsmnt(struct vfsmount *vfsmnt)
+{
+	return vfsmnt;
 }
 EOF
 
@@ -347,7 +427,7 @@ test_s928b_zzhl_source_port() {
   [[ "$SAMSUNG_CHIPSET" == "pineapple" ]]
   [[ "$SAMSUNG_OSS_SHA256" == "512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c" ]]
   [[ "$AOSP_COMMON_COMMIT" == "4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c" ]]
-  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "581aa77c553aeb0bd5d33df8cf6f5f0364ba981b4147c121d445f2343ceec060" ]]
+  [[ "$SAMSUNG_COMMON_OVERLAY_SHA256" == "2ff242f00f55bda10fc5d22baf406743bafb3c75c51ecb197fb6aa58f3b46f74" ]]
   echo "$SAMSUNG_COMMON_OVERLAY_SHA256  $SAMSUNG_SOURCE_OVERLAY" | sha256sum -c -
 
   tar -tJf "$SAMSUNG_SOURCE_OVERLAY" > "$listing"

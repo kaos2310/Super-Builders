@@ -94,6 +94,7 @@ source_markers = (
     "AOSP common base: 4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c",
     "Port base: 0f62335d867d7ccc2933ff1e3c5ae6a244d12994",
     "Port method: three-way merge retaining AOSP 6.1.162 and Samsung DZG1 changes",
+    "Line endings: fs/namespace.c normalized to LF for deterministic Linux patching",
 )
 for marker in source_markers:
     if marker not in source_text:
@@ -177,6 +178,7 @@ PY
 
 for SPEC in \
   "Makefile:36a79f031105375d5ef92f3789e7856d72c14a2431c3a5a06d7342297bebcca2" \
+  "fs/namespace.c:a0c3aae461f43272d7b789d713e2724e4326f719fb5ec49045fdaaefb4272a17" \
   "include/trace/hooks/xhci.h:fda469c283497303230ff7a145d26cc16a80cd8ea5bf4b4eff23705b59da4f29" \
   "drivers/android/vendor_hooks.c:26d3461006c0e4d475147245a53238e066c6be0d286769ce2729e1a230aa1142" \
   "drivers/usb/host/xhci-plat.c:adcb2f8a1c1d923d10908e2ddaaa80db2b5be75b47396613d248d6d4aa877347" \
