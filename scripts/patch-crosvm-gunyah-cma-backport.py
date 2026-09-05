@@ -32,7 +32,7 @@ except ValueError as exc:
 
 helper = text[helper_start:helper_end]
 
-# Android 16 r4 names the RAM-backed mapping list file_backed_mappings_ram and
+# Android 17 r1 retains the RAM-backed mapping list file_backed_mappings_ram and
 # punch_holes_in_guest_mem_layout_for_mappings() returns Result<...>.
 wrong_layout = '''    let guest_mem_layout =
         punch_holes_in_guest_mem_layout_for_mappings(guest_mem_layout, &cfg.file_backed_mappings);
@@ -45,7 +45,7 @@ correct_layout = '''    let guest_mem_layout = punch_holes_in_guest_mem_layout_f
 if wrong_layout in helper:
     helper = helper.replace(wrong_layout, correct_layout, 1)
 elif "&cfg.file_backed_mappings_ram" not in helper:
-    fail("Gunyah backing helper has neither old nor Android-16-r4 file-backed RAM API")
+    fail("Gunyah backing helper has neither old nor Android-17-r1 file-backed RAM API")
 
 # Match create_guest_memory() memory policy. The preceding Gunyah contiguity
 # patch may set components.hugepages=true; preserving this is harmless for the
@@ -145,10 +145,10 @@ checks = {
 }
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
-    fail("Android-16-r4 Gunyah bounded-backing fixup incomplete: " + ", ".join(failed))
+    fail("Android-17-r1 Gunyah bounded-backing fixup incomplete: " + ", ".join(failed))
 
 print(
-    "Applied local Android 16 r4 Gunyah backing fixup: "
+    "Applied local Android 17 r1 Gunyah backing fixup: "
     "file_backed_mappings_ram + Result propagation + normal GUP semantics + "
     "FAIL-CLOSED bounded guest backing (normal GuestMemory fallback disabled)"
 )

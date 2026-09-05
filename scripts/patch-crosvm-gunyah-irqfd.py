@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Full AOSP build wrapper for Android 16 r4 crosvm/Gunyah patches.
+# Full AOSP build wrapper for Android 17 r1 crosvm/Gunyah patches.
 from pathlib import Path
 import os
 import re
@@ -124,9 +124,9 @@ subprocess.run(
     check=True,
 )
 
-# Validate the generated Stable-AIDL aliases dynamically. Android 16 r4 exposes
-# graphics-common V7 as the unfrozen current API: V7 is therefore NOT required as
-# a literal `version: \"7\"` entry or aidl_api/.../7/.hash snapshot.
+# Validate the exact-tag Stable-AIDL aliases dynamically. Android 17 r1 exposes
+# graphics-common V7 as a frozen API; older source shapes remain handled so the
+# check fails on real API drift rather than on its frozen/current representation.
 graphics_root = require_tokens(
     aosp_root / "hardware/interfaces/graphics/Android.bp",
     (
@@ -157,27 +157,39 @@ require_tokens(
     ),
     "graphics allocator Stable-AIDL provider",
 )
-require_tokens(
+common_text = require_tokens(
     common_bp,
     (
         'name: "android.hardware.graphics.common"',
         'host_supported: true',
-        'frozen: false',
         'ndk: {',
         '"android.hardware.common-V2"',
     ),
-    "graphics common Stable-AIDL current provider",
+    "graphics common Stable-AIDL provider",
 )
 require_aidl_snapshot(
     aosp_root / "hardware/interfaces/graphics/allocator/aidl",
     "android.hardware.graphics.allocator",
     allocator_version,
 )
-require_aidl_current(
-    aosp_root / "hardware/interfaces/graphics/common/aidl",
-    "android.hardware.graphics.common",
-    graphics_common_version,
-)
+if "frozen: true" in common_text:
+    if f'version: "{graphics_common_version}"' not in common_text:
+        fail(f"frozen graphics common provider lacks V{graphics_common_version}")
+    require_aidl_snapshot(
+        aosp_root / "hardware/interfaces/graphics/common/aidl",
+        "android.hardware.graphics.common",
+        graphics_common_version,
+    )
+    common_state = "frozen"
+elif "frozen: false" in common_text:
+    require_aidl_current(
+        aosp_root / "hardware/interfaces/graphics/common/aidl",
+        "android.hardware.graphics.common",
+        graphics_common_version,
+    )
+    common_state = "current"
+else:
+    fail("graphics common provider lacks an explicit frozen state")
 require_aidl_snapshot(
     aosp_root / "hardware/interfaces/common/aidl",
     "android.hardware.common",
@@ -185,7 +197,8 @@ require_aidl_snapshot(
 )
 print(
     "Verified graphics Stable-AIDL closure: "
-    f"allocator-V{allocator_version} frozen + graphics-common-V{graphics_common_version} current"
+    f"allocator-V{allocator_version} frozen + "
+    f"graphics-common-V{graphics_common_version} {common_state}"
 )
 
 # Recreate only ownership-team metadata missing from the partial checkout. Team
@@ -257,6 +270,6 @@ for path, tokens in post_checks.items():
     require_tokens(path, tokens, "post-patch crosvm source")
 
 print(
-    "Applied Android 16 r4 crosvm/Gunyah patch chain: IRQ15 reservation + IRQFD logging + "
+    "Applied Android 17 r1 crosvm/Gunyah patch chain: IRQ15 reservation + IRQFD logging + "
     "THP preconditioning + bounded-backing compatibility ioctl/GUP path + init_arch errno tracing"
 )

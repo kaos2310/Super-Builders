@@ -134,21 +134,30 @@ replacement = '''            let size = usize::try_from(range.1)
 '''
 text = replace_once(text, anchor, replacement, "GuestMemory direct-fd mapping")
 
+state_field_candidates = (
+    "use_dontneed_locked",
+    "use_punchhole_locked",
+)
+state_fields = [name for name in state_field_candidates if f"            {name}: false," in text]
+if len(state_fields) != 1:
+    fail(f"GuestMemory policy-state field: expected exactly one candidate, found {state_fields}")
+state_field = state_fields[0]
+
 anchor = '''        Ok(GuestMemory {
             regions: Arc::from(regions),
             locked: false,
-            use_dontneed_locked: false,
+            __STATE_FIELD__: false,
         })
     }
 
     /// Creates a container for guest memory regions.
     /// Valid memory regions are specified as a Vec of (Address, Size) tuples sorted by Address.
     pub fn new(ranges: &[(GuestAddress, u64)]) -> Result<GuestMemory> {
-'''
+'''.replace("__STATE_FIELD__", state_field)
 replacement = '''        Ok(GuestMemory {
             regions: Arc::from(regions),
             locked: false,
-            use_dontneed_locked: false,
+            __STATE_FIELD__: false,
         })
     }
 
@@ -172,7 +181,7 @@ replacement = '''        Ok(GuestMemory {
     /// Creates a container for guest memory regions.
     /// Valid memory regions are specified as a Vec of (Address, Size) tuples sorted by Address.
     pub fn new(ranges: &[(GuestAddress, u64)]) -> Result<GuestMemory> {
-'''
+'''.replace("__STATE_FIELD__", state_field)
 text = replace_once(text, anchor, replacement, "GuestMemory public constructors")
 guest_rs.write_text(text, encoding="utf-8")
 

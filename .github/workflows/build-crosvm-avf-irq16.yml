@@ -1,13 +1,12 @@
-name: Build patched Android 16 crosvm (AVF Gunyah IRQFD)
+name: Build patched Android 17 crosvm (AVF Gunyah IRQFD)
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - avf-crosvm-irq16
+      - agent/avf-crosvm-android17
     paths:
       - '.github/workflows/build-crosvm-avf-irq16.yml'
-      - 'patches/crosvm/android-16.0.0_r4-gunyah-irq16.patch'
       - 'scripts/patch-crosvm-gunyah-irqfd.py'
       - 'scripts/patch-crosvm-gunyah-irqfd-core.py'
       - 'scripts/patch-crosvm-gunyah-memory-contiguity.py'
@@ -27,8 +26,8 @@ jobs:
       BUILD_VOLUME: /opt/aosp-build
       AOSP_DIR: /opt/aosp-build/aosp
       OUT_DIR: /opt/aosp-build/out
-      AOSP_TAG: android-16.0.0_r4
-      PATCH_FILE: ${{ github.workspace }}/patches/crosvm/android-16.0.0_r4-gunyah-irq16.patch
+      AOSP_TAG: android-17.0.0_r1
+      PATCH_FILE: /tmp/android-17.0.0_r1-gunyah-irqfd.patch
 
     steps:
       - name: Expand runner build volume
@@ -68,7 +67,7 @@ jobs:
           echo "$HOME/bin" >> "$GITHUB_PATH"
           "$HOME/bin/repo" version
 
-      - name: Initialize Android 16 r4 manifest
+      - name: Initialize Android 17 r1 manifest
         shell: bash
         run: |
           set -euxo pipefail
@@ -286,27 +285,24 @@ jobs:
           required = (
               'name: "android.hardware.graphics.common"',
               'host_supported: true',
-              'frozen: false',
+              'frozen: true',
               'ndk: {',
+              'version: "7"',
           )
           missing = [entry for entry in required if entry not in text]
           if missing:
               raise SystemExit(f'graphics common AIDL definition is incomplete: {missing}')
 
           api_root = bp.parent / 'aidl_api' / 'android.hardware.graphics.common'
-          current_api = api_root / 'current'
-          if not current_api.is_dir():
-              raise SystemExit(f'missing current Stable AIDL API dump: {current_api}')
           frozen_versions = sorted(
               int(path.name) for path in api_root.iterdir()
               if path.is_dir() and path.name.isdigit()
           )
-          if not frozen_versions:
-              raise SystemExit('no frozen graphics common Stable AIDL versions')
-          generated_version = frozen_versions[-1] + 1
-          if generated_version != 7:
-              raise SystemExit(f'expected graphics common V7, got V{generated_version}')
-          print(f'graphics common Stable AIDL current=V{generated_version}')
+          if not frozen_versions or frozen_versions[-1] != 7:
+              raise SystemExit(f'expected frozen graphics common V7, got {frozen_versions}')
+          if not (api_root / '7' / '.hash').is_file():
+              raise SystemExit('missing frozen graphics common V7 hash')
+          print('graphics common Stable AIDL frozen=V7')
           PY
 
           test -d system/tools/aidl/build
@@ -353,7 +349,7 @@ jobs:
           set -euxo pipefail
           cd "$AOSP_DIR/external/crosvm"
           echo "crosvm HEAD=$(git rev-parse HEAD)"
-          test "$(git rev-parse HEAD)" = "738b7016fc50d6eadc94c8ca28022ad7c21f798d"
+          test "$(git rev-parse HEAD)" = "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8"
           grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' aarch64/src/lib.rs
           grep -q 'const AARCH64_VMWDT_IRQ: u32 = 15;' aarch64/src/lib.rs
           grep -n 'pub fn register_irqfd' hypervisor/src/gunyah/mod.rs
@@ -376,6 +372,8 @@ jobs:
           grep -q 'avf-final-dtb' aarch64/src/fdt.rs
           git diff --check
           git diff --stat
+          git diff --binary > "$PATCH_FILE"
+          test -s "$PATCH_FILE"
 
       - name: Build ARM64 Android crosvm
         shell: bash
@@ -390,7 +388,7 @@ jobs:
           lunch module_arm64 trunk_staging eng
           test "$TARGET_PRODUCT" = module_arm64
 
-          APEX_STUB=android-16-crosvm-build-stubs/apexsupport/Android.bp
+          APEX_STUB=android-17-crosvm-build-stubs/apexsupport/Android.bp
           test -f "$APEX_STUB"
           grep -Fq 'system_shared_libs: ["libc"]' "$APEX_STUB"
           grep -Fq 'installable: false' "$APEX_STUB"
@@ -407,7 +405,7 @@ jobs:
         run: |
           set -euxo pipefail
           cd "$AOSP_DIR"
-          DEST="$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-irqfd"
+          DEST="$GITHUB_WORKSPACE/artifacts/crosvm-avf-gunyah-android17"
           mkdir -p "$DEST"
 
           mapfile -t CANDIDATES < <(
@@ -480,6 +478,7 @@ jobs:
           } > "$DEST/version.txt"
           cp -a "$CROSVM" "$DEST/crosvm"
           cp "$PATCH_FILE" "$DEST/"
+          PATCH_BASENAME="$(basename "$PATCH_FILE")"
           for helper in \
             patch-crosvm-gunyah-irqfd.py \
             patch-crosvm-gunyah-irqfd-core.py \
@@ -491,7 +490,7 @@ jobs:
             cp "$GITHUB_WORKSPACE/scripts/$helper" "$DEST/"
           done
           sha256sum \
-            "$DEST/android-16.0.0_r4-gunyah-irq16.patch" \
+            "$DEST/$PATCH_BASENAME" \
             "$DEST/patch-crosvm-gunyah-"*.py \
             "$DEST/prepare-crosvm-binder-deps.py" \
             > "$DEST/patch-chain-sha256.txt"
@@ -512,7 +511,7 @@ jobs:
       - name: Upload patched crosvm artifact
         uses: actions/upload-artifact@v4
         with:
-          name: crosvm-android16-r4-gunyah-irqfd-arm64
-          path: artifacts/crosvm-avf-gunyah-irqfd/
+          name: crosvm-android17-r1-gunyah-irqfd-arm64
+          path: artifacts/crosvm-avf-gunyah-android17/
           if-no-files-found: error
           retention-days: 14

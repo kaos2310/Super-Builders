@@ -12,8 +12,8 @@ import urllib.parse
 import urllib.request
 
 
-TAG = os.environ.get("AOSP_TAG", "android-16.0.0_r4")
-EXPECTED_TAG = "android-16.0.0_r4"
+TAG = os.environ.get("AOSP_TAG", "android-17.0.0_r1")
+EXPECTED_TAG = "android-17.0.0_r1"
 VIRT_PROJECT = "platform/packages/modules/Virtualization"
 
 
@@ -116,17 +116,19 @@ def main() -> None:
         ),
     )
 
-    framework_bp = fetch_text("platform/frameworks/base", "core/java/Android.bp")
-    require_tokens(
-        "exact-tag frameworks/base provider",
-        framework_bp,
-        (
-            'name: "android-os-statsbootstrap-aidl"',
-            '"android/os/IStatsBootstrapAtomService.aidl"',
-            '"android/os/StatsBootstrapAtom.aidl"',
-            '"android/os/StatsBootstrapAtomValue.aidl"',
-        ),
-    )
+    # Android 17 keeps the three StatsBootstrap AIDL contracts but no longer
+    # publishes the old source filegroup from core/java/Android.bp. Validate
+    # the contracts directly, then recreate only that filegroup below.
+    for name in (
+        "IStatsBootstrapAtomService.aidl",
+        "StatsBootstrapAtom.aidl",
+        "StatsBootstrapAtomValue.aidl",
+    ):
+        require_tokens(
+            f"exact-tag frameworks/base {name}",
+            fetch_text("platform/frameworks/base", f"core/java/android/os/{name}"),
+            ("package android.os;",),
+        )
 
     nativehelper_bp = fetch_text("platform/libnativehelper", "Android.bp")
     require_tokens(
@@ -187,7 +189,7 @@ def main() -> None:
         ),
     )
 
-    stubs = aosp_root / "android-16-crosvm-build-stubs"
+    stubs = aosp_root / "android-17-crosvm-build-stubs"
     stats = stubs / "statsbootstrap"
     jni = stubs / "jni_headers"
     apex = stubs / "apexsupport"
