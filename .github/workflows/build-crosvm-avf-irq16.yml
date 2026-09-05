@@ -120,7 +120,7 @@ jobs:
               'prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8',
               'prebuilts/devtools', 'prebuilts/go/linux-x86', 'prebuilts/jdk/jdk21',
               'prebuilts/misc', 'prebuilts/ndk', 'prebuilts/remoteexecution-client',
-              'prebuilts/rust', 'prebuilts/sdk', 'prebuilts/tools',
+              'prebuilts/rust', 'prebuilts/sdk', 'prebuilts/siso', 'prebuilts/tools',
               'prebuilts/vndk',
               'toolchain/pgo-profiles',
               'system/core', 'system/libbase', 'system/logging',
@@ -162,6 +162,7 @@ jobs:
           grep -q '^platform/prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8$' /tmp/crosvm-projects.txt
           grep -q '^platform/hardware/interfaces$' /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/vndk/' /tmp/crosvm-projects.txt
+          grep -q '^platform/prebuilts/siso$' /tmp/crosvm-projects.txt
           grep -q '^toolchain/pgo-profiles$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/aidl$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/hidl$' /tmp/crosvm-projects.txt
@@ -282,6 +283,10 @@ jobs:
           grep -q 'name: "xmllint"' external/libxml2/Android.bp
           test -x prebuilts/go/linux-x86/bin/go
           test -x prebuilts/jdk/jdk21/linux-x86/bin/java
+          # Android 17 Soong defaults to Siso for both bootstrap and compilation.
+          test -x prebuilts/siso/linux-x86/siso
+          test -f build/soong/siso_config/main.star
+          prebuilts/siso/linux-x86/siso version
           test -d prebuilts/rust
           find prebuilts/vndk -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .
           test -f toolchain/pgo-profiles/sampling/afdo_profiles.mk

@@ -90,6 +90,20 @@ class Android17PreflightTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "external/crosvm"):
             self.run_selector([p for p in PREFIXES if p != "external/crosvm"])
 
+    def test_siso_bootstrap_provider_is_selected_and_checked(self):
+        self.assertIn("prebuilts/siso", PREFIXES)
+        self.assertIn("platform/prebuilts/siso", self.run_selector(PREFIXES).splitlines())
+        self.assertIn("grep -q '^platform/prebuilts/siso$' /tmp/crosvm-projects.txt", WORKFLOW)
+        self.assertIn("test -x prebuilts/siso/linux-x86/siso", WORKFLOW)
+        self.assertIn("test -f build/soong/siso_config/main.star", WORKFLOW)
+        version_check = WORKFLOW.index("prebuilts/siso/linux-x86/siso version")
+        self.assertLess(WORKFLOW.index("repo sync -c"), version_check)
+        self.assertLess(version_check, WORKFLOW.index("- name: Verify exact crosvm source revision"))
+
+    def test_missing_siso_project_fails_before_sync(self):
+        with self.assertRaisesRegex(SystemExit, "prebuilts/siso"):
+            self.run_selector([p for p in PREFIXES if p != "prebuilts/siso"])
+
     def test_pruner_keeps_drm_common_but_not_drm_hal(self):
         with fixture_directory() as temporary:
             root = Path(temporary) / "hardware/interfaces"
