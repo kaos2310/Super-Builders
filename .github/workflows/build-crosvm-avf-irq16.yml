@@ -14,6 +14,7 @@ on:
       - 'scripts/patch-crosvm-gunyah-cma-backport.py'
       - 'scripts/patch-crosvm-gunyah-init-trace.py'
       - 'scripts/prepare-crosvm-binder-deps.py'
+      - 'scripts/test-crosvm-android17-preflight.py'
 
 permissions:
   contents: read
@@ -45,6 +46,9 @@ jobs:
 
       - name: Checkout Super-Builders
         uses: actions/checkout@v4
+
+      - name: Test Android 17 provider preflight
+        run: python3 scripts/test-crosvm-android17-preflight.py
 
       - name: Verify expanded runner storage
         shell: bash
@@ -103,11 +107,11 @@ jobs:
               'external/abseil-cpp', 'external/error_prone', 'external/googletest',
               'external/sqlite', 'external/icu', 'external/jsoncpp', 'external/fmtlib',
               'external/minijail', 'external/libcap', 'external/libdrm',
-              'external/expat', 'external/libepoxy', 'external/libffi',
+              'external/expat', 'external/libffi',
               'external/libusb', 'external/libxml2', 'external/lz4',
               'external/perfetto', 'external/protobuf', 'external/boringssl', 'external/zlib',
               'external/wayland', 'external/wayland-protocols',
-              'external/mesa3d', 'external/gfxstream-protocols',
+              'external/mesa3d',
               'frameworks/native',
               'hardware/google/gfxstream',
               'hardware/interfaces',
@@ -119,9 +123,16 @@ jobs:
               'prebuilts/rust', 'prebuilts/sdk', 'prebuilts/tools',
               'prebuilts/vndk',
               'toolchain/pgo-profiles',
-              'system/core', 'system/cros-codecs', 'system/libbase', 'system/logging',
+              'system/core', 'system/libbase', 'system/logging',
               'system/sepolicy', 'system/tools/aidl', 'system/tools/hidl',
           )
+          # Catch removed/renamed providers before spending time syncing sources.
+          paths = [p.get('path') or p.get('name') or '' for p in root.findall('project')]
+          unmatched = [x for x in prefixes if not any(
+              path == x or path.startswith(x.rstrip('/') + '/') for path in paths
+          )]
+          if unmatched:
+              raise SystemExit(f'source selectors absent from pinned manifest: {unmatched}')
           selected = []
           for p in root.findall('project'):
               path = p.get('path') or p.get('name') or ''
@@ -183,7 +194,7 @@ jobs:
           root = Path('hardware/interfaces')
           root_keep = {
               '.git', 'Android.bp', 'LICENSE', 'METADATA', 'NOTICE', 'OWNERS',
-              'common', 'graphics', 'media',
+              'common', 'drm', 'graphics', 'media',
           }
           for child in list(root.iterdir()):
               if child.name not in root_keep:
@@ -195,6 +206,13 @@ jobs:
           }
           for child in list(media.iterdir()):
               if child.name not in media_keep:
+                  remove_path(child)
+
+          # Android 17 graphics/composer3 imports drm.common-V1, not the DRM HAL.
+          drm = root / 'drm'
+          drm_keep = {'Android.bp', 'LICENSE', 'METADATA', 'NOTICE', 'OWNERS', 'common'}
+          for child in list(drm.iterdir()):
+              if child.name not in drm_keep:
                   remove_path(child)
           PY
 
@@ -267,7 +285,14 @@ jobs:
           test -d prebuilts/rust
           find prebuilts/vndk -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .
           test -f toolchain/pgo-profiles/sampling/afdo_profiles.mk
-          test -f system/cros-codecs/Android.bp
+          # android-17.0.0_r1 removed system/cros-codecs. The Android crosvm
+          # Soong graph no longer consumes it (Cargo's optional VAAPI dep differs).
+          if grep -R -E -i 'cros.?codecs' external/crosvm --include=Android.bp; then
+            echo 'ERROR: cros-codecs returned to the Android build; update provider closure' >&2
+            exit 1
+          fi
+          test -f hardware/interfaces/drm/common/aidl/Android.bp
+          grep -q 'name: "android.hardware.drm.common"' hardware/interfaces/drm/common/aidl/Android.bp
           test -f hardware/interfaces/graphics/common/aidl/Android.bp
 
           python3 - <<'PY'

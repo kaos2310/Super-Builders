@@ -38,6 +38,20 @@ def require_aidl_snapshot(root: Path, interface: str, version: int) -> None:
         fail(f"Stable AIDL snapshot hash missing: {path / '.hash'}")
 
 
+def graphics_aidl_versions(text: str) -> tuple[int, int]:
+    # Use the NDK aliases consumed by libui, not the highest frozen snapshot.
+    # Android 17 has allocator snapshots through V3 but deliberately links V2.
+    versions = []
+    for interface in ("allocator", "common"):
+        matches = set(re.findall(
+            rf'"android\.hardware\.graphics\.{interface}-V(\d+)-ndk"', text
+        ))
+        if len(matches) != 1:
+            fail(f"expected one graphics {interface} NDK alias version, got {sorted(matches)}")
+        versions.append(int(matches.pop()))
+    return versions[0], versions[1]
+
+
 def require_aidl_current(root: Path, interface: str, generated_version: int) -> None:
     """Validate an unfrozen Stable-AIDL current version without inventing a frozen snapshot."""
     api_root = root / "aidl_api" / interface
@@ -119,7 +133,7 @@ if not (hw_interfaces / ".git").exists():
     fail(f"hardware/interfaces git worktree missing: {hw_interfaces}")
 print("Restoring complete frameworks/native graphics HIDL/AIDL/stable-C provider closure")
 subprocess.run(
-    ["git", "checkout", "HEAD", "--", "graphics", "media/1.0"],
+    ["git", "checkout", "HEAD", "--", "graphics", "media/1.0", "drm/common"],
     cwd=hw_interfaces,
     check=True,
 )
@@ -130,19 +144,24 @@ subprocess.run(
 graphics_root = require_tokens(
     aosp_root / "hardware/interfaces/graphics/Android.bp",
     (
-        'name: "android.hardware.graphics.allocator-latest"',
+        'name: "android.hardware.graphics.allocator-ndk_shared"',
         'name: "android.hardware.graphics.common-latest"',
-        'name: "android.hardware.graphics.allocator-ndk_static"',
         'name: "android.hardware.graphics.common-ndk_static"',
+        'name: "android.hardware.graphics.common-ndk_shared"',
     ),
     "graphics Stable-AIDL defaults",
 )
-alloc_match = re.search(r'"android\.hardware\.graphics\.allocator-V(\d+)"', graphics_root)
-common_match = re.search(r'"android\.hardware\.graphics\.common-V(\d+)"', graphics_root)
-if not alloc_match or not common_match:
-    fail("cannot derive graphics Stable-AIDL latest versions from graphics/Android.bp")
-allocator_version = int(alloc_match.group(1))
-graphics_common_version = int(common_match.group(1))
+allocator_version, graphics_common_version = graphics_aidl_versions(graphics_root)
+require_tokens(
+    aosp_root / "hardware/interfaces/drm/common/aidl/Android.bp",
+    ('name: "android.hardware.drm.common"', 'frozen: true', 'version: "1"'),
+    "graphics composer3 DRM-common provider",
+)
+require_aidl_snapshot(
+    aosp_root / "hardware/interfaces/drm/common/aidl",
+    "android.hardware.drm.common",
+    1,
+)
 
 allocator_bp = aosp_root / "hardware/interfaces/graphics/allocator/aidl/Android.bp"
 common_bp = aosp_root / "hardware/interfaces/graphics/common/aidl/Android.bp"
@@ -201,6 +220,13 @@ print(
     f"graphics-common-V{graphics_common_version} {common_state}"
 )
 
+# Prepare exact-tag Binder/APEX stubs, then apply the patch chain in dependency order.
+subprocess.run([sys.executable, str(PREP), str(crosvm)], check=True)
+runpy.run_path(str(CORE), run_name="__main__")
+subprocess.run([sys.executable, str(MEMORY), str(crosvm)], check=True)
+subprocess.run([sys.executable, str(CMA), str(crosvm)], check=True)
+subprocess.run([sys.executable, str(TRACE), str(crosvm)], check=True)
+
 # Recreate only ownership-team metadata missing from the partial checkout. Team
 # definitions do not alter build semantics, but Soong requires every referenced team.
 team_stub_root = aosp_root / "local-missing-teams"
@@ -228,13 +254,6 @@ with team_bp.open("w", encoding="utf-8") as f:
         f.write(f'    trendy_team_id: "{name}",\n')
         f.write("}\n\n")
 print(f"Refreshed {len(missing_teams)} missing trendy team stub(s)")
-
-# Prepare exact-tag Binder/APEX stubs, then apply the patch chain in dependency order.
-subprocess.run([sys.executable, str(PREP), str(crosvm)], check=True)
-runpy.run_path(str(CORE), run_name="__main__")
-subprocess.run([sys.executable, str(MEMORY), str(crosvm)], check=True)
-subprocess.run([sys.executable, str(CMA), str(crosvm)], check=True)
-subprocess.run([sys.executable, str(TRACE), str(crosvm)], check=True)
 
 # Fail closed on the source invariants required by the target device.
 post_checks = {

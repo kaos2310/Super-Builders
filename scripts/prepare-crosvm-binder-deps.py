@@ -186,6 +186,7 @@ def main() -> None:
             '"android.system.virtualizationservice-ndk"',
             '"libbinder_ndk"',
             '"libnativewindow"',
+            '"libcutils"',
         ),
     )
 
@@ -399,6 +400,7 @@ cc_library_static {
     shared_libs: [
         "libbinder_ndk",
         "libnativewindow",
+        "libcutils",
     ],
     apex_available: [
         "//apex_available:platform",
