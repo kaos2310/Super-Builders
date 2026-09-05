@@ -96,13 +96,57 @@ class Android17PreflightTests(unittest.TestCase):
         self.assertIn("grep -q '^platform/prebuilts/siso$' /tmp/crosvm-projects.txt", WORKFLOW)
         self.assertIn("test -x prebuilts/siso/linux-x86/siso", WORKFLOW)
         self.assertIn("test -f build/soong/siso_config/main.star", WORKFLOW)
-        version_check = WORKFLOW.index("prebuilts/siso/linux-x86/siso version")
+        for module in ("clang", "java", "rust"):
+            self.assertIn(f"test -f build/soong/siso_config/{module}.star", WORKFLOW)
+        version_check = WORKFLOW.index("prebuilts/siso/linux-x86/siso version -online=false")
         self.assertLess(WORKFLOW.index("repo sync -c"), version_check)
         self.assertLess(version_check, WORKFLOW.index("- name: Verify exact crosvm source revision"))
 
     def test_missing_siso_project_fails_before_sync(self):
         with self.assertRaisesRegex(SystemExit, "prebuilts/siso"):
             self.run_selector([p for p in PREFIXES if p != "prebuilts/siso"])
+
+    def test_siso_output_is_relative_and_inside_source_root(self):
+        self.assertRegex(WORKFLOW, r"(?m)^      OUT_DIR: out$")
+        self.assertNotIn("/opt/aosp-build/out", WORKFLOW)
+        init = WORKFLOW.split("- name: Initialize Android 17 r1 manifest", 1)[1].split("- name:", 1)[0]
+        self.assertIn('test "$OUT_DIR" = out', init)
+        self.assertLess(init.index('cd "$AOSP_DIR"'), init.index('mkdir -p "$OUT_DIR"'))
+
+    def test_output_consumers_use_the_same_source_working_directory(self):
+        blocks = re.findall(r"^        run: \|\n(.*?)(?=^      - name:|\Z)", WORKFLOW, re.M | re.S)
+        consumers = 0
+        for block in blocks:
+            # The initial literal-value guard does not access the filesystem.
+            block = block.replace('test "$OUT_DIR" = out', '')
+            if "$OUT_DIR" not in block:
+                continue
+            consumers += 1
+            self.assertIn('cd "$AOSP_DIR"', block)
+            self.assertLess(block.index('cd "$AOSP_DIR"'), block.index('$OUT_DIR'))
+        self.assertEqual(consumers, 4)  # init, source preflight, build, collection
+
+    def test_release_uses_stable_android17_with_fail_closed_identity(self):
+        self.assertRegex(WORKFLOW, r"(?m)^      AOSP_RELEASE: cp2a$")
+        self.assertIn('lunch module_arm64 "$AOSP_RELEASE" eng', WORKFLOW)
+        self.assertNotIn('lunch module_arm64 trunk_staging eng', WORKFLOW)
+        for guard in ('test "$TARGET_RELEASE" = cp2a',
+                      'test "$(get_build_var OUT_DIR)" = out',
+                      'test "$PLATFORM_VER" = 17',
+                      'test "$PLATFORM_CODENAME" = REL',
+                      'test "$PLATFORM_SDK" = 37'):
+            self.assertLess(WORKFLOW.index(guard), WORKFLOW.index('m -j2 -k0 crosvm'))
+        self.assertIn('cp "$OUT_DIR/platform-build-identity.txt" "$DEST/"', WORKFLOW)
+        self.assertIn('TARGET=module_arm64-$AOSP_RELEASE-eng', WORKFLOW)
+
+    def test_version_providers_are_pinned_before_patching(self):
+        for path, revision in (
+            ("make", "5ce6f787337d0223710bf7d4a16dbe6d2a35f777"),
+            ("release", "c85f4aebe46714235599a9bd6430a0fe30c6e8d5"),
+            ("soong", "6722dd8833db7482df1a2543ca3fcf67ddf0f7b1"),
+        ):
+            guard = f'test "$(git -C build/{path} rev-parse HEAD)" = "{revision}"'
+            self.assertLess(WORKFLOW.index(guard), WORKFLOW.index('- name: Apply Samsung'))
 
     def test_pruner_keeps_drm_common_but_not_drm_hal(self):
         with fixture_directory() as temporary:

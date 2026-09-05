@@ -26,8 +26,11 @@ jobs:
     env:
       BUILD_VOLUME: /opt/aosp-build
       AOSP_DIR: /opt/aosp-build/aosp
-      OUT_DIR: /opt/aosp-build/out
+      # Siso resolves config_repo_dir relative to the source/exec root in A17.
+      # Keep bootstrap, compilation and artifact discovery on the same path.
+      OUT_DIR: out
       AOSP_TAG: android-17.0.0_r1
+      AOSP_RELEASE: cp2a
       PATCH_FILE: /tmp/android-17.0.0_r1-gunyah-irqfd.patch
 
     steps:
@@ -75,8 +78,10 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p "$AOSP_DIR" "$OUT_DIR"
+          test "$OUT_DIR" = out
+          mkdir -p "$AOSP_DIR"
           cd "$AOSP_DIR"
+          mkdir -p "$OUT_DIR"
           repo init \
             -u https://android.googlesource.com/platform/manifest \
             -b "$AOSP_TAG" \
@@ -286,7 +291,10 @@ jobs:
           # Android 17 Soong defaults to Siso for both bootstrap and compilation.
           test -x prebuilts/siso/linux-x86/siso
           test -f build/soong/siso_config/main.star
-          prebuilts/siso/linux-x86/siso version
+          test -f build/soong/siso_config/clang.star
+          test -f build/soong/siso_config/java.star
+          test -f build/soong/siso_config/rust.star
+          prebuilts/siso/linux-x86/siso version -online=false
           test -d prebuilts/rust
           find prebuilts/vndk -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .
           test -f toolchain/pgo-profiles/sampling/afdo_profiles.mk
@@ -370,6 +378,11 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          cd "$AOSP_DIR"
+          # Version flags and the Siso adapter must come from the same A17 tag.
+          test "$(git -C build/make rev-parse HEAD)" = "5ce6f787337d0223710bf7d4a16dbe6d2a35f777"
+          test "$(git -C build/release rev-parse HEAD)" = "c85f4aebe46714235599a9bd6430a0fe30c6e8d5"
+          test "$(git -C build/soong rev-parse HEAD)" = "6722dd8833db7482df1a2543ca3fcf67ddf0f7b1"
           cd "$AOSP_DIR/external/crosvm"
           echo "crosvm HEAD=$(git rev-parse HEAD)"
           test "$(git rev-parse HEAD)" = "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8"
@@ -408,8 +421,28 @@ jobs:
           export ALLOW_MISSING_DEPENDENCIES=true
           set +u
           source build/envsetup.sh
-          lunch module_arm64 trunk_staging eng
+          # The tag's trunk_staging still advertises Baklava. cp2a is its
+          # released Android 17 configuration (aosp_current resolves to cp2a).
+          lunch module_arm64 "$AOSP_RELEASE" eng
           test "$TARGET_PRODUCT" = module_arm64
+          test "$TARGET_RELEASE" = cp2a
+          test "$(get_build_var OUT_DIR)" = out
+          PLATFORM_VER="$(get_build_var PLATFORM_VERSION)"
+          PLATFORM_CODENAME="$(get_build_var PLATFORM_VERSION_CODENAME)"
+          PLATFORM_SDK="$(get_build_var PLATFORM_SDK_VERSION)"
+          test "$PLATFORM_VER" = 17
+          test "$PLATFORM_CODENAME" = REL
+          test "$PLATFORM_SDK" = 37
+          {
+            echo "AOSP_TAG=$AOSP_TAG"
+            echo "TARGET_RELEASE=$TARGET_RELEASE"
+            echo "PLATFORM_VERSION=$PLATFORM_VER"
+            echo "PLATFORM_VERSION_CODENAME=$PLATFORM_CODENAME"
+            echo "PLATFORM_SDK_VERSION=$PLATFORM_SDK"
+            echo "BUILD_MAKE_COMMIT=$(git -C build/make rev-parse HEAD)"
+            echo "BUILD_RELEASE_COMMIT=$(git -C build/release rev-parse HEAD)"
+            echo "BUILD_SOONG_COMMIT=$(git -C build/soong rev-parse HEAD)"
+          } | tee "$OUT_DIR/platform-build-identity.txt"
 
           APEX_STUB=android-17-crosvm-build-stubs/apexsupport/Android.bp
           test -f "$APEX_STUB"
@@ -417,7 +450,8 @@ jobs:
           grep -Fq 'installable: false' "$APEX_STUB"
 
           echo '=== BUILD GATE: crosvm with transitive Binder/libapexsupport closure ==='
-          m -j2 crosvm
+          # Report independent compiler failures in one run; errors still fail CI.
+          m -j2 -k0 crosvm
           set -u
           echo '=== STORAGE AFTER BUILD ==='
           df -hT "$BUILD_VOLUME"
@@ -500,6 +534,7 @@ jobs:
             echo 'Runtime version must be checked on the target device.'
           } > "$DEST/version.txt"
           cp -a "$CROSVM" "$DEST/crosvm"
+          cp "$OUT_DIR/platform-build-identity.txt" "$DEST/"
           cp "$PATCH_FILE" "$DEST/"
           PATCH_BASENAME="$(basename "$PATCH_FILE")"
           for helper in \
@@ -525,7 +560,7 @@ jobs:
           SAMSUNG_CMA_COMPAT_IOCTL=0x40084120
           SAMSUNG_CMA_COMPAT_MAX_BYTES=268435456
           SAMSUNG_GUNYAH_DEVICE=/dev/gunyah
-          TARGET=module_arm64-trunk_staging-eng
+          TARGET=module_arm64-$AOSP_RELEASE-eng
           OUT_DIR=$OUT_DIR
           SOURCE_BINARY=$CROSVM
           EOF
