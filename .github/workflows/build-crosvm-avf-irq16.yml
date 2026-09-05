@@ -15,6 +15,7 @@ on:
       - 'scripts/patch-crosvm-gunyah-init-trace.py'
       - 'scripts/prepare-crosvm-binder-deps.py'
       - 'scripts/test-crosvm-android17-preflight.py'
+      - 'scripts/crosvm-android17-ci.py'
 
 permissions:
   contents: read
@@ -38,7 +39,8 @@ jobs:
         uses: easimon/maximize-build-space@c28619d8999a147d5e09c1199f84ff6af6ad5794
         with:
           build-mount-path: /opt/aosp-build
-          root-reserve-mb: 4096
+          # Source-cache archives are staged on the runner root filesystem.
+          root-reserve-mb: 8192
           temp-reserve-mb: 256
           swap-size-mb: 2048
           remove-dotnet: 'true'
@@ -89,8 +91,26 @@ jobs:
             --partial-clone \
             --clone-filter=blob:none \
             --no-clone-bundle
+          test "$(git -C .repo/manifests rev-parse HEAD)" = "5bc9a7ce1cd78dd53613bbfd0ebf506e1e4adb0f"
           cp .repo/manifests/default.xml /tmp/aosp-manifest.xml
           test -s /tmp/aosp-manifest.xml
+          mkdir -p "$OUT_DIR/ci"
+
+      - name: Select bounded immutable source cache
+        id: source-cache-layout
+        run: python3 scripts/crosvm-android17-ci.py cache-layout "$AOSP_DIR"
+
+      - name: Restore selected source Git objects
+        id: source-cache
+        if: steps.source-cache-layout.outputs.restore == 'true'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
+        with:
+          path: ${{ steps.source-cache-layout.outputs.paths }}
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ steps.source-cache-layout.outputs.key }}
 
       - name: Sync minimal crosvm build source set
         shell: bash
@@ -122,10 +142,13 @@ jobs:
               'hardware/interfaces',
               'prebuilts/bazel/common',
               'prebuilts/build-tools', 'prebuilts/clang/host/linux-x86',
+              'prebuilts/clang-tools',
               'prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8',
               'prebuilts/devtools', 'prebuilts/go/linux-x86', 'prebuilts/jdk/jdk21',
               'prebuilts/misc', 'prebuilts/ndk', 'prebuilts/remoteexecution-client',
               'prebuilts/rust', 'prebuilts/sdk', 'prebuilts/siso', 'prebuilts/tools',
+              'prebuilts/rust-toolchain/linux-x86',
+              'prebuilts/rust-toolchain/linux-musl-x86',
               'prebuilts/vndk',
               'toolchain/pgo-profiles',
               'system/core', 'system/libbase', 'system/logging',
@@ -168,6 +191,9 @@ jobs:
           grep -q '^platform/hardware/interfaces$' /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/vndk/' /tmp/crosvm-projects.txt
           grep -q '^platform/prebuilts/siso$' /tmp/crosvm-projects.txt
+          grep -q '^platform/prebuilts/rust-toolchain/linux-x86$' /tmp/crosvm-projects.txt
+          grep -q '^platform/prebuilts/rust-toolchain/linux-musl-x86$' /tmp/crosvm-projects.txt
+          grep -q '^platform/prebuilts/clang-tools$' /tmp/crosvm-projects.txt
           grep -q '^toolchain/pgo-profiles$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/aidl$' /tmp/crosvm-projects.txt
           grep -q '^platform/system/tools/hidl$' /tmp/crosvm-projects.txt
@@ -295,7 +321,8 @@ jobs:
           test -f build/soong/siso_config/java.star
           test -f build/soong/siso_config/rust.star
           prebuilts/siso/linux-x86/siso version -online=false
-          test -d prebuilts/rust
+          # prebuilts/rust now contains helpers, not the A17 compiler/sysroot.
+          test -f prebuilts/rust-toolchain/linux-x86/Android.bp
           find prebuilts/vndk -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .
           test -f toolchain/pgo-profiles/sampling/afdo_profiles.mk
           # android-17.0.0_r1 removed system/cros-codecs. The Android crosvm
@@ -374,6 +401,23 @@ jobs:
           PY
           test -s local-missing-teams/Android.bp
 
+      - name: Check source cache size budget
+        id: source-cache-budget
+        continue-on-error: true
+        if: steps.source-cache.outputs.cache-hit != 'true'
+        run: python3 scripts/crosvm-android17-ci.py cache-budget "$AOSP_DIR"
+
+      # Save before patching/Soong: a failed build must not discard fetched sources.
+      # This is an optional <=4 GiB cache of four Git repositories, not the 49 GiB tree.
+      - name: Save selected source Git objects
+        if: steps.source-cache.outputs.cache-hit != 'true' && steps.source-cache-budget.outputs.save == 'true'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ steps.source-cache-layout.outputs.paths }}
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ steps.source-cache-layout.outputs.key }}
+
       - name: Verify exact crosvm source revision
         shell: bash
         run: |
@@ -383,6 +427,8 @@ jobs:
           test "$(git -C build/make rev-parse HEAD)" = "5ce6f787337d0223710bf7d4a16dbe6d2a35f777"
           test "$(git -C build/release rev-parse HEAD)" = "c85f4aebe46714235599a9bd6430a0fe30c6e8d5"
           test "$(git -C build/soong rev-parse HEAD)" = "6722dd8833db7482df1a2543ca3fcf67ddf0f7b1"
+          test "$(git -C prebuilts/rust-toolchain/linux-x86 rev-parse HEAD)" = "fa2b1777b1f5c0471bb54ad4026feb1f6e94ea70"
+          test "$(git -C prebuilts/rust-toolchain/linux-musl-x86 rev-parse HEAD)" = "401e0a9eaa7af8efaea9ea1ab129196b74b89847"
           cd "$AOSP_DIR/external/crosvm"
           echo "crosvm HEAD=$(git rev-parse HEAD)"
           test "$(git rev-parse HEAD)" = "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8"
@@ -411,7 +457,20 @@ jobs:
           git diff --binary > "$PATCH_FILE"
           test -s "$PATCH_FILE"
 
-      - name: Build ARM64 Android crosvm
+      - name: Validate Rust sysroot and ABI tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$AOSP_DIR"
+          python3 "$GITHUB_WORKSPACE/scripts/crosvm-android17-ci.py" toolchain "$AOSP_DIR" \
+            2>&1 | tee "$OUT_DIR/ci/toolchain-preflight.txt"
+          # Repeat the graph fixtures with the exact Android Ninja, not only
+          # the runner's optional system Ninja used by the early offline tests.
+          CROSVM_TEST_NINJA="$AOSP_DIR/prebuilts/build-tools/linux-x86/bin/ninja" \
+            python3 "$GITHUB_WORKSPACE/scripts/test-crosvm-android17-preflight.py" \
+            2>&1 | tee "$OUT_DIR/ci/regression-tests.txt"
+
+      - name: Generate and audit crosvm build graph
         shell: bash
         run: |
           set -euxo pipefail
@@ -449,9 +508,29 @@ jobs:
           grep -Fq 'system_shared_libs: ["libc"]' "$APEX_STUB"
           grep -Fq 'installable: false' "$APEX_STUB"
 
-          echo '=== BUILD GATE: crosvm with transitive Binder/libapexsupport closure ==='
-          # Report independent compiler failures in one run; errors still fail CI.
-          m -j2 -k0 crosvm
+          # Keep partial-tree compatibility, but reject every reachable Error rule
+          # before compilation. A successful Ninja dry run alone cannot do this.
+          m --skip-ninja crosvm 2>&1 | tee "$OUT_DIR/ci/graph-generation.log"
+          python3 "$GITHUB_WORKSPACE/scripts/crosvm-android17-ci.py" graph "$AOSP_DIR"
+          set -u
+
+      - name: Build ARM64 Android crosvm
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd "$AOSP_DIR"
+          export OUT_DIR="$OUT_DIR"
+          export ENVSETUP_NO_COMPLETION=1
+          export ALLOW_MISSING_DEPENDENCIES=true
+          set +u
+          source build/envsetup.sh
+          lunch module_arm64 "$AOSP_RELEASE" eng
+          test "$TARGET_PRODUCT" = module_arm64
+          test "$TARGET_RELEASE" = cp2a
+          test "$(get_build_var OUT_DIR)" = out
+          test -s "$OUT_DIR/ci/graph-audit.json"
+          # Report independent compiler failures together; errors still fail CI.
+          m -j2 -k0 crosvm 2>&1 | tee "$OUT_DIR/ci/compilation.log"
           set -u
           echo '=== STORAGE AFTER BUILD ==='
           df -hT "$BUILD_VOLUME"
@@ -572,4 +651,27 @@ jobs:
           name: crosvm-android17-r1-gunyah-irqfd-arm64
           path: artifacts/crosvm-avf-gunyah-android17/
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Collect bounded build diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST="$BUILD_VOLUME/crosvm-ci-diagnostics"
+          python3 "$GITHUB_WORKSPACE/scripts/crosvm-android17-ci.py" diagnostics "$AOSP_DIR" --destination "$DEST"
+          df -hT > "$DEST/storage.txt"
+          for evidence in /tmp/crosvm-projects.txt "$PATCH_FILE"; do
+            if [ -f "$evidence" ]; then cp "$evidence" "$DEST/"; fi
+          done
+          cp "$GITHUB_WORKSPACE/.github/workflows/build-crosvm-avf-irq16.yml" "$DEST/"
+          cp "$GITHUB_WORKSPACE/scripts/crosvm-android17-ci.py" "$DEST/"
+
+      - name: Upload build diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crosvm-android17-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /opt/aosp-build/crosvm-ci-diagnostics/
+          if-no-files-found: warn
           retention-days: 14
