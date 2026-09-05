@@ -17,6 +17,8 @@ on:
       - 'android14-6.1/build-helpers/apply-e3q-cmdline-governor-compat.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-vm-metadata-allocation.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-cma-compat.sh'
+      - 'android14-6.1/build-helpers/patch-e3q-gunyah-adaptive-backing.py'
+      - 'android14-6.1/build-helpers/test-e3q-gunyah-adaptive-backing.py'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
       - 'android14-6.1/build-helpers/allow-e3q-gunyah-rm-vmid-kmi.sh'
       - 'android14-6.1/build-helpers/audit-e3q-gunyah-qcom-module.sh'
@@ -50,7 +52,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gunyah-preflight:
+    name: Gunyah adaptive allocator regression tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate transformation, budget bounds and exact C function
+        run: |
+          set -euo pipefail
+          python3 android14-6.1/build-helpers/test-e3q-gunyah-adaptive-backing.py
+
   dependencies:
+    needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:

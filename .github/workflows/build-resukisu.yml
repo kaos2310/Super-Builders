@@ -434,6 +434,17 @@ jobs:
         chmod +x "$HELPER"
         "$HELPER" "$KERNEL_ROOT/common"
 
+    - name: Validate and apply extent-budget-aware Gunyah backing
+      if: inputs.device_codename == 'e3q'
+      run: |
+        set -euo pipefail
+        HELPERS="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers"
+        # Apply after every immutable baseline/QCOM transform, so the new
+        # allocator cannot be overwritten by a nested pinned generator.
+        python3 "$HELPERS/test-e3q-gunyah-adaptive-backing.py"
+        python3 "$HELPERS/patch-e3q-gunyah-adaptive-backing.py" "$KERNEL_ROOT/common"
+        echo 'GUNYAH_ADAPTIVE_BACKING=1' >> "$GITHUB_ENV"
+
     - name: Extract Sublevel
       env:
         INPUT_SUB_LEVEL: ${{ inputs.sub_level }}
@@ -446,6 +457,7 @@ jobs:
         fi
 
         ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-ReSukiSU-${RESUKISU_VERSION_LABEL}"
+        [[ "${GUNYAH_ADAPTIVE_BACKING:-0}" == "1" ]] && ARTIFACT_BASE+="-GunyahAdaptive-v1"
         [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]] && ARTIFACT_BASE+="-OpenRedirect-Test"
         if [[ "${{ inputs.kmi_mode }}" != "runtime-compat" ]]; then
           ARTIFACT_BASE+="-KMI-${{ inputs.kmi_profile }}-${{ inputs.kmi_mode }}"
@@ -1506,6 +1518,17 @@ jobs:
 
         IMAGE_STRINGS="$RUNNER_TEMP/s928b-image-strings"
         strings "$ANYKERNEL3/Image" > "$IMAGE_STRINGS"
+        if [[ "${GUNYAH_ADAPTIVE_BACKING:-0}" == "1" ]]; then
+          grep -qF 'allocated adaptive bounded backing' "$IMAGE_STRINGS" || {
+            echo '::error::Packaged Image lacks the adaptive Gunyah allocator marker'
+            exit 1
+          }
+          printf '%s\n' \
+            'Gunyah adaptive backing V1: original request-size ABI retained.' \
+            'At most 8192 allocator chunks and 8192 RM parcel entries.' \
+            'Image marker verified; device VM startup remains unverified.' \
+            > "$ANYKERNEL3/GUNYAH-ADAPTIVE.txt"
+        fi
         grep -qF "${KERNEL_VER}.${SUBLEVEL}${STOCK_RELEASE_EXPECTED}" "$IMAGE_STRINGS"
         grep -qF "$STOCK_VERSION_EXPECTED" "$IMAGE_STRINGS"
         grep -qF "${STOCK_BUILD_USER_EXPECTED}@${STOCK_BUILD_HOST_EXPECTED}" "$IMAGE_STRINGS"
@@ -1662,6 +1685,7 @@ jobs:
           echo "| **KPM** | $(S "$ADD_KPM") |"
           echo "| **KASAN** | Disabled; inactive KMI static-key stub retained |"
           echo "| **KMI mode** | ${KMI_MODE} (${KMI_PROFILE}) |"
+          echo "| **Gunyah adaptive backing** | ${GUNYAH_ADAPTIVE_BACKING:-0} (device startup unverified) |"
           echo "| **Samsung DLKM CRCs** | ${SAMSUNG_DLKM_EXACT_COUNT:-not-recorded} exact, ${SAMSUNG_DLKM_COMPATIBLE_COUNT:-not-recorded} known differences, ${SAMSUNG_DLKM_UNEXPECTED_COUNT:-not-recorded} unexpected |"
           echo "| **Kernel build exit** | ${KERNEL_BUILD_EXIT_CODE:-not-recorded} |"
           echo "| **Device Profile** | ${IDENTITY_STATUS:-Generic} |"
