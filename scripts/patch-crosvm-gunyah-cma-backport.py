@@ -47,22 +47,28 @@ if wrong_layout in helper:
 elif "&cfg.file_backed_mappings_ram" not in helper:
     fail("Gunyah backing helper has neither old nor Android-17-r1 file-backed RAM API")
 
-# Match create_guest_memory() memory policy. The preceding Gunyah contiguity
-# patch may set components.hugepages=true; preserving this is harmless for the
-# custom file mapping and keeps policy behavior consistent.
-policy_anchor = '''    let mut mem_policy = MemoryPolicy::empty();
-    if cfg.lock_guest_memory || cfg.lock_guest_memory_dontneed {
-'''
-policy_fixed = '''    let mut mem_policy = MemoryPolicy::empty();
+# Match android-17.0.0_r1 create_guest_memory() exactly. Older crosvm revisions
+# had lock_guest_memory_dontneed/USE_DONTNEED_LOCKED; neither API exists in the
+# pinned Android 17 source, so reject a stale generated helper before compiling.
+a17_policy = '''    let mut mem_policy = MemoryPolicy::empty();
     if components.hugepages {
         mem_policy |= MemoryPolicy::USE_HUGEPAGES;
     }
-    if cfg.lock_guest_memory || cfg.lock_guest_memory_dontneed {
+    if cfg.lock_guest_memory {
+        mem_policy |= MemoryPolicy::LOCK_GUEST_MEMORY;
+    }
+    // Match Android 17 r1 create_guest_memory(): without a jailed balloon
+    // process, locked mappings must be reclaimed with punch-hole semantics.
+    if cfg.jail_config.is_none() {
+        mem_policy |= MemoryPolicy::USE_PUNCHHOLE_LOCKED;
+    }
+    guest_mem.set_memory_policy(mem_policy);
 '''
-if policy_anchor in helper:
-    helper = helper.replace(policy_anchor, policy_fixed, 1)
-elif "if components.hugepages" not in helper:
-    fail("cannot place USE_HUGEPAGES policy in Gunyah backing helper")
+if helper.count(a17_policy) != 1:
+    fail("Gunyah backing helper does not match the Android-17-r1 memory-policy API")
+for stale_api in ("lock_guest_memory_dontneed", "USE_DONTNEED_LOCKED"):
+    if stale_api in helper:
+        fail(f"stale pre-Android-17 memory-policy API in Gunyah backing helper: {stale_api}")
 
 text = text[:helper_start] + helper + text[helper_end:]
 
@@ -135,7 +141,13 @@ helper = final[helper_start:helper_end]
 checks = {
     "r4 file-backed RAM field": "&cfg.file_backed_mappings_ram" in helper,
     "Result propagation": "punch_holes_in_guest_mem_layout_for_mappings(" in helper and ")?;" in helper,
-    "memory policy retained": "MemoryPolicy::USE_HUGEPAGES" in helper,
+    "hugepage memory policy retained": "MemoryPolicy::USE_HUGEPAGES" in helper,
+    "lock memory policy retained": "MemoryPolicy::LOCK_GUEST_MEMORY" in helper,
+    "unjailled balloon policy retained": "MemoryPolicy::USE_PUNCHHOLE_LOCKED" in helper,
+    "Android 17 config API retained": "if cfg.lock_guest_memory {" in helper,
+    "Android 17 jail policy retained": "if cfg.jail_config.is_none() {" in helper,
+    "stale config API removed": "lock_guest_memory_dontneed" not in helper,
+    "stale memory policy removed": "USE_DONTNEED_LOCKED" not in helper,
     "custom backing allocator retained": "create_cma_compat_mem_fd" in helper,
     "normal GUP semantics retained": "options.file_backed =" not in helper,
     "bounded success diagnostic": "GUNYAH CMA: bounded guest backing SUCCESS" in final,

@@ -257,11 +257,16 @@ fn create_gunyah_cma_guest_memory(
     .context("failed to create CMA-backed Gunyah guest memory")?;
 
     let mut mem_policy = MemoryPolicy::empty();
-    if cfg.lock_guest_memory || cfg.lock_guest_memory_dontneed {
+    if components.hugepages {
+        mem_policy |= MemoryPolicy::USE_HUGEPAGES;
+    }
+    if cfg.lock_guest_memory {
         mem_policy |= MemoryPolicy::LOCK_GUEST_MEMORY;
     }
-    if cfg.lock_guest_memory_dontneed {
-        mem_policy |= MemoryPolicy::USE_DONTNEED_LOCKED;
+    // Match Android 17 r1 create_guest_memory(): without a jailed balloon
+    // process, locked mappings must be reclaimed with punch-hole semantics.
+    if cfg.jail_config.is_none() {
+        mem_policy |= MemoryPolicy::USE_PUNCHHOLE_LOCKED;
     }
     guest_mem.set_memory_policy(mem_policy);
 

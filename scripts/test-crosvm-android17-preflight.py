@@ -19,6 +19,8 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER = (ROOT / "scripts/patch-crosvm-gunyah-irqfd.py").read_text(encoding="utf-8")
+CMA_BASE = (ROOT / "scripts/patch-crosvm-gunyah-cma-base.py").read_text(encoding="utf-8")
+CMA_BACKPORT = (ROOT / "scripts/patch-crosvm-gunyah-cma-backport.py").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github/workflows/build-crosvm-avf-irq16.yml").read_text(encoding="utf-8")
 BLOCKS = [textwrap.dedent(block) for block in re.findall(
     r"python3 - <<'PY'[^\n]*\n(.*?)^          PY$", WORKFLOW, re.M | re.S
@@ -278,6 +280,30 @@ class Android17PreflightTests(unittest.TestCase):
 
     def test_team_metadata_refresh_follows_late_provider_sync(self):
         self.assertLess(WRAPPER.index('runpy.run_path(str(CORE)'), WRAPPER.index('refs, defs ='))
+
+    def test_gunyah_cma_memory_policy_matches_android17_r1(self):
+        generated_helpers = [
+            node.value for node in ast.walk(ast.parse(CMA_BASE))
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and "fn create_gunyah_cma_guest_memory(" in node.value
+            and "GUNYAH CMA: backing non-protected guest RAM" in node.value
+        ]
+        self.assertEqual(len(generated_helpers), 1)
+        helper = generated_helpers[0]
+        for token in (
+            "MemoryPolicy::USE_HUGEPAGES",
+            "if cfg.lock_guest_memory {",
+            "MemoryPolicy::LOCK_GUEST_MEMORY",
+            "if cfg.jail_config.is_none() {",
+            "MemoryPolicy::USE_PUNCHHOLE_LOCKED",
+        ):
+            self.assertIn(token, helper)
+        for stale in ("lock_guest_memory_dontneed", "USE_DONTNEED_LOCKED"):
+            self.assertNotIn(stale, helper)
+        self.assertIn("helper.count(a17_policy) != 1", CMA_BACKPORT)
+        self.assertIn("stale pre-Android-17 memory-policy API", CMA_BACKPORT)
+        self.assertIn("stale pre-Android-17 memory-policy API survived patching", WRAPPER)
 
     def test_actual_android17_toolchain_paths_are_selected(self):
         selected = self.run_selector(PREFIXES).splitlines()

@@ -271,6 +271,10 @@ post_checks = {
         "GUNYAH CMA: backing non-protected guest RAM with contiguous memory",
         "create_gunyah_cma_guest_memory",
         "&cfg.file_backed_mappings_ram",
+        "MemoryPolicy::USE_HUGEPAGES",
+        "if cfg.lock_guest_memory {",
+        "if cfg.jail_config.is_none() {",
+        "MemoryPolicy::USE_PUNCHHOLE_LOCKED",
     ),
     crosvm / "vm_memory/src/guest_memory.rs": (
         "new_with_options_and_file_fds",
@@ -287,6 +291,15 @@ post_checks = {
 }
 for path, tokens in post_checks.items():
     require_tokens(path, tokens, "post-patch crosvm source")
+
+linux_text = (crosvm / "src/crosvm/sys/linux.rs").read_text(encoding="utf-8")
+stale_memory_apis = (
+    "lock_guest_memory_dontneed",
+    "MemoryPolicy::USE_DONTNEED_LOCKED",
+)
+present = [token for token in stale_memory_apis if token in linux_text]
+if present:
+    fail(f"stale pre-Android-17 memory-policy API survived patching: {present}")
 
 print(
     "Applied Android 17 r1 crosvm/Gunyah patch chain: IRQ15 reservation + IRQFD logging + "
