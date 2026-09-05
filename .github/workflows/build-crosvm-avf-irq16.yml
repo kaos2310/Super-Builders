@@ -130,6 +130,7 @@ jobs:
               'external/golang-protobuf', 'external/starlark-go',
               'external/go-cmp', 'external/pogreb',
               'external/abseil-cpp', 'external/error_prone', 'external/googletest',
+              'external/google-highway',
               'external/sqlite', 'external/icu', 'external/jsoncpp', 'external/fmtlib',
               'external/minijail', 'external/libcap', 'external/libdrm',
               'external/expat', 'external/libffi',
@@ -179,6 +180,7 @@ jobs:
           grep -q '^platform/external/abseil-cpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/error_prone$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/googletest$' /tmp/crosvm-projects.txt
+          grep -q '^platform/external/google-highway$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/expat$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/jsoncpp$' /tmp/crosvm-projects.txt
           grep -q '^platform/external/fmtlib$' /tmp/crosvm-projects.txt
@@ -278,6 +280,11 @@ jobs:
           test -d build/soong
           test -d build/release
           test -d external/abseil-cpp
+          test "$(git -C external/google-highway rev-parse HEAD)" = "94b90ab8cb9df9b3719a64751ea2fcb62caa3391"
+          test -f external/google-highway/hwy/highway.h
+          grep -q 'name: "hwy_headers_only"' external/google-highway/Android.bp
+          grep -q '"com.android.runtime"' external/google-highway/Android.bp
+          grep -q '"//bionic:__subpackages__"' external/google-highway/Android.bp
           grep -R -q 'name: "absl_notls_defaults"' external/abseil-cpp
           grep -R -q '"com.android.runtime"' external/abseil-cpp
           test -f external/error_prone/Android.bp
@@ -408,7 +415,8 @@ jobs:
         run: python3 scripts/crosvm-android17-ci.py cache-budget "$AOSP_DIR"
 
       # Save before patching/Soong: a failed build must not discard fetched sources.
-      # This is an optional <=4 GiB cache of four Git repositories, not the 49 GiB tree.
+      # Actual saved Git cache is ~190 MiB; keep the staging allowance bounded.
+      # This is an optional <=256 MiB cache, not the complete AOSP source tree.
       - name: Save selected source Git objects
         if: steps.source-cache.outputs.cache-hit != 'true' && steps.source-cache-budget.outputs.save == 'true'
         continue-on-error: true

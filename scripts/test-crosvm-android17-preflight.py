@@ -37,6 +37,9 @@ exec(compile(ast.Module(body=functions, type_ignores=[]), "wrapper-functions", "
 SPEC = importlib.util.spec_from_file_location("crosvm_ci", ROOT / "scripts/crosvm-android17-ci.py")
 CI = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CI)
+PREP_SPEC = importlib.util.spec_from_file_location("binder_prep", ROOT / "scripts/prepare-crosvm-binder-deps.py")
+PREP = importlib.util.module_from_spec(PREP_SPEC)
+PREP_SPEC.loader.exec_module(PREP)
 NINJA = os.environ.get("CROSVM_TEST_NINJA") or shutil.which("ninja")
 RUST_BP = '''
 rust_defaults {
@@ -70,6 +73,85 @@ def fixture_directory():
 
 
 class Android17PreflightTests(unittest.TestCase):
+    def binder_fixture(self, root):
+        native = root / "frameworks/native/aidl/binder/android/os/PersistableBundle.aidl"
+        native.parent.mkdir(parents=True)
+        native.write_text('package android.os; parcelable PersistableBundle cpp_header "binder/PersistableBundle.h";')
+        sources = {}
+        for paths in PREP.BINDER_FILEGROUPS.values():
+            for path in paths:
+                package = path.rsplit('/', 1)[0].replace('/', '.')
+                sources[path] = f'package {package}; parcelable {Path(path).stem} {{ int fixture; }}'
+        sources["android/os/binder/IBinderStatsConsumerService.aidl"] += (
+            '\nimport android.os.binder.BinderCallsStats;'
+            '\nimport android.os.binder.BinderSpamStats;'
+            '\nimport android.os.binder.SingleSecondBinderStats;')
+        sources["android/app/privatecompute/IPccSandboxManagerNative.aidl"] += '\nimport android.os.PersistableBundle;'
+        upstream = '\n'.join('filegroup { name: "' + name + '", srcs: ['
+                             + ','.join('"' + path + '"' for path in paths)
+                             + '], visibility: ["//frameworks/native/libs/binder"], }'
+                             for name, paths in PREP.BINDER_FILEGROUPS.items())
+        return sources, upstream
+
+    def test_highway_provider_selected_for_both_bionic_simd_variants(self):
+        self.assertIn("external/google-highway", PREFIXES)
+        self.assertIn("platform/external/google-highway", self.run_selector(PREFIXES))
+        self.assertIn('test -f external/google-highway/hwy/highway.h', WORKFLOW)
+        with self.assertRaisesRegex(SystemExit, "external/google-highway"):
+            self.run_selector([p for p in PREFIXES if p != "external/google-highway"])
+
+    def test_binder_import_closure_uses_native_persistable_bundle(self):
+        with fixture_directory() as root:
+            sources, upstream = self.binder_fixture(root)
+            PREP.validate_binder_aidl(root, sources)
+            for name in PREP.BINDER_FILEGROUPS:
+                self.assertIn(name, PREP.binder_filegroup(upstream, name))
+            native = root / "frameworks/native/aidl/binder/android/os/PersistableBundle.aidl"
+            native.write_text('package android.os; parcelable PersistableBundle;')
+            with self.assertRaisesRegex(SystemExit, r"C\+\+ contract"):
+                PREP.validate_binder_aidl(root, sources)
+
+    def test_binder_import_and_package_drift_fail_closed(self):
+        with fixture_directory() as root:
+            sources, _ = self.binder_fixture(root)
+            name = next(iter(sources))
+            for broken in ({k: v for k, v in sources.items() if k != name},
+                           {**sources, name: sources[name] + '\nimport android.os.MissingParcelable;'},
+                           {**sources, name: sources[name].replace('package android.os.binder;', 'package wrong;')}):
+                with self.assertRaises(SystemExit):
+                    PREP.validate_binder_aidl(root, broken)
+
+    def test_binder_filegroups_reject_missing_duplicate_or_changed_sources(self):
+        with fixture_directory() as root:
+            _, upstream = self.binder_fixture(root)
+            for name in PREP.BINDER_FILEGROUPS:
+                for broken in ("", upstream + upstream,
+                               upstream.replace(PREP.BINDER_FILEGROUPS[name][0], "unreviewed.aidl")):
+                    with self.subTest(name=name), self.assertRaises(SystemExit):
+                        PREP.binder_filegroup(broken, name)
+
+    def test_generated_binder_filegroups_keep_original_sources_and_audit_identity(self):
+        with fixture_directory() as root:
+            sources, upstream = self.binder_fixture(root)
+            def fetch(project, path):
+                self.assertEqual(project, PREP.BASE_PROJECT)
+                return upstream if path == 'core/java/Android.bp' else sources[path.removeprefix('core/java/')]
+            destination = root / "generated"
+            with patch.object(PREP, "fetch_text", side_effect=fetch), contextlib.redirect_stdout(io.StringIO()):
+                PREP.prepare_native_binder_aidl(root, destination)
+                PREP.prepare_native_binder_aidl(root, destination)  # idempotent
+            for path, text in sources.items():
+                self.assertEqual((destination / path).read_text(), text)
+            audit = json.loads((destination / "source-audit.json").read_text())
+            self.assertEqual(audit["revision"], PREP.BASE_REVISION)
+            self.assertEqual(len(audit["source_sha256"]), 6)
+            self.assertIn(PREP.BASE_REVISION, PREP.gitiles_base(PREP.BASE_PROJECT, 'core/java/Android.bp'))
+
+    def test_measured_small_cache_can_restore_on_actual_runner_free_space(self):
+        # Previous 4 GiB reservation skipped a real 190 MiB cache with 1.38 GiB free.
+        self.assertLessEqual(CI.CACHE_LIMIT + 1024**3, 1484214272)
+        self.assertGreaterEqual(CI.CACHE_LIMIT, 206821818)
+
     def test_ndk_alias_uses_v2_not_highest_allocator_snapshot(self):
         # A17 graphics/Android.bp has no allocator-latest or allocator-ndk_static.
         # Its shared alias is V2 despite the allocator API also having frozen V3.

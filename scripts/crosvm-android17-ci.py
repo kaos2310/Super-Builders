@@ -16,7 +16,9 @@ import xml.etree.ElementTree as ET
 # Both halves of repo's shared-object layout are needed for reusable refs/objects.
 CACHE_PROJECTS = ("build/soong", "external/crosvm",
                   "external/rust/android-crates-io", "external/mesa3d")
-CACHE_LIMIT = 4 * 1024**3
+# Run 33970092714 saved 190 MiB but had only 1.38 GiB free on RUNNER_TEMP.
+# A speculative 4 GiB restore reservation prevented this small cache loading.
+CACHE_LIMIT = 256 * 1024**2
 ABI_TOOLS = ("header-abi-dumper", "header-abi-linker", "header-abi-diff")
 
 
@@ -204,6 +206,10 @@ def diagnostics(root, destination):
                 "out/soong.log", "out/error.log", "out/verbose.log.gz",
                 "out/soong/soong.variables", ".repo/manifests/default.xml",
                 "prebuilts/rust-toolchain/*/Android.bp",
+                "external/google-highway/Android.bp",
+                "android-17-crosvm-build-stubs/binder_native_aidl/Android.bp",
+                "android-17-crosvm-build-stubs/binder_native_aidl/source-audit.json",
+                "android-17-crosvm-build-stubs/binder_native_aidl/**/*.aidl",
                 "system/librustutils/no_std/Android.bp")
     index = []
     for pattern in patterns:

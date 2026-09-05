@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import time
 import urllib.error
@@ -15,6 +17,19 @@ import urllib.request
 TAG = os.environ.get("AOSP_TAG", "android-17.0.0_r1")
 EXPECTED_TAG = "android-17.0.0_r1"
 VIRT_PROJECT = "platform/packages/modules/Virtualization"
+BASE_PROJECT = "platform/frameworks/base"
+BASE_REVISION = "94b4c163b7dfe5ce3607f7bb8456f9573f7de57d"
+BINDER_FILEGROUPS = {
+    "android-os-binderstatsconsumer-aidl": (
+        "android/os/binder/IBinderStatsConsumerService.aidl",
+        "android/os/binder/BinderCallsStats.aidl",
+        "android/os/binder/BinderSpamStats.aidl",
+        "android/os/binder/SingleSecondBinderStats.aidl",
+    ),
+    "pcc_sandbox_manager_native_aidl": (
+        "android/app/privatecompute/IPccSandboxManagerNative.aidl",
+    ),
+}
 
 
 def fail(message: str) -> None:
@@ -37,7 +52,8 @@ def get_bytes(url: str) -> bytes:
 
 def gitiles_base(project: str, relpath: str) -> str:
     quoted = "/".join(urllib.parse.quote(part, safe="._-") for part in relpath.split("/") if part)
-    return f"https://android.googlesource.com/{project}/+/refs/tags/{TAG}/{quoted}"
+    revision = BASE_REVISION if project == BASE_PROJECT else f"refs/tags/{TAG}"
+    return f"https://android.googlesource.com/{project}/+/{revision}/{quoted}"
 
 
 def fetch_text(project: str, relpath: str) -> str:
@@ -85,6 +101,66 @@ def require_tokens(label: str, text: str, needles: tuple[str, ...]) -> None:
     missing = [needle for needle in needles if needle not in text]
     if missing:
         fail(f"{label} drift/incomplete: missing {missing}")
+
+
+def binder_filegroup(source: str, name: str) -> str:
+    # These upstream filegroups contain only literal srcs and visibility lists.
+    # Reject structural/source-list drift rather than copying a Java product graph.
+    blocks = re.findall(r'\bfilegroup\s*\{[^{}]*\}', source)
+    matches = [block for block in blocks if re.search(
+        r'\bname\s*:\s*"' + re.escape(name) + '"', block)]
+    if len(matches) != 1:
+        fail(f"expected one upstream Binder filegroup {name}, found {len(matches)}")
+    block = matches[0]
+    srcs = re.search(r'\bsrcs\s*:\s*\[([^]]*)\]', block)
+    if not srcs or tuple(re.findall(r'"([^"]+)"', srcs[1])) != BINDER_FILEGROUPS[name]:
+        fail(f"upstream Binder source list changed: {name}")
+    require_tokens(name, block, ('"//frameworks/native/libs/binder"',))
+    return block
+
+
+def validate_binder_aidl(aosp_root: Path, sources: dict[str, str]) -> None:
+    required = {path for paths in BINDER_FILEGROUPS.values() for path in paths}
+    if set(sources) != required:
+        fail(f"incomplete Binder AIDL source set: {sorted(required - set(sources))}")
+    provided, imports = set(), set()
+    for path, source in sources.items():
+        clean = re.sub(r'/\*.*?\*/|//[^\n]*', '', source, flags=re.S)
+        package = path.rsplit('/', 1)[0].replace('/', '.')
+        name = Path(path).stem
+        if not re.search(r'\bpackage\s+' + re.escape(package) + r'\s*;', clean):
+            fail(f"Binder AIDL package/path mismatch: {path}")
+        if not re.search(r'\b(?:interface|parcelable)\s+' + re.escape(name) + r'\s*\{', clean):
+            fail(f"Binder AIDL declaration missing: {path}")
+        provided.add(package + '.' + name)
+        imports.update(re.findall(r'\bimport\s+([\w.]+)\s*;', clean))
+    # PCC imports the existing native Parcelable, not frameworks/base's Java one.
+    native = aosp_root / "frameworks/native/aidl/binder/android/os/PersistableBundle.aidl"
+    require_tokens("native PersistableBundle C++ contract", native.read_text(encoding="utf-8"),
+                   ("package android.os;", "parcelable PersistableBundle", 'cpp_header "binder/PersistableBundle.h"'))
+    provided.add("android.os.PersistableBundle")
+    missing = imports - provided
+    if missing:
+        fail(f"unresolved Binder AIDL imports: {sorted(missing)}")
+
+
+def prepare_native_binder_aidl(aosp_root: Path, destination: Path) -> None:
+    upstream = fetch_text(BASE_PROJECT, "core/java/Android.bp")
+    blocks = [binder_filegroup(upstream, name) for name in BINDER_FILEGROUPS]
+    sources = {path: fetch_text(BASE_PROJECT, "core/java/" + path)
+               for paths in BINDER_FILEGROUPS.values() for path in paths}
+    validate_binder_aidl(aosp_root, sources)
+    for path, source in sources.items():
+        write(destination / path, source)
+    write(destination / "Android.bp", "// Original Android 17 native Binder filegroups.\n\n"
+          + "\n\n".join(blocks) + "\n")
+    write(destination / "source-audit.json", json.dumps({
+        "project": BASE_PROJECT, "revision": BASE_REVISION,
+        "source_sha256": {path: hashlib.sha256(text.encode()).hexdigest()
+                          for path, text in {"Android.bp": upstream, **sources}.items()},
+        "external_import": "frameworks/native/aidl/binder/android/os/PersistableBundle.aidl",
+    }, indent=2) + "\n")
+    print("Prepared original native Binder AIDL: " + ", ".join(BINDER_FILEGROUPS))
 
 
 def main() -> None:
@@ -196,9 +272,12 @@ def main() -> None:
     apex = stubs / "apexsupport"
     virt_aidl = stubs / "virtualization_aidl"
     display = stubs / "android_display_backend"
-    for path in (stats, jni, apex, virt_aidl, display):
+    binder_aidl = stubs / "binder_native_aidl"
+    for path in (stats, jni, apex, virt_aidl, display, binder_aidl):
         if path.exists():
             shutil.rmtree(path)
+
+    prepare_native_binder_aidl(aosp_root, binder_aidl)
 
     aidl_names = (
         "IStatsBootstrapAtomService.aidl",
@@ -458,6 +537,7 @@ cc_library_static {
     print(
         "Prepared crosvm provider closure: "
         "android-os-statsbootstrap-aidl, jni_headers, libapexsupport, "
+        "android-os-binderstatsconsumer-aidl, pcc_sandbox_manager_native_aidl, "
         "android.system.virtualizationcommon-ndk, "
         "android.system.virtualizationservice-ndk, "
         "android.system.virtualizationservice_internal-ndk, "
