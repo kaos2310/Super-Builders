@@ -7,11 +7,11 @@ extends a narrower ksu_handle_susfs_cmd() switch. Extract the exact pinned
 SUSFS switch into that helper and delegate to it instead of duplicating the
 command table by hand.
 
-The pinned Simonpunk KernelSU bridge also carries core/init.c hunks from a
-nearby KernelSU/SukiSU layout. Some of those hunks still apply with fuzz to
-SukiSU Ultra 40901 but silently remove native 40901 lifecycle declarations.
-Restore core/init.c from the exact checked-out SukiSU commit and port only the
-SUSFS include + susfs_init() call structurally.
+The pinned Simonpunk KernelSU bridge also carries lifecycle/profile hunks from
+a nearby KernelSU/SukiSU layout. Some of those hunks still apply with fuzz to
+SukiSU Ultra 40901 but silently remove native 40901 declarations and helpers.
+Restore core/init.c plus policy/app_profile.[ch] from the exact checked-out
+SukiSU commit, then port only the SUSFS init into core/init.c structurally.
 """
 from pathlib import Path
 import re
@@ -25,15 +25,10 @@ HELPER = "int ksu_handle_susfs_cmd(unsigned int cmd, void __user **arg)\n"
 REBOOT = "int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg)\n"
 
 
-def repair_sukisu_init(dispatch_path: Path) -> None:
-    ksu_root = dispatch_path.parents[2]
-    init_path = ksu_root / "kernel/core/init.c"
-    if not init_path.is_file():
-        raise SystemExit(f"SukiSU core/init.c missing: {init_path}")
-
+def git_show_pinned(ksu_root: Path, rel: str) -> str:
     try:
-        pristine = subprocess.run(
-            ["git", "-C", str(ksu_root), "show", "HEAD:kernel/core/init.c"],
+        return subprocess.run(
+            ["git", "-C", str(ksu_root), "show", f"HEAD:{rel}"],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -41,7 +36,21 @@ def repair_sukisu_init(dispatch_path: Path) -> None:
         ).stdout
     except subprocess.CalledProcessError as exc:
         detail = exc.stderr.strip() or str(exc)
-        raise SystemExit(f"cannot restore pinned SukiSU core/init.c: {detail}") from exc
+        raise SystemExit(f"cannot restore pinned SukiSU {rel}: {detail}") from exc
+
+
+def repair_sukisu_lifecycle(dispatch_path: Path) -> None:
+    ksu_root = dispatch_path.parents[2]
+    init_path = ksu_root / "kernel/core/init.c"
+    profile_h_path = ksu_root / "kernel/policy/app_profile.h"
+    profile_c_path = ksu_root / "kernel/policy/app_profile.c"
+    for item in (init_path, profile_h_path, profile_c_path):
+        if not item.is_file():
+            raise SystemExit(f"SukiSU lifecycle source missing: {item}")
+
+    pristine = git_show_pinned(ksu_root, "kernel/core/init.c")
+    profile_h = git_show_pinned(ksu_root, "kernel/policy/app_profile.h")
+    profile_c = git_show_pinned(ksu_root, "kernel/policy/app_profile.c")
 
     include_block = "#ifdef CONFIG_KSU_SUSFS\n#include <linux/susfs.h>\n#endif\n"
     if "#include <linux/susfs.h>" not in pristine:
@@ -67,7 +76,7 @@ def repair_sukisu_init(dispatch_path: Path) -> None:
         )
         pristine = pristine.replace(anchor, init_block + anchor, 1)
 
-    required = (
+    init_required = (
         '#include "policy/app_profile.h"',
         '#include "hook/syscall_hook_manager.h"',
         '#include "hook/lsm_hook.h"',
@@ -79,11 +88,41 @@ def repair_sukisu_init(dispatch_path: Path) -> None:
         "#include <linux/susfs.h>",
         "susfs_init();",
     )
-    missing = [token for token in required if token not in pristine]
+    missing = [token for token in init_required if token not in pristine]
     if missing:
         raise SystemExit(
             "restored SukiSU 40901 core/init.c is missing lifecycle tokens: " + ", ".join(missing)
         )
+
+    profile_h_required = (
+        '#include "linux/init.h"',
+        "void escape_to_root_for_init(void);",
+        "void __init ksu_app_profile_init(void);",
+    )
+    missing = [token for token in profile_h_required if token not in profile_h]
+    if missing:
+        raise SystemExit(
+            "restored SukiSU 40901 app_profile.h is missing lifecycle declarations: " + ", ".join(missing)
+        )
+    if "int escape_to_root_for_init(void);" in profile_h:
+        raise SystemExit("foreign SUSFS app_profile.h ABI survived pinned restoration")
+
+    profile_c_required = (
+        '#include "hook/patch_memory.h"',
+        '#include "infra/symbol_resolver.h"',
+        '#include "linux/kallsyms.h"',
+        '#include "hook/tp_marker.h"',
+        "void escape_to_root_for_init(void)",
+        "void __init ksu_app_profile_init(void)",
+        "ksu_set_task_tracepoint_flag(t);",
+    )
+    missing = [token for token in profile_c_required if token not in profile_c]
+    if missing:
+        raise SystemExit(
+            "restored SukiSU 40901 app_profile.c is missing lifecycle implementation: " + ", ".join(missing)
+        )
+    if "int escape_to_root_for_init(void)" in profile_c:
+        raise SystemExit("foreign SUSFS app_profile.c ABI survived pinned restoration")
 
     if pristine.count("#include <linux/susfs.h>") != 1:
         raise SystemExit("SUSFS include is missing or duplicated after SukiSU init restoration")
@@ -91,7 +130,11 @@ def repair_sukisu_init(dispatch_path: Path) -> None:
         raise SystemExit("susfs_init() is missing or duplicated after SukiSU init restoration")
 
     init_path.write_text(pristine, encoding="utf-8")
-    print("Restored pinned SukiSU 40901 core/init.c lifecycle and structurally re-added SUSFS init")
+    profile_h_path.write_text(profile_h, encoding="utf-8")
+    profile_c_path.write_text(profile_c, encoding="utf-8")
+    print(
+        "Restored pinned SukiSU 40901 init/app-profile lifecycle and structurally re-added SUSFS init"
+    )
 
 
 def close_brace(src: str, opening: int) -> int:
@@ -127,7 +170,7 @@ def brace_path_case(src: str, command: str, function: str) -> str:
     return src[:match.start()] + replacement + src[match.end():]
 
 
-repair_sukisu_init(path)
+repair_sukisu_lifecycle(path)
 
 if HELPER not in text:
     if text.count(REBOOT) != 1:
