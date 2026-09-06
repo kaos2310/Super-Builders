@@ -14,11 +14,17 @@ ksu_root = Path(sys.argv[1]).resolve()
 if not ksu_root.is_dir():
     raise SystemExit(f"SukiSU tree is missing: {ksu_root}")
 
+# The workflow checks out the immutable SukiSU pin directly but does not create
+# a private marker file inside the upstream repository. Treat git HEAD as the
+# authoritative source identity. If a marker exists for another caller, verify
+# it as an additional consistency check without requiring it to exist.
 marker = ksu_root / ".sukisu-ultra-source-pin"
-if not marker.is_file():
-    raise SystemExit(f"SukiSU source pin marker is missing: {marker}")
-if marker.read_text(encoding="utf-8").strip() != EXPECTED_PIN:
-    raise SystemExit("Refusing setuid normalization for an unexpected SukiSU source pin")
+if marker.is_file():
+    marked_pin = marker.read_text(encoding="utf-8").strip()
+    if marked_pin != EXPECTED_PIN:
+        raise SystemExit(
+            f"SukiSU source pin marker mismatch: expected {EXPECTED_PIN}, got {marked_pin}"
+        )
 
 head = subprocess.check_output(
     ["git", "-C", str(ksu_root), "rev-parse", "HEAD"], text=True
