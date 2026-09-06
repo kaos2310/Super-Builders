@@ -162,19 +162,35 @@ path.write_text(text, encoding="utf-8")
 print("Verified structural SukiSU v4.2.0 SUSFS initialization port")
 PY
 
+# SukiSU 4.2 modern SUSFS reboot bridge normalization
+# Simonpunk v2.3.0 installs ksu_handle_sys_reboot(); extract its exact
+# SUSFS switch into the narrow dispatcher expected by the enhanced
+# SUSFS/ZeroMount adapters rather than maintaining a second command list.
 [[ -f "$DISPATCH" ]] || { echo "::error::SukiSU SUSFS dispatcher source is missing after integration: $DISPATCH"; exit 1; }
-grep -qF 'int ksu_handle_susfs_cmd(' "$DISPATCH" || {
-  echo "::error::Pinned SUSFS integration did not install ksu_handle_susfs_cmd() into SukiSU."
+NORMALIZER="$SCRIPT_DIR/normalize-sukisu-susfs-dispatch.py"
+[[ -s "$NORMALIZER" ]] || { echo "::error::SukiSU SUSFS dispatcher normalizer is missing: $NORMALIZER"; exit 1; }
+python3 "$NORMALIZER" "$DISPATCH"
+
+SUPERCALL_C="$KSU_ROOT/kernel/supercall/supercall.c"
+SUPERCALL_H="$KSU_ROOT/kernel/supercall/supercall.h"
+REBOOT_C="$COMMON/kernel/reboot.c"
+[[ -f "$SUPERCALL_C" && -f "$SUPERCALL_H" && -f "$REBOOT_C" ]] || {
+  echo "::error::SukiSU/SUSFS reboot bridge source set is incomplete"
   exit 1
 }
-grep -qF 'CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY' "$DISPATCH" || {
-  echo "::error::Pinned SUSFS integration did not install the SUS_KSTAT dispatch into SukiSU."
+grep -qF 'int ksu_handle_susfs_cmd(' "$DISPATCH" || { echo "::error::SUSFS split dispatcher normalization failed"; exit 1; }
+grep -qF 'int ksu_handle_sys_reboot(' "$DISPATCH" || { echo "::error::Modern SukiSU reboot dispatcher is missing"; exit 1; }
+grep -qF 'return ksu_handle_susfs_cmd(cmd, arg);' "$DISPATCH" || { echo "::error::Modern reboot dispatcher does not delegate SUSFS commands"; exit 1; }
+grep -qF '#include <linux/susfs.h>' "$DISPATCH" || { echo "::error::SUSFS dispatch include is missing"; exit 1; }
+grep -qF 'CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY' "$DISPATCH" || { echo "::error::SUS_KSTAT dispatch is missing"; exit 1; }
+grep -qF 'int ksu_supercall_reboot_handler(void __user **arg)' "$SUPERCALL_C" || { echo "::error::ksu_supercall_reboot_handler() implementation is missing"; exit 1; }
+grep -qF 'int ksu_supercall_reboot_handler(void __user **arg);' "$SUPERCALL_H" || { echo "::error::ksu_supercall_reboot_handler() declaration is missing"; exit 1; }
+if grep -qF 'reboot_handler_pre' "$SUPERCALL_C"; then
+  echo "::error::Legacy reboot kprobe survived the direct SUSFS reboot integration"
   exit 1
-}
-grep -qF 'config KSU_SUSFS' "$KSU_ROOT/kernel/Kconfig" || {
-  echo "::error::Pinned SUSFS integration did not install CONFIG_KSU_SUSFS into SukiSU Kconfig."
-  exit 1
-}
+fi
+grep -qF 'ksu_handle_sys_reboot' "$REBOOT_C" || { echo "::error::kernel/reboot.c is not wired to the SukiSU/SUSFS dispatcher"; exit 1; }
+grep -qF 'config KSU_SUSFS' "$KSU_ROOT/kernel/Kconfig" || { echo "::error::CONFIG_KSU_SUSFS integration is missing"; exit 1; }
 grep -qF 'susfs_init();' "$INIT_C"
 
 # Reject accidental patch leftovers before the enhanced/ZeroMount adapters run.

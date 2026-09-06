@@ -8,7 +8,7 @@ DST = ROOT / ".github/workflows/build-sukisu-v420.yml"
 RUN = ROOT / ".github/workflows/run-resukisu-35057-strict.yml"
 PIN_FILE = ROOT / "android14-6.1/sukisu-pin.txt"
 
-SUKISU_PIN = "85eb4a95b8a61d756ecf53b9c5785e48e1b15039"
+SUKISU_PIN = "9fbe8fe8ca90c62c259c5894bf96d02ac31209b9"
 SUKISU_TAG = "v4.2.0"
 SUKISU_MANAGER_HASH = "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef"
 
@@ -73,7 +73,7 @@ setup_block = r'''    - name: Setup SukiSU Ultra v4.2.0
         set -euo pipefail
         PIN="${SUKISU_COMMIT:-$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/sukisu-pin.txt" 2>/dev/null || true)}"
         [ -n "$PIN" ] || { echo "::error::SukiSU Ultra commit pin is required"; exit 1; }
-        [ "$PIN" = "85eb4a95b8a61d756ecf53b9c5785e48e1b15039" ] || {
+        [ "$PIN" = "9fbe8fe8ca90c62c259c5894bf96d02ac31209b9" ] || {
           echo "::error::This workflow is locked to SukiSU Ultra v4.2.0 ($PIN)"
           exit 1
         }
@@ -172,7 +172,7 @@ verify_block = r'''    - name: Verify SukiSU Ultra v4.2.0 + KPM build identity
         set -euo pipefail
         test "$KSU_VARIANT" = "SukiSU"
         PIN="${EXPECTED_PIN:-$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/sukisu-pin.txt")}"
-        test "$PIN" = "85eb4a95b8a61d756ecf53b9c5785e48e1b15039"
+        test "$PIN" = "9fbe8fe8ca90c62c259c5894bf96d02ac31209b9"
         test "$(git -C "$KERNEL_ROOT/$KSU_DIR" rev-parse HEAD)" = "$PIN"
         grep -qx 'config KPM' "$KERNEL_ROOT/$KSU_DIR/kernel/Kconfig"
         grep -qF 'obj-$(CONFIG_KPM) += kpm/kpm.o' "$KERNEL_ROOT/$KSU_DIR/kernel/Kbuild"

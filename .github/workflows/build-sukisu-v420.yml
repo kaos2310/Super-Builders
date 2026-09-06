@@ -465,7 +465,7 @@ jobs:
         set -euo pipefail
         PIN="${SUKISU_COMMIT:-$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/sukisu-pin.txt" 2>/dev/null || true)}"
         [ -n "$PIN" ] || { echo "::error::SukiSU Ultra commit pin is required"; exit 1; }
-        [ "$PIN" = "85eb4a95b8a61d756ecf53b9c5785e48e1b15039" ] || {
+        [ "$PIN" = "9fbe8fe8ca90c62c259c5894bf96d02ac31209b9" ] || {
           echo "::error::This workflow is locked to SukiSU Ultra v4.2.0 ($PIN)"
           exit 1
         }
@@ -849,7 +849,7 @@ jobs:
         set -euo pipefail
         test "$KSU_VARIANT" = "SukiSU"
         PIN="${EXPECTED_PIN:-$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/sukisu-pin.txt")}"
-        test "$PIN" = "85eb4a95b8a61d756ecf53b9c5785e48e1b15039"
+        test "$PIN" = "9fbe8fe8ca90c62c259c5894bf96d02ac31209b9"
         test "$(git -C "$KERNEL_ROOT/$KSU_DIR" rev-parse HEAD)" = "$PIN"
         grep -qx 'config KPM' "$KERNEL_ROOT/$KSU_DIR/kernel/Kconfig"
         grep -qF 'obj-$(CONFIG_KPM) += kpm/kpm.o' "$KERNEL_ROOT/$KSU_DIR/kernel/Kbuild"
