@@ -1,0 +1,49 @@
+name: Generate SukiSU Ultra v4.2.0 Strict Workflow
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/sukisu-ultra-v4.2.0-susfs-2.3.0
+    paths:
+      - '.github/workflows/generate-sukisu-v420-strict.yml'
+      - 'tools/migrate-sukisu-v420-strict.py'
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Generate SukiSU v4.2.0 + KPM strict pipeline
+        run: |
+          set -euo pipefail
+          python3 tools/migrate-sukisu-v420-strict.py
+          git diff --check
+          grep -qF 'name: Build SukiSU Ultra v4.2.0' .github/workflows/build-sukisu-v420.yml
+          grep -qF 'add_kpm: true' .github/workflows/run-resukisu-35057-strict.yml
+          grep -qF 'sukisu_commit: 85eb4a95b8a61d756ecf53b9c5785e48e1b15039' .github/workflows/run-resukisu-35057-strict.yml
+          grep -qF 'EXPECTED_SUSFS_VERSION="v2.3.0"' .github/actions/susfs-v2.2/action.yml
+          grep -qF 'CONFIG_KPM=y' android14-6.1/defconfig.fragment
+
+      - name: Commit generated SukiSU strict workflow
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            .github/workflows/build-sukisu-v420.yml \
+            .github/workflows/run-resukisu-35057-strict.yml \
+            android14-6.1/sukisu-pin.txt
+          if git diff --cached --quiet; then
+            echo 'Generated files already current.'
+            exit 0
+          fi
+          git commit -m 'build: port ZZHL strict pipeline to SukiSU Ultra v4.2.0 + KPM'
+          git push origin HEAD:agent/sukisu-ultra-v4.2.0-susfs-2.3.0
