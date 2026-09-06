@@ -8,6 +8,7 @@ on:
     paths:
       - '.github/workflows/generate-sukisu-v420-strict.yml'
       - 'tools/migrate-sukisu-v420-strict.py'
+      - 'android14-6.1/build-helpers/normalize-sukisu-susfs-dispatch.py'
 
 permissions:
   contents: write
@@ -21,28 +22,114 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate SukiSU v4.2.0 + KPM strict pipeline
+      - name: Update SukiSU 40901 and SUSFS bridge
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('tools/migrate-sukisu-v420-strict.py')
-          text = path.read_text(encoding='utf-8')
-          old = 'out, count = re.subn(pattern, repl, text, count=1, flags=re.S)'
-          new = 'out, count = re.subn(pattern, lambda _match: repl, text, count=1, flags=re.S)'
-          if old not in text:
-              raise SystemExit('regex_once implementation anchor not found')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          old_pin = '85eb4a95b8a61d756ecf53b9c5785e48e1b15039'
+          new_pin = '9fbe8fe8ca90c62c259c5894bf96d02ac31209b9'
+
+          for name in (
+              '.github/workflows/build-sukisu-v420.yml',
+              '.github/workflows/run-resukisu-35057-strict.yml',
+              'tools/migrate-sukisu-v420-strict.py',
+          ):
+              path = Path(name)
+              text = path.read_text(encoding='utf-8')
+              count = text.count(old_pin)
+              if count < 1:
+                  raise SystemExit(f'{name}: old SukiSU pin not found')
+              path.write_text(text.replace(old_pin, new_pin), encoding='utf-8')
+              print(f'{name}: replaced {count} SukiSU pin occurrence(s)')
+
+          Path('android14-6.1/sukisu-pin.txt').write_text(new_pin + '\n', encoding='utf-8')
+
+          launcher = Path('.github/workflows/run-resukisu-35057-strict.yml')
+          run = launcher.read_text(encoding='utf-8')
+          normalizer_path = "      - 'android14-6.1/build-helpers/normalize-sukisu-susfs-dispatch.py'\n"
+          if normalizer_path not in run:
+              anchor = "      - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh'\n"
+              if run.count(anchor) != 1:
+                  raise SystemExit('launcher helper path anchor changed')
+              run = run.replace(anchor, anchor + normalizer_path, 1)
+              launcher.write_text(run, encoding='utf-8')
+
+          wrapper = Path('android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh')
+          text = wrapper.read_text(encoding='utf-8')
+          marker = '# SukiSU 4.2 modern SUSFS reboot bridge normalization'
+          if marker not in text:
+              old = '''[[ -f "$DISPATCH" ]] || { echo "::error::SukiSU SUSFS dispatcher source is missing after integration: $DISPATCH"; exit 1; }
+          grep -qF 'int ksu_handle_susfs_cmd(' "$DISPATCH" || {
+            echo "::error::Pinned SUSFS integration did not install ksu_handle_susfs_cmd() into SukiSU."
+            exit 1
+          }
+          grep -qF 'CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY' "$DISPATCH" || {
+            echo "::error::Pinned SUSFS integration did not install the SUS_KSTAT dispatch into SukiSU."
+            exit 1
+          }
+          grep -qF 'config KSU_SUSFS' "$KSU_ROOT/kernel/Kconfig" || {
+            echo "::error::Pinned SUSFS integration did not install CONFIG_KSU_SUSFS into SukiSU Kconfig."
+            exit 1
+          }
+          grep -qF 'susfs_init();' "$INIT_C"
+          '''
+              new = '''# SukiSU 4.2 modern SUSFS reboot bridge normalization
+          # Simonpunk v2.3.0 installs ksu_handle_sys_reboot(); extract its exact
+          # SUSFS switch into the narrow dispatcher expected by the enhanced
+          # SUSFS/ZeroMount adapters rather than maintaining a second command list.
+          [[ -f "$DISPATCH" ]] || { echo "::error::SukiSU SUSFS dispatcher source is missing after integration: $DISPATCH"; exit 1; }
+          NORMALIZER="$SCRIPT_DIR/normalize-sukisu-susfs-dispatch.py"
+          [[ -s "$NORMALIZER" ]] || { echo "::error::SukiSU SUSFS dispatcher normalizer is missing: $NORMALIZER"; exit 1; }
+          python3 "$NORMALIZER" "$DISPATCH"
+
+          SUPERCALL_C="$KSU_ROOT/kernel/supercall/supercall.c"
+          SUPERCALL_H="$KSU_ROOT/kernel/supercall/supercall.h"
+          REBOOT_C="$COMMON/kernel/reboot.c"
+          [[ -f "$SUPERCALL_C" && -f "$SUPERCALL_H" && -f "$REBOOT_C" ]] || {
+            echo "::error::SukiSU/SUSFS reboot bridge source set is incomplete"
+            exit 1
+          }
+          grep -qF 'int ksu_handle_susfs_cmd(' "$DISPATCH" || { echo "::error::SUSFS split dispatcher normalization failed"; exit 1; }
+          grep -qF 'int ksu_handle_sys_reboot(' "$DISPATCH" || { echo "::error::Modern SukiSU reboot dispatcher is missing"; exit 1; }
+          grep -qF 'return ksu_handle_susfs_cmd(cmd, arg);' "$DISPATCH" || { echo "::error::Modern reboot dispatcher does not delegate SUSFS commands"; exit 1; }
+          grep -qF '#include <linux/susfs.h>' "$DISPATCH" || { echo "::error::SUSFS dispatch include is missing"; exit 1; }
+          grep -qF 'CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY' "$DISPATCH" || { echo "::error::SUS_KSTAT dispatch is missing"; exit 1; }
+          grep -qF 'int ksu_supercall_reboot_handler(void __user **arg)' "$SUPERCALL_C" || { echo "::error::ksu_supercall_reboot_handler() implementation is missing"; exit 1; }
+          grep -qF 'int ksu_supercall_reboot_handler(void __user **arg);' "$SUPERCALL_H" || { echo "::error::ksu_supercall_reboot_handler() declaration is missing"; exit 1; }
+          if grep -qF 'reboot_handler_pre' "$SUPERCALL_C"; then
+            echo "::error::Legacy reboot kprobe survived the direct SUSFS reboot integration"
+            exit 1
+          fi
+          grep -qF 'ksu_handle_sys_reboot' "$REBOOT_C" || { echo "::error::kernel/reboot.c is not wired to the SukiSU/SUSFS dispatcher"; exit 1; }
+          grep -qF 'config KSU_SUSFS' "$KSU_ROOT/kernel/Kconfig" || { echo "::error::CONFIG_KSU_SUSFS integration is missing"; exit 1; }
+          grep -qF 'susfs_init();' "$INIT_C"
+          '''
+              if old not in text:
+                  raise SystemExit('enhanced SUSFS wrapper verification anchor changed')
+              wrapper.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          for name in (
+              '.github/workflows/build-sukisu-v420.yml',
+              '.github/workflows/run-resukisu-35057-strict.yml',
+              'tools/migrate-sukisu-v420-strict.py',
+              'android14-6.1/sukisu-pin.txt',
+          ):
+              data = Path(name).read_text(encoding='utf-8')
+              if old_pin in data or new_pin not in data:
+                  raise SystemExit(f'{name}: final 40901 pin audit failed')
           PY
-          python3 tools/migrate-sukisu-v420-strict.py
+
           git diff --check
-          grep -qF 'name: Build SukiSU Ultra v4.2.0' .github/workflows/build-sukisu-v420.yml
-          grep -qF 'add_kpm: true' .github/workflows/run-resukisu-35057-strict.yml
-          grep -qF 'sukisu_commit: 85eb4a95b8a61d756ecf53b9c5785e48e1b15039' .github/workflows/run-resukisu-35057-strict.yml
+          grep -qF '9fbe8fe8ca90c62c259c5894bf96d02ac31209b9' .github/workflows/build-sukisu-v420.yml
+          grep -qF 'sukisu_commit: 9fbe8fe8ca90c62c259c5894bf96d02ac31209b9' .github/workflows/run-resukisu-35057-strict.yml
+          grep -qxF '9fbe8fe8ca90c62c259c5894bf96d02ac31209b9' android14-6.1/sukisu-pin.txt
+          grep -qF 'normalize-sukisu-susfs-dispatch.py' android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh
           grep -qF 'EXPECTED_SUSFS_VERSION="v2.3.0"' .github/actions/susfs-v2.2/action.yml
           grep -qF 'CONFIG_KPM=y' android14-6.1/defconfig.fragment
 
-      - name: Commit generated SukiSU strict workflow
+      - name: Commit SukiSU 40901 strict workflow update
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
@@ -50,10 +137,12 @@ jobs:
           git add \
             .github/workflows/build-sukisu-v420.yml \
             .github/workflows/run-resukisu-35057-strict.yml \
-            android14-6.1/sukisu-pin.txt
+            android14-6.1/sukisu-pin.txt \
+            android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh \
+            tools/migrate-sukisu-v420-strict.py
           if git diff --cached --quiet; then
-            echo 'Generated files already current.'
+            echo 'SukiSU 40901 files already current.'
             exit 0
           fi
-          git commit -m 'build: port ZZHL strict pipeline to SukiSU Ultra v4.2.0 + KPM'
+          git commit -m 'fix: update SukiSU to 40901 and normalize SUSFS reboot bridge'
           git push origin HEAD:agent/sukisu-ultra-v4.2.0-susfs-2.3.0
