@@ -24,6 +24,16 @@ jobs:
       - name: Generate SukiSU v4.2.0 + KPM strict pipeline
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/migrate-sukisu-v420-strict.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'out, count = re.subn(pattern, repl, text, count=1, flags=re.S)'
+          new = 'out, count = re.subn(pattern, lambda _match: repl, text, count=1, flags=re.S)'
+          if old not in text:
+              raise SystemExit('regex_once implementation anchor not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
           python3 tools/migrate-sukisu-v420-strict.py
           git diff --check
           grep -qF 'name: Build SukiSU Ultra v4.2.0' .github/workflows/build-sukisu-v420.yml
