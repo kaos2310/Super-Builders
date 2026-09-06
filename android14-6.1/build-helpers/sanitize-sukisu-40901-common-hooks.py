@@ -141,6 +141,204 @@ def sanitize_file(rel: str, tokens: tuple[str, ...]) -> int:
     return removed
 
 
+def function_span(text: str, signature_re: str, label: str) -> tuple[int, int]:
+    match = re.search(signature_re, text, flags=re.MULTILINE)
+    if not match:
+        raise SystemExit(f"Cannot locate {label}")
+    brace = text.find("{", match.end())
+    if brace < 0:
+        raise SystemExit(f"Cannot locate opening brace for {label}")
+
+    depth = 0
+    for pos in range(brace, len(text)):
+        char = text[pos]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                end = pos + 1
+                if end < len(text) and text[end] == "\n":
+                    end += 1
+                return match.start(), end
+    raise SystemExit(f"Cannot locate closing brace for {label}")
+
+
+def normalize_open_faccessat() -> None:
+    """Repair residue left by removing the generic KSU faccessat callback.
+
+    Simonpunk's SUSFS bridge rewrites do_faccessat around a struct filename /
+    generic KSU callback path. SukiSU 40901 owns faccessat through its native
+    syscall hook manager. Removing the generic callback can therefore leave an
+    orphan fname declaration and, on Samsung 6.1, the retry label without the
+    original user_path_at() assignment. Restore that AOSP path fail-closed while
+    retaining all SUSFS VFS/Unicode/hidden-name functionality.
+    """
+    path = COMMON / "fs/open.c"
+    text = path.read_text(encoding="utf-8")
+    start, end = function_span(
+        text,
+        r"^static\s+(?:long|int)\s+do_faccessat\s*\(",
+        "fs/open.c do_faccessat()",
+    )
+    func = text[start:end]
+    changed = False
+
+    if "ksu_handle_faccessat(" in func:
+        raise SystemExit("Generic ksu_handle_faccessat() survived inside do_faccessat()")
+
+    # The #113 compile log proved that the prior guarded-block sanitizer could
+    # leave this declaration after deleting every use of fname.
+    if re.search(r"\bfname\b", func):
+        fname_uses = len(re.findall(r"\bfname\b", func))
+        if fname_uses == 1:
+            func, count = re.subn(
+                r"^[ \t]*struct\s+filename\s*\*\s*fname\s*=\s*NULL\s*;\s*\n",
+                "",
+                func,
+                count=1,
+                flags=re.MULTILINE,
+            )
+            if count != 1:
+                raise SystemExit(
+                    "Orphan fname remains in do_faccessat(), but its declaration is not recognized"
+                )
+            changed = True
+            print("Removed orphan generic-KSU fname declaration from fs/open.c do_faccessat()")
+        else:
+            raise SystemExit(
+                f"Unexpected fname residue in do_faccessat(): {fname_uses} references"
+            )
+
+    lookup_assignments = (
+        "res = user_path_at(dfd, filename, lookup_flags, &path);",
+        "res = filename_lookup(dfd, filename, lookup_flags, &path, NULL);",
+    )
+    if not any(token in func for token in lookup_assignments):
+        retry_count = len(re.findall(r"^[ \t]*retry:\s*$", func, flags=re.MULTILINE))
+        if retry_count != 1:
+            raise SystemExit(
+                "do_faccessat() lost its path lookup and does not have exactly one retry label"
+            )
+        func, count = re.subn(
+            r"(^[ \t]*retry:\s*\n)",
+            r"\1\tres = user_path_at(dfd, filename, lookup_flags, &path);\n",
+            func,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        if count != 1:
+            raise SystemExit("Failed to restore user_path_at() in do_faccessat()")
+        changed = True
+        print("Restored native AOSP user_path_at() assignment in fs/open.c do_faccessat()")
+
+    # The enhanced Unicode filter calls this helper later in open.c. The broad
+    # generic-KSU guard removed by the sanitizer can also carry the SUSFS header
+    # include, so restore the header independently of the callback glue.
+    if "susfs_check_unicode_bypass(" in text:
+        susfs_header = COMMON / "include/linux/susfs.h"
+        if not susfs_header.is_file():
+            raise SystemExit("SUSFS header is missing while Unicode filter is active")
+        if "susfs_check_unicode_bypass" not in susfs_header.read_text(encoding="utf-8"):
+            raise SystemExit("SUSFS header lacks susfs_check_unicode_bypass() declaration")
+
+        if "#include <linux/susfs.h>" not in text:
+            include_block = (
+                "#ifdef CONFIG_KSU_SUSFS\n"
+                "#include <linux/susfs.h>\n"
+                "#endif\n"
+            )
+            anchors = (
+                '#include "internal.h"\n',
+                "#include <linux/mnt_idmapping.h>\n",
+                "#include <linux/compat.h>\n",
+            )
+            anchor = next((item for item in anchors if text.count(item) == 1), None)
+            if anchor is None:
+                raise SystemExit("Cannot locate a unique fs/open.c SUSFS include anchor")
+            text = text.replace(anchor, anchor + "\n" + include_block, 1)
+            changed = True
+            print("Restored <linux/susfs.h> include required by fs/open.c Unicode filter")
+
+    if changed:
+        fresh_start, fresh_end = function_span(
+            text,
+            r"^static\s+(?:long|int)\s+do_faccessat\s*\(",
+            "fs/open.c do_faccessat() after header reconciliation",
+        )
+        current_func = text[fresh_start:fresh_end]
+        if current_func != func:
+            text = text[:fresh_start] + func + text[fresh_end:]
+        path.write_text(text, encoding="utf-8")
+
+    final = path.read_text(encoding="utf-8")
+    fstart, fend = function_span(
+        final,
+        r"^static\s+(?:long|int)\s+do_faccessat\s*\(",
+        "final fs/open.c do_faccessat()",
+    )
+    final_func = final[fstart:fend]
+    if re.search(r"\bfname\b", final_func):
+        raise SystemExit("Orphan fname survived final do_faccessat() reconciliation")
+    if not any(token in final_func for token in lookup_assignments):
+        raise SystemExit("Final do_faccessat() has no initialized path lookup")
+    if "susfs_check_unicode_bypass(" in final and "#include <linux/susfs.h>" not in final:
+        raise SystemExit("Final fs/open.c Unicode filter has no SUSFS declaration include")
+
+
+def normalize_sukisu_init_escape_api() -> None:
+    """Keep the exact pinned SukiSU 40901 void API and adapt SUSFS call sites."""
+    sucompat = KSU_ROOT / "kernel/feature/sucompat.c"
+    app_c = KSU_ROOT / "kernel/policy/app_profile.c"
+    app_h = KSU_ROOT / "kernel/policy/app_profile.h"
+    for path in (sucompat, app_c, app_h):
+        if not path.is_file():
+            raise SystemExit(f"Missing pinned SukiSU source: {path}")
+
+    app_c_text = app_c.read_text(encoding="utf-8")
+    app_h_text = app_h.read_text(encoding="utf-8")
+    if not re.search(r"^void\s+escape_to_root_for_init\s*\(void\)\s*$", app_c_text, re.MULTILINE):
+        raise SystemExit(
+            "Pinned SukiSU 40901 escape_to_root_for_init() implementation is not the expected void API"
+        )
+    if "void escape_to_root_for_init(void);" not in app_h_text:
+        raise SystemExit(
+            "Pinned SukiSU 40901 app_profile.h does not expose the expected void escape API"
+        )
+    if "int escape_to_root_for_init(void)" in app_c_text or "int escape_to_root_for_init(void);" in app_h_text:
+        raise SystemExit("Simonpunk int escape_to_root_for_init ABI leaked into pinned SukiSU 40901")
+
+    text = sucompat.read_text(encoding="utf-8")
+    pattern = re.compile(
+        r"(?P<indent>^[ \t]*)ret\s*=\s*escape_to_root_for_init\(\);\s*\n"
+        r"(?P=indent)if\s*\(ret\)\s*\{\s*\n"
+        r"(?P=indent)[ \t]+pr_err\(\"escape_to_root_for_init\(\) failed: %d\\n\",\s*ret\);\s*\n"
+        r"(?P=indent)[ \t]+return\s+ret;\s*\n"
+        r"(?P=indent)\}\s*\n",
+        re.MULTILINE,
+    )
+    text, count = pattern.subn(
+        r"\g<indent>escape_to_root_for_init();\n\g<indent>ret = 0;\n",
+        text,
+        count=1,
+    )
+    if count == 1:
+        sucompat.write_text(text, encoding="utf-8")
+        print(
+            "Adapted Simonpunk sucompat init escape call to pinned SukiSU 40901 void API"
+        )
+    elif "ret = escape_to_root_for_init();" in text:
+        raise SystemExit(
+            "Found incompatible escape_to_root_for_init() assignment with unexpected control flow"
+        )
+
+    final = sucompat.read_text(encoding="utf-8")
+    if "ret = escape_to_root_for_init();" in final:
+        raise SystemExit("Incompatible SukiSU init escape assignment survived reconciliation")
+    if "ksu_handle_execveat_init(" in final and "escape_to_root_for_init();" not in final:
+        raise SystemExit("SUSFS init exec path lost escape_to_root_for_init() entirely")
+
+
 if not COMMON.is_dir():
     raise SystemExit(f"Kernel common tree is missing: {COMMON}")
 if not KSU_ROOT.is_dir():
@@ -149,6 +347,9 @@ if not KSU_ROOT.is_dir():
 removed_total = 0
 for relative, tokens in TARGETS.items():
     removed_total += sanitize_file(relative, tokens)
+
+normalize_open_faccessat()
+normalize_sukisu_init_escape_api()
 
 # SukiSU 40901's SUSFS setuid marker calls is_zygote() through selinux helpers.
 # Keep that dependency explicit before the later verifier runs.
