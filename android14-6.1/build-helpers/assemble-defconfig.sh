@@ -192,7 +192,9 @@ if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" == "SukiSU" ]]; then
 
   # namei.c already contains unrelated SUS_PATH changes from the reconciliation.
   # Import only the Open Redirect insertion hunks to avoid colliding with them.
-  apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
+  # Enhanced SUSFS may structurally rewrite namei.c before config assembly.
+  # Replay these official hunks as recovery-only; the strict semantic audit below remains fail-closed.
+  apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
     'fs/namei.c' "$TARGETED_DIR/namei-open-redirect.patch" \
     'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path'
 
