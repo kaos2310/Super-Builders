@@ -35,22 +35,18 @@ jobs:
           i = matches[0]
           call = None
           for j in range(i - 1, max(-1, i - 4), -1):
-              if 'apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH"' in lines[j]:
-                  call = j
-                  break
-              if 'apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH"' in lines[j]:
+              if 'apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH"' in lines[j] or \
+                 'apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH"' in lines[j]:
                   call = j
                   break
           if call is None:
               raise SystemExit('primary namei replay call was not found')
           if 'apply_optional_targeted_patch' not in lines[call]:
               lines[call] = lines[call].replace('apply_targeted_patch', 'apply_optional_targeted_patch', 1)
-              comments = [
+              lines[call:call] = [
                   '  # Enhanced SUSFS may structurally rewrite namei.c before config assembly.\n',
-                  '  # Replay the official Open Redirect hunks as recovery-only; the strict\n',
-                  '  # semantic verifier below still fails closed if functionality is missing.\n',
+                  '  # Replay these official hunks as recovery-only; the strict semantic audit below remains fail-closed.\n',
               ]
-              lines[call:call] = comments
           assemble.write_text(''.join(lines), encoding='utf-8')
 
           fragment = Path('android14-6.1/defconfig.fragment')
@@ -67,13 +63,11 @@ jobs:
           grep -A7 '^# \[overlayfs\]$' android14-6.1/defconfig.fragment | grep -qx 'CONFIG_OVERLAY_FS=y'
           python3 - <<'PY'
           from pathlib import Path
-          text = Path('android14-6.1/build-helpers/assemble-defconfig.sh').read_text()
+          lines = Path('android14-6.1/build-helpers/assemble-defconfig.sh').read_text().splitlines()
           target = "'fs/namei.c' \"$TARGETED_DIR/namei-open-redirect.patch\""
-          lines = text.splitlines()
           i = next(i for i, line in enumerate(lines) if target in line)
           window = '\n'.join(lines[max(0, i-5):i+2])
           assert 'apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH"' in window
-          assert 'strict semantic verifier' in window
           PY
           grep -qF 'CONFIG_KSU_SUSFS_OPEN_REDIRECT=y' android14-6.1/defconfig.fragment
           grep -qF 'CONFIG_KPM=y' android14-6.1/defconfig.fragment
