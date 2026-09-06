@@ -88,6 +88,19 @@ git -C "$KERNEL_ROOT/common" diff -- \
   drivers/virt/gunyah/Makefile \
   modules.bzl > "$MODULE_DIR/source.diff"
 
+# git diff can be empty after CI commits its generated tree. Save the actual
+# final memory-path sources independently and validate them against the repair.
+python3 "$SCRIPT_DIR/patch-e3q-gunyah-reclaim.py" "$KERNEL_ROOT/common" --check
+mkdir -p "$MODULE_DIR/final-source"
+for source_file in gunyah_qcom.c gunyah_platform_hooks.c rsc_mgr_rpc.c \
+                   vm_mgr_mm.c vm_mgr.c vm_mgr.h e3q_mem_reclaim.h; do
+  cp "$KERNEL_ROOT/common/drivers/virt/gunyah/$source_file" "$MODULE_DIR/final-source/$source_file"
+done
+(cd "$MODULE_DIR/final-source" && sha256sum *.c *.h) > "$MODULE_DIR/final-source.sha256"
+printf '%s\n' 'E3Q_RECLAIM_CONTRACT=1' \
+  'REQUIRES_MATCHING_KERNEL_AND_GUNYAH_QCOM=1' \
+  'QUARANTINE_RECOVERY=REBOOT_ONLY' > "$MODULE_DIR/reclaim-contract.env"
+
 strings "$MODULE_DIR/gunyah_qcom.ko" | grep -qF "vermagic=${EXPECTED_RELEASE}"
 strings "$MODULE_DIR/gunyah_qcom.ko" | grep -qF 'modversions'
 strings "$MODULE_DIR/gunyah_qcom.ko" | grep -qF 'aarch64'

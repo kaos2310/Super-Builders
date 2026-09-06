@@ -445,6 +445,15 @@ jobs:
         python3 "$HELPERS/patch-e3q-gunyah-adaptive-backing.py" "$KERNEL_ROOT/common"
         echo 'GUNYAH_ADAPTIVE_BACKING=1' >> "$GITHUB_ENV"
 
+    - name: Apply fail-closed Gunyah reclaim and test exact generated C
+      if: inputs.device_codename == 'e3q'
+      run: |
+        set -euo pipefail
+        HELPERS="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers"
+        python3 "$HELPERS/patch-e3q-gunyah-reclaim.py" "$KERNEL_ROOT/common"
+        python3 "$HELPERS/test-e3q-gunyah-reclaim.py" --kernel "$KERNEL_ROOT/common"
+        echo 'GUNYAH_RECLAIM_V1=1' >> "$GITHUB_ENV"
+
     - name: Extract Sublevel
       env:
         INPUT_SUB_LEVEL: ${{ inputs.sub_level }}
@@ -458,6 +467,7 @@ jobs:
 
         ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-ReSukiSU-${RESUKISU_VERSION_LABEL}"
         [[ "${GUNYAH_ADAPTIVE_BACKING:-0}" == "1" ]] && ARTIFACT_BASE+="-GunyahAdaptive-v1"
+        [[ "${GUNYAH_RECLAIM_V1:-0}" == "1" ]] && ARTIFACT_BASE+="-Reclaim-v1"
         [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]] && ARTIFACT_BASE+="-OpenRedirect-Test"
         if [[ "${{ inputs.kmi_mode }}" != "runtime-compat" ]]; then
           ARTIFACT_BASE+="-KMI-${{ inputs.kmi_profile }}-${{ inputs.kmi_mode }}"
