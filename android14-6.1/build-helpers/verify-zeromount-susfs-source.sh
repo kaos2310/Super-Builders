@@ -4,135 +4,20 @@ set -euo pipefail
 COMMON_TREE="${1:?common kernel tree}"
 KSU_TREE="${2:?KernelSU tree}"
 
-# Simonpunk's generic KernelSU bridge carries direct syscall/VFS callback glue
-# for nearby KernelSU/SukiSU layouts. SukiSU Ultra 40901 already owns these
-# syscall paths through its native hook manager / init-rc syscall-table hooks.
-# Remove only guarded blocks that contain known generic KSU callback tokens.
-# This deliberately covers both the generic SUSFS guard and the SUS_SU guard,
-# because current SUSFS can carry the same direct hook under either family.
-python3 - "$COMMON_TREE" <<'PY'
-from pathlib import Path
-import re
-import sys
+# Verification is intentionally read-only. SukiSU 40901 source reconciliation
+# must complete before ZeroMount is applied.
 
-root = Path(sys.argv[1])
+[[ -d "$COMMON_TREE" ]] || {
+  echo "::error::Kernel common tree not found: $COMMON_TREE"
+  exit 1
+}
+[[ -d "$KSU_TREE" ]] || {
+  echo "::error::KernelSU tree not found: $KSU_TREE"
+  exit 1
+}
 
-GUARD_RE = re.compile(
-    r"^#\s*(?:"
-    r"ifdef\s+(?:CONFIG_KSU|CONFIG_KSU_MANUAL_HOOK|CONFIG_KSU_SUSFS|CONFIG_KSU_SUSFS_SUS_SU)"
-    r"|if\s+defined\s*\(\s*(?:CONFIG_KSU|CONFIG_KSU_MANUAL_HOOK|CONFIG_KSU_SUSFS|CONFIG_KSU_SUSFS_SUS_SU)\s*\)"
-    r")\s*$"
-)
-
-
-def strip_guarded_blocks_with_tokens(rel, tokens):
-    p = root / rel
-    if not p.is_file():
-        raise SystemExit(f"Missing common source: {rel}")
-
-    lines = p.read_text(encoding="utf-8").splitlines(keepends=True)
-    out = []
-    removed = 0
-    i = 0
-
-    while i < len(lines):
-        guard = lines[i].strip()
-        if not GUARD_RE.fullmatch(guard):
-            out.append(lines[i])
-            i += 1
-            continue
-
-        depth = 1
-        j = i + 1
-        while j < len(lines) and depth:
-            directive = lines[j].strip()
-            if re.match(r"^#\s*(?:if|ifdef|ifndef)\b", directive):
-                depth += 1
-            elif re.match(r"^#\s*endif\b", directive):
-                depth -= 1
-            j += 1
-
-        if depth:
-            raise SystemExit(f"Unterminated guarded KSU block in {rel}: {guard}")
-
-        block = "".join(lines[i:j])
-        if any(token in block for token in tokens):
-            removed += 1
-        else:
-            out.extend(lines[i:j])
-        i = j
-
-    p.write_text("".join(out), encoding="utf-8")
-    print(f"Removed {removed} generic KSU/SUSFS direct-hook block(s) from {rel}")
-
-
-strip_guarded_blocks_with_tokens("drivers/input/input.c", (
-    "ksu_is_input_hook_enabled",
-    "ksu_handle_input_handle_event(",
-))
-
-strip_guarded_blocks_with_tokens("fs/exec.c", (
-    "ksu_handle_execveat(",
-    "ksu_handle_execveat_sucompat(",
-    "ksu_su_compat_enabled",
-    "susfs_is_sus_su_hooks_enabled",
-    "susfs_is_current_proc_no_su(",
-    "susfs_is_sdcard_android_data_not_decrypted",
-))
-
-strip_guarded_blocks_with_tokens("fs/open.c", (
-    "ksu_handle_faccessat(",
-    "ksu_su_compat_enabled",
-    "susfs_is_sus_su_hooks_enabled",
-    "__ksu_is_allow_uid_for_current(",
-))
-
-strip_guarded_blocks_with_tokens("fs/read_write.c", (
-    "ksu_is_init_rc_hook_enabled",
-    "ksu_handle_sys_read(",
-    "ksu_handle_vfs_read(",
-    "susfs_is_sus_su_hooks_enabled",
-))
-
-strip_guarded_blocks_with_tokens("fs/stat.c", (
-    "ksu_is_init_rc_hook_enabled",
-    "ksu_handle_vfs_fstat(",
-    "ksu_su_compat_enabled",
-    "susfs_is_sus_su_hooks_enabled",
-    "ksu_handle_stat(",
-    "__ksu_is_allow_uid_for_current(",
-))
-
-strip_guarded_blocks_with_tokens("kernel/sys.c", (
-    "ksu_handle_setresuid(",
-    "susfs_is_sus_su_hooks_enabled",
-))
-
-print("Removed generic KernelSU/SUSFS/SUS_SU direct hooks that conflict with SukiSU Ultra 40901")
-PY
-
-# If the SUSFS setuid marker is present, make its SukiSU-native is_zygote()
-# dependency explicit. This is idempotent and only touches the KSU file when
-# the marker actually exists.
-SETUID_HOOK="$KSU_TREE/kernel/hook/setuid_hook.c"
-if [[ -f "$SETUID_HOOK" ]] && grep -qF 'susfs_set_current_proc_umounted();' "$SETUID_HOOK"; then
-  if ! grep -qF '#include "selinux/selinux.h"' "$SETUID_HOOK"; then
-    python3 - "$SETUID_HOOK" <<'PY'
-from pathlib import Path
-import sys
-
-p = Path(sys.argv[1])
-text = p.read_text(encoding="utf-8")
-anchor = '#include "feature/kernel_umount.h"\n'
-insert = anchor + '#include "selinux/selinux.h"\n'
-if text.count(anchor) != 1:
-    raise SystemExit(f"Cannot locate unique kernel_umount include in {p}: {text.count(anchor)}")
-p.write_text(text.replace(anchor, insert, 1), encoding="utf-8")
-PY
-  fi
-fi
-
-# Fail before compilation if any generic KernelSU callback glue survived.
+# Fail before compilation if any generic KernelSU/SUSFS callback glue survived
+# the pre-ZeroMount reconciliation stage.
 for token in \
   'ksu_handle_execveat(&fd, &filename' \
   'ksu_handle_execveat_sucompat(&fd, &filename' \
@@ -179,20 +64,53 @@ if grep -qF 'ksu_is_input_hook_enabled' "$COMMON_TREE/drivers/input/input.c" || 
   exit 1
 fi
 
+# The setuid marker dependency is repaired before ZeroMount; verify only.
+SETUID_HOOK="$KSU_TREE/kernel/hook/setuid_hook.c"
+if [[ -f "$SETUID_HOOK" ]] && grep -qF 'susfs_set_current_proc_umounted();' "$SETUID_HOOK"; then
+  if ! grep -qF '#include "selinux/selinux.h"' "$SETUID_HOOK"; then
+    echo "::error::SukiSU setuid SUSFS marker lacks explicit selinux/selinux.h dependency"
+    exit 1
+  fi
+fi
+
 # Prove the native SukiSU 40901 execution paths that replace the removed glue.
-grep -qF 'new_uid != WEBVIEW_ZYGOTE_UID' "$KSU_TREE/kernel/feature/kernel_umount.c"
-grep -qF 'ksu_handle_execveat_sucompat' "$KSU_TREE/kernel/feature/sucompat.c"
-grep -qF 'long __nocfi ksu_hook_execveat' "$KSU_TREE/kernel/hook/syscall_event_bridge.c"
+grep -qF 'new_uid != WEBVIEW_ZYGOTE_UID' "$KSU_TREE/kernel/feature/kernel_umount.c" || {
+  echo "::error::SukiSU 40901 kernel_umount native path is missing"
+  exit 1
+}
+grep -qF 'ksu_handle_execveat_sucompat' "$KSU_TREE/kernel/feature/sucompat.c" || {
+  echo "::error::SukiSU 40901 sucompat backend is missing"
+  exit 1
+}
+grep -qF 'long __nocfi ksu_hook_execveat' "$KSU_TREE/kernel/hook/syscall_event_bridge.c" || {
+  echo "::error::SukiSU 40901 execveat syscall bridge is missing"
+  exit 1
+}
 grep -qF 'ksu_register_syscall_hook(__NR_execveat, ksu_hook_execveat);' \
-  "$KSU_TREE/kernel/hook/syscall_hook_manager.c"
+  "$KSU_TREE/kernel/hook/syscall_hook_manager.c" || {
+  echo "::error::SukiSU 40901 execveat hook registration is missing"
+  exit 1
+}
 grep -qF 'ksu_register_syscall_hook(__NR_newfstatat, ksu_hook_newfstatat);' \
-  "$KSU_TREE/kernel/hook/syscall_hook_manager.c"
+  "$KSU_TREE/kernel/hook/syscall_hook_manager.c" || {
+  echo "::error::SukiSU 40901 newfstatat hook registration is missing"
+  exit 1
+}
 grep -qF 'ksu_register_syscall_hook(__NR_faccessat, ksu_hook_faccessat);' \
-  "$KSU_TREE/kernel/hook/syscall_hook_manager.c"
+  "$KSU_TREE/kernel/hook/syscall_hook_manager.c" || {
+  echo "::error::SukiSU 40901 faccessat hook registration is missing"
+  exit 1
+}
 grep -qF 'ksu_syscall_table_hook(__NR_read, ksu_sys_read, &orig_sys_read);' \
-  "$KSU_TREE/kernel/runtime/ksud_integration.c"
+  "$KSU_TREE/kernel/runtime/ksud_integration.c" || {
+  echo "::error::SukiSU 40901 read syscall-table hook is missing"
+  exit 1
+}
 grep -qF 'ksu_syscall_table_hook(__NR_fstat, ksu_sys_fstat, &orig_sys_fstat);' \
-  "$KSU_TREE/kernel/runtime/ksud_integration.c"
+  "$KSU_TREE/kernel/runtime/ksud_integration.c" || {
+  echo "::error::SukiSU 40901 fstat syscall-table hook is missing"
+  exit 1
+}
 
 require_source() {
   local relative="$1"
@@ -228,10 +146,6 @@ require_source fs/xattr.c 'zeromount_spoof_xattr'
 require_source fs/susfs.c 'susfs_add_sus_kstat_redirect'
 require_source fs/susfs.c 'susfs_add_sus_map'
 
-[[ -d "$KSU_TREE" ]] || {
-  echo "::error::KernelSU tree not found: $KSU_TREE"
-  exit 1
-}
 for needle in \
   'ksu_susfs_ack_deprecated_external_dir' \
   'ksu_susfs_dispatch_path_compat' \
@@ -252,4 +166,4 @@ if grep -qF 'zeromount_spoof_mmap_metadata' "$COMMON_TREE/fs/proc/task_mmu.c"; t
   exit 1
 fi
 
-echo "Verified SukiSU 40901 native hooks, ZeroMount VFS hooks, full statfs spoofing, SUSFS ${SUSFS_EXPECTED_VERSION:-pinned} bridge, and external-directory compatibility"
+echo "Verified SukiSU 40901 native hooks, ZeroMount VFS hooks, full statfs spoofing, SUSFS ${SUSFS_EXPECTED_VERSION:-pinned} bridge, and external-directory compatibility (read-only)"
