@@ -1,14 +1,14 @@
-name: S928B ZZHL ReSukiSU 35116 Gunyah RM-Append Build
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35116 + Gunyah RM MEM_APPEND / SCM-VMID"
+name: S928B ZZHL SukiSU Ultra v4.2.0 KPM Gunyah RM-Append Build
+run-name: "S928BXXU6ZZHL EUX — SukiSU Ultra v4.2.0 + KPM + SUSFS 2.3.0 + Gunyah RM MEM_APPEND / SCM-VMID"
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - agent/resukisu-35115-eux-zzhl
+      - agent/sukisu-ultra-v4.2.0-susfs-2.3.0
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
-      - '.github/workflows/build-resukisu.yml'
+      - '.github/workflows/build-sukisu-v420.yml'
       - '.github/workflows/cache-dependencies.yml'
       - '.github/actions/susfs-v2.2/**'
       - 'android14-6.1/defconfig.fragment'
@@ -41,14 +41,14 @@ on:
       - 'android14-6.1/build-helpers/verify-zeromount-susfs-source.sh'
       - 'android14-6.1/SukiSU-Ultra/patches/51_enhanced_susfs-android14-6.1.patch'
       - 'android14-6.1/SukiSU-Ultra/patches/60_zeromount-android14-6.1.patch'
-      - 'android14-6.1/resukisu-pin.txt'
+      - 'android14-6.1/sukisu-pin.txt'
 
 permissions:
   contents: write
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35116-exact-strict-${{ github.ref_name }}
+  group: s928b-sukisu-v420-kpm-exact-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -69,9 +69,9 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 6.1.162 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / SukiSU Ultra v4.2.0 + KPM / 6.1.162 / Gunyah RM MEM_APPEND + SCM-VMID
     needs: dependencies
-    uses: ./.github/workflows/build-resukisu.yml
+    uses: ./.github/workflows/build-sukisu-v420.yml
     permissions:
       contents: write
       actions: write
@@ -86,13 +86,11 @@ jobs:
       add_zram: true
       add_bbg: true
       add_overlayfs_support: true
-      add_kpm: false
+      add_kpm: true
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: f7829ddf548a18b851d653feb76b4a569b8fd2a4
-      resukisu_source_branch: main
-      resukisu_version_code: "35116"
+      sukisu_commit: 85eb4a95b8a61d756ecf53b9c5785e48e1b15039
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
