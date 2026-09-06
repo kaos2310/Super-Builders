@@ -27,19 +27,31 @@ jobs:
           from pathlib import Path
 
           assemble = Path('android14-6.1/build-helpers/assemble-defconfig.sh')
-          text = assemble.read_text(encoding='utf-8')
-          old = '''  apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \\
-            'fs/namei.c' "$TARGETED_DIR/namei-open-redirect.patch" \\
-            'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path'\n'''
-          new = '''  # Enhanced SUSFS structurally rewrites parts of namei.c before config assembly.\n  # Therefore the official Open Redirect hunk set is not guaranteed to be\n  # byte-for-byte forward/reverse applicable as one patch unit. Treat this\n  # replay as recovery-only and let verify-susfs-v2.2-procfs.sh be the strict\n  # semantic gate immediately below. Missing functionality still fails closed.\n  apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \\
-            'fs/namei.c' "$TARGETED_DIR/namei-open-redirect.patch" \\
-            'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path'\n'''
-          if old not in text:
-              if 'replay as recovery-only' not in text:
-                  raise SystemExit('assemble-defconfig.sh namei reconciliation anchor changed')
-          else:
-              text = text.replace(old, new, 1)
-          assemble.write_text(text, encoding='utf-8')
+          lines = assemble.read_text(encoding='utf-8').splitlines(keepends=True)
+          target = "'fs/namei.c' \"$TARGETED_DIR/namei-open-redirect.patch\""
+          matches = [i for i, line in enumerate(lines) if target in line]
+          if len(matches) != 1:
+              raise SystemExit(f'expected one primary namei Open Redirect replay, found {len(matches)}')
+          i = matches[0]
+          call = None
+          for j in range(i - 1, max(-1, i - 4), -1):
+              if 'apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH"' in lines[j]:
+                  call = j
+                  break
+              if 'apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH"' in lines[j]:
+                  call = j
+                  break
+          if call is None:
+              raise SystemExit('primary namei replay call was not found')
+          if 'apply_optional_targeted_patch' not in lines[call]:
+              lines[call] = lines[call].replace('apply_targeted_patch', 'apply_optional_targeted_patch', 1)
+              comments = [
+                  '  # Enhanced SUSFS may structurally rewrite namei.c before config assembly.\n',
+                  '  # Replay the official Open Redirect hunks as recovery-only; the strict\n',
+                  '  # semantic verifier below still fails closed if functionality is missing.\n',
+              ]
+              lines[call:call] = comments
+          assemble.write_text(''.join(lines), encoding='utf-8')
 
           fragment = Path('android14-6.1/defconfig.fragment')
           cfg = fragment.read_text(encoding='utf-8')
@@ -53,8 +65,16 @@ jobs:
 
           git diff --check
           grep -A7 '^# \[overlayfs\]$' android14-6.1/defconfig.fragment | grep -qx 'CONFIG_OVERLAY_FS=y'
-          grep -qF 'apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH"' android14-6.1/build-helpers/assemble-defconfig.sh
-          grep -qF 'let verify-susfs-v2.2-procfs.sh be the strict' android14-6.1/build-helpers/assemble-defconfig.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('android14-6.1/build-helpers/assemble-defconfig.sh').read_text()
+          target = "'fs/namei.c' \"$TARGETED_DIR/namei-open-redirect.patch\""
+          lines = text.splitlines()
+          i = next(i for i, line in enumerate(lines) if target in line)
+          window = '\n'.join(lines[max(0, i-5):i+2])
+          assert 'apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH"' in window
+          assert 'strict semantic verifier' in window
+          PY
           grep -qF 'CONFIG_KSU_SUSFS_OPEN_REDIRECT=y' android14-6.1/defconfig.fragment
           grep -qF 'CONFIG_KPM=y' android14-6.1/defconfig.fragment
           grep -qF 'CONFIG_ZEROMOUNT=y' android14-6.1/defconfig.fragment
