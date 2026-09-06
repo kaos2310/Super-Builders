@@ -4,8 +4,11 @@ set -euo pipefail
 COMMON_TREE="${1:?common kernel tree}"
 KSU_TREE="${2:?KernelSU tree}"
 
-# Verification is intentionally read-only. SukiSU 40901 source reconciliation
-# must complete before ZeroMount is applied.
+# This stage is deliberately read-only. SukiSU 40901 lifecycle, dispatcher,
+# app-profile and supercall semantics are already restored and validated by
+# apply-enhanced-susfs-v2.2-core.sh. Here we validate only the post-ZeroMount
+# source state plus the absence of the generic direct hooks that conflict with
+# SukiSU 40901's native hook manager.
 
 [[ -d "$COMMON_TREE" ]] || {
   echo "::error::Kernel common tree not found: $COMMON_TREE"
@@ -16,8 +19,22 @@ KSU_TREE="${2:?KernelSU tree}"
   exit 1
 }
 
-# Fail before compilation if any generic KernelSU/SUSFS callback glue survived
-# the pre-ZeroMount reconciliation stage.
+require_absent() {
+  local relative="$1"
+  local needle="$2"
+  local path="$COMMON_TREE/$relative"
+  [[ -f "$path" ]] || {
+    echo "::error::Kernel source is missing while checking SukiSU 40901 reconciliation: $relative"
+    exit 1
+  }
+  if grep -qF "$needle" "$path"; then
+    echo "::error::Generic KernelSU/SUSFS direct hook survived SukiSU 40901 reconciliation: $relative: $needle"
+    exit 1
+  fi
+}
+
+# These callbacks belong to older direct-hook KernelSU/SUSFS layouts. The
+# pinned SukiSU 40901 tree owns the equivalent syscall paths natively.
 for token in \
   'ksu_handle_execveat(&fd, &filename' \
   'ksu_handle_execveat_sucompat(&fd, &filename' \
@@ -25,10 +42,7 @@ for token in \
   'susfs_is_sus_su_hooks_enabled' \
   'susfs_is_current_proc_no_su()' \
   'susfs_is_sdcard_android_data_not_decrypted'; do
-  if grep -qF "$token" "$COMMON_TREE/fs/exec.c"; then
-    echo "::error::Generic SUSFS exec hook survived SukiSU 40901 cleanup: $token"
-    exit 1
-  fi
+  require_absent fs/exec.c "$token"
 done
 
 for spec in \
@@ -41,76 +55,25 @@ for spec in \
   'fs/stat.c|ksu_is_init_rc_hook_enabled' \
   'fs/stat.c|ksu_handle_vfs_fstat' \
   'fs/stat.c|ksu_handle_stat' \
-  'fs/stat.c|susfs_is_sus_su_hooks_enabled'; do
+  'fs/stat.c|susfs_is_sus_su_hooks_enabled' \
+  'kernel/sys.c|ksu_handle_setresuid(' \
+  'kernel/sys.c|susfs_is_sus_su_hooks_enabled' \
+  'drivers/input/input.c|ksu_is_input_hook_enabled' \
+  'drivers/input/input.c|ksu_handle_input_handle_event('; do
   rel=${spec%%|*}
   token=${spec#*|}
-  if grep -qF "$token" "$COMMON_TREE/$rel"; then
-    echo "::error::Generic SUSFS direct hook survived SukiSU 40901 cleanup: $rel: $token"
-    exit 1
-  fi
+  require_absent "$rel" "$token"
 done
 
-if grep -qF 'ksu_handle_setresuid(' "$COMMON_TREE/kernel/sys.c"; then
-  echo "::error::Generic SUSFS setresuid hook survived SukiSU 40901 cleanup"
-  exit 1
-fi
-if grep -qF 'susfs_is_sus_su_hooks_enabled' "$COMMON_TREE/kernel/sys.c"; then
-  echo "::error::Generic SUS_SU setresuid guard survived SukiSU 40901 cleanup"
-  exit 1
-fi
-if grep -qF 'ksu_is_input_hook_enabled' "$COMMON_TREE/drivers/input/input.c" || \
-   grep -qF 'ksu_handle_input_handle_event(' "$COMMON_TREE/drivers/input/input.c"; then
-  echo "::error::Generic SUSFS input hook survived SukiSU 40901 cleanup"
-  exit 1
-fi
-
-# The setuid marker dependency is repaired before ZeroMount; verify only.
+# The SUSFS setuid marker is retained in SukiSU's native setuid hook. Its
+# is_zygote() dependency must remain explicit after the bridge repair.
 SETUID_HOOK="$KSU_TREE/kernel/hook/setuid_hook.c"
 if [[ -f "$SETUID_HOOK" ]] && grep -qF 'susfs_set_current_proc_umounted();' "$SETUID_HOOK"; then
-  if ! grep -qF '#include "selinux/selinux.h"' "$SETUID_HOOK"; then
+  grep -qF '#include "selinux/selinux.h"' "$SETUID_HOOK" || {
     echo "::error::SukiSU setuid SUSFS marker lacks explicit selinux/selinux.h dependency"
     exit 1
-  fi
+  }
 fi
-
-# Prove the native SukiSU 40901 execution paths that replace the removed glue.
-grep -qF 'new_uid != WEBVIEW_ZYGOTE_UID' "$KSU_TREE/kernel/feature/kernel_umount.c" || {
-  echo "::error::SukiSU 40901 kernel_umount native path is missing"
-  exit 1
-}
-grep -qF 'ksu_handle_execveat_sucompat' "$KSU_TREE/kernel/feature/sucompat.c" || {
-  echo "::error::SukiSU 40901 sucompat backend is missing"
-  exit 1
-}
-grep -qF 'long __nocfi ksu_hook_execveat' "$KSU_TREE/kernel/hook/syscall_event_bridge.c" || {
-  echo "::error::SukiSU 40901 execveat syscall bridge is missing"
-  exit 1
-}
-grep -qF 'ksu_register_syscall_hook(__NR_execveat, ksu_hook_execveat);' \
-  "$KSU_TREE/kernel/hook/syscall_hook_manager.c" || {
-  echo "::error::SukiSU 40901 execveat hook registration is missing"
-  exit 1
-}
-grep -qF 'ksu_register_syscall_hook(__NR_newfstatat, ksu_hook_newfstatat);' \
-  "$KSU_TREE/kernel/hook/syscall_hook_manager.c" || {
-  echo "::error::SukiSU 40901 newfstatat hook registration is missing"
-  exit 1
-}
-grep -qF 'ksu_register_syscall_hook(__NR_faccessat, ksu_hook_faccessat);' \
-  "$KSU_TREE/kernel/hook/syscall_hook_manager.c" || {
-  echo "::error::SukiSU 40901 faccessat hook registration is missing"
-  exit 1
-}
-grep -qF 'ksu_syscall_table_hook(__NR_read, ksu_sys_read, &orig_sys_read);' \
-  "$KSU_TREE/kernel/runtime/ksud_integration.c" || {
-  echo "::error::SukiSU 40901 read syscall-table hook is missing"
-  exit 1
-}
-grep -qF 'ksu_syscall_table_hook(__NR_fstat, ksu_sys_fstat, &orig_sys_fstat);' \
-  "$KSU_TREE/kernel/runtime/ksud_integration.c" || {
-  echo "::error::SukiSU 40901 fstat syscall-table hook is missing"
-  exit 1
-}
 
 require_source() {
   local relative="$1"
@@ -126,6 +89,8 @@ require_source() {
   }
 }
 
+# Keep the exact post-ZeroMount assertions that were already proven by the
+# build-capable #105 lineage.
 require_source fs/Kconfig 'config ZEROMOUNT'
 require_source fs/Makefile 'obj-$(CONFIG_ZEROMOUNT)'
 require_source fs/zeromount.c 'zeromount_ioctl_add_rule'
@@ -146,6 +111,8 @@ require_source fs/xattr.c 'zeromount_spoof_xattr'
 require_source fs/susfs.c 'susfs_add_sus_kstat_redirect'
 require_source fs/susfs.c 'susfs_add_sus_map'
 
+# These adapter semantics are installed and fail-closed validated in Step 19.
+# Recheck only the compatibility ABI that ZeroMount consumes after its patch.
 for needle in \
   'ksu_susfs_ack_deprecated_external_dir' \
   'ksu_susfs_dispatch_path_compat' \
@@ -153,17 +120,17 @@ for needle in \
   'case CMD_SUSFS_SET_ANDROID_DATA_ROOT_PATH:' \
   'case CMD_SUSFS_SET_SDCARD_ROOT_PATH:'; do
   grep -RqF "$needle" "$KSU_TREE" || {
-    echo "::error::ZeroMount/SUSFS dispatcher compatibility is missing: $needle"
+    echo "::error::ZeroMount/SUSFS dispatcher compatibility is missing after ZeroMount: $needle"
     exit 1
   }
 done
 
-# The legacy ZeroMount maps hook overlaps the pinned SUSFS show_map_vma() and
-# caused a real apexd Oops on e3q. SUSFS SUS_MAP supplies map hiding, so the
-# unsafe duplicate task_mmu hook must remain absent.
+# The legacy ZeroMount maps hook overlaps SUSFS show_map_vma() and caused a
+# real apexd Oops on e3q. SUSFS SUS_MAP supplies map hiding, so this duplicate
+# task_mmu hook must stay absent.
 if grep -qF 'zeromount_spoof_mmap_metadata' "$COMMON_TREE/fs/proc/task_mmu.c"; then
   echo "::error::Unsafe duplicate ZeroMount task_mmu hook was reintroduced"
   exit 1
 fi
 
-echo "Verified SukiSU 40901 native hooks, ZeroMount VFS hooks, full statfs spoofing, SUSFS ${SUSFS_EXPECTED_VERSION:-pinned} bridge, and external-directory compatibility (read-only)"
+echo "Verified post-ZeroMount source integrity, SukiSU 40901 direct-hook cleanup, SUSFS ${SUSFS_EXPECTED_VERSION:-pinned} compatibility, and safe task_mmu integration (read-only)"
