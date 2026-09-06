@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-"""Normalize Simonpunk's modern SUSFS reboot dispatcher for local adapters.
+"""Normalize Simonpunk's modern SUSFS bridge for SukiSU Ultra 40901.
 
-SUSFS v2.3.0 installs ksu_handle_sys_reboot() in current SukiSU layouts.
-The enhanced SUSFS + ZeroMount compatibility code in this tree deliberately
-extends a narrower ksu_handle_susfs_cmd() switch. Extract the exact pinned
-SUSFS switch into that helper and delegate to it instead of duplicating the
-command table by hand.
-
-The pinned Simonpunk KernelSU bridge also carries lifecycle/profile hunks from
-a nearby KernelSU/SukiSU layout. Some of those hunks still apply with fuzz to
-SukiSU Ultra 40901 but silently remove native 40901 declarations and helpers.
-Restore core/init.c plus policy/app_profile.[ch] from the exact checked-out
-SukiSU commit, then port only the SUSFS init into core/init.c structurally.
+The pinned Simonpunk bridge is based on a nearby KernelSU/SukiSU layout.
+Several hunks still apply with fuzz to SukiSU Ultra 40901 but replace native
+40901 lifecycle, app-profile and supercall semantics. Preserve the exact
+checked-out SukiSU implementation and port only the SUSFS-specific pieces:
+- SUSFS init in core/init.c
+- the pinned SUSFS command switch in supercall/dispatch.c
+- the direct reboot entry point required by kernel/reboot.c and local adapters
 """
 from pathlib import Path
 import re
@@ -20,7 +16,7 @@ import sys
 import textwrap
 
 path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
+post_patch_text = path.read_text(encoding="utf-8")
 HELPER = "int ksu_handle_susfs_cmd(unsigned int cmd, void __user **arg)\n"
 REBOOT = "int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg)\n"
 
@@ -170,56 +166,102 @@ def brace_path_case(src: str, command: str, function: str) -> str:
     return src[:match.start()] + replacement + src[match.end():]
 
 
-repair_sukisu_lifecycle(path)
-
-if HELPER not in text:
-    if text.count(REBOOT) != 1:
-        raise SystemExit(f"expected one ksu_handle_sys_reboot(), found {text.count(REBOOT)}")
-    reboot_at = text.index(REBOOT)
-    reboot_open = text.find("{", reboot_at + len(REBOOT))
-    reboot_close = close_brace(text, reboot_open)
+def extract_pinned_susfs_switch(src: str) -> str:
+    if src.count(REBOOT) != 1:
+        raise SystemExit(f"expected one patched ksu_handle_sys_reboot(), found {src.count(REBOOT)}")
+    reboot_at = src.index(REBOOT)
+    reboot_open = src.find("{", reboot_at + len(REBOOT))
+    reboot_close = close_brace(src, reboot_open)
 
     sus = re.compile(
         r"(?m)^(?P<i>[ \t]*)if \(magic2 == SUSFS_MAGIC && current_uid\(\)\.val == 0\) \{"
-    ).search(text, reboot_open, reboot_close)
+    ).search(src, reboot_open, reboot_close)
     if not sus:
-        raise SystemExit("SUSFS_MAGIC branch missing from ksu_handle_sys_reboot()")
-    sus_open = text.find("{", sus.start(), sus.end() + 1)
-    sus_close = close_brace(text, sus_open)
+        raise SystemExit("SUSFS_MAGIC branch missing from patched ksu_handle_sys_reboot()")
+    sus_open = src.find("{", sus.start(), sus.end() + 1)
+    sus_close = close_brace(src, sus_open)
 
-    sw = re.search(r"switch\s*\(cmd\)\s*\{", text[sus_open + 1:sus_close])
+    sw = re.search(r"switch\s*\(cmd\)\s*\{", src[sus_open + 1:sus_close])
     if not sw:
-        raise SystemExit("SUSFS command switch missing")
+        raise SystemExit("SUSFS command switch missing from patched dispatcher")
     sw_at = sus_open + 1 + sw.start()
-    sw_open = text.find("{", sw_at, sus_close)
-    sw_close = close_brace(text, sw_open)
-    switch = textwrap.dedent(text[sw_at:sw_close + 1]).strip() + "\n"
+    sw_open = src.find("{", sw_at, sus_close)
+    sw_close = close_brace(src, sw_open)
+    switch = textwrap.dedent(src[sw_at:sw_close + 1]).strip() + "\n"
     switch = brace_path_case(switch, "CMD_SUSFS_ADD_SUS_PATH", "susfs_add_sus_path")
     switch = brace_path_case(switch, "CMD_SUSFS_ADD_SUS_PATH_LOOP", "susfs_add_sus_path_loop")
+    return switch
 
-    helper = HELPER + "{\n" + textwrap.indent(switch, "    ") + "}\n\n"
-    indent = sus.group("i")
-    delegate = (
-        f"{indent}if (magic2 == SUSFS_MAGIC && current_uid().val == 0) {{\n"
-        f"{indent}    return ksu_handle_susfs_cmd(cmd, arg);\n"
-        f"{indent}}}"
+
+def rebuild_pinned_dispatch(dispatch_path: Path, patched: str) -> str:
+    ksu_root = dispatch_path.parents[2]
+    switch = extract_pinned_susfs_switch(patched)
+    pristine = git_show_pinned(ksu_root, "kernel/supercall/dispatch.c")
+
+    native_required = (
+        '#include "hook/tp_marker.h"',
+        "if (ksu_late_loaded) {",
+        "ksu_mark_running_process();",
+        "case KSU_MARK_REFRESH:",
+        "ksu_set_task_mark(cmd.pid, true);",
+        "ksu_set_task_mark(cmd.pid, false);",
     )
-    text = text[:sus.start()] + delegate + text[sus_close + 1:]
-    reboot_at = text.index(REBOOT)
-    text = text[:reboot_at] + helper + text[reboot_at:]
+    missing = [token for token in native_required if token not in pristine]
+    if missing:
+        raise SystemExit(
+            "pinned SukiSU 40901 dispatcher is missing native semantics: " + ", ".join(missing)
+        )
 
-text = brace_path_case(text, "CMD_SUSFS_ADD_SUS_PATH", "susfs_add_sus_path")
-text = brace_path_case(text, "CMD_SUSFS_ADD_SUS_PATH_LOOP", "susfs_add_sus_path_loop")
+    if "#include <linux/susfs.h>" not in pristine:
+        anchor = "#include <linux/thread_info.h>\n"
+        if pristine.count(anchor) != 1:
+            raise SystemExit(
+                f"expected one thread_info include in pinned dispatcher, found {pristine.count(anchor)}"
+            )
+        pristine = pristine.replace(anchor, anchor + "#include <linux/susfs.h>\n", 1)
 
-for token in (
-    HELPER.strip(), REBOOT.strip(),
-    "return ksu_handle_susfs_cmd(cmd, arg);",
-    "case CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY:",
-    "case CMD_SUSFS_ADD_SUS_PATH: {",
-    "case CMD_SUSFS_ADD_SUS_PATH_LOOP: {",
-):
-    if token not in text:
-        raise SystemExit(f"normalized dispatcher missing {token!r}")
+    dispatcher = (
+        HELPER
+        + "{\n"
+        + textwrap.indent(switch, "    ")
+        + "}\n\n"
+        + REBOOT
+        + "{\n"
+        + "    if (magic1 != KSU_INSTALL_MAGIC1)\n"
+        + "        return -EINVAL;\n"
+        + "    if (magic2 == SUSFS_MAGIC && current_uid().val == 0)\n"
+        + "        return ksu_handle_susfs_cmd(cmd, arg);\n"
+        + "    return -EINVAL;\n"
+        + "}\n\n"
+    )
+    anchor = "static int do_nuke_ext4_sysfs(void __user *arg)\n"
+    if pristine.count(anchor) != 1:
+        raise SystemExit(
+            f"expected one supercall insertion anchor in pinned dispatcher, found {pristine.count(anchor)}"
+        )
+    pristine = pristine.replace(anchor, dispatcher + anchor, 1)
+
+    final_required = native_required + (
+        "#include <linux/susfs.h>",
+        HELPER.strip(),
+        REBOOT.strip(),
+        "return ksu_handle_susfs_cmd(cmd, arg);",
+        "case CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY:",
+        "case CMD_SUSFS_ADD_SUS_PATH: {",
+        "case CMD_SUSFS_ADD_SUS_PATH_LOOP: {",
+    )
+    missing = [token for token in final_required if token not in pristine]
+    if missing:
+        raise SystemExit(
+            "rebuilt SukiSU 40901 SUSFS dispatcher is missing required semantics: " + ", ".join(missing)
+        )
+
+    print("Restored pinned SukiSU 40901 supercall semantics and structurally injected SUSFS reboot ABI")
+    return pristine
+
+
+repair_sukisu_lifecycle(path)
+text = rebuild_pinned_dispatch(path, post_patch_text)
 
 path.write_text(text, encoding="utf-8")
-print("Normalized SukiSU SUSFS reboot dispatcher for enhanced SUSFS/ZeroMount")
+print("Normalized SukiSU 40901 lifecycle/dispatcher for enhanced SUSFS/ZeroMount")
