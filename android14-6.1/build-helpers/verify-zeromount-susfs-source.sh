@@ -5,10 +5,11 @@ COMMON_TREE="${1:?common kernel tree}"
 KSU_TREE="${2:?KernelSU tree}"
 
 # Simonpunk's generic KernelSU bridge carries direct syscall/VFS callback glue
-# for a nearby KernelSU/SukiSU layout. SukiSU Ultra 40901 already owns these
+# for nearby KernelSU/SukiSU layouts. SukiSU Ultra 40901 already owns these
 # syscall paths through its native hook manager / init-rc syscall-table hooks.
-# Remove only the generic CONFIG_KSU_SUSFS callback blocks after ZeroMount has
-# been applied, while preserving SUSFS feature-specific VFS blocks.
+# Remove only guarded blocks that contain known generic KSU callback tokens.
+# This deliberately covers both the generic SUSFS guard and the SUS_SU guard,
+# because current SUSFS can carry the same direct hook under either family.
 python3 - "$COMMON_TREE" <<'PY'
 from pathlib import Path
 import re
@@ -16,30 +17,27 @@ import sys
 
 root = Path(sys.argv[1])
 
+GUARD_RE = re.compile(
+    r"^#\s*(?:"
+    r"ifdef\s+(?:CONFIG_KSU|CONFIG_KSU_MANUAL_HOOK|CONFIG_KSU_SUSFS|CONFIG_KSU_SUSFS_SUS_SU)"
+    r"|if\s+defined\s*\(\s*(?:CONFIG_KSU|CONFIG_KSU_MANUAL_HOOK|CONFIG_KSU_SUSFS|CONFIG_KSU_SUSFS_SUS_SU)\s*\)"
+    r")\s*$"
+)
 
-def edit(rel, transforms):
+
+def strip_guarded_blocks_with_tokens(rel, tokens):
     p = root / rel
     if not p.is_file():
         raise SystemExit(f"Missing common source: {rel}")
-    text = p.read_text(encoding="utf-8")
-    for pattern, repl, label in transforms:
-        new, count = re.subn(pattern, repl, text, flags=re.MULTILINE)
-        if count > 1:
-            raise SystemExit(f"Unexpected duplicate {label} in {rel}: {count}")
-        text = new
-    p.write_text(text, encoding="utf-8")
 
-
-def strip_susfs_blocks_with_tokens(rel, tokens):
-    p = root / rel
-    if not p.is_file():
-        raise SystemExit(f"Missing common source: {rel}")
     lines = p.read_text(encoding="utf-8").splitlines(keepends=True)
     out = []
     removed = 0
     i = 0
+
     while i < len(lines):
-        if lines[i].strip() != "#ifdef CONFIG_KSU_SUSFS":
+        guard = lines[i].strip()
+        if not GUARD_RE.fullmatch(guard):
             out.append(lines[i])
             i += 1
             continue
@@ -48,13 +46,14 @@ def strip_susfs_blocks_with_tokens(rel, tokens):
         j = i + 1
         while j < len(lines) and depth:
             directive = lines[j].strip()
-            if directive.startswith(("#if ", "#ifdef ", "#ifndef ")):
+            if re.match(r"^#\s*(?:if|ifdef|ifndef)\b", directive):
                 depth += 1
-            elif directive == "#endif" or directive.startswith("#endif "):
+            elif re.match(r"^#\s*endif\b", directive):
                 depth -= 1
             j += 1
+
         if depth:
-            raise SystemExit(f"Unterminated CONFIG_KSU_SUSFS block in {rel}")
+            raise SystemExit(f"Unterminated guarded KSU block in {rel}: {guard}")
 
         block = "".join(lines[i:j])
         if any(token in block for token in tokens):
@@ -64,63 +63,52 @@ def strip_susfs_blocks_with_tokens(rel, tokens):
         i = j
 
     p.write_text("".join(out), encoding="utf-8")
-    print(f"Removed {removed} generic SUSFS direct-hook block(s) from {rel}")
+    print(f"Removed {removed} generic KSU/SUSFS direct-hook block(s) from {rel}")
 
 
-edit("drivers/input/input.c", [
-    (
-        r'\n#ifdef CONFIG_KSU_SUSFS\nextern struct static_key_true ksu_is_input_hook_enabled;\nextern __attribute__\(\(cold\)\) int ksu_handle_input_handle_event\(\n\s*unsigned int \*type, unsigned int \*code, int \*value\);\n#endif\n',
-        '\n',
-        'generic SUSFS input declarations',
-    ),
-    (
-        r'\n#ifdef CONFIG_KSU_SUSFS\n\s*if \(static_branch_unlikely\(&ksu_is_input_hook_enabled\)\)\n\s*ksu_handle_input_handle_event\(&type, &code, &value\);\n#endif\n',
-        '\n',
-        'generic SUSFS input callback',
-    ),
-])
+strip_guarded_blocks_with_tokens("drivers/input/input.c", (
+    "ksu_is_input_hook_enabled",
+    "ksu_handle_input_handle_event(",
+))
 
-strip_susfs_blocks_with_tokens("fs/exec.c", (
+strip_guarded_blocks_with_tokens("fs/exec.c", (
     "ksu_handle_execveat(",
     "ksu_handle_execveat_sucompat(",
     "ksu_su_compat_enabled",
+    "susfs_is_sus_su_hooks_enabled",
     "susfs_is_current_proc_no_su(",
     "susfs_is_sdcard_android_data_not_decrypted",
 ))
 
-strip_susfs_blocks_with_tokens("fs/open.c", (
+strip_guarded_blocks_with_tokens("fs/open.c", (
     "ksu_handle_faccessat(",
     "ksu_su_compat_enabled",
+    "susfs_is_sus_su_hooks_enabled",
     "__ksu_is_allow_uid_for_current(",
 ))
 
-strip_susfs_blocks_with_tokens("fs/read_write.c", (
+strip_guarded_blocks_with_tokens("fs/read_write.c", (
     "ksu_is_init_rc_hook_enabled",
     "ksu_handle_sys_read(",
+    "ksu_handle_vfs_read(",
+    "susfs_is_sus_su_hooks_enabled",
 ))
 
-strip_susfs_blocks_with_tokens("fs/stat.c", (
+strip_guarded_blocks_with_tokens("fs/stat.c", (
     "ksu_is_init_rc_hook_enabled",
     "ksu_handle_vfs_fstat(",
     "ksu_su_compat_enabled",
+    "susfs_is_sus_su_hooks_enabled",
     "ksu_handle_stat(",
     "__ksu_is_allow_uid_for_current(",
 ))
 
-edit("kernel/sys.c", [
-    (
-        r'\n#ifdef CONFIG_KSU_SUSFS\nextern int ksu_handle_setresuid\(uid_t ruid, uid_t euid, uid_t suid\);\n#endif\n',
-        '\n',
-        'generic SUSFS setresuid declaration',
-    ),
-    (
-        r'\n#ifdef CONFIG_KSU_SUSFS\n\s*\(void\)ksu_handle_setresuid\(ruid, euid, suid\);\n#endif\n',
-        '\n',
-        'generic SUSFS direct setresuid hook',
-    ),
-])
+strip_guarded_blocks_with_tokens("kernel/sys.c", (
+    "ksu_handle_setresuid(",
+    "susfs_is_sus_su_hooks_enabled",
+))
 
-print("Removed generic KernelSU direct hooks that conflict with SukiSU Ultra 40901")
+print("Removed generic KernelSU/SUSFS/SUS_SU direct hooks that conflict with SukiSU Ultra 40901")
 PY
 
 # If the SUSFS setuid marker is present, make its SukiSU-native is_zygote()
@@ -149,6 +137,7 @@ for token in \
   'ksu_handle_execveat(&fd, &filename' \
   'ksu_handle_execveat_sucompat(&fd, &filename' \
   'ksu_su_compat_enabled' \
+  'susfs_is_sus_su_hooks_enabled' \
   'susfs_is_current_proc_no_su()' \
   'susfs_is_sdcard_android_data_not_decrypted'; do
   if grep -qF "$token" "$COMMON_TREE/fs/exec.c"; then
@@ -159,11 +148,15 @@ done
 
 for spec in \
   'fs/open.c|ksu_handle_faccessat' \
+  'fs/open.c|susfs_is_sus_su_hooks_enabled' \
   'fs/read_write.c|ksu_is_init_rc_hook_enabled' \
   'fs/read_write.c|ksu_handle_sys_read' \
+  'fs/read_write.c|ksu_handle_vfs_read' \
+  'fs/read_write.c|susfs_is_sus_su_hooks_enabled' \
   'fs/stat.c|ksu_is_init_rc_hook_enabled' \
   'fs/stat.c|ksu_handle_vfs_fstat' \
-  'fs/stat.c|ksu_handle_stat'; do
+  'fs/stat.c|ksu_handle_stat' \
+  'fs/stat.c|susfs_is_sus_su_hooks_enabled'; do
   rel=${spec%%|*}
   token=${spec#*|}
   if grep -qF "$token" "$COMMON_TREE/$rel"; then
@@ -172,11 +165,16 @@ for spec in \
   fi
 done
 
-if grep -qF 'ksu_handle_setresuid(ruid, euid, suid)' "$COMMON_TREE/kernel/sys.c"; then
+if grep -qF 'ksu_handle_setresuid(' "$COMMON_TREE/kernel/sys.c"; then
   echo "::error::Generic SUSFS setresuid hook survived SukiSU 40901 cleanup"
   exit 1
 fi
-if grep -qF 'ksu_is_input_hook_enabled' "$COMMON_TREE/drivers/input/input.c"; then
+if grep -qF 'susfs_is_sus_su_hooks_enabled' "$COMMON_TREE/kernel/sys.c"; then
+  echo "::error::Generic SUS_SU setresuid guard survived SukiSU 40901 cleanup"
+  exit 1
+fi
+if grep -qF 'ksu_is_input_hook_enabled' "$COMMON_TREE/drivers/input/input.c" || \
+   grep -qF 'ksu_handle_input_handle_event(' "$COMMON_TREE/drivers/input/input.c"; then
   echo "::error::Generic SUSFS input hook survived SukiSU 40901 cleanup"
   exit 1
 fi
