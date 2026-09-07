@@ -9,6 +9,7 @@ BRIDGE="$SCRIPT_DIR/apply-enhanced-susfs-v2.2-bridge.sh"
 SANITIZER="$SCRIPT_DIR/sanitize-sukisu-40901-common-hooks.py"
 SETUID_NORMALIZER="$SCRIPT_DIR/normalize-sukisu-40901-setuid-susfs.py"
 SUCOMPAT_NORMALIZER="$SCRIPT_DIR/normalize-sukisu-40901-sucompat.py"
+NATIVE_POLICY_NORMALIZER="$SCRIPT_DIR/normalize-sukisu-40901-native-policy.py"
 KBUILD_NORMALIZER="$SCRIPT_DIR/normalize-sukisu-40901-kbuild.py"
 
 [[ -f "$BRIDGE" ]] || {
@@ -27,6 +28,10 @@ KBUILD_NORMALIZER="$SCRIPT_DIR/normalize-sukisu-40901-kbuild.py"
   echo "::error::SukiSU 40901 native sucompat normalizer is missing: $SUCOMPAT_NORMALIZER"
   exit 1
 }
+[[ -f "$NATIVE_POLICY_NORMALIZER" ]] || {
+  echo "::error::SukiSU 40901 native policy normalizer is missing: $NATIVE_POLICY_NORMALIZER"
+  exit 1
+}
 [[ -f "$KBUILD_NORMALIZER" ]] || {
   echo "::error::SukiSU 40901 Kbuild normalizer is missing: $KBUILD_NORMALIZER"
   exit 1
@@ -39,6 +44,7 @@ echo "Reconciling legacy generic KernelSU/SUSFS hooks before ZeroMount..."
 python3 "$SANITIZER" "$COMMON" "$KSU_ROOT"
 python3 "$SETUID_NORMALIZER" "$KSU_ROOT"
 python3 "$SUCOMPAT_NORMALIZER" "$KSU_ROOT"
+python3 "$NATIVE_POLICY_NORMALIZER" "$KSU_ROOT"
 python3 "$KBUILD_NORMALIZER" "$KSU_ROOT"
 
 echo "Enhanced SUSFS integration and SukiSU 40901 pre-ZeroMount reconciliation complete."
