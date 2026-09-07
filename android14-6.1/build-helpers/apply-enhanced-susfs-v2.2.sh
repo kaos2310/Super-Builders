@@ -6,6 +6,7 @@ KSU_ROOT="${2:?KernelSU root is required}"
 SOURCE_PATCH="${3:?enhanced SUSFS patch is required}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BRIDGE="$SCRIPT_DIR/apply-enhanced-susfs-v2.2-bridge.sh"
+OPEN_KMI_NORMALIZER="$SCRIPT_DIR/normalize-susfs-open-kmi.py"
 SANITIZER="$SCRIPT_DIR/sanitize-sukisu-40901-common-hooks.py"
 SETUID_NORMALIZER="$SCRIPT_DIR/normalize-sukisu-40901-setuid-susfs.py"
 SUCOMPAT_NORMALIZER="$SCRIPT_DIR/normalize-sukisu-40901-sucompat.py"
@@ -15,6 +16,10 @@ KBUILD_NORMALIZER="$SCRIPT_DIR/normalize-sukisu-40901-kbuild.py"
 
 [[ -f "$BRIDGE" ]] || {
   echo "::error::Pinned SukiSU/SUSFS bridge helper is missing: $BRIDGE"
+  exit 1
+}
+[[ -f "$OPEN_KMI_NORMALIZER" ]] || {
+  echo "::error::SUSFS fs/open.c KMI normalizer is missing: $OPEN_KMI_NORMALIZER"
   exit 1
 }
 [[ -f "$SANITIZER" ]] || {
@@ -44,6 +49,11 @@ KBUILD_NORMALIZER="$SCRIPT_DIR/normalize-sukisu-40901-kbuild.py"
 
 chmod +x "$BRIDGE"
 "$BRIDGE" "$COMMON" "$KSU_ROOT" "$SOURCE_PATCH"
+
+# The enhanced patch adds the SUSFS umbrella header to fs/open.c. Keep the
+# enhanced hidden-name/unicode hooks, but restore the narrow include surface
+# required by Samsung's stock nonseekable_open() genksyms CRC.
+python3 "$OPEN_KMI_NORMALIZER" "$COMMON"
 
 echo "Reconciling legacy generic KernelSU/SUSFS hooks before ZeroMount..."
 python3 "$SANITIZER" "$COMMON" "$KSU_ROOT"
