@@ -36,6 +36,7 @@ on:
       - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh'
       - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2-bridge.sh'
       - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2-core.sh'
+      - 'android14-6.1/build-helpers/normalize-susfs-open-kmi.py'
       - 'android14-6.1/build-helpers/sanitize-sukisu-40901-common-hooks.py'
       - 'android14-6.1/build-helpers/normalize-sukisu-40901-setuid-susfs.py'
       - 'android14-6.1/build-helpers/normalize-sukisu-40901-sucompat.py'
