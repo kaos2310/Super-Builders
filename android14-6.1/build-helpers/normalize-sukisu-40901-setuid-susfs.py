@@ -32,6 +32,60 @@ head = subprocess.check_output(
 if head != EXPECTED_PIN:
     raise SystemExit(f"SukiSU git HEAD mismatch: expected {EXPECTED_PIN}, got {head}")
 
+# Simonpunk's generic SUSFS patch removes SukiSU 40901's late-load declaration
+# from kernel/include/ksu.h together with the native late-load implementation.
+# The dispatcher/lifecycle normalizer deliberately restores the pinned 40901
+# dispatcher and core/init.c, so the matching public declaration must be put
+# back as well. Repair only that declaration instead of replacing the whole
+# header so any unrelated SUSFS additions remain intact.
+ksu_h_rel = "kernel/include/ksu.h"
+ksu_h_path = ksu_root / ksu_h_rel
+dispatch_path = ksu_root / "kernel/supercall/dispatch.c"
+init_path = ksu_root / "kernel/core/init.c"
+for item in (ksu_h_path, dispatch_path, init_path):
+    if not item.is_file():
+        raise SystemExit(f"SukiSU late-load contract source is missing: {item}")
+
+pinned_ksu_h = subprocess.check_output(
+    ["git", "-C", str(ksu_root), "show", f"{EXPECTED_PIN}:{ksu_h_rel}"], text=True
+)
+late_decl = "extern bool ksu_late_loaded;"
+if pinned_ksu_h.count(late_decl) != 1:
+    raise SystemExit(
+        "Pinned SukiSU 40901 ksu.h no longer has exactly one ksu_late_loaded declaration"
+    )
+
+ksu_h_text = ksu_h_path.read_text(encoding="utf-8")
+dispatch_text = dispatch_path.read_text(encoding="utf-8")
+init_text = init_path.read_text(encoding="utf-8")
+
+if "ksu_late_loaded" not in dispatch_text:
+    raise SystemExit(
+        "Restored SukiSU 40901 dispatcher unexpectedly lost ksu_late_loaded semantics"
+    )
+if init_text.count("bool ksu_late_loaded;") != 1:
+    raise SystemExit(
+        "Restored SukiSU 40901 core/init.c does not define ksu_late_loaded exactly once"
+    )
+
+if late_decl not in ksu_h_text:
+    anchor = "extern struct cred *ksu_cred;\n"
+    if ksu_h_text.count(anchor) != 1:
+        raise SystemExit(
+            "Cannot restore ksu_late_loaded declaration: ksu_cred anchor is missing or duplicated"
+        )
+    ksu_h_text = ksu_h_text.replace(anchor, anchor + late_decl + "\n", 1)
+
+if ksu_h_text.count(late_decl) != 1:
+    raise SystemExit(
+        "SukiSU late-load API declaration is missing or duplicated after SUSFS normalization"
+    )
+ksu_h_path.write_text(ksu_h_text, encoding="utf-8")
+print(
+    "Restored SukiSU 40901 late-load API contract after generic SUSFS patch "
+    "(dispatch declaration + core definition verified)"
+)
+
 rel = "kernel/hook/setuid_hook.c"
 setuid_hook = ksu_root / rel
 kernel_umount = ksu_root / "kernel/feature/kernel_umount.c"
