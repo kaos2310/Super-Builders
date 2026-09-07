@@ -38,6 +38,7 @@ on:
       - 'android14-6.1/build-helpers/sanitize-sukisu-40901-common-hooks.py'
       - 'android14-6.1/build-helpers/normalize-sukisu-40901-setuid-susfs.py'
       - 'android14-6.1/build-helpers/normalize-sukisu-40901-sucompat.py'
+      - 'android14-6.1/build-helpers/normalize-sukisu-40901-boot-event.py'
       - 'android14-6.1/build-helpers/normalize-sukisu-40901-native-policy.py'
       - 'android14-6.1/build-helpers/normalize-sukisu-40901-kbuild.py'
       - 'android14-6.1/build-helpers/normalize-sukisu-susfs-dispatch.py'
