@@ -3,11 +3,9 @@
 
 The pinned Simonpunk bridge is based on a nearby KernelSU/SukiSU layout.
 Several hunks still apply with fuzz to SukiSU Ultra 40901 but replace native
-40901 lifecycle, app-profile, object-manifest and supercall semantics. Preserve
-the exact checked-out SukiSU implementation and port only the SUSFS-specific
-pieces:
+40901 lifecycle, app-profile and supercall semantics. Preserve the exact
+checked-out SukiSU implementation and port only the SUSFS-specific pieces:
 - SUSFS init in core/init.c
-- the pinned SukiSU 40901 kernel/Kbuild object manifest
 - the pinned SUSFS command switch in supercall/dispatch.c
 - the direct reboot entry point required by kernel/reboot.c and local adapters
 """
@@ -79,13 +77,10 @@ def repair_sukisu_lifecycle(dispatch_path: Path) -> None:
         '#include "hook/syscall_hook_manager.h"',
         '#include "hook/lsm_hook.h"',
         "bool ksu_late_loaded;",
-        "ksu_init_symbol_resolver();",
-        "ksu_syscall_hook_init();",
         "ksu_lsm_hook_init();",
         "ksu_app_profile_init();",
         "ksu_syscall_hook_manager_init();",
         "ksu_syscall_hook_manager_exit();",
-        "ksu_lsm_hook_exit();",
         "#include <linux/susfs.h>",
         "susfs_init();",
     )
@@ -135,93 +130,6 @@ def repair_sukisu_lifecycle(dispatch_path: Path) -> None:
     profile_c_path.write_text(profile_c, encoding="utf-8")
     print(
         "Restored pinned SukiSU 40901 init/app-profile lifecycle and structurally re-added SUSFS init"
-    )
-
-
-def repair_sukisu_kbuild(dispatch_path: Path) -> None:
-    """Restore the 40901 object graph without undoing workflow version freezing.
-
-    Simonpunk's generic KernelSU patch can successfully fuzz-apply its Kbuild
-    hunk while replacing SukiSU 40901's modern split object graph with an older
-    one.  The lifecycle/dispatcher normalizers then restore references to the
-    modern hook manager, symbol resolver and tracepoint marker, which compiles
-    but fails at vmlinux link time because those implementation objects are no
-    longer members of kernelsu.o.
-
-    Restore only the object-manifest prefix from the immutable SukiSU pin. Keep
-    the remainder of the live Kbuild intact so the workflow's deterministic
-    KSU_VERSION / KSU_VERSION_FULL rewrite and any unrelated build metadata are
-    preserved.
-    """
-    ksu_root = dispatch_path.parents[2]
-    kbuild_path = ksu_root / "kernel/Kbuild"
-    if not kbuild_path.is_file():
-        raise SystemExit(f"SukiSU Kbuild is missing: {kbuild_path}")
-
-    pinned = git_show_pinned(ksu_root, "kernel/Kbuild")
-    current = kbuild_path.read_text(encoding="utf-8")
-    end_marker = "obj-$(CONFIG_KSU) += kernelsu.o\n"
-
-    pinned_end = pinned.find(end_marker)
-    current_end = current.find(end_marker)
-    if pinned_end < 0 or current_end < 0:
-        raise SystemExit("cannot locate kernelsu.o object-manifest terminator in SukiSU Kbuild")
-    pinned_end += len(end_marker)
-    current_end += len(end_marker)
-
-    pinned_manifest = pinned[:pinned_end]
-    current_suffix = current[current_end:]
-
-    required_objects = (
-        "kernelsu-objs := core/init.o",
-        "kernelsu-objs += hook/lsm_hook.o",
-        "kernelsu-objs += hook/syscall_hook.o",
-        "kernelsu-objs += hook/syscall_hook_manager.o",
-        "kernelsu-objs += hook/tp_marker.o",
-        "kernelsu-objs += infra/symbol_resolver.o",
-        "kernelsu-objs += supercall/dispatch.o",
-        "obj-$(CONFIG_KPM) += kpm/compact.o",
-        "obj-$(CONFIG_KPM) += kpm/kpm.o",
-        "obj-$(CONFIG_KPM) += kpm/super_access.o",
-        "obj-$(CONFIG_KSU) += kernelsu.o",
-    )
-    missing = [token for token in required_objects if token not in pinned_manifest]
-    if missing:
-        raise SystemExit(
-            "pinned SukiSU 40901 Kbuild lost required object entries: " + ", ".join(missing)
-        )
-
-    # SUSFS itself is built from common/fs and does not require a private
-    # drivers/kernelsu object. Refuse to silently discard an unexpected SUSFS
-    # object addition if a future upstream patch starts depending on one.
-    current_prefix = current[:current_end]
-    unexpected_susfs_objects = [
-        line
-        for line in current_prefix.splitlines()
-        if "SUSFS" in line and ("-objs" in line or "obj-" in line)
-    ]
-    if unexpected_susfs_objects:
-        raise SystemExit(
-            "generic SUSFS patch introduced Kbuild object entries that need an explicit 40901 port: "
-            + "; ".join(unexpected_susfs_objects)
-        )
-
-    normalized = pinned_manifest + current_suffix
-    for token in required_objects:
-        if normalized.count(token) != 1:
-            raise SystemExit(f"normalized SukiSU Kbuild does not contain exactly one required entry: {token}")
-
-    # The setup step freezes these fields before SUSFS is applied. They live in
-    # the preserved suffix and must survive object-manifest restoration.
-    for token in ("KSU_VERSION := 40901", "KSU_VERSION_FULL := v4.2.0-40901"):
-        if token not in current_suffix:
-            raise SystemExit(f"workflow-frozen SukiSU build identity missing before Kbuild normalization: {token}")
-        if token not in normalized:
-            raise SystemExit(f"workflow-frozen SukiSU build identity lost during Kbuild normalization: {token}")
-
-    kbuild_path.write_text(normalized, encoding="utf-8")
-    print(
-        "Restored pinned SukiSU 40901 Kbuild object graph while preserving frozen build identity"
     )
 
 
@@ -353,8 +261,7 @@ def rebuild_pinned_dispatch(dispatch_path: Path, patched: str) -> str:
 
 
 repair_sukisu_lifecycle(path)
-repair_sukisu_kbuild(path)
 text = rebuild_pinned_dispatch(path, post_patch_text)
 
 path.write_text(text, encoding="utf-8")
-print("Normalized SukiSU 40901 lifecycle/Kbuild/dispatcher for enhanced SUSFS/ZeroMount")
+print("Normalized SukiSU 40901 lifecycle/dispatcher for enhanced SUSFS/ZeroMount")
