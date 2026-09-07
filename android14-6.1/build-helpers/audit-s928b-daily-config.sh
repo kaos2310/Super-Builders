@@ -20,7 +20,6 @@ esac
 REQUIRED=(
   CONFIG_MODULE_ALLOW_BTF_MISMATCH
   CONFIG_KSU
-  CONFIG_KSU_MULTI_MANAGER_SUPPORT
   CONFIG_KSU_SUSFS
   CONFIG_KSU_SUSFS_SUS_PATH
   CONFIG_KSU_SUSFS_SUS_MOUNT
@@ -82,6 +81,11 @@ fi
 if [[ "$REQUIRE_KPM" == "true" ]]; then
   REQUIRED+=(CONFIG_KPM)
 fi
+
+# SukiSU Ultra v4.2.0-40901 (pin 9fbe8fe8ca90c62c259c5894bf96d02ac31209b9)
+# does not define CONFIG_KSU_MULTI_MANAGER_SUPPORT in kernel/Kconfig. Kconfig
+# therefore drops that stale fragment entry from the final .config. Do not
+# require a non-existent symbol here; manager policy is audited elsewhere.
 
 missing=()
 for symbol in "${REQUIRED[@]}"; do
