@@ -70,7 +70,8 @@ required_event_h = (
     "ksu_sulog_capture_sucompat(const char __user *filename_user,",
     "const char __user *const __user *argv_user, gfp_t gfp);",
 )
-required_event_c = (
+# Keep these as an explicit list: each token represents a separate ABI property.
+required_event_c = [
     "struct user_arg_ptr {",
     "static struct user_arg_ptr ksu_sulog_user_argv(const char __user *const __user *argv_user)",
     "static const char __user *ksu_sulog_get_user_arg_ptr(struct user_arg_ptr argv, int nr)",
@@ -78,7 +79,7 @@ required_event_c = (
     "const char __user *const __user *argv_user, gfp_t gfp)",
     "ksu_sulog_capture_root_execve(const char __user *filename_user,",
     "ksu_sulog_capture_sucompat(const char __user *filename_user,",
-)
+]
 for token in required_c:
     if token not in c_text:
         raise SystemExit(f"Pinned SukiSU 40901 sucompat.c lost native ABI token: {token}")
