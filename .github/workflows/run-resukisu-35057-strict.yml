@@ -23,6 +23,7 @@ on:
       - 'android14-6.1/build-helpers/allow-e3q-gunyah-rm-vmid-kmi.sh'
       - 'android14-6.1/build-helpers/audit-e3q-gunyah-qcom-module.sh'
       - 'android14-6.1/build-helpers/apply-s928b-zzhl-source-port.sh'
+      - 'android14-6.1/build-helpers/audit-s928b-daily-config.sh'
       - 'android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh'
       - 'android14-6.1/e3q-zzhl-gunyah-qcom-stock-modversions.tsv'
       - 'android14-6.1/samsung-e3q-zzhl-dlkm-crc-baseline.tsv'
