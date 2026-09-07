@@ -20,17 +20,26 @@ head = subprocess.check_output(
 if head != EXPECTED_PIN:
     raise SystemExit(f"SukiSU git HEAD mismatch: expected {EXPECTED_PIN}, got {head}")
 
-# Simonpunk's generic SUSFS patch switches sucompat/SULOG to the direct
-# common-kernel hook ABI (static-key enable state plus struct user_arg_ptr
-# entry points). This build deliberately removes those direct common hooks and
-# keeps SukiSU 40901's syscall_event_bridge/syscall_hook_manager architecture.
-# Restore the complete matching native sucompat + SULOG contract from the
-# immutable SukiSU pin. Restoring event.c together with event.h is intentional:
-# the pinned implementation owns its compat/native user_arg_ptr conversion
-# privately, while the generic SUSFS patch expects a caller-owned user_arg_ptr.
+# Simonpunk's generic SUSFS patch switches sucompat/SULOG plus the adb-root and
+# ksud exec path to the direct common-kernel hook ABI. This build deliberately
+# removes those direct common hooks and keeps SukiSU 40901's
+# syscall_event_bridge/syscall_hook_manager architecture. Restore the complete
+# matching native exec-hook contract from the immutable SukiSU pin.
+#
+# Restoring event.c together with event.h is intentional: the pinned
+# implementation owns its compat/native user_arg_ptr conversion privately,
+# while the generic SUSFS patch expects a caller-owned user_arg_ptr.
+# Restoring adb_root.c/.h and runtime/ksud.h/ksud_integration.c as pairs is
+# equally intentional: syscall_event_bridge.c calls the pinned pt_regs entry
+# points, whereas the generic SUSFS patch rewrites those files to a different
+# filename/envp/execveat ABI.
 files = (
     "kernel/feature/sucompat.c",
     "kernel/feature/sucompat.h",
+    "kernel/feature/adb_root.c",
+    "kernel/feature/adb_root.h",
+    "kernel/runtime/ksud.h",
+    "kernel/runtime/ksud_integration.c",
     "kernel/sulog/event.c",
     "kernel/sulog/event.h",
 )
@@ -46,6 +55,10 @@ for rel in files:
 
 c_text = restored["kernel/feature/sucompat.c"]
 h_text = restored["kernel/feature/sucompat.h"]
+adb_c_text = restored["kernel/feature/adb_root.c"]
+adb_h_text = restored["kernel/feature/adb_root.h"]
+ksud_h_text = restored["kernel/runtime/ksud.h"]
+ksud_integration_text = restored["kernel/runtime/ksud_integration.c"]
 event_c_text = restored["kernel/sulog/event.c"]
 event_h_text = restored["kernel/sulog/event.h"]
 
@@ -64,6 +77,28 @@ required_h = (
     "long ksu_handle_stat_sucompat(int orig_nr, struct pt_regs *regs);",
     "long ksu_handle_execve_sucompat(const char __user **filename_user, int orig_nr, struct pt_regs *regs);",
     "long ksu_handle_execveat_sucompat(const char __user **filename_user, int orig_nr, struct pt_regs *regs);",
+)
+required_adb_h = (
+    "long ksu_adb_root_handle_execve(struct pt_regs *regs);",
+    "long ksu_adb_root_handle_execveat(struct pt_regs *regs);",
+)
+required_adb_c = (
+    "static long setup_ld_preload(struct pt_regs *regs, unsigned long *envp_p)",
+    "static long do_ksu_adb_root_handle_execve(const char __user *filename_user, struct pt_regs *regs, unsigned long *envp_p)",
+    "long ksu_adb_root_handle_execve(struct pt_regs *regs)",
+    "long ksu_adb_root_handle_execveat(struct pt_regs *regs)",
+)
+required_ksud_h = (
+    "void ksu_execve_hook_ksud(const struct pt_regs *regs);",
+    "void ksu_execveat_hook_ksud(const struct pt_regs *regs);",
+    "void ksu_stop_input_hook_runtime(void);",
+)
+required_ksud_integration = (
+    '#include "hook/syscall_hook.h"',
+    '#include "hook/syscall_event_bridge.h"',
+    "static void stop_execve_hook();",
+    "void ksu_handle_execveat_ksud(const char *path, struct user_arg_ptr *argv)",
+    "void ksu_stop_input_hook_runtime(void)",
 )
 required_event_h = (
     "ksu_sulog_capture_root_execve(const char __user *filename_user,",
@@ -86,6 +121,18 @@ for token in required_c:
 for token in required_h:
     if token not in h_text:
         raise SystemExit(f"Pinned SukiSU 40901 sucompat.h lost native ABI token: {token}")
+for token in required_adb_h:
+    if token not in adb_h_text:
+        raise SystemExit(f"Pinned SukiSU 40901 adb_root.h lost native pt_regs ABI token: {token}")
+for token in required_adb_c:
+    if token not in adb_c_text:
+        raise SystemExit(f"Pinned SukiSU 40901 adb_root.c lost native pt_regs ABI token: {token}")
+for token in required_ksud_h:
+    if token not in ksud_h_text:
+        raise SystemExit(f"Pinned SukiSU 40901 ksud.h lost native bridge ABI token: {token}")
+for token in required_ksud_integration:
+    if token not in ksud_integration_text:
+        raise SystemExit(f"Pinned SukiSU 40901 ksud_integration.c lost native bridge token: {token}")
 for token in required_event_h:
     if token not in event_h_text:
         raise SystemExit(f"Pinned SukiSU 40901 SULOG header lost native ABI token: {token}")
@@ -102,6 +149,20 @@ for forbidden in (
         raise SystemExit(f"Direct-hook SUSFS sucompat ABI unexpectedly exists in pinned SukiSU: {forbidden}")
 
 for forbidden in (
+    "ksu_adb_root_handle_execveat(const char *filename",
+    "do_ksu_adb_root_handle_execveat(const char *filename",
+):
+    if forbidden in adb_c_text or forbidden in adb_h_text:
+        raise SystemExit(f"Direct-hook SUSFS adb-root ABI unexpectedly exists in pinned SukiSU: {forbidden}")
+
+for forbidden in (
+    "int ksu_handle_execveat_ksud(int *fd",
+    "DEFINE_STATIC_KEY_TRUE(is_first_zygote)",
+):
+    if forbidden in ksud_h_text or forbidden in ksud_integration_text:
+        raise SystemExit(f"Direct-hook SUSFS ksud ABI unexpectedly exists in pinned SukiSU: {forbidden}")
+
+for forbidden in (
     '#include "runtime/ksud.h"',
     "ksu_sulog_capture_sucompat(const char *filename,",
     "struct user_arg_ptr *argv_user",
@@ -112,14 +173,19 @@ for forbidden in (
 for rel, data in restored.items():
     (ksu_root / rel).write_text(data, encoding="utf-8")
 
-# Validate both native callers that will be linked again by the Kbuild
-# normalizer. This catches a future SukiSU rebase before the expensive build
-# and prevents the sucompat and root-exec SULOG signatures drifting apart.
+# Validate the native bridge against every restored public exec-hook contract.
+# This catches future SukiSU rebases before the expensive kernel build and
+# prevents sucompat, adb-root, ksud and root-exec SULOG signatures drifting
+# independently.
 bridge = ksu_root / "kernel/hook/syscall_event_bridge.c"
 if not bridge.is_file():
     raise SystemExit(f"Native SukiSU syscall event bridge is missing: {bridge}")
 bridge_text = bridge.read_text(encoding="utf-8")
 for token in (
+    "ksu_execveat_hook_ksud(regs);",
+    "ksu_execve_hook_ksud(regs);",
+    "ksu_adb_root_handle_execveat((struct pt_regs *)regs)",
+    "ksu_adb_root_handle_execve((struct pt_regs *)regs)",
     "ksu_handle_stat_sucompat(orig_nr",
     "ksu_handle_faccessat_sucompat(orig_nr",
     "ksu_handle_execve_sucompat(filename_user",
@@ -129,9 +195,24 @@ for token in (
     if token not in bridge_text:
         raise SystemExit(f"Native SukiSU syscall bridge lost expected call: {token}")
 
-# Verify the files written to disk expose one coherent public SULOG contract.
+# Verify the files written to disk expose one coherent public ABI and that none
+# of the direct-hook SUSFS declarations survived the restoration.
+written_adb_h = (ksu_root / "kernel/feature/adb_root.h").read_text(encoding="utf-8")
+written_ksud_h = (ksu_root / "kernel/runtime/ksud.h").read_text(encoding="utf-8")
 written_event_h = (ksu_root / "kernel/sulog/event.h").read_text(encoding="utf-8")
 written_event_c = (ksu_root / "kernel/sulog/event.c").read_text(encoding="utf-8")
+if written_adb_h.count("long ksu_adb_root_handle_execve(struct pt_regs *regs);") != 1:
+    raise SystemExit("SukiSU native adb-root execve declaration is missing or duplicated after normalization")
+if written_adb_h.count("long ksu_adb_root_handle_execveat(struct pt_regs *regs);") != 1:
+    raise SystemExit("SukiSU native adb-root execveat declaration is missing or duplicated after normalization")
+if "ksu_adb_root_handle_execveat(const char *filename" in written_adb_h:
+    raise SystemExit("Direct-hook SUSFS adb-root declaration survived normalization")
+if written_ksud_h.count("void ksu_execve_hook_ksud(const struct pt_regs *regs);") != 1:
+    raise SystemExit("SukiSU native ksud execve declaration is missing or duplicated after normalization")
+if written_ksud_h.count("void ksu_execveat_hook_ksud(const struct pt_regs *regs);") != 1:
+    raise SystemExit("SukiSU native ksud execveat declaration is missing or duplicated after normalization")
+if "int ksu_handle_execveat_ksud(int *fd" in written_ksud_h:
+    raise SystemExit("Direct-hook SUSFS ksud declaration survived normalization")
 if written_event_h.count("ksu_sulog_capture_root_execve(") != 1:
     raise SystemExit("SukiSU root-exec SULOG declaration is missing or duplicated after normalization")
 if written_event_h.count("ksu_sulog_capture_sucompat(") != 1:
@@ -142,6 +223,6 @@ if written_event_c.count("ksu_sulog_capture_sucompat(") != 1:
     raise SystemExit("SukiSU sucompat SULOG definition is missing or duplicated after normalization")
 
 print(
-    "Restored and verified SukiSU 40901 native sucompat + SULOG ABI after generic SUSFS patch "
-    "(sucompat and root-exec callers reconciled)"
+    "Restored and verified SukiSU 40901 native exec-hook ABI after generic SUSFS patch "
+    "(sucompat + adb-root + ksud + SULOG reconciled with syscall_event_bridge)"
 )
