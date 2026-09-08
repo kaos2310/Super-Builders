@@ -1,5 +1,5 @@
-name: S928B ZZHL ReSukiSU 35119 SuSession Build
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35119 + Gunyah Reclaim v1 + SuSession v1"
+name: S928B ZZHL ReSukiSU 35119 SUSFS Native v2 Build
+run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35119 + Gunyah Reclaim v1 + SUSFS Native v2"
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
     branches:
       - agent/resukisu-35115-eux-zzhl
       - agent/resukisu-35119-susfs-su-session-port
+      - agent/resukisu-35119-susfs-native-v2
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -53,7 +54,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35119-su-session-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35119-susfs-native-v2-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:

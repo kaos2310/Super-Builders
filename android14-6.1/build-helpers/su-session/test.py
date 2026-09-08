@@ -77,6 +77,25 @@ def run(command):
     return result.stdout.strip()
 
 
+def webview_sources(ksu):
+    policy = (ksu / "kernel/policy/allowlist.c").read_text()
+    umount = (ksu / "kernel/feature/kernel_umount.c").read_text()
+    setuid = (ksu / "kernel/hook/setuid_hook.c").read_text()
+    values = {"VALID": extract(policy, "profile_valid"),
+              "POLICY": extract(policy, "ksu_uid_should_umount"),
+              "SET_POLICY": extract(policy, "ksu_set_webview_zygote_umount"),
+              "FEATURE": extract(umount, "webview_zygote_umount_feature_get") + "\n" + extract(umount, "webview_zygote_umount_feature_set"),
+              "UMOUNT": extract(umount, "ksu_handle_umount"),
+              "NEXT": extract(setuid, "handle_zygote_next_setresuid"),
+              "SETUID": extract(setuid, "ksu_handle_setuid"),
+              "PRUNE": extract(policy, "ksu_prune_allowlist")}
+    text = (HERE / "webview.c.in").read_text()
+    for key, value in values.items():
+        assert text.count(f"@@{key}@@") == 1
+        text = text.replace(f"@@{key}@@", value)
+    return text
+
+
 def compile_run(code, name, args, root, expect_failure=False):
     src = root / f"{name}.c"
     src.write_text(code, encoding="utf-8", newline="\n")
@@ -176,10 +195,16 @@ def main():
     common, ksu = fixture_and_application_checks(args.common, args.ksu, root)
     code = sources(common, ksu)
     result = compile_run(code, "production", args, root)
+    webview = webview_sources(ksu)
+    webview_result = compile_run(webview, "webview", args, root)
+    policy_disabled = compile_run("#define CONFIG_KSU_DISABLE_POLICY 1\n" + webview, "webview-policy-disabled", args, root)
     if args.aarch64_check:
         run([args.cc, "--target=aarch64-linux-android", "-DWASM_TEST", "-ffreestanding", "-fno-builtin",
              "-std=gnu11", "-Werror=implicit-function-declaration", "-c", root / "production.c", "-o", root / "production-aarch64.o"])
         print("production: AArch64 object compilation passed")
+        run([args.cc, "--target=aarch64-linux-android", "-DWASM_TEST", "-ffreestanding", "-fno-builtin",
+             "-std=gnu11", "-Werror=implicit-function-declaration", "-c", root / "webview.c", "-o", root / "webview-aarch64.o"])
+        print("webview: AArch64 object compilation passed")
     mutations = {
         "mutant-exec-failure": ("is_su_session && retval >= 0", "is_su_session"),
         "mutant-unscoped-permissions": ("ksu_ioctl_handlers[i].allow_su_session && ksu_is_su_session_fd(filp)", "ksu_is_su_session_fd(filp)"),
@@ -196,10 +221,20 @@ def main():
     assert moved.count(marker) == 1
     moved = moved.replace(marker, old + "\n" + marker)
     compile_run(moved, "mutant-premature-install", args, root, expect_failure=True)
+    web_mutations = {
+        "mutant-webview-prune": (" || uid == WEBVIEW_ZYGOTE_UID;", ";"),
+        "mutant-boot-overwrite": ("if (!READ_ONCE(ksu_boot_completed))", "if (false)"),
+        "mutant-webview-zygote-next": ("if (ksu_uid_should_umount(new_uid))", "if (false)"),
+        "mutant-webview-root-profile": ("profile->allow_su || strcmp(profile->key", "false || strcmp(profile->key"),
+    }
+    for name, (old, new) in web_mutations.items():
+        assert webview.count(old) == 1, name
+        compile_run(webview.replace(old, new), name, args, root, expect_failure=True)
     (root / "result.json").write_text(json.dumps({"base": head, "production": result,
-        "mutations_rejected": 5, "aarch64_object": args.aarch64_check,
+        "webview": webview_result, "webview_policy_disabled": policy_disabled,
+        "mutations_rejected": 9, "aarch64_object": args.aarch64_check,
         "limitation": "Mocks verify control flow and cleanup; no complete kernel build or device test."}, indent=2) + "\n")
-    print(f"PASS: application gates, exact-C fault tests and five mutation controls; results: {root}")
+    print(f"PASS: application gates, exact-C fault tests and nine mutation controls; results: {root}")
 
 
 if __name__ == "__main__":

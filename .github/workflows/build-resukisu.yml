@@ -44,7 +44,7 @@ on:
         type: boolean
         default: false
       susfs_su_session:
-        description: "Native post-exec su-session FD backport for ReSukiSU 35119 / Android 14 / Linux 6.1"
+        description: "Native SUSFS v2 port: WebView app profiles and post-exec su FD for ReSukiSU 35119 / Android 14 / Linux 6.1"
         type: boolean
         default: false
       add_ptrace_fix:
@@ -541,7 +541,7 @@ jobs:
         sub_level: ${{ env.SUBLEVEL }}
         os_patch_level: ${{ inputs.os_patch_level }}
 
-    - name: Apply and test native ReSukiSU su-session FD backport
+    - name: Apply and test native ReSukiSU SUSFS v2 backport
       if: inputs.susfs_su_session
       env:
         ADD_SUSFS: ${{ inputs.add_susfs }}
@@ -557,9 +557,9 @@ jobs:
         python3 "$PORT/test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --work-dir "$RUNNER_TEMP/su-session-tests"
         {
-          echo "RESUKISU_SU_SESSION_PORT=ReSukiSU-35119-SuSession-v1"
-          echo "ARTIFACT_BASE=${ARTIFACT_BASE}-SuSession-v1"
-          echo "FILE_NAME=${ARTIFACT_BASE}-SuSession-v1"
+          echo "RESUKISU_SU_SESSION_PORT=ReSukiSU-35119-SUSFS-Native-v2"
+          echo "ARTIFACT_BASE=${ARTIFACT_BASE}-SUSFS-Native-v2"
+          echo "FILE_NAME=${ARTIFACT_BASE}-SUSFS-Native-v2"
         } >> "$GITHUB_ENV"
 
     - name: Apply Enhanced SUSFS features
@@ -841,7 +841,7 @@ jobs:
           echo "Strict KMI mode: build-time ABI and defconfig checks remain enabled."
         fi
 
-    - name: Verify su-session integration after downstream source patches
+    - name: Verify WebView profile and su-session integration after downstream patches
       if: inputs.susfs_su_session
       run: |
         set -euo pipefail
@@ -1417,7 +1417,7 @@ jobs:
         EOF
         fi
 
-    - name: Audit and record su-session kernel artifact
+    - name: Audit and record native SUSFS v2 kernel artifact
       if: inputs.susfs_su_session && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
       run: |
         set -euo pipefail
@@ -1727,7 +1727,7 @@ jobs:
           if [[ "$ADD_SUSFS" == "true" ]]; then
             echo "| **SUSFS source** | ${SUSFS_EXPECTED_VERSION:-not-recorded} @ ${SUSFS_PINNED_COMMIT:-not-recorded} |"
           fi
-          echo "| **Native su-session port** | ${RESUKISU_SU_SESSION_PORT:-disabled} |"
+          echo "| **Native SUSFS port** | ${RESUKISU_SU_SESSION_PORT:-disabled} |"
           echo "| **Enhanced SUSFS** | $(S "$ADD_SUSFS") |"
           echo "| **SUSFS Open Redirect (Test)** | $(S "$SUSFS_OPEN_REDIRECT_TEST") |"
           echo "| **ZeroMount** | $(S "$ADD_ZEROMOUNT") |"

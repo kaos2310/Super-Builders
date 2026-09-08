@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the native UAPI-2 su-session backport to the pinned ReSukiSU tree."""
+"""Apply the native UAPI-2 WebView and su-session backport to pinned ReSukiSU."""
 import argparse
 import hashlib
 import json
@@ -11,7 +11,7 @@ HERE = Path(__file__).resolve().parent
 RESUKISU_PIN = "f1dd81dc96d7f3f6691e6ac8b50fba9ae8a2f17c"
 SUSFS_PIN = "5727f79e3a7175cfb0e1a754fc2ed78eaf866237"
 UPSTREAM = "153f88df3be2501d2d33364f8fe05247aecb3cef"
-PORT_ID = "ReSukiSU-35119-SuSession-v1"
+PORT_ID = "ReSukiSU-35119-SUSFS-Native-v2"
 IMAGE_MARKER = b"ReSukiSU: su-session FD installation failed:"
 
 
@@ -33,10 +33,12 @@ def patch_state(root, patch):
     raise RuntimeError(f"Unknown or partial source state: {root} / {patch.name}")
 
 
-def apply_pair(common, ksu, verify_only=False):
+def apply_pair(common, ksu, verify_only=False, with_ksud=False):
     pairs = [(ksu, HERE / "resukisu-35119-su-session.patch"),
              (common, HERE / "gki-6.1-su-session.patch")]
-    # Check BOTH patches before changing either tree. No fuzz or rejected hunks.
+    if with_ksud:
+        pairs.append((ksu, HERE / "resukisu-35119-ksud-optional.patch"))
+    # Check all selected patches before changing either tree. No fuzz or rejected hunks.
     states = [patch_state(root, patch) for root, patch in pairs]
     if len(set(states)) != 1:
         raise RuntimeError(f"Partial cross-tree port rejected: {states}")
@@ -81,12 +83,16 @@ def validate_identity(common, ksu, susfs_commit):
         raise RuntimeError("Only the Linux 6.1 integration is supported")
 
 
-def receipt(common, ksu):
+def receipt(common, ksu, with_ksud=False):
     paths = [(ksu, "kernel/feature/sucompat.c"), (ksu, "kernel/supercall/dispatch.c"),
-             (ksu, "kernel/supercall/supercall.c"), (common, "fs/exec.c")]
+             (ksu, "kernel/supercall/supercall.c"), (common, "fs/exec.c"),
+             (ksu, "kernel/policy/allowlist.c"), (ksu, "kernel/hook/setuid_hook.c")]
     return {
         "port": PORT_ID, "resukisu_commit": RESUKISU_PIN, "susfs_base": SUSFS_PIN,
         "upstream_exec_fix": UPSTREAM, "uapi": 2, "driver_name": "[ksu_driver]",
+        "upstream_webview_fix": "4fc9c1898ea66f51847cdbc0d1473ea4ef525a70",
+        "upstream_scoped_fd_sync": "e5b4d2879836cfb8379010a8ebee76c519f5c834",
+        "webview_profile_uid": 1053, "legacy_feature_id": 5, "optional_ksud_applied": with_ksud,
         "extra_session_commands": ["GET_WRAPPER_FD", "DISABLE_ESCAPE_TO_ROOT"],
         "patch_sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in HERE.glob("*.patch")},
         "source_sha256": {p: hashlib.sha256((r / p).read_bytes()).hexdigest() for r, p in paths},
@@ -99,19 +105,22 @@ def main():
     parser.add_argument("--ksu", type=Path, required=True)
     parser.add_argument("--susfs-commit", required=True)
     parser.add_argument("--verify-only", action="store_true")
+    parser.add_argument("--with-ksud", action="store_true", help="Also patch ksud source; requires a separate ksud build")
     parser.add_argument("--image", type=Path)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--receipt", type=Path)
     args = parser.parse_args()
     try:
         validate_identity(args.common, args.ksu, args.susfs_commit)
-        state = apply_pair(args.common, args.ksu, args.verify_only)
+        state = apply_pair(args.common, args.ksu, args.verify_only, args.with_ksud)
         if args.image and IMAGE_MARKER not in args.image.read_bytes():
             raise RuntimeError("The kernel Image is missing the su-session exec marker")
+        if args.image and b"webview_zygote_umount: UAPI2 profile updated" not in args.image.read_bytes():
+            raise RuntimeError("The kernel Image is missing the WebView profile bridge marker")
         if args.config and "CONFIG_KSU_SUSFS=y" not in args.config.read_text().splitlines():
             raise RuntimeError("Final kernel configuration does not enable CONFIG_KSU_SUSFS=y")
         if args.receipt:
-            data = receipt(args.common, args.ksu)
+            data = receipt(args.common, args.ksu, args.with_ksud)
             if args.image:
                 data["image_sha256"] = hashlib.sha256(args.image.read_bytes()).hexdigest()
             args.receipt.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
