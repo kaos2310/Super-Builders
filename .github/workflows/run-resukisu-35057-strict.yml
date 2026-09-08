@@ -1,5 +1,5 @@
-name: S928B ZZHL ReSukiSU 35118 Gunyah Reclaim Build
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35118 + Gunyah Reclaim v1"
+name: S928B ZZHL ReSukiSU 35119 Gunyah Reclaim Build
+run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35119 + Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -51,7 +51,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35118-exact-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35119-exact-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -94,9 +94,9 @@ jobs:
       susfs_open_redirect: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 88695111d70a6c4dc490a8f46be7694f9eea36e0
+      sukisu_commit: f1dd81dc96d7f3f6691e6ac8b50fba9ae8a2f17c
       resukisu_source_branch: main
-      resukisu_version_code: "35118"
+      resukisu_version_code: "35119"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
