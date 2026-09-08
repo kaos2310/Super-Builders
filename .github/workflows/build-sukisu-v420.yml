@@ -434,6 +434,15 @@ jobs:
         python3 "$HELPERS/patch-e3q-gunyah-adaptive-backing.py" "$KERNEL_ROOT/common"
         echo 'GUNYAH_ADAPTIVE_BACKING=1' >> "$GITHUB_ENV"
 
+    - name: Apply fail-closed Gunyah reclaim and test exact generated C
+      if: inputs.device_codename == 'e3q'
+      run: |
+        set -euo pipefail
+        HELPERS="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers"
+        python3 "$HELPERS/patch-e3q-gunyah-reclaim.py" "$KERNEL_ROOT/common"
+        python3 "$HELPERS/test-e3q-gunyah-reclaim.py" --kernel "$KERNEL_ROOT/common"
+        echo 'GUNYAH_RECLAIM_V1=1' >> "$GITHUB_ENV"
+
     - name: Extract Sublevel
       env:
         INPUT_SUB_LEVEL: ${{ inputs.sub_level }}
@@ -445,8 +454,9 @@ jobs:
           [[ -n "$EXTRACTED" ]] && SUBLEVEL="$EXTRACTED"
         fi
 
-        ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-SukiSU-Ultra-v4.2.0"
+        ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-SukiSU-Ultra-v4.2.0-40901"
         [[ "${GUNYAH_ADAPTIVE_BACKING:-0}" == "1" ]] && ARTIFACT_BASE+="-GunyahAdaptive-v1"
+        [[ "${GUNYAH_RECLAIM_V1:-0}" == "1" ]] && ARTIFACT_BASE+="-Reclaim-v1"
         [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]] && ARTIFACT_BASE+="-OpenRedirect-Test"
         if [[ "${{ inputs.kmi_mode }}" != "runtime-compat" ]]; then
           ARTIFACT_BASE+="-KMI-${{ inputs.kmi_profile }}-${{ inputs.kmi_mode }}"
@@ -493,6 +503,10 @@ jobs:
           exit 1
         fi
         VERSION_CODE=$((40000 + COMMIT_COUNT - 2815))
+        [[ "$VERSION_CODE" == "40901" ]] || {
+          echo "::error::SukiSU pin must resolve to 40901, got $VERSION_CODE"
+          exit 1
+        }
         VERSION_FULL="v4.2.0-${VERSION_CODE}"
 
         python3 - "$KERNEL_ROOT/$KSU_DIR/kernel/Kbuild" "$VERSION_CODE" "$VERSION_FULL" <<'PY'
@@ -1109,6 +1123,9 @@ jobs:
         KMI_MODE: ${{ inputs.kmi_mode }}
       run: |
         set -euo pipefail
+        if [[ "${SUSFS_EXPECTED_VERSION:-}" == "v2.3.0" ]]; then
+          python3 "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/normalize-susfs-open-kmi.py" --check "$KERNEL_ROOT/common"
+        fi
         LTO_MODE=thin
         [[ "$ANDROID_VER" == android16* || "$KERNEL_VER" == "6.12" ]] && LTO_MODE=none
         if [ -f "build/build.sh" ]; then

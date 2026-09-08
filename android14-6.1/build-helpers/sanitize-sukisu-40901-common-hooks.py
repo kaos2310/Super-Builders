@@ -232,20 +232,21 @@ def normalize_open_faccessat() -> None:
         changed = True
         print("Restored native AOSP user_path_at() assignment in fs/open.c do_faccessat()")
 
-    # The enhanced Unicode filter calls this helper later in open.c. The broad
-    # generic-KSU guard removed by the sanitizer can also carry the SUSFS header
-    # include, so restore the header independently of the callback glue.
+    # Preserve the narrow declaration without reintroducing linux/susfs.h.
+    # Run 34168189986 restored that umbrella header AFTER KMI normalization,
+    # exposing uts_namespace/kstatfs to genksyms and changing nonseekable_open.
+    unicode_decl = "extern bool susfs_check_unicode_bypass(const char __user *filename);"
     if "susfs_check_unicode_bypass(" in text:
         susfs_header = COMMON / "include/linux/susfs.h"
         if not susfs_header.is_file():
             raise SystemExit("SUSFS header is missing while Unicode filter is active")
-        if "susfs_check_unicode_bypass" not in susfs_header.read_text(encoding="utf-8"):
+        if unicode_decl.removeprefix("extern ") not in susfs_header.read_text(encoding="utf-8"):
             raise SystemExit("SUSFS header lacks susfs_check_unicode_bypass() declaration")
 
-        if "#include <linux/susfs.h>" not in text:
+        if unicode_decl not in text:
             include_block = (
                 "#ifdef CONFIG_KSU_SUSFS\n"
-                "#include <linux/susfs.h>\n"
+                f"{unicode_decl}\n"
                 "#endif\n"
             )
             anchors = (
@@ -258,7 +259,7 @@ def normalize_open_faccessat() -> None:
                 raise SystemExit("Cannot locate a unique fs/open.c SUSFS include anchor")
             text = text.replace(anchor, anchor + "\n" + include_block, 1)
             changed = True
-            print("Restored <linux/susfs.h> include required by fs/open.c Unicode filter")
+            print("Restored narrow fs/open.c Unicode filter declaration")
 
     if changed:
         fresh_start, fresh_end = function_span(
@@ -282,8 +283,8 @@ def normalize_open_faccessat() -> None:
         raise SystemExit("Orphan fname survived final do_faccessat() reconciliation")
     if not any(token in final_func for token in lookup_assignments):
         raise SystemExit("Final do_faccessat() has no initialized path lookup")
-    if "susfs_check_unicode_bypass(" in final and "#include <linux/susfs.h>" not in final:
-        raise SystemExit("Final fs/open.c Unicode filter has no SUSFS declaration include")
+    if "susfs_check_unicode_bypass(" in final and final.count(unicode_decl) != 1:
+        raise SystemExit("Final fs/open.c Unicode filter needs exactly one narrow declaration")
 
 
 def normalize_sukisu_init_escape_api() -> None:

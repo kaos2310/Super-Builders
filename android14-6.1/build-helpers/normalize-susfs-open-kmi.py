@@ -25,15 +25,20 @@ def fail(message: str) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        fail("usage: normalize-susfs-open-kmi.py <kernel-common-tree>")
+    args = sys.argv[1:]
+    check_only = bool(args and args[0] == "--check")
+    if check_only:
+        args = args[1:]
+    if len(args) != 1:
+        fail("usage: normalize-susfs-open-kmi.py [--check] <kernel-common-tree>")
 
-    common = Path(sys.argv[1])
+    common = Path(args[0])
     path = common / "fs/open.c"
     if not path.is_file():
         fail(f"missing source: {path}")
 
     text = path.read_text(encoding="utf-8")
+    original = text
 
     broad_block = (
         "#ifdef CONFIG_KSU_SUSFS\n"
@@ -103,7 +108,10 @@ def main() -> None:
     if text.count("extern bool susfs_check_unicode_bypass(") != 1:
         fail("unicode-filter declaration is missing or duplicated")
 
-    path.write_text(text, encoding="utf-8")
+    if check_only and text != original:
+        fail("a later patch reintroduced a non-neutral SUSFS include; refusing to build")
+    if not check_only:
+        path.write_text(text, encoding="utf-8")
     state = "already normalized" if already_normalized else "normalized"
     print(
         "Verified KMI-neutral SUSFS fs/open.c: "

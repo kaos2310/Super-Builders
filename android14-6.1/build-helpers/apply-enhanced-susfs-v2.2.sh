@@ -50,11 +50,6 @@ KBUILD_NORMALIZER="$SCRIPT_DIR/normalize-sukisu-40901-kbuild.py"
 chmod +x "$BRIDGE"
 "$BRIDGE" "$COMMON" "$KSU_ROOT" "$SOURCE_PATCH"
 
-# The enhanced patch adds the SUSFS umbrella header to fs/open.c. Keep the
-# enhanced hidden-name/unicode hooks, but restore the narrow include surface
-# required by Samsung's stock nonseekable_open() genksyms CRC.
-python3 "$OPEN_KMI_NORMALIZER" "$COMMON"
-
 echo "Reconciling legacy generic KernelSU/SUSFS hooks before ZeroMount..."
 python3 "$SANITIZER" "$COMMON" "$KSU_ROOT"
 python3 "$SETUID_NORMALIZER" "$KSU_ROOT"
@@ -62,5 +57,9 @@ python3 "$SUCOMPAT_NORMALIZER" "$KSU_ROOT"
 python3 "$BOOT_EVENT_NORMALIZER" "$KSU_ROOT"
 python3 "$NATIVE_POLICY_NORMALIZER" "$KSU_ROOT"
 python3 "$KBUILD_NORMALIZER" "$KSU_ROOT"
+
+# Run after every reconciliation helper: a later header insertion previously
+# undid normalization and changed the Samsung nonseekable_open CRC.
+python3 "$OPEN_KMI_NORMALIZER" "$COMMON"
 
 echo "Enhanced SUSFS integration and SukiSU 40901 pre-ZeroMount reconciliation complete."

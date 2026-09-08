@@ -90,6 +90,7 @@ apply_targeted_patch() {
   local target_path="$3"
   local temp_patch="$4"
   local hunk_pattern="${5:-}"
+  local diagnostic="${6:-error}"
 
   if [[ -n "$hunk_pattern" ]]; then
     extract_matching_hunks "$source_patch" "$target_path" "$hunk_pattern" "$temp_patch"
@@ -98,7 +99,7 @@ apply_targeted_patch() {
   fi
 
   if [[ ! -s "$temp_patch" ]]; then
-    echo "::error::No patch section found for $target_path in $(basename "$source_patch")"
+    echo "::${diagnostic}::No patch section found for $target_path in $(basename "$source_patch")"
     return 1
   fi
 
@@ -117,7 +118,7 @@ apply_targeted_patch() {
     return 0
   fi
 
-  echo "::error::Official SUSFS base hooks for $target_path neither apply forward nor are fully present"
+  echo "::${diagnostic}::Official SUSFS base hooks for $target_path neither apply forward nor are fully present"
   return 1
 }
 
@@ -133,7 +134,7 @@ apply_optional_targeted_patch() {
     return 0
   fi
 
-  if apply_targeted_patch "$common_tree_path" "$source_patch" "$target_path" "$temp_patch" "$hunk_pattern"; then
+  if apply_targeted_patch "$common_tree_path" "$source_patch" "$target_path" "$temp_patch" "$hunk_pattern" warning; then
     return 0
   fi
 
@@ -190,17 +191,14 @@ if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" == "SukiSU" ]]; then
   apply_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
     'fs/proc/base.c' "$TARGETED_DIR/proc-base-base.patch"
 
-  # namei.c already contains unrelated SUS_PATH changes from the reconciliation.
-  # Import only the Open Redirect insertion hunks to avoid colliding with them.
-  # Enhanced SUSFS may structurally rewrite namei.c before config assembly.
-  # Replay these official hunks as recovery-only; the strict semantic audit below remains fail-closed.
-  apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
-    'fs/namei.c' "$TARGETED_DIR/namei-open-redirect.patch" \
-    'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path'
-
   chmod +x "$VERIFY_SCRIPT"
   if ! "$VERIFY_SCRIPT" "$COMMON_TREE" "$AUDIT_FILE"; then
     echo "::warning::Initial SUSFS source audit failed; retrying with targeted hunk recovery"
+    # Enhanced namei hooks may already be complete with different context.
+    # Attempt recovery only after a failed audit; never replay a passing path.
+    apply_optional_targeted_patch "$COMMON_TREE" "$UPSTREAM_PATCH" \
+      'fs/namei.c' "$TARGETED_DIR/namei-open-redirect.patch" \
+      'CONFIG_KSU_SUSFS_OPEN_REDIRECT|AS_FLAGS_OPEN_REDIRECT|susfs_get_redirected_path'
     [[ -n "$UPSTREAM_PATCH" ]] || {
       echo "::error::Missing upstream SUSFS patch path for recovery (UPSTREAM_PATCH is empty)"
       exit 1

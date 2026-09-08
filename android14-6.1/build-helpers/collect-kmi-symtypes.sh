@@ -59,6 +59,14 @@ fi
 git -C "$KERNEL_ROOT/common" diff --no-ext-diff --binary > "$REPORT_DIR/source/common-working-tree.patch" || true
 git -C "$KERNEL_ROOT/common" status --short > "$REPORT_DIR/source/common-status.txt" || true
 
+# Generated sources may already be committed by CI, leaving git diff empty.
+# Preserve the final inputs involved in the nonseekable_open CRC regression.
+for relative in fs/open.c fs/namei.c include/linux/susfs.h include/linux/susfs_def.h; do
+  [[ -f "$KERNEL_ROOT/common/$relative" ]] || continue
+  mkdir -p "$REPORT_DIR/source/final/$(dirname "$relative")"
+  cp "$KERNEL_ROOT/common/$relative" "$REPORT_DIR/source/final/$relative"
+done
+
 EXPORTS_RAW="$REPORT_DIR/source/export-macros.txt"
 git -C "$KERNEL_ROOT/common" grep -nE \
   'EXPORT_(TRACEPOINT_)?SYMBOL(_GPL|_NS|_NS_GPL)?[[:space:]]*\(' \
