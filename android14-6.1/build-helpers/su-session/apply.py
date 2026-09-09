@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the native UAPI-2 WebView and su-session backport to pinned ReSukiSU."""
+"""Apply the native UAPI-2 WebView, su-session and Android 17 runtime fixes to pinned ReSukiSU."""
 import argparse
 import hashlib
 import json
@@ -12,6 +12,7 @@ RESUKISU_PIN = "f1dd81dc96d7f3f6691e6ac8b50fba9ae8a2f17c"
 SUSFS_PIN = "5727f79e3a7175cfb0e1a754fc2ed78eaf866237"
 UPSTREAM = "153f88df3be2501d2d33364f8fe05247aecb3cef"
 PORT_ID = "ReSukiSU-35119-SUSFS-Native-v2"
+RUNTIME_PATCH = HERE / "resukisu-35119-android17-runtime.patch"
 IMAGE_MARKER = b"ReSukiSU: su-session FD installation failed:"
 
 
@@ -64,6 +65,29 @@ def apply_pair(common, ksu, verify_only=False, with_ksud=False):
     return "applied"
 
 
+def apply_runtime_patch(ksu, verify_only=False):
+    """Apply the narrow Android 17 runtime compatibility fixes after Native-v2."""
+    state = patch_state(ksu, RUNTIME_PATCH)
+    if state == "applied":
+        return "already applied"
+    if verify_only:
+        raise RuntimeError("The Android 17 runtime compatibility patch has not been applied")
+
+    backup = {}
+    for name in re.findall(r"^\+\+\+ b/(.+)$", RUNTIME_PATCH.read_text(), re.M):
+        path = ksu / name
+        backup[path] = path.read_bytes()
+    try:
+        git(ksu, "apply", "--whitespace=nowarn", str(RUNTIME_PATCH))
+        if patch_state(ksu, RUNTIME_PATCH) != "applied":
+            raise RuntimeError("Android 17 runtime patch verification failed")
+    except Exception:
+        for path, content in backup.items():
+            path.write_bytes(content)
+        raise
+    return "applied"
+
+
 def validate_identity(common, ksu, susfs_commit):
     head = git(ksu, "rev-parse", "HEAD").stdout.strip()
     if head != RESUKISU_PIN:
@@ -86,13 +110,16 @@ def validate_identity(common, ksu, susfs_commit):
 def receipt(common, ksu, with_ksud=False):
     paths = [(ksu, "kernel/feature/sucompat.c"), (ksu, "kernel/supercall/dispatch.c"),
              (ksu, "kernel/supercall/supercall.c"), (common, "fs/exec.c"),
-             (ksu, "kernel/policy/allowlist.c"), (ksu, "kernel/hook/setuid_hook.c")]
+             (ksu, "kernel/policy/allowlist.c"), (ksu, "kernel/hook/setuid_hook.c"),
+             (ksu, "kernel/selinux/sepolicy.c")]
     return {
         "port": PORT_ID, "resukisu_commit": RESUKISU_PIN, "susfs_base": SUSFS_PIN,
         "upstream_exec_fix": UPSTREAM, "uapi": 2, "driver_name": "[ksu_driver]",
         "upstream_webview_fix": "4fc9c1898ea66f51847cdbc0d1473ea4ef525a70",
         "upstream_scoped_fd_sync": "e5b4d2879836cfb8379010a8ebee76c519f5c834",
         "webview_profile_uid": 1053, "legacy_feature_id": 5, "optional_ksud_applied": with_ksud,
+        "android17_runtime_patch": True,
+        "android17_runtime_fixes": ["dynamic-manager-get", "selinux-self", "optional-nsfs"],
         "extra_session_commands": ["GET_WRAPPER_FD", "DISABLE_ESCAPE_TO_ROOT"],
         "patch_sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in HERE.glob("*.patch")},
         "source_sha256": {p: hashlib.sha256((r / p).read_bytes()).hexdigest() for r, p in paths},
@@ -113,6 +140,7 @@ def main():
     try:
         validate_identity(args.common, args.ksu, args.susfs_commit)
         state = apply_pair(args.common, args.ksu, args.verify_only, args.with_ksud)
+        runtime_state = apply_runtime_patch(args.ksu, args.verify_only)
         if args.image and IMAGE_MARKER not in args.image.read_bytes():
             raise RuntimeError("The kernel Image is missing the su-session exec marker")
         if args.image and b"webview_zygote_umount: UAPI2 profile updated" not in args.image.read_bytes():
@@ -124,7 +152,7 @@ def main():
             if args.image:
                 data["image_sha256"] = hashlib.sha256(args.image.read_bytes()).hexdigest()
             args.receipt.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-        print(f"{PORT_ID}: {state}; UAPI 2; pinned base verified")
+        print(f"{PORT_ID}: {state}; android17-runtime={runtime_state}; UAPI 2; pinned base verified")
     except (RuntimeError, OSError) as error:
         parser.exit(1, f"su-session: {error}\n")
 
