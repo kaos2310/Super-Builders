@@ -4,6 +4,20 @@ set -euo pipefail
 COMMON_TREE="${1:?common kernel tree}"
 KSU_TREE="${2:?KernelSU tree}"
 
+# ReSukiSU 35127/UAPI4 already contains the native scoped su-session FD code.
+# Keep the proven SUSFS v2.3.0 base used by the successful 35119 build, and
+# backport only Simonpunk's 153f88df post-exec ordering to the 6.1.162 exec
+# hook. Do not re-apply the obsolete 35119/UAPI2 cross-tree port.
+if [[ "${RESUKISU_VERSION_CODE:-}" == "35127" ]]; then
+  POSTEXEC_HELPER="$(dirname "$0")/apply-resukisu-35127-susfs-postexec.sh"
+  [[ -s "$POSTEXEC_HELPER" ]] || {
+    echo "::error::ReSukiSU 35127 post-exec helper is missing: $POSTEXEC_HELPER"
+    exit 1
+  }
+  chmod +x "$POSTEXEC_HELPER"
+  "$POSTEXEC_HELPER" "$COMMON_TREE" "$KSU_TREE"
+fi
+
 require_source() {
   local relative="$1"
   local needle="$2"
