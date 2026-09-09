@@ -4,53 +4,81 @@ set -euo pipefail
 COMMON_TREE="${1:?common kernel tree}"
 KSU_TREE="${2:?KernelSU tree}"
 
-# ReSukiSU 35127/UAPI4 already contains the native scoped su-session FD code.
-# Keep the proven SUSFS v2.3.0 base used by the successful 35119 build, and
-# backport only Simonpunk's 153f88df post-exec ordering to the 6.1.162 exec
-# hook. Do not re-apply the obsolete 35119/UAPI2 cross-tree port.
+# ReSukiSU 35127/UAPI4 already owns the scoped [ksu_driver_su] UAPI. Port only
+# the proven 35119 session-selection/success semantics plus UAPI-neutral fixes;
+# keep the stable SUSFS v2.3.0 base and do not apply the old UAPI2 userspace port.
 if [[ "${RESUKISU_VERSION_CODE:-}" == "35127" ]]; then
-  POSTEXEC_HELPER="$(dirname "$0")/apply-resukisu-35127-susfs-postexec.sh"
-  [[ -s "$POSTEXEC_HELPER" ]] || {
-    echo "::error::ReSukiSU 35127 post-exec helper is missing: $POSTEXEC_HELPER"
+  SESSION_HELPER="$(dirname "$0")/apply-resukisu-35127-susfs-postexec.sh"
+  [[ -s "$SESSION_HELPER" ]] || {
+    echo "::error::ReSukiSU 35127 session helper is missing: $SESSION_HELPER"
     exit 1
   }
-  chmod +x "$POSTEXEC_HELPER"
-  "$POSTEXEC_HELPER" "$COMMON_TREE" "$KSU_TREE"
+  chmod +x "$SESSION_HELPER"
+  "$SESSION_HELPER" "$COMMON_TREE" "$KSU_TREE"
 
-  # Independent CI gate: do not trust only the helper's own verification.
-  # The scoped [ksu_driver_su] hand-off must remain after bprm_execve(), must
-  # be guarded by retval >= 0, and fs/exec.c must never install the FD directly.
-  python3 - "$COMMON_TREE/fs/exec.c" <<'PY'
+  # Independent gate. The bootlooping 34396512459 build used a global SUSFS
+  # post-exec bridge. Under CONFIG_KSU_SUSFS, CONFIG_KSU_MANUAL_HOOK is not the
+  # selected hook method, so the MANUAL-only TIF check did not scope that call.
+  # Require the 35119-proven local bool instead.
+  python3 - "$COMMON_TREE/fs/exec.c" "$KSU_TREE" <<'PY'
 from pathlib import Path
 import re
 import sys
 
-path = Path(sys.argv[1])
-source = path.read_text(encoding="utf-8")
+exec_path = Path(sys.argv[1])
+ksu = Path(sys.argv[2])
+source = exec_path.read_text(encoding="utf-8")
+su = (ksu / "kernel/feature/sucompat.c").read_text(encoding="utf-8")
+suh = (ksu / "kernel/feature/sucompat.h").read_text(encoding="utf-8")
+app = (ksu / "kernel/policy/app_profile.c").read_text(encoding="utf-8")
+allow = (ksu / "kernel/policy/allowlist.c").read_text(encoding="utf-8")
+setuid = (ksu / "kernel/hook/setuid_hook.c").read_text(encoding="utf-8")
+ksud = (ksu / "userspace/ksud/src/android/ksucalls.rs").read_text(encoding="utf-8")
 
-exec_matches = list(re.finditer(
-    r"retval\s*=\s*bprm_execve\(bprm, fd, filename, flags\);",
-    source,
-))
-post_matches = list(re.finditer(
-    r"ksu_handle_post_execveat_sucompat\s*\(\s*&fd\s*,\s*&filename\s*,\s*&argv\s*,\s*&envp\s*,\s*&flags\s*,\s*&retval\s*\)",
-    source,
-))
+execs = list(re.finditer(r"retval\s*=\s*bprm_execve\(bprm, fd, filename, flags\);", source))
+if len(execs) != 1:
+    raise SystemExit(f"expected exactly one bprm_execve assignment, found {len(execs)}")
+if source.count("bool is_su_session = false;") != 1:
+    raise SystemExit("missing unique local is_su_session state")
+if source.count("is_su_session = ksu_handle_execveat_su_session") != 1:
+    raise SystemExit("missing unique scoped pre-exec session decision")
+if source.count("int su_fd = ksu_install_su_fd();") != 1:
+    raise SystemExit("missing unique direct UAPI4 scoped-FD install")
+if source.count("is_su_session && retval >= 0") != 1:
+    raise SystemExit("missing exact is_su_session && retval >= 0 guard")
+if "ksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval)" in source:
+    raise SystemExit("bootloop-prone unscoped post-exec bridge is still present")
 
-if len(exec_matches) != 1:
-    raise SystemExit(f"expected exactly one bprm_execve assignment, found {len(exec_matches)}")
-if len(post_matches) != 1:
-    raise SystemExit(f"expected exactly one 35127 post-exec call, found {len(post_matches)}")
-if post_matches[0].start() <= exec_matches[0].end():
-    raise SystemExit("35127 post-exec hook is not after bprm_execve")
+success_pos = source.find("is_su_session && retval >= 0")
+install_pos = source.find("int su_fd = ksu_install_su_fd();")
+if not (execs[0].end() < success_pos < install_pos):
+    raise SystemExit("scoped-FD ordering is not bprm_execve -> success/session guard -> install")
 
-window = source[max(0, post_matches[0].start() - 192):post_matches[0].end()]
-if not re.search(r"if\s*\(\s*likely\s*\(\s*retval\s*>=\s*0\s*\)\s*\)", window):
-    raise SystemExit("35127 post-exec hook is not guarded by likely(retval >= 0)")
-if "ksu_install_su_fd" in source:
-    raise SystemExit("direct ksu_install_su_fd() call reappeared in fs/exec.c")
+required_su = (
+    "bool ksu_handle_execveat_su_session(",
+    "*is_su_session = true;",
+    "ret = escape_with_root_profile();",
+    "clear_thread_flag(TIF_PROC_IN_KSU_EXECVE);",
+    "retval && *retval >= 0",
+)
+for marker in required_su:
+    if marker not in su:
+        raise SystemExit(f"ReSukiSU session contract missing: {marker}")
+if "bool ksu_handle_execveat_su_session(" not in suh:
+    raise SystemExit("ReSukiSU session API declaration missing")
+if "ret = set_cred_ucounts(cred);" not in app:
+    raise SystemExit("set_cred_ucounts failure is not propagated")
+if 'strcmp(profile->key, "webview_zygote") != 0' not in allow:
+    raise SystemExit("WebView UID 1053 profile identity is not constrained")
+if "uid == KSU_APP_PROFILE_PRESERVE_UID || uid == WEBVIEW_ZYGOTE_UID" not in allow:
+    raise SystemExit("WebView UID 1053 profile is not preserved during prune")
+if "if (unlikely(new_uid == WEBVIEW_ZYGOTE_UID))" not in setuid:
+    raise SystemExit("zygote_next does not consult the WebView UID 1053 profile")
+if 'SU_DRIVER_FD_NAME: &str = "anon_inode:[ksu_driver_su]"' not in ksud:
+    raise SystemExit("35127 UAPI4 ksud lacks native scoped driver support")
 
-print("Verified independent 35127 success-only post-exec gate: bprm_execve -> retval >= 0 -> scoped su FD")
+print("Verified 35127 native UAPI4 session gate: real ksud session + retval >= 0 + scoped FD")
+print("Verified UAPI-neutral 35119 carryovers: ucounts + WebView UID 1053 consistency")
 PY
 fi
 
