@@ -16,6 +16,42 @@ if [[ "${RESUKISU_VERSION_CODE:-}" == "35127" ]]; then
   }
   chmod +x "$POSTEXEC_HELPER"
   "$POSTEXEC_HELPER" "$COMMON_TREE" "$KSU_TREE"
+
+  # Independent CI gate: do not trust only the helper's own verification.
+  # The scoped [ksu_driver_su] hand-off must remain after bprm_execve(), must
+  # be guarded by retval >= 0, and fs/exec.c must never install the FD directly.
+  python3 - "$COMMON_TREE/fs/exec.c" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text(encoding="utf-8")
+
+exec_matches = list(re.finditer(
+    r"retval\s*=\s*bprm_execve\(bprm, fd, filename, flags\);",
+    source,
+))
+post_matches = list(re.finditer(
+    r"ksu_handle_post_execveat_sucompat\s*\(\s*&fd\s*,\s*&filename\s*,\s*&argv\s*,\s*&envp\s*,\s*&flags\s*,\s*&retval\s*\)",
+    source,
+))
+
+if len(exec_matches) != 1:
+    raise SystemExit(f"expected exactly one bprm_execve assignment, found {len(exec_matches)}")
+if len(post_matches) != 1:
+    raise SystemExit(f"expected exactly one 35127 post-exec call, found {len(post_matches)}")
+if post_matches[0].start() <= exec_matches[0].end():
+    raise SystemExit("35127 post-exec hook is not after bprm_execve")
+
+window = source[max(0, post_matches[0].start() - 192):post_matches[0].end()]
+if not re.search(r"if\s*\(\s*likely\s*\(\s*retval\s*>=\s*0\s*\)\s*\)", window):
+    raise SystemExit("35127 post-exec hook is not guarded by likely(retval >= 0)")
+if "ksu_install_su_fd" in source:
+    raise SystemExit("direct ksu_install_su_fd() call reappeared in fs/exec.c")
+
+print("Verified independent 35127 success-only post-exec gate: bprm_execve -> retval >= 0 -> scoped su FD")
+PY
 fi
 
 require_source() {
