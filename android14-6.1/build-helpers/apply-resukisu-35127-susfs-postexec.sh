@@ -53,14 +53,11 @@ for marker in required_ksu_markers:
     if marker not in sucompat:
         raise SystemExit(f"ReSukiSU 35127 post-exec contract marker is missing: {marker}")
 
-pre_name = "ksu_handle_execveat_sucompat"
-post_name = "ksu_handle_post_execveat_sucompat"
-if pre_name not in source:
+if "ksu_handle_execveat_sucompat" not in source:
     raise SystemExit("pinned SUSFS exec pre-hook is missing; refusing unknown source state")
 
-# ReSukiSU 35127 intentionally owns the scoped [ksu_driver_su] installation.
-# A direct ksu_install_su_fd() call in fs/exec.c would make susfs_compat.mk
-# suppress that native post-exec path and risks restoring the ordering bug.
+# 35127 owns the scoped [ksu_driver_su] installation. A direct call from
+# fs/exec.c would cause susfs_compat.mk to disable the native 35127 path.
 if "ksu_install_su_fd" in source:
     raise SystemExit("unexpected direct ksu_install_su_fd() call in fs/exec.c")
 
@@ -68,7 +65,9 @@ post_decl_re = re.compile(
     r"extern\s+int\s+ksu_handle_post_execveat_sucompat\s*\([^;]+;",
     re.DOTALL,
 )
-post_call_re = re.compile(r"ksu_handle_post_execveat_sucompat\s*\(\s*&fd\s*,\s*&filename\s*,")
+post_call_re = re.compile(
+    r"ksu_handle_post_execveat_sucompat\s*\(\s*&fd\s*,\s*&filename\s*,\s*&argv\s*,\s*&envp\s*,\s*&flags\s*,\s*&retval\s*\)"
+)
 
 if not post_decl_re.search(source):
     pre_decl = re.search(
@@ -88,53 +87,58 @@ calls = list(post_call_re.finditer(source))
 if len(calls) > 1:
     raise SystemExit(f"multiple post-exec SUSFS calls detected: {len(calls)}")
 
-exec_anchor = "\tretval = bprm_execve(bprm, fd, filename, flags);\n"
-if exec_anchor not in source:
-    # Samsung/AOSP indentation can differ, but the statement itself must remain unique.
-    matches = list(re.finditer(r"^[ \t]*retval\s*=\s*bprm_execve\(bprm, fd, filename, flags\);\s*$", source, re.MULTILINE))
-    if len(matches) != 1:
-        raise SystemExit(f"expected one bprm_execve result assignment, found {len(matches)}")
-    line_end = source.find("\n", matches[0].end())
-    if line_end < 0:
-        line_end = matches[0].end()
-    else:
-        line_end += 1
-    insert_at = line_end
-else:
-    insert_at = source.index(exec_anchor) + len(exec_anchor)
+exec_matches = list(
+    re.finditer(
+        r"^[ \t]*retval\s*=\s*bprm_execve\(bprm, fd, filename, flags\);\s*$",
+        source,
+        re.MULTILINE,
+    )
+)
+if len(exec_matches) != 1:
+    raise SystemExit(f"expected one bprm_execve result assignment, found {len(exec_matches)}")
 
 if not calls:
+    line_end = source.find("\n", exec_matches[0].end())
+    insert_at = exec_matches[0].end() if line_end < 0 else line_end + 1
     post_block = (
         "#ifdef CONFIG_KSU_SUSFS\n"
-        "\t/* SUSFS 153f88df ordering: grant [ksu_driver_su] only after exec. */\n"
-        "\tksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval);\n"
+        "\t/* Simonpunk 153f88df ordering: create the scoped driver FD only\n"
+        "\t * after a successful su exec has completed its CLOEXEC transition. */\n"
+        "\tif (likely(retval >= 0))\n"
+        "\t\tksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval);\n"
         "#endif\n"
     )
     source = source[:insert_at] + post_block + source[insert_at:]
 
-# Fail closed on ordering. The post hook must be after bprm_execve and exactly once.
+# Fail closed on source state and ordering.
 exec_match = re.search(r"retval\s*=\s*bprm_execve\(bprm, fd, filename, flags\);", source)
 post_calls = list(post_call_re.finditer(source))
 if exec_match is None or len(post_calls) != 1:
     raise SystemExit("post-exec source verification failed")
 if post_calls[0].start() <= exec_match.end():
     raise SystemExit("post-exec hook is not after bprm_execve")
+
+window_start = max(0, post_calls[0].start() - 160)
+window = source[window_start:post_calls[0].end()]
+if not re.search(r"if\s*\(\s*likely\s*\(\s*retval\s*>=\s*0\s*\)\s*\)", window):
+    raise SystemExit("post-exec hook is not gated on successful exec")
 if "ksu_install_su_fd" in source:
     raise SystemExit("direct su FD installation unexpectedly appeared in fs/exec.c")
 
 exec_path.write_text(source, encoding="utf-8")
 print(
     "ReSukiSU 35127 / SUSFS post-exec contract applied: "
-    f"base=5727f79e, upstream-ordering={upstream_fix}"
+    f"base={EXPECTED_SUSFS_BASE if False else '5727f79e'}, upstream-ordering={upstream_fix}"
 )
 PY
 
-# These source probes are consumed by ReSukiSU's own compatibility Makefiles:
-# - fs/exec.c containing ksu_handle_post_execve disables the LSM fallback.
-# - absence of ksu_install_su_fd keeps the native 35127 FD installation enabled.
+# ReSukiSU's compatibility Makefiles consume these exact source probes:
+# 1. A post-exec symbol in fs/exec.c disables the bprm_committed_creds fallback.
+# 2. No direct ksu_install_su_fd() keeps 35127's native scoped-FD path enabled.
 grep -qF 'ksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval);' "$COMMON_TREE/fs/exec.c"
+grep -Eq 'if[[:space:]]*\([[:space:]]*likely[[:space:]]*\([[:space:]]*retval[[:space:]]*>=[[:space:]]*0' "$COMMON_TREE/fs/exec.c"
 ! grep -qF 'ksu_install_su_fd' "$COMMON_TREE/fs/exec.c"
-grep -qF 'ifneq ($(shell grep -q "ksu_handle_post_execve" $(srctree)/fs/exec.c; echo $$?),0)' "$KSU_TREE/kernel/tools/kernel_compat.mk"
+grep -qF 'grep -q "ksu_handle_post_execve" $(srctree)/fs/exec.c' "$KSU_TREE/kernel/tools/kernel_compat.mk"
 grep -qF 'grep -q "ksu_install_su_fd" $(srctree)/fs/exec.c' "$KSU_TREE/kernel/tools/susfs_compat.mk"
 
 echo "Verified ReSukiSU 35127 native UAPI4 post-exec path against SUSFS $EXPECTED_SUSFS_BASE"
