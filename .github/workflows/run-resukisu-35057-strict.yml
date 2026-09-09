@@ -1,5 +1,5 @@
-name: S928B ZZHL ReSukiSU 35119 SUSFS Native v2 Build
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35119 + Gunyah Reclaim v1 + SUSFS Native v2"
+name: S928B ZZHL ReSukiSU 35119 Android 17 Fix Build
+run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35119 + A17 IOCTL/SEPolicy fixes + SUSFS Native v2"
 
 on:
   workflow_dispatch:
@@ -8,6 +8,7 @@ on:
       - agent/resukisu-35115-eux-zzhl
       - agent/resukisu-35119-susfs-su-session-port
       - agent/resukisu-35119-susfs-native-v2
+      - agent/resukisu-35119-a17-fixes
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -45,6 +46,7 @@ on:
       - 'android14-6.1/build-helpers/setup-bbg.sh'
       - 'android14-6.1/build-helpers/verify-susfs-v2.2-procfs.sh'
       - 'android14-6.1/build-helpers/verify-zeromount-susfs-source.sh'
+      - 'android14-6.1/runtime-fixes/a17-sepolicy-compat/**'
       - 'android14-6.1/SukiSU-Ultra/patches/51_enhanced_susfs-android14-6.1.patch'
       - 'android14-6.1/SukiSU-Ultra/patches/60_zeromount-android14-6.1.patch'
       - 'android14-6.1/resukisu-pin.txt'
@@ -54,7 +56,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35119-susfs-native-v2-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35119-a17-fixes-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -71,12 +73,38 @@ jobs:
           python3 android14-6.1/build-helpers/test-e3q-gunyah-adaptive-backing.py
           python3 android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py
 
+  policy-fix-package:
+    name: Package Android 17 SEPolicy compatibility module
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate policy patch guards
+        run: |
+          set -euo pipefail
+          FIX=android14-6.1/runtime-fixes/a17-sepolicy-compat/customize.sh
+          grep -Fq 'expected 0 or 2' "$FIX"
+          grep -Fq 'allow virtualizationservice self:capability sys_resource;' "$FIX"
+          grep -Fq 'allow virtualizationservice virtualizationservice:capability sys_resource;' "$FIX"
+          ! grep -R -q 'ZeroMount.*sed\|SUSFS.*sed' android14-6.1/runtime-fixes/a17-sepolicy-compat
+      - name: Build installable module ZIP
+        run: |
+          set -euo pipefail
+          cd android14-6.1/runtime-fixes/a17-sepolicy-compat
+          zip -9 -r "$GITHUB_WORKSPACE/A17-ReSukiSU-SEPolicy-Compat-v1.zip" module.prop customize.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: A17-ReSukiSU-SEPolicy-Compat-v1
+          path: A17-ReSukiSU-SEPolicy-Compat-v1.zip
+          if-no-files-found: error
+
   dependencies:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 6.1.162 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 6.1.162 / A17 Dynamic Manager GET + Gunyah RM MEM_APPEND + SCM-VMID
     needs: dependencies
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -107,10 +135,12 @@ jobs:
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# 2026-08-22 runtime-safe e3q policy:
-# retain the 8192-total-entry E2BIG safety guard as a circuit breaker for
-# fragmented normal GuestMemory, while keeping the upstream 512-entry Gunyah
-# RM MEM_APPEND batching path for valid parcels <= 8192 entries. Keep IRQFD
-# edge/level compatibility, bounded backing, dynamic RM-VMID SCM mapping,
-# additive gh_rm_get_vmid KMI allowance, safe contig teardown, and the audited
-# vendor_boot-compatible gunyah_qcom.ko as a CI/live-test artifact.
+# 2026-09-09 Android 17 compatibility layer:
+# - Dynamic-manager GET is readable by the recognized Manager app while all
+#   state-changing dynamic-manager operations remain root-only in dispatch.c.
+# - A separate installable compatibility module removes the two unsupported
+#   Zygisk Next nsfs runtime rules and expands AVF's `self` target to the
+#   explicit virtualizationservice type for ReSukiSU's runtime parser.
+# - ZeroMount and SUSFS behavior/configuration are intentionally unchanged.
+# - CONFIG_CGROUP_PIDS remains disabled for e3q because the Samsung ZZHL vendor
+#   module ABI was built against that layout; it is not part of this fix set.
