@@ -1,5 +1,5 @@
-name: S928B ZZHL ReSukiSU 35119 SUSFS Native v2 Build
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35119 + Gunyah Reclaim v1 + SUSFS Native v2"
+name: S928B ZZHL ReSukiSU 35119 Android17 Runtime Fixes v1 Build
+run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35119 + Android17 Runtime Fixes v1 + SUSFS Native v2"
 
 on:
   workflow_dispatch:
@@ -8,6 +8,7 @@ on:
       - agent/resukisu-35115-eux-zzhl
       - agent/resukisu-35119-susfs-su-session-port
       - agent/resukisu-35119-susfs-native-v2
+      - agent/resukisu-35119-android17-runtime-fixes-v1
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -54,7 +55,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35119-susfs-native-v2-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35119-android17-runtime-fixes-v1-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -76,7 +77,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 6.1.162 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 6.1.162 / Android17 runtime fixes / Gunyah RM MEM_APPEND + SCM-VMID
     needs: dependencies
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -107,6 +108,13 @@ jobs:
       kmi_minimal_config: false
       package_strict_anykernel: true
 
+# 2026-09-09 Android 17 runtime compatibility:
+# - Dynamic-manager GET remains available to the authenticated manager process;
+#   SET/WIPE/SYNC remain root-only inside the ioctl handler.
+# - Runtime sepolicy parser resolves target "self" to the source type.
+# - Missing optional Samsung A17 nsfs policy type is treated as a no-op rule.
+# ZeroMount and the pinned SUSFS v2.3.0 integration remain unchanged.
+#
 # 2026-08-22 runtime-safe e3q policy:
 # retain the 8192-total-entry E2BIG safety guard as a circuit breaker for
 # fragmented normal GuestMemory, while keeping the upstream 512-entry Gunyah
