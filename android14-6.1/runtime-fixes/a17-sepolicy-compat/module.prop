@@ -1,0 +1,7 @@
+id=a17_resukisu_sepolicy_compat
+name=Android 17 ReSukiSU SEPolicy Compatibility
+version=1.0
+versionCode=1
+author=kaos2310 / ChatGPT
+summary=Removes unsupported Zygisk Next nsfs rules and expands AVF virtualizationservice self target for ReSukiSU runtime policy parsing.
+description=Samsung e3q Android 17 compatibility patch. Does not modify ZeroMount or SUSFS.
