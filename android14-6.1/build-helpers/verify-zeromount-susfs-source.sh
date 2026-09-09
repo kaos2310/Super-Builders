@@ -28,12 +28,39 @@ import sys
 exec_path = Path(sys.argv[1])
 ksu = Path(sys.argv[2])
 source = exec_path.read_text(encoding="utf-8")
-su = (ksu / "kernel/feature/sucompat.c").read_text(encoding="utf-8")
-suh = (ksu / "kernel/feature/sucompat.h").read_text(encoding="utf-8")
-app = (ksu / "kernel/policy/app_profile.c").read_text(encoding="utf-8")
-allow = (ksu / "kernel/policy/allowlist.c").read_text(encoding="utf-8")
-setuid = (ksu / "kernel/hook/setuid_hook.c").read_text(encoding="utf-8")
-ksud = (ksu / "userspace/ksud/src/android/ksucalls.rs").read_text(encoding="utf-8")
+su_path = ksu / "kernel/feature/sucompat.c"
+suh_path = ksu / "kernel/feature/sucompat.h"
+app_path = ksu / "kernel/policy/app_profile.c"
+allow_path = ksu / "kernel/policy/allowlist.c"
+setuid_path = ksu / "kernel/hook/setuid_hook.c"
+ksud_path = ksu / "userspace/ksud/src/android/ksucalls.rs"
+
+su = su_path.read_text(encoding="utf-8")
+suh = suh_path.read_text(encoding="utf-8")
+app = app_path.read_text(encoding="utf-8")
+allow = allow_path.read_text(encoding="utf-8")
+setuid = setuid_path.read_text(encoding="utf-8")
+ksud = ksud_path.read_text(encoding="utf-8")
+
+# The first 35127 success-gate build exposed a Python re.sub replacement-string
+# quoting bug: the raw replacement emitted literal backslashes before the C
+# string quotes (pr_warn(\"...\")), breaking fs/exec.c parsing. Normalize only
+# that exact generated line, then fail closed on any remaining escaped C quote.
+broken_warn = r'pr_warn(\"ReSukiSU: su-session FD installation failed: %d\n\", su_fd);'
+fixed_warn = r'pr_warn("ReSukiSU: su-session FD installation failed: %d\n", su_fd);'
+broken_count = source.count(broken_warn)
+if broken_count > 1:
+    raise SystemExit(f"ambiguous malformed 35127 pr_warn emission: {broken_count} matches")
+if broken_count == 1:
+    source = source.replace(broken_warn, fixed_warn, 1)
+    exec_path.write_text(source, encoding="utf-8")
+
+if source.count(fixed_warn) != 1:
+    raise SystemExit("missing unique valid 35127 su-session warning after source normalization")
+if r'pr_warn(\"' in source:
+    raise SystemExit("fs/exec.c still contains malformed escaped C quote in pr_warn")
+if r'pr_warn(\"' in su:
+    raise SystemExit("ReSukiSU sucompat.c contains malformed escaped C quote in pr_warn")
 
 execs = list(re.finditer(r"retval\s*=\s*bprm_execve\(bprm, fd, filename, flags\);", source))
 if len(execs) != 1:
@@ -78,6 +105,7 @@ if 'SU_DRIVER_FD_NAME: &str = "anon_inode:[ksu_driver_su]"' not in ksud:
     raise SystemExit("35127 UAPI4 ksud lacks native scoped driver support")
 
 print("Verified 35127 native UAPI4 session gate: real ksud session + retval >= 0 + scoped FD")
+print("Verified generated C quoting: no malformed pr_warn escaped quotes remain")
 print("Verified UAPI-neutral 35119 carryovers: ucounts + WebView UID 1053 consistency")
 PY
 fi
