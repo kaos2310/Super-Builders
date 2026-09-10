@@ -31,7 +31,7 @@ runs:
           android13-5.10) SUSFS_COMMIT="8de71447d9d53fdb317d890181f13d35ef738a49"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
           android13-5.15) SUSFS_COMMIT="9f0415bb2c8fc581e93d384e09aba088bd36733a"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
           android14-5.15) SUSFS_COMMIT="841412d1f3eae63605979099714e6cf3866457de"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
-          android14-6.1)  SUSFS_COMMIT="5727f79e3a7175cfb0e1a754fc2ed78eaf866237"; EXPECTED_SUSFS_VERSION="v2.3.0" ;;
+          android14-6.1)  SUSFS_COMMIT="153f88df3be2501d2d33364f8fe05247aecb3cef"; EXPECTED_SUSFS_VERSION="v2.3.0" ;;
           android15-6.6)  SUSFS_COMMIT="a652208b593826f39534d6a881818a7ae0c4dc5d"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
           android16-6.12) SUSFS_COMMIT="5857c396b50da6b70a4e04b2994012ab961457a2"; EXPECTED_SUSFS_VERSION="v2.2.0" ;;
           *)
@@ -65,9 +65,9 @@ runs:
         }
         echo "::notice::Pinned SUSFS $ACTUAL_SUSFS_VERSION at $ACTUAL_SUSFS_COMMIT for $TARGET"
 
-        # Android 14 / 6.1 is pinned to the SUSFS v2.3.0 version-bump commit.
-        # The Samsung DZG1 repair/verification below is revalidated against all
-        # 2476 live-DLKM CRCs by the strict build.
+        # Android 14 / 6.1 uses the upstream 2026-09-10 SUSFS v2.3.0 head.
+        # This includes the local su-session / successful-exec guard. ReSukiSU
+        # UAPI4 requires the separately verified explicit session adapter.
 
         # Later defconfig reconciliation needs the exact pinned patch tree.
         # Keep it until the ephemeral runner is torn down and publish its path

@@ -1,5 +1,5 @@
-name: S928B ZZHL ReSukiSU 35127 SUSFS v2.3.0 Scoped Session v2
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35127 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
+name: S928B ZZHL ReSukiSU 35129 SUSFS v2.3.0 Scoped Session v2
+run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35129 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -10,6 +10,7 @@ on:
       - agent/resukisu-35119-susfs-native-v2
       - agent/resukisu-35127-susfs-native-v2
       - agent/resukisu-35127-postexec-success-gate
+      - agent/resukisu-35129-susfs-230
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -27,6 +28,7 @@ on:
       - 'android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py'
       - 'android14-6.1/build-helpers/gunyah-reclaim/**'
       - 'android14-6.1/build-helpers/su-session/**'
+      - 'android14-6.1/build-helpers/su-session-35129/**'
       - 'android14-6.1/build-helpers/apply-resukisu-35127-susfs-postexec.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
       - 'android14-6.1/build-helpers/allow-e3q-gunyah-rm-vmid-kmi.sh'
@@ -57,7 +59,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35127-susfs-native-uapi4-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35129-susfs-native-uapi4-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -79,7 +81,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35127 UAPI4 Scoped Session v2 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 35129 UAPI4 Scoped Session v2 / Gunyah RM MEM_APPEND + SCM-VMID
     needs: dependencies
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -98,29 +100,21 @@ jobs:
       add_overlayfs_support: true
       add_kpm: false
       susfs_open_redirect: false
-      # Do not apply the old complete 35119/UAPI2 backport. The 35127 helper
-      # ports only the proven UAPI-neutral semantics: explicit local su-session
-      # recognition, success-only FD installation (retval >= 0), ucounts error
-      # propagation and WebView UID 1053 profile consistency. ReSukiSU 35127's
-      # native UAPI4 [ksu_driver_su] userspace/driver implementation is retained.
+      # UAPI4 adaptation keeps the upstream SUSFS 153f88df success guard and
+      # the explicit session decision from reference run 34262304602.
+      # The legacy 35119/UAPI2 backport is not applicable to native UAPI4.
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 23a40c0f1dc047ee73a1dfd70a3f14df70021cac
+      sukisu_commit: 246d3e52e667cb72ce8f70c93b70d3b42b100b76
       resukisu_source_branch: main
-      resukisu_version_code: "35127"
+      resukisu_version_code: "35129"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# 2026-09-09 ReSukiSU 35127 scoped-session v2 policy:
-# Run 34396512459 built successfully but still bootlooped at runtime. The root
-# cause is structural: CONFIG_KSU_SUSFS is a hook-method choice, therefore the
-# CONFIG_KSU_MANUAL_HOOK-only TIF test in 35127 cannot scope the generic post-
-# exec handler. Use the successful 35119 design instead: a local is_su_session
-# boolean is returned by the pre-exec sucompat handler, and [ksu_driver_su] is
-# installed only after bprm_execve when is_su_session && retval >= 0.
-# Keep SUSFS v2.3.0 base 5727f79e, ReSukiSU 35127 UAPI4, ZeroMount, Droidspaces,
-# Gunyah and strict Samsung KMI otherwise unchanged.
+# Based on successful run 34402588266; functionality reference 34262304602.
+# ReSukiSU 35129 = 30700 + 4429 commits. SUSFS 2.3.0 is pinned to the
+# gki-android14-6.1 head verified on 2026-09-10: 153f88df3be2501d2d33364f8fe05247aecb3cef.
