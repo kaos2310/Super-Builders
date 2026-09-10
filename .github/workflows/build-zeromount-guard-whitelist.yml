@@ -29,6 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: builder
+          fetch-depth: 0
 
       - name: Checkout pinned ZeroMount upstream
         uses: actions/checkout@v4
