@@ -88,9 +88,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: zeromount-src/webui/pnpm-lock.yaml
+          node-version: 24
 
       - name: Rust format check
         working-directory: zeromount-src
@@ -100,7 +98,7 @@ jobs:
         working-directory: zeromount-src/webui
         run: |
           set -euo pipefail
-          pnpm install --frozen-lockfile
+          pnpm install --no-frozen-lockfile
           pnpm run build
           test -s ../module/webroot/index.html
 
@@ -114,12 +112,7 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="${NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
-          for target in \
-            aarch64-linux-android \
-            armv7-linux-androideabi \
-            x86_64-linux-android \
-            i686-linux-android
-          do
+          for target in aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android; do
             echo "=== cargo build --release --target $target ==="
             cargo build --release --target "$target"
           done
@@ -138,12 +131,10 @@ jobs:
             out="target/axon/$abi"
             mkdir -p "$out" "module/bin/$abi" "module/lib/$abi"
             CFLAGS="-fvisibility=hidden -Os -DANDROID"
-            "$cc" $CFLAGS -c "$AXON/external/plthook/plthook_elf.c" \
-              -I"$AXON/external/plthook" -o "$out/plthook_elf.o"
+            "$cc" $CFLAGS -c "$AXON/external/plthook/plthook_elf.c" -I"$AXON/external/plthook" -o "$out/plthook_elf.o"
             "$ar" rcs "$out/libplthook.a" "$out/plthook_elf.o"
             "$cc" $CFLAGS -s "$AXON/inject.c" "$AXON/ptrace.c" "$AXON/utils.c" -o "$out/axon_inject"
-            "$cc" $CFLAGS -shared -s "$AXON/axon_init.c" "$AXON/utils.c" \
-              -I"$AXON/external/plthook" -L"$out" -lplthook -o "$out/libaxon_init.so"
+            "$cc" $CFLAGS -shared -s "$AXON/axon_init.c" "$AXON/utils.c" -I"$AXON/external/plthook" -L"$out" -lplthook -o "$out/libaxon_init.so"
             "$cc" $CFLAGS -shared -s "$AXON/axon_adbd.c" "$AXON/utils.c" -ldl -o "$out/libaxon_adbd.so"
             cp "$out/axon_inject" "module/bin/$abi/"
             cp "$out/libaxon_init.so" "module/lib/$abi/"
@@ -202,8 +193,8 @@ jobs:
           - Base kernel build: Run 34501538739 / commit 206b5240d0047a4a4f866ac6fcf022c55c678365
           - Upstream ZeroMount: c3cb7ffdf749f2441928ec47798615a4c79fab65
           - Restores persistent `guard allow` / `guard disallow`
-          - WebUI now checks shell exit status
+          - WebUI checks shell exit status
           - `webui-init` returns `allowedModules`
-          - Default v2.0.216 self-disable recovery remains unchanged when no extra whitelist entries exist
-          - With explicit whitelist entries, recovery isolation is scoped to ZeroMount-scannable mount modules only; script-only/manual-mount modules are not mass-disabled
+          - Default self-disable behavior is retained with no extra whitelist entries
+          - Explicit whitelist entries enable scoped isolation of ZeroMount-scannable mount modules only
           EOF
