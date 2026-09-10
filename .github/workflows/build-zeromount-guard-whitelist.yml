@@ -90,9 +90,12 @@ jobs:
         with:
           node-version: 24
 
-      - name: Rust format check
+      - name: Normalize and verify Rust formatting
         working-directory: zeromount-src
-        run: cargo fmt --all -- --check
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          cargo fmt --all -- --check
 
       - name: Build WebUI
         working-directory: zeromount-src/webui
