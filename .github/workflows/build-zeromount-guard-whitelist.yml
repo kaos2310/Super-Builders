@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/build-zeromount-guard-whitelist.yml'
       - 'android14-6.1/build-helpers/patch-zeromount-guard-whitelist.py'
+      - 'android14-6.1/build-helpers/fix-zeromount-guard-whitelist-compile.py'
   workflow_dispatch:
 
 permissions:
@@ -50,6 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 builder/android14-6.1/build-helpers/patch-zeromount-guard-whitelist.py zeromount-src
+          python3 builder/android14-6.1/build-helpers/fix-zeromount-guard-whitelist-compile.py zeromount-src
 
       - name: Verify patch semantics
         working-directory: zeromount-src
@@ -64,6 +66,8 @@ jobs:
           grep -q 'scan_modules' src/guard/recovery.rs
           grep -q 'guard allow failed' webui/src/lib/store.ts
           grep -q 'guard disallow failed' webui/src/lib/store.ts
+          grep -q 'monitors::wait_boot_completed(&config)?;' src/guard/mod.rs
+          grep -q 'monitors::watch_systemui(&config)?;' src/guard/mod.rs
           echo 'Guard whitelist source verification: PASS'
 
       - name: Install Android NDK
