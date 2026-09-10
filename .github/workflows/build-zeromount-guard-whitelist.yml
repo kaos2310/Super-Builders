@@ -152,6 +152,25 @@ jobs:
         working-directory: zeromount-src
         run: |
           set -euo pipefail
+
+          # Upstream package.sh always emits debug first, then release. We build
+          # release-only in CI, so also stage those verified release binaries in
+          # module/bin/<abi>/zeromount. The debug packaging pass then uses its
+          # documented module/bin fallback instead of failing at 0/4 binaries.
+          for pair in \
+            "arm64-v8a:aarch64-linux-android" \
+            "armeabi-v7a:armv7-linux-androideabi" \
+            "x86_64:x86_64-linux-android" \
+            "x86:i686-linux-android"
+          do
+            abi="${pair%%:*}"
+            target="${pair##*:}"
+            src="target/${target}/release/zeromount"
+            test -x "$src"
+            mkdir -p "module/bin/$abi"
+            cp "$src" "module/bin/$abi/zeromount"
+          done
+
           chmod +x scripts/package.sh
           ./scripts/package.sh --version "$ZEROMOUNT_VERSION"
           test -s "release/release/zeromount-${ZEROMOUNT_VERSION}.zip"
