@@ -524,8 +524,29 @@ def main():
         for name in required:
             if not re.search(r"^"+name+r"=y$", config, re.M):
                 raise RuntimeError(f"Final config missing {name}=y")
+        # KSU_VERSION is a numeric C macro; its decimal spelling is not
+        # guaranteed to survive in the compressed Image. Prove 35133 from
+        # the exact pinned source history plus the Kbuild formula instead.
+        commit_count = int(git(ksu, "rev-list", "--count", "HEAD").strip())
+        kbuild = (ksu / "kernel/Kbuild").read_text(encoding="utf-8")
+        version_prefix = "KSU_VERSION := $(shell expr 30000 + $(KSU_LOCAL_VERSION) + "
+        version_lines = [line for line in kbuild.splitlines()
+                         if line.startswith(version_prefix) and line.endswith(")")]
+        if len(version_lines) != 1:
+            raise RuntimeError(f"Expected one ReSukiSU KSU_VERSION formula, found {len(version_lines)}")
+        try:
+            version_offset = int(version_lines[0][len(version_prefix):-1])
+        except ValueError as exc:
+            raise RuntimeError(f"Invalid ReSukiSU KSU_VERSION formula: {version_lines[0]}") from exc
+        compiled_version = 30000 + commit_count + version_offset
+        if compiled_version != 35133:
+            raise RuntimeError(
+                f"ReSukiSU version formula mismatch: commits={commit_count} "
+                f"offset={version_offset} result={compiled_version} expected=35133"
+            )
+
         image = args.image.read_bytes()
-        for marker in [b"v2.3.0", b"35133", b"6.1.162-android14-11-34343818-abS928BXXU6ZZHL"]:
+        for marker in [b"v2.3.0", b"6.1.162-android14-11-34343818-abS928BXXU6ZZHL"]:
             if marker not in image:
                 raise RuntimeError(f"Image identity missing {marker!r}")
         symbols = subprocess.check_output([args.nm, "--defined-only", str(args.vmlinux)], text=True)
@@ -536,8 +557,12 @@ def main():
                 raise RuntimeError(f"Expected exactly one compiled function: {name}")
         receipt.update(config_sha256=sha(args.config), image_sha256=sha(args.image),
                        vmlinux_sha256=sha(args.vmlinux), compiled_symbols=names)
+        receipt.update(resukisu_commit_count=commit_count,
+                       resukisu_version_offset=version_offset,
+                       resukisu_compiled_version=compiled_version)
+
         args.receipt.write_text(json.dumps(receipt, indent=2)+"\n", encoding="utf-8", newline="\n")
-        print("PASS: final config, Image identity, unique compiled functions and package attestation")
+        print("PASS: final config, Image identity, ReSukiSU version formula, unique compiled functions and package attestation")
 
 if __name__ == "__main__":
     main()
