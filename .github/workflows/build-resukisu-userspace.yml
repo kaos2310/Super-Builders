@@ -1,0 +1,119 @@
+name: Build pinned ReSukiSU userspace
+
+on:
+  workflow_call:
+    inputs:
+      resukisu_commit:
+        type: string
+        required: true
+      resukisu_version_code:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ReSukiSU ${{ inputs.resukisu_version_code }} ksud + ksuinit / ARM64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      RUSTUP_TOOLCHAIN: nightly
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+      CLANG_PATH: /usr/bin/clang-18
+      CARGO_TERM_COLOR: always
+      EXPECTED_PIN: ${{ inputs.resukisu_commit }}
+      EXPECTED_VERSION: ${{ inputs.resukisu_version_code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: builder
+
+      - name: Checkout exact ReSukiSU source with version history
+        uses: actions/checkout@v4
+        with:
+          repository: ReSukiSU/ReSukiSU
+          ref: ${{ inputs.resukisu_commit }}
+          fetch-depth: 0
+          path: resukisu
+
+      - name: Setup upstream Nightly toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          targets: aarch64-linux-android
+          components: rust-src
+
+      - name: Install host Clang and Libclang for bindgen
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y clang-18 libclang-18-dev llvm-18
+          /usr/bin/clang-18 --version
+
+      - name: Setup Android NDK r29
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r29
+
+      - name: Verify source, toolchain, locked dependencies and Libclang
+        run: |
+          set -euo pipefail
+          mkdir -p userspace-artifacts
+          python3 builder/android14-6.1/build-helpers/verify-resukisu-userspace.py \
+            resukisu --commit "$EXPECTED_PIN" --version "$EXPECTED_VERSION" \
+            --receipt userspace-artifacts/BUILD-IDENTITY.json
+
+      - name: Install cargo-ndk with its lockfile
+        run: cargo +nightly install cargo-ndk --locked
+
+      - name: Build ksuinit from its checked-in lockfile
+        working-directory: resukisu
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -euo pipefail
+          source .github/scripts/setup-rust-build.sh aarch64-linux-android 26
+          "$CLANG_PATH" --version
+          BUILTINS="$($CLANG_PATH --print-resource-dir)/lib/linux/libclang_rt.builtins-aarch64-android.a"
+          test -s "$BUILTINS"
+          export RUSTFLAGS="-C target-feature=+crt-static -C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wno-unused-command-line-argument -C link-arg=$BUILTINS"
+          cd userspace/ksuinit
+          cargo +nightly build --locked --package ksuinit --target aarch64-linux-android --release
+
+      - name: Build ksud with bindgen 0.73.1 and its checked-in lockfile
+        working-directory: resukisu
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -euo pipefail
+          cp userspace/ksuinit/target/aarch64-linux-android/release/ksuinit userspace/ksud/bin/aarch64/
+          /usr/bin/clang-18 --target=aarch64-linux-gnu -c -nostdlib \
+            -o userspace/ksud/.lkm_image_bootstrap.o userspace/ksud/src/lkm_image_bootstrap.S
+          cd userspace/ksud
+          cargo +nightly ndk -P 26 -t arm64-v8a build --locked --release \
+            -Z build-std-features=optimize_for_size -Z trim-paths
+
+      - name: Verify unchanged lockfiles and ARM64 release artifacts
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -euo pipefail
+          python3 builder/android14-6.1/build-helpers/verify-resukisu-userspace.py \
+            resukisu --commit "$EXPECTED_PIN" --version "$EXPECTED_VERSION" \
+            --receipt userspace-artifacts/BUILD-IDENTITY.json --verify-build
+          cp resukisu/userspace/ksud/target/aarch64-linux-android/release/ksud userspace-artifacts/
+          cp resukisu/userspace/ksuinit/target/aarch64-linux-android/release/ksuinit userspace-artifacts/
+          cp resukisu/userspace/ksud/Cargo.lock userspace-artifacts/ksud-Cargo.lock
+          cp resukisu/userspace/ksuinit/Cargo.lock userspace-artifacts/ksuinit-Cargo.lock
+          cd userspace-artifacts
+          sha256sum ksud ksuinit *Cargo.lock BUILD-IDENTITY.json > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReSukiSU-${{ inputs.resukisu_version_code }}-ARM64-ksud-ksuinit
+          path: userspace-artifacts/
+          if-no-files-found: error
+          retention-days: 30
