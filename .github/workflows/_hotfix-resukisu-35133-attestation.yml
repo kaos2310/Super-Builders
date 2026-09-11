@@ -1,0 +1,110 @@
+name: One-shot ReSukiSU 35133 attestation verifier fix
+
+on:
+  push:
+    branches:
+      - agent/resukisu-35133-susfs-230
+    paths:
+      - '.github/workflows/_hotfix-resukisu-35133-attestation.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  patch-and-dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/resukisu-35133-susfs-230
+          fetch-depth: 0
+
+      - name: Replace invalid ASCII Image version assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('android14-6.1/build-helpers/su-session-35133/apply.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''        image = args.image.read_bytes()
+          for marker in [b"v2.3.0", b"35133", b"6.1.162-android14-11-34343818-abS928BXXU6ZZHL"]:
+              if marker not in image:
+                  raise RuntimeError(f"Image identity missing {marker!r}")
+          symbols = subprocess.check_output([args.nm, "--defined-only", str(args.vmlinux)], text=True)
+          names = ["ksu_install_su_fd", "ksu_handle_execveat_su_session", "susfs_add_sus_kstat_redirect",
+                   "susfs_add_sus_map", "susfs_init", "zeromount_init"]
+          for name in names:
+              if len(re.findall(r"^[0-9a-fA-F]+ [tT] " + name + r"$", symbols, re.M)) != 1:
+                  raise RuntimeError(f"Expected exactly one compiled function: {name}")
+          receipt.update(config_sha256=sha(args.config), image_sha256=sha(args.image),
+                         vmlinux_sha256=sha(args.vmlinux), compiled_symbols=names)
+          args.receipt.write_text(json.dumps(receipt, indent=2)+"\\n", encoding="utf-8", newline="\\n")
+          print("PASS: final config, Image identity, unique compiled functions and package attestation")
+          '''
+          new = '''        # KSU_VERSION is a numeric C macro.  Its decimal spelling is not required
+          # to survive in the compressed Image.  Prove 35133 from the exact pinned
+          # source history and the Kbuild formula instead, then prove that the
+          # ReSukiSU/SUSFS/ZeroMount code actually reached the linked vmlinux.
+          commit_count = int(git(ksu, "rev-list", "--count", "HEAD").strip())
+          kbuild = (ksu / "kernel/Kbuild").read_text(encoding="utf-8")
+          version_match = re.search(
+              r"^KSU_VERSION := \\$\\(shell expr 30000 \\+ \\$\\(KSU_LOCAL_VERSION\\) \\+ ([0-9]+)\\)$",
+              kbuild, re.M,
+          )
+          if not version_match:
+              raise RuntimeError("Unable to verify ReSukiSU KSU_VERSION formula")
+          version_offset = int(version_match.group(1))
+          compiled_version = 30000 + commit_count + version_offset
+          if compiled_version != 35133:
+              raise RuntimeError(
+                  f"ReSukiSU version formula mismatch: commits={commit_count} "
+                  f"offset={version_offset} result={compiled_version} expected=35133"
+              )
+
+          image = args.image.read_bytes()
+          for marker in [b"v2.3.0", b"6.1.162-android14-11-34343818-abS928BXXU6ZZHL"]:
+              if marker not in image:
+                  raise RuntimeError(f"Image identity missing {marker!r}")
+          symbols = subprocess.check_output([args.nm, "--defined-only", str(args.vmlinux)], text=True)
+          names = ["ksu_install_su_fd", "ksu_handle_execveat_su_session", "susfs_add_sus_kstat_redirect",
+                   "susfs_add_sus_map", "susfs_init", "zeromount_init"]
+          for name in names:
+              if len(re.findall(r"^[0-9a-fA-F]+ [tT] " + name + r"$", symbols, re.M)) != 1:
+                  raise RuntimeError(f"Expected exactly one compiled function: {name}")
+          receipt.update(config_sha256=sha(args.config), image_sha256=sha(args.image),
+                         vmlinux_sha256=sha(args.vmlinux), compiled_symbols=names,
+                         resukisu_commit_count=commit_count,
+                         resukisu_version_offset=version_offset,
+                         resukisu_compiled_version=compiled_version)
+          args.receipt.write_text(json.dumps(receipt, indent=2)+"\\n", encoding="utf-8", newline="\\n")
+          print("PASS: final config, Image identity, ReSukiSU version formula, unique compiled functions and package attestation")
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected exactly one artifact verifier block, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
+          PY
+
+          python3 -m py_compile android14-6.1/build-helpers/su-session-35133/apply.py
+          git diff --check
+          git diff -- android14-6.1/build-helpers/su-session-35133/apply.py
+
+      - name: Commit verifier fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android14-6.1/build-helpers/su-session-35133/apply.py
+          git commit -m 'ci: verify ReSukiSU 35133 without Image ASCII assumption'
+          git push origin HEAD:agent/resukisu-35133-susfs-230
+
+      - name: Start corrected strict build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run run-resukisu-35057-strict.yml --ref agent/resukisu-35133-susfs-230
