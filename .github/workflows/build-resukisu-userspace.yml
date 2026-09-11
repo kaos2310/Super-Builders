@@ -66,13 +66,14 @@ jobs:
             resukisu --commit "$EXPECTED_PIN" --version "$EXPECTED_VERSION" \
             --receipt userspace-artifacts/BUILD-IDENTITY.json
 
-      - name: Install cargo-ndk with its lockfile
-        run: cargo +nightly install cargo-ndk --locked
+      - name: Install pinned cargo-ndk with its lockfile
+        run: cargo +nightly install cargo-ndk --version 4.1.2 --locked
 
       - name: Build ksuinit from its checked-in lockfile
         working-directory: resukisu
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
         run: |
           set -euo pipefail
           source .github/scripts/setup-rust-build.sh aarch64-linux-android 26
@@ -87,6 +88,7 @@ jobs:
         working-directory: resukisu
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
         run: |
           set -euo pipefail
           cp userspace/ksuinit/target/aarch64-linux-android/release/ksuinit userspace/ksud/bin/aarch64/
@@ -99,6 +101,7 @@ jobs:
       - name: Verify unchanged lockfiles and ARM64 release artifacts
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
         run: |
           set -euo pipefail
           python3 builder/android14-6.1/build-helpers/verify-resukisu-userspace.py \

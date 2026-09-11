@@ -19,6 +19,17 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def ksud_android_out_dirs(source):
+    """Find Android ksud build-script OUT_DIRs without assuming Cargo's target layout."""
+    target = source / 'userspace/ksud/target'
+    version_outputs = sorted({
+        path.parent
+        for path in target.rglob('VERSION_CODE')
+        if path.parent.name == 'out' and path.parent.parent.name.startswith('ksud-')
+    })
+    return [out_dir for out_dir in version_outputs if (out_dir / 'bindings.rs').is_file()]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source', type=Path)
@@ -82,14 +93,21 @@ def main():
             if len(data) < 64 or data[:6] != b'\x7fELF\x02\x01' or int.from_bytes(data[18:20], 'little') != 183:
                 raise RuntimeError(f'{crate} is not an ELF64 little-endian AArch64 binary')
             outputs[crate] = dict(sha256=digest(data), size=len(data))
-        build_dir = source / 'userspace/ksud/target/aarch64-linux-android/release/build'
-        versions = [p.read_text().strip() for p in build_dir.glob('ksud-*/out/VERSION_CODE')]
+
+        out_dirs = ksud_android_out_dirs(source)
+        if not out_dirs:
+            raise RuntimeError('no Android ksud build-script OUT_DIR with VERSION_CODE and bindings.rs found under userspace/ksud/target')
+        versions = sorted({(out_dir / 'VERSION_CODE').read_text().strip() for out_dir in out_dirs})
         if versions != [str(args.version)]:
             raise RuntimeError(f'ksud generated version mismatch: {versions}')
-        bindings = list(build_dir.glob('ksud-*/out/bindings.rs'))
-        if len(bindings) != 1 or bindings[0].stat().st_size == 0:
-            raise RuntimeError('bindgen did not produce exactly one nonempty UAPI binding file')
-        receipt.update(build_verified=True, binaries=outputs, bindings_sha256=digest(bindings[0].read_bytes()),
+        bindings = [out_dir / 'bindings.rs' for out_dir in out_dirs]
+        if any(path.stat().st_size == 0 for path in bindings):
+            raise RuntimeError('bindgen produced an empty UAPI binding file')
+        binding_hashes = sorted({digest(path.read_bytes()) for path in bindings})
+        if len(binding_hashes) != 1:
+            raise RuntimeError(f'bindgen generated inconsistent UAPI bindings: {binding_hashes}')
+        receipt.update(build_verified=True, binaries=outputs, bindings_sha256=binding_hashes[0],
+                       ksud_build_outputs=[str(path.relative_to(source)) for path in out_dirs],
                        ndk=os.environ['ANDROID_NDK_HOME'])
     args.receipt.write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(receipt, indent=2))
