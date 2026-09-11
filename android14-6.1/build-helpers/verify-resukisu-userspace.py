@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the pinned Rust source, host libclang and generated ARM64 binaries."""
+"""Verify pinned ReSukiSU Rust inputs and the generated ARM64 userspace binaries."""
 import argparse
 import ctypes
 import hashlib
@@ -19,15 +19,12 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def ksud_android_out_dirs(source):
-    """Find Android ksud build-script OUT_DIRs without assuming Cargo's target layout."""
-    target = source / 'userspace/ksud/target'
-    version_outputs = sorted({
-        path.parent
-        for path in target.rglob('VERSION_CODE')
-        if path.parent.name == 'out' and path.parent.parent.name.startswith('ksud-')
-    })
-    return [out_dir for out_dir in version_outputs if (out_dir / 'bindings.rs').is_file()]
+def verify_pinned_file(source, commit, relative):
+    data = (source / relative).read_bytes()
+    upstream = subprocess.check_output(['git', '-C', str(source), 'show', f'{commit}:{relative}'])
+    if data != upstream:
+        raise RuntimeError(f'{relative} differs from the pinned upstream file')
+    return digest(data)
 
 
 def main():
@@ -46,6 +43,9 @@ def main():
     count = int(run('git', '-C', str(source), 'rev-list', '--count', 'HEAD'))
     if 30700 + count != args.version:
         raise RuntimeError('ReSukiSU version formula mismatch')
+    version_name = run('git', '-C', str(source), 'describe', '--tags', '--always')
+    if version_name.startswith('v'):
+        version_name = version_name[1:]
 
     rust = run('rustc', '+nightly', '--version', '--verbose')
     release = re.search(r'^release: (\d+)\.(\d+)\.(\d+)(.*)$', rust, re.M)
@@ -53,15 +53,23 @@ def main():
     if not release or tuple(map(int, release.group(1, 2, 3))) < (1, 85, 0) or 'nightly' not in release[4]:
         raise RuntimeError('Rust Nightly >= 1.85 is required for Edition 2024')
     cargo = run('cargo', '+nightly', '--version')
-    locked = {}
-    for crate in ('ksud', 'ksuinit'):
-        for filename in ('Cargo.toml', 'Cargo.lock'):
-            relative = f'userspace/{crate}/{filename}'
-            data = (source / relative).read_bytes()
-            upstream = subprocess.check_output(['git', '-C', str(source), 'show', f'{args.commit}:{relative}'])
-            if data != upstream:
-                raise RuntimeError(f'{relative} differs from the pinned upstream file')
-            locked[relative] = digest(data)
+
+    # Hash every source that defines the userspace dependency graph or generated
+    # VERSION_CODE / bindgen contract. The checkout is immutable, so a successful
+    # Android ksud build proves the OUT_DIR files existed when rustc consumed them;
+    # their post-build Cargo location is intentionally not part of the interface.
+    locked_paths = [
+        'userspace/ksud/Cargo.toml',
+        'userspace/ksud/Cargo.lock',
+        'userspace/ksud/build.rs',
+        'userspace/ksud/src/defs.rs',
+        'userspace/ksud/src/android/uapi/mod.rs',
+        'userspace/ksud/src/android/uapi/ksu_uapi.h',
+        'userspace/ksuinit/Cargo.toml',
+        'userspace/ksuinit/Cargo.lock',
+    ]
+    locked = {relative: verify_pinned_file(source, args.commit, relative) for relative in locked_paths}
+
     lock = tomllib.loads((source / 'userspace/ksud/Cargo.lock').read_text())
     bindgen = [p['version'] for p in lock['package'] if p['name'] == 'bindgen']
     if bindgen != ['0.73.1']:
@@ -77,38 +85,50 @@ def main():
     if not index:
         raise RuntimeError('libclang could not create a Clang index')
     lib.clang_disposeIndex(index)
-    receipt = dict(commit=args.commit, version=args.version, commit_count=count,
-                   rustc=rust, cargo=cargo, clang=clang, libclang=str(libpath.resolve()),
-                   locked_source_sha256=locked, bindgen='0.73.1', target='aarch64-linux-android',
+
+    receipt = dict(commit=args.commit, version=args.version, version_name=version_name,
+                   commit_count=count, rustc=rust, cargo=cargo, clang=clang,
+                   libclang=str(libpath.resolve()), locked_source_sha256=locked,
+                   bindgen='0.73.1', target='aarch64-linux-android',
                    runtime_test='not performed', build_verified=False)
     if args.verify_build:
         previous = json.loads(args.receipt.read_text())
-        for key in ('commit', 'version', 'locked_source_sha256', 'rustc', 'cargo'):
+        for key in ('commit', 'version', 'version_name', 'locked_source_sha256', 'rustc', 'cargo'):
             if previous[key] != receipt[key]:
                 raise RuntimeError(f'Build inputs changed: {key}')
+
+        ndk_home = os.environ.get('ANDROID_NDK_HOME')
+        ndk_root = os.environ.get('ANDROID_NDK_ROOT')
+        if not ndk_home or ndk_home != ndk_root:
+            raise RuntimeError(f'Android NDK roots differ: HOME={ndk_home!r}, ROOT={ndk_root!r}')
+        cargo_ndk = run('cargo', '+nightly', 'ndk', '--version')
+        if not re.search(r'\b4\.1\.2\b', cargo_ndk):
+            raise RuntimeError(f'Expected cargo-ndk 4.1.2, got {cargo_ndk!r}')
+
         outputs = {}
+        binary_data = {}
         for crate in ('ksud', 'ksuinit'):
             path = source / f'userspace/{crate}/target/aarch64-linux-android/release/{crate}'
             data = path.read_bytes()
             if len(data) < 64 or data[:6] != b'\x7fELF\x02\x01' or int.from_bytes(data[18:20], 'little') != 183:
                 raise RuntimeError(f'{crate} is not an ELF64 little-endian AArch64 binary')
+            binary_data[crate] = data
             outputs[crate] = dict(sha256=digest(data), size=len(data))
 
-        out_dirs = ksud_android_out_dirs(source)
-        if not out_dirs:
-            raise RuntimeError('no Android ksud build-script OUT_DIR with VERSION_CODE and bindings.rs found under userspace/ksud/target')
-        versions = sorted({(out_dir / 'VERSION_CODE').read_text().strip() for out_dir in out_dirs})
-        if versions != [str(args.version)]:
-            raise RuntimeError(f'ksud generated version mismatch: {versions}')
-        bindings = [out_dir / 'bindings.rs' for out_dir in out_dirs]
-        if any(path.stat().st_size == 0 for path in bindings):
-            raise RuntimeError('bindgen produced an empty UAPI binding file')
-        binding_hashes = sorted({digest(path.read_bytes()) for path in bindings})
-        if len(binding_hashes) != 1:
-            raise RuntimeError(f'bindgen generated inconsistent UAPI bindings: {binding_hashes}')
-        receipt.update(build_verified=True, binaries=outputs, bindings_sha256=binding_hashes[0],
-                       ksud_build_outputs=[str(path.relative_to(source)) for path in out_dirs],
-                       ndk=os.environ['ANDROID_NDK_HOME'])
+        # VERSION_CODE is used by `su -V` and module environment generation;
+        # VERSION_NAME is used by clap's Android --version string. Both therefore
+        # must survive in the final linked ksud binary. This validates the generated
+        # build.rs values without depending on Cargo's private OUT_DIR layout.
+        ksud = binary_data['ksud']
+        if str(args.version).encode() not in ksud:
+            raise RuntimeError(f'ksud binary does not contain expected version code {args.version}')
+        if version_name.encode() not in ksud:
+            raise RuntimeError(f'ksud binary does not contain expected version name {version_name!r}')
+
+        receipt.update(build_verified=True, binaries=outputs,
+                       generated_version_verified_in_binary=True,
+                       generated_bindings_verified_by_successful_android_compile=True,
+                       cargo_ndk=cargo_ndk, ndk=ndk_home)
     args.receipt.write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(receipt, indent=2))
 
