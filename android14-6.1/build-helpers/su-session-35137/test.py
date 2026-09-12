@@ -10,7 +10,7 @@ import sys
 import uuid
 sys.dont_write_bytecode=True
 HERE=Path(__file__).resolve().parent
-spec=importlib.util.spec_from_file_location("session35136",HERE/"apply.py")
+spec=importlib.util.spec_from_file_location("session35137",HERE/"apply.py")
 port=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(port)
 
@@ -89,6 +89,45 @@ def webview_sources(ksu):
     return text
 
 
+def kstat_sources(common):
+    header=(common/"include/linux/susfs.h").read_text()
+    source=(common/"fs/susfs.c").read_text()
+    layout="\n".join(re.findall(r"^#define KSTAT_SPOOF_[^\n]+",header,re.M))
+    for name in ("st_susfs_sus_kstat", "st_susfs_sus_kstat_hlist", "st_susfs_sus_kstat_redirect"):
+        layout += "\n" + re.search(r"^struct "+name+r" \{.*?^};",header,re.M|re.S)[0]
+    values={"LAYOUT":layout,
+            "REGISTRATION":"\n".join(extract(source,n) for n in ("susfs_prepare_redirect_entry","susfs_add_sus_kstat_redirect")),
+            "LOOKUP":"\n".join(extract(source,n) for n in ("susfs_sus_kstat_spoof_vfs_statfs","susfs_sus_kstat_spoof_proc_fd_seq_show"))}
+    text=(HERE/"kstat.c.in").read_text()
+    for key,value in values.items():
+        assert text.count(f"@@{key}@@")==1
+        text=text.replace(f"@@{key}@@",value)
+    return text
+
+
+def verify_vfs(common):
+    stat=(common/"fs/stat.c").read_text()
+    opened=(common/"fs/open.c").read_text()
+    statx=extract(stat,"vfs_statx")
+    readlink=extract(stat,"do_readlinkat")
+    access=extract(opened,"do_faccessat")
+    openat=extract(opened,"do_sys_openat2")
+    for name,body in (("statx",statx),("readlink",readlink),("access",access),("openat",openat)):
+        if "extern bool susfs_" in body:
+            raise RuntimeError(f"SUSFS declaration relocated into {name}")
+    if statx.count("zeromount_stat_hook(dfd, filename, stat, request_mask, flags)") != 1 or "zeromount_stat_hook" in readlink:
+        raise RuntimeError("ZeroMount call is not scoped to vfs_statx")
+    for body,first,second in (
+        (statx,"susfs_check_unicode_bypass(filename->uptr)","zeromount_stat_hook(dfd"),
+        (statx,"susfs_is_hidden_name(_d->d_name.name", "vfs_getattr(&path"),
+        (readlink,"susfs_check_unicode_bypass(pathname)","user_path_at_empty("),
+        (access,"susfs_is_hidden_name(_d->d_name.name","inode = d_backing_inode(path.dentry)"),
+        (openat,"susfs_check_unicode_bypass(filename)","tmp = getname(filename)")):
+        if body.count(first) != 1 or body.count(second) != 1 or body.index(first) >= body.index(second):
+            raise RuntimeError(f"Incorrect Enhanced VFS hook order: {first}")
+    print("PASS: Enhanced/ZeroMount hooks retain their function scope and lookup ordering")
+
+
 def compile_run(code, name, args, root, expect_failure=False):
     src = root / f"{name}.c"
     src.write_text(code, encoding="utf-8", newline="\n")
@@ -138,18 +177,32 @@ def main():
     args=parser.parse_args()
     port.validate_identity(args.common,args.ksu,port.SUSFS_PIN)
     port.verify(args.common,args.ksu)
-    root=args.work_dir.resolve()/('session35136-'+uuid.uuid4().hex)
+    verify_vfs(args.common)
+    root=args.work_dir.resolve()/('session35137-'+uuid.uuid4().hex)
     root.mkdir(parents=True)
     code=sources(args.common,args.ksu)
     result=compile_run(code,"production",args,root)
     webview=webview_sources(args.ksu)
     web_result=compile_run(webview,"webview",args,root)
+    kstat=kstat_sources(args.common)
+    kstat_result=compile_run(kstat,"kstat",args,root)
     if args.aarch64_check:
-        for name in ["production","webview"]:
+        for name in ["production","webview","kstat"]:
             run([args.cc,"--target=aarch64-linux-android","-DWASM_TEST","-ffreestanding",
                  "-fno-builtin","-std=gnu11","-Werror=implicit-function-declaration",
                  "-c",root/f"{name}.c","-o",root/f"{name}-aarch64.o"])
-        print("PASS: production and WebView C compile for AArch64")
+        print("PASS: session, WebView and KSTAT C compile for AArch64")
+    kstat_mutations={
+        "missing-device":("entry->target_dev = inode->i_sb->s_dev;", "entry->target_dev = 0;"),
+        "missing-mount":("entry->spoofed_mnt_id = virtual_entry->spoofed_mnt_id;", "entry->spoofed_mnt_id = 0;"),
+        "missing-statfs":("entry->spoofed_kstatfs = virtual_entry->spoofed_kstatfs;", "entry->spoofed_kstatfs.f_blocks = 0;"),
+        "unhandled-virtual-error":("} else if (info.err != -ENOENT) {", "} else if (false) {"),
+        "leaked-path":("path_put(&real_path);", "(void)0;"),
+        "wrong-ctime-bit":("#define KSTAT_SPOOF_CTIME_TV_SEC (1 << 8)", "#define KSTAT_SPOOF_CTIME_TV_SEC (1 < 8)"),
+    }
+    for name,(old,new) in kstat_mutations.items():
+        assert kstat.count(old)==1,name
+        compile_run(kstat.replace(old,new),"kstat-"+name,args,root,expect_failure=True)
     mutations={
         "failed-exec":("is_su_session && retval >= 0","is_su_session"),
         "ordinary-exec":("is_su_session && retval >= 0","retval >= 0"),
@@ -180,11 +233,11 @@ def main():
     expect_reject(lambda:port.apply(args.common,args.ksu),"repeat application")
     assert all(p.read_bytes()==data for p,data in saved.items())
     result={"resukisu_commit":port.RESUKISU_PIN,"susfs_commit":port.SUSFS_PIN,
-            "production":result,"webview":web_result,"mutations_rejected":11,
+            "production":result,"webview":web_result,"kstat":kstat_result,"mutations_rejected":17,
             "aarch64_object":args.aarch64_check,
             "limitation":"Kernel API mocks; complete build and exact-Image device test are separate."}
     (root/"result.json").write_text(json.dumps(result,indent=2)+"\n")
-    print("PASS: exact-C fault tests, eleven negative controls and rejection rollback checks")
+    print("PASS: exact-C fault tests, seventeen negative controls and rejection rollback checks")
 
 if __name__=="__main__":
     main()

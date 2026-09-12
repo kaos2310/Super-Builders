@@ -6,6 +6,7 @@ KSU_ROOT="${2:?KernelSU root is required}"
 SOURCE_PATCH="${3:?enhanced SUSFS patch is required}"
 SUSFS_VERSION_LABEL="${SUSFS_EXPECTED_VERSION:-pinned}"
 WORK_DIR="${RUNNER_TEMP:-/tmp}/susfs-enhanced"
+HELPERS="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 [[ -d "$COMMON" ]] || { echo "::error::Kernel common tree is missing: $COMMON"; exit 1; }
 [[ -d "$KSU_ROOT" ]] || { echo "::error::KernelSU tree is missing: $KSU_ROOT"; exit 1; }
@@ -97,14 +98,10 @@ apply_required_hunks 'fs/Kconfig' \
   'KSU_SUSFS_SUS_KSTAT_REDIRECT|KSU_SUSFS_UNICODE_FILTER|KSU_SUSFS_HIDDEN_NAME'
 apply_required_hunks 'include/linux/susfs_def.h' \
   'CMD_SUSFS_ADD_SUS_KSTAT_REDIRECT'
-apply_required_hunks 'include/linux/susfs.h' \
-  'struct super_block|st_susfs_sus_kstat_redirect|susfs_add_sus_kstat_redirect|KSU_SUSFS_UNICODE_FILTER|susfs_check_unicode_bypass|susfs_is_hidden_name|susfs_is_hidden_ino'
+python3 "$HELPERS/apply-enhanced-susfs-header.py" "$SOURCE_PATCH" "$COMMON/include/linux/susfs.h"
 apply_required_hunks 'fs/namei.c' \
   'KSU_SUSFS_UNICODE_FILTER|susfs_check_unicode_bypass'
-apply_required_hunks 'fs/open.c' \
-  'KSU_SUSFS_HIDDEN_NAME|KSU_SUSFS_UNICODE_FILTER|susfs_is_hidden_name|susfs_check_unicode_bypass'
-apply_required_hunks 'fs/stat.c' \
-  'KSU_SUSFS_HIDDEN_NAME|KSU_SUSFS_UNICODE_FILTER|susfs_is_hidden_name|susfs_check_unicode_bypass'
+python3 "$HELPERS/apply-enhanced-susfs-vfs.py" enhanced "$COMMON" "$SOURCE_PATCH"
 
 # fs/susfs.c in the pinned Android 14 / 6.1 tree uses mutexes instead of the
 # no longer matches the older enhanced-feature patch context.  GNU patch can
@@ -112,12 +109,12 @@ apply_required_hunks 'fs/stat.c' \
 # inside susfs_run_sus_path_loop(), which only fails much later at compile
 # time. Port the feature blocks using fail-closed structural anchors shared by
 # the pinned v2.2.0 and v2.3.0 GKI sources.
-python3 - "$SOURCE_PATCH" "$COMMON/fs/susfs.c" <<'PY'
+python3 - "$SOURCE_PATCH" "$COMMON/fs/susfs.c" "$HELPERS/susfs-kstat-redirect-v2.c" <<'PY'
 from pathlib import Path
 import re
 import sys
 
-patch_path, source_path = map(Path, sys.argv[1:])
+patch_path, source_path, redirect_v2_path = map(Path, sys.argv[1:])
 patch_lines = patch_path.read_text(encoding="utf-8").splitlines(keepends=True)
 source = source_path.read_text(encoding="utf-8")
 
@@ -366,6 +363,12 @@ redirect_block = redirect_block.replace(
     "spin_unlock(&susfs_spin_lock_sus_kstat);",
     "mutex_unlock(&susfs_mutex_lock_sus_kstat);",
 )
+if "struct kstatfs *buf, bool *is_fuse)" in source:
+    # ed8a8328 moved statfs/mount identity into every KSTAT hash entry.
+    # The legacy redirect only initialized the userspace kstat fields.
+    redirect_block = redirect_v2_path.read_text(encoding="utf-8")
+    if "susfs_prepare_redirect_entry" not in redirect_block:
+        raise SystemExit("Missing refactored KSTAT redirect implementation")
 kstat_end = (
     "#endif // #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT\n\n"
     "/* spoof_uname */"

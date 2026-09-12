@@ -61,7 +61,7 @@ on:
         default: "main"
       resukisu_version_code:
         type: string
-        default: "35136"
+        default: "35137"
       resukisu_expected_size:
         type: string
         default: ""
@@ -581,12 +581,16 @@ jobs:
         # The pinned SUSFS stack already modifies show_map_vma(). The legacy ZeroMount
         # metadata hook overlaps that code and caused an Oops while apexd read
         # /proc/*/maps on SM-S928B. Keep the remaining ZeroMount facilities.
+        # stat.c uses structural insertion because its legacy context moved.
         awk '
           /^--- a\/fs\/proc\/task_mmu\.c/ { skip = 1; next }
+          /^--- a\/fs\/stat\.c/ { skip = 1; next }
           skip && /^--- a\// { skip = 0 }
           !skip { print }
         ' "$PATCH" > "$FILTERED_PATCH"
         patch -p1 -F3 --no-backup-if-mismatch < "$FILTERED_PATCH"
+        python3 "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-enhanced-susfs-vfs.py" \
+          zeromount "$KERNEL_ROOT/common" "$PATCH"
 
     - name: Apply audited Samsung XHCI hooks for ZZHL
       if: inputs.device_codename == 'e3q'
@@ -849,16 +853,16 @@ jobs:
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
 
-    - name: Test ReSukiSU 35136 and latest SUSFS with exact C fault injection
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35136'
+    - name: Test ReSukiSU 35137 and latest SUSFS with exact C fault injection
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35137'
       run: |
         set -euo pipefail
-        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35136"
+        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35137"
         python3 "$PORT/apply.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
         python3 "$PORT/test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/session-tests" --cc gcc
-        echo "RESUKISU_SU_SESSION_PORT=ReSukiSU-35136-SUSFS-153f88df-UAPI4" >> "$GITHUB_ENV"
+        echo "RESUKISU_SU_SESSION_PORT=ReSukiSU-35137-SUSFS-88792822-UAPI4" >> "$GITHUB_ENV"
 
     - name: Verify ReSukiSU build identity
       if: inputs.device_codename == 'e3q'
@@ -1439,20 +1443,20 @@ jobs:
           --receipt "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
         test -s "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
 
-    - name: Verify ReSukiSU 35136 compiled integration and attest package
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35136' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
+    - name: Verify ReSukiSU 35137 compiled integration and attest package
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35137' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
       run: |
         set -euo pipefail
         VMLINUX="$KERNEL_ROOT/bazel-bin/common/kernel_aarch64/vmlinux"
         [[ -s "$VMLINUX" ]] || VMLINUX="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/dist/vmlinux"
         test -s "$VMLINUX"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35136/apply.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35137/apply.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only \
           --config "$FINAL_CONFIG_FILE" --image "$ANYKERNEL3/Image" --vmlinux "$VMLINUX" \
           --receipt "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
         cp "$FINAL_CONFIG_FILE" "$ANYKERNEL3/BUILD-CONFIG.txt"
-        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35136-*/result.json \
+        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35137-*/result.json \
           "$ANYKERNEL3/RESUKISU-SUSFS-TESTS.json"
         test -s "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
 

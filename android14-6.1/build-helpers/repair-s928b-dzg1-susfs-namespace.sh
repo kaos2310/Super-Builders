@@ -4,18 +4,20 @@ set -euo pipefail
 COMMON_TREE="$(cd "${1:?common tree}" && pwd)"
 SOURCE="$COMMON_TREE/fs/namespace.c"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
+SUSFS_COMMIT="${2:-153f88df3be2501d2d33364f8fe05247aecb3cef}"
 [[ -f "$SOURCE" ]] || {
   echo "::error::Samsung namespace source is unavailable: $SOURCE"
   exit 1
 }
 
-"$PYTHON_BIN" - "$SOURCE" <<'PY'
+"$PYTHON_BIN" - "$SOURCE" "$SUSFS_COMMIT" <<'PY'
 from pathlib import Path
 import re
 import sys
 
 source = Path(sys.argv[1])
 text = source.read_text(encoding="utf-8")
+refactored_mounts = sys.argv[2] == "887928223bf685113f32837d5282117c9e4a04ca"
 
 marker_re = re.compile(
     r"^#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT\n"
@@ -164,7 +166,7 @@ lookup = region(
 ordered(
     lookup,
     "__lookup_mnt",
-    "susfs_is_current_proc_umounted_for_zygote_next()",
+    "susfs_is_current_proc_umounted()" if refactored_mounts else "susfs_is_current_proc_umounted_for_zygote_next()",
     "hlist_for_each_entry_rcu(p, head, mnt_hash)",
     "p->mnt_id < DEFAULT_KSU_MNT_ID",
     "return NULL;",
@@ -190,15 +192,27 @@ clone = region(
     "static void cleanup_mnt(struct mount *mnt)",
     "clone_mnt",
 )
-ordered(
-    clone,
-    "clone_mnt",
-    "bool is_mnt_ksu_unshared = false;",
-    "susfs_alloc_unshare_ksu_vfsmnt(old->mnt_devname, old->mnt_id)",
-    "susfs_alloc_non_unshare_ksu_vfsmnt(old->mnt_devname)",
-    "bypass_orig_flow:",
-    "VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT",
-)
+if refactored_mounts:
+    ordered(
+        clone, "refactored clone_mnt",
+        "if (flag & CL_COPY_MNT_NS)",
+        "susfs_alloc_unshare_ksu_vfsmnt(old->mnt_devname, old->mnt_id)",
+        "susfs_alloc_non_unshare_ksu_vfsmnt(old->mnt_devname)",
+        "if (old->mnt_id >= DEFAULT_KSU_MNT_ID)",
+        "susfs_alloc_non_unshare_ksu_vfsmnt(old->mnt_devname)",
+        "bypass_orig_flow:",
+        "susfs_is_current_ksu_domain() && (flag & CL_COPY_MNT_NS)",
+        "VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT",
+    )
+else:
+    ordered(
+        clone, "clone_mnt",
+        "bool is_mnt_ksu_unshared = false;",
+        "susfs_alloc_unshare_ksu_vfsmnt(old->mnt_devname, old->mnt_id)",
+        "susfs_alloc_non_unshare_ksu_vfsmnt(old->mnt_devname)",
+        "bypass_orig_flow:",
+        "VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT",
+    )
 
 copy_namespace = region(signature, next_signature, "copy_mnt_ns")
 ordered(

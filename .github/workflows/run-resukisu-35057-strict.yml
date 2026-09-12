@@ -1,5 +1,5 @@
-name: S928B ZZHL ReSukiSU 35136 SUSFS v2.3.0 Scoped Session v2
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35136 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
+name: S928B ZZHL ReSukiSU 35137 SUSFS v2.3.0 Scoped Session v2
+run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35137 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -13,6 +13,7 @@ on:
       - agent/resukisu-35129-susfs-230
       - agent/resukisu-35133-susfs-230
       - agent/resukisu-35136-susfs-230
+      - agent/resukisu-35137-susfs-230
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -32,7 +33,7 @@ on:
       - 'android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py'
       - 'android14-6.1/build-helpers/gunyah-reclaim/**'
       - 'android14-6.1/build-helpers/su-session/**'
-      - 'android14-6.1/build-helpers/su-session-35136/**'
+      - 'android14-6.1/build-helpers/su-session-35137/**'
       - 'android14-6.1/build-helpers/apply-resukisu-35127-susfs-postexec.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
       - 'android14-6.1/build-helpers/allow-e3q-gunyah-rm-vmid-kmi.sh'
@@ -48,6 +49,10 @@ on:
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
       - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh'
+      - 'android14-6.1/build-helpers/susfs-kstat-redirect-v2.c'
+      - 'android14-6.1/build-helpers/apply-enhanced-susfs-header.py'
+      - 'android14-6.1/build-helpers/apply-enhanced-susfs-vfs.py'
+      - 'android14-6.1/build-helpers/repair-s928b-dzg1-susfs-namespace.sh'
       - 'android14-6.1/build-helpers/assemble-defconfig.sh'
       - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'
       - 'android14-6.1/build-helpers/make-resukisu-umount-add-idempotent.sh'
@@ -63,7 +68,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35136-susfs-native-uapi4-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35137-susfs-native-uapi4-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -84,15 +89,15 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: fa1da13f890a19335d3f8f5c62bb5bde466fc384
-      resukisu_version_code: "35136"
+      resukisu_commit: 3380d41f2043644d0ef6c0e0e91be6b229024d00
+      resukisu_version_code: "35137"
 
   dependencies:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35136 UAPI4 Scoped Session v2 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 35137 UAPI4 Scoped Session v2 / Gunyah RM MEM_APPEND + SCM-VMID
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -111,21 +116,21 @@ jobs:
       add_overlayfs_support: true
       add_kpm: false
       susfs_open_redirect: false
-      # UAPI4 adaptation keeps the upstream SUSFS 153f88df success guard and
-      # the explicit session decision from reference run 34262304602.
+      # Adapt the SUSFS 88792822 callback to native UAPI4, retaining the explicit
+      # session decision and success guard from reference run 34262304602.
       # The legacy 35119/UAPI2 backport is not applicable to native UAPI4.
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: fa1da13f890a19335d3f8f5c62bb5bde466fc384
+      sukisu_commit: 3380d41f2043644d0ef6c0e0e91be6b229024d00
       resukisu_source_branch: main
-      resukisu_version_code: "35136"
+      resukisu_version_code: "35137"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# Based on successful kernel run 34632704761; ZeroMount module run 34512261330.
-# ReSukiSU 35136 = 30700 + 4436 commits. SUSFS 2.3.0 is pinned to the
-# gki-android14-6.1 head verified on 2026-09-11: 153f88df3be2501d2d33364f8fe05247aecb3cef.
+# Based on successful kernel run 34684249719; ZeroMount module run 34512261330.
+# ReSukiSU 35137 = 30700 + 4437 commits. SUSFS 2.3.0 is pinned to the
+# gki-android14-6.1 head verified on 2026-09-12: 887928223bf685113f32837d5282117c9e4a04ca.

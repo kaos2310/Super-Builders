@@ -12,8 +12,8 @@ import re
 import subprocess
 import sys
 
-RESUKISU_PIN = "fa1da13f890a19335d3f8f5c62bb5bde466fc384"
-SUSFS_PIN = "153f88df3be2501d2d33364f8fe05247aecb3cef"
+RESUKISU_PIN = "3380d41f2043644d0ef6c0e0e91be6b229024d00"
+SUSFS_PIN = "887928223bf685113f32837d5282117c9e4a04ca"
 SOURCE_FILES = ("kernel/feature/sucompat.c", "kernel/feature/sucompat.h",
                 "kernel/policy/app_profile.c", "kernel/policy/allowlist.c",
                 "kernel/hook/setuid_hook.c")
@@ -23,7 +23,7 @@ def git(root, *args):
 
 def validate_identity(common, ksu, susfs_commit):
     if git(ksu, "rev-parse", "HEAD").strip() != RESUKISU_PIN:
-        raise RuntimeError("ReSukiSU 35136 pin mismatch")
+        raise RuntimeError("ReSukiSU 35137 pin mismatch")
     if susfs_commit != SUSFS_PIN:
         raise RuntimeError("SUSFS 2.3.0 pin mismatch")
     if not re.search(r"KERNEL_SU_UAPI_VERSION\s*=\s*4\s*;", (ksu / "uapi/supercall.h").read_text()):
@@ -87,6 +87,13 @@ def transform(common, ksu):
     )
     exec_src = sub_once(
         exec_src,
+        r"extern int ksu_handle_post_execveat_sucompat\(int \*fd, struct filename \*\*filename_ptr, void \*argv,\s*\n"
+        r"\s*void \*envp, int \*flags, int \*retval\);",
+        "extern int ksu_install_su_fd(void);",
+        "replace generic KernelSU post-exec declaration", flags=re.MULTILINE,
+    )
+    exec_src = sub_once(
+        exec_src,
         r"if \(static_branch_likely\(&ksu_su_compat_enabled\)\) \{\s*\n"
         r"\s*if \(static_branch_unlikely\(&susfs_is_sdcard_android_data_not_decrypted\)\) \{\s*\n"
         r"\s*is_su_session = !ksu_handle_execveat\(&fd, &filename, &argv, &envp, &flags\);\s*\n"
@@ -98,10 +105,12 @@ def transform(common, ksu):
         "\t\t\t\t\t\t\t     &envp, &flags);\n\t}",
         "explicit ReSukiSU session decision", flags=re.MULTILINE,
     )
-    # Retain the upstream local bool and success guard; report allocation failures.
+    # Keep the success guard at the direct ReSukiSU UAPI4 installation site.
+    # The latest generic SUSFS patch delegates that guard to its KernelSU wrapper.
     exec_src = replace_once(
         exec_src,
-        "\tif (unlikely(is_su_session && retval >= 0))\n\t\tksu_install_su_fd();",
+        "\tif (unlikely(is_su_session))\n"
+        "\t\t(void)ksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval);",
         '\tif (unlikely(is_su_session && retval >= 0)) {\n'
         '\t\tint su_fd = ksu_install_su_fd();\n\n'
         '\t\tif (su_fd < 0)\n'
@@ -111,7 +120,7 @@ def transform(common, ksu):
     )
 
     # ---------------------------------------------------------------------------
-    # 2. ReSukiSU 35136 sucompat: return an explicit session boolean, propagate
+    # 2. ReSukiSU 35137 sucompat: return an explicit session boolean, propagate
     #    profile failures, and only recognize a session after KSUD_PATH is selected.
     # ---------------------------------------------------------------------------
     su = sucompat_path.read_text(encoding="utf-8")
@@ -293,7 +302,7 @@ def transform(common, ksu):
     )
 
     # ---------------------------------------------------------------------------
-    # 5. WebView UID 1053: 35136 manager exposes a real profile for it. Preserve
+    # 5. WebView UID 1053: 35137 manager exposes a real profile for it. Preserve
     #    that profile, forbid root grants, and make zygote_next consult it.
     # ---------------------------------------------------------------------------
     allow = allowlist_path.read_text(encoding="utf-8")
@@ -330,7 +339,7 @@ def transform(common, ksu):
         "    // Now app_profile for webview_zygote is available in KernelSU manager\n"
         "    if (likely(is_appuid(new_uid) && ksu_uid_should_umount(new_uid))) {",
         "    /* UID 1053 is outside is_appuid(); use the same UAPI4 profile the\n"
-        "     * 35136 manager already exposes for WebView Zygote. */\n"
+        "     * 35137 manager already exposes for WebView Zygote. */\n"
         "    if (unlikely(new_uid == WEBVIEW_ZYGOTE_UID)) {\n"
         "        if (ksu_uid_should_umount(new_uid)) {\n"
         "            susfs_set_current_proc_no_su();\n"
@@ -354,7 +363,7 @@ def transform(common, ksu):
         (exec_src, "is_su_session = ksu_handle_execveat_su_session", "fs/exec scoped pre-handler"),
         (exec_src, "is_su_session && retval >= 0", "retval >= 0 success guard"),
         (exec_src, "int su_fd = ksu_install_su_fd();", "post-success UAPI4 FD install"),
-        (su, "bool ksu_handle_execveat_su_session(", "explicit 35136 session API"),
+        (su, "bool ksu_handle_execveat_su_session(", "explicit 35137 session API"),
         (su, "*is_su_session = true;", "KSUD-only session recognition"),
         (su, "ret = escape_with_root_profile();", "root-profile error propagation"),
         (su, "clear_thread_flag(TIF_PROC_IN_KSU_EXECVE);", "legacy-hook stale flag cleanup"),
@@ -369,20 +378,20 @@ def transform(common, ksu):
             raise RuntimeError(f"verification failed: {label}")
 
     if "ksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval)" in exec_src:
-        raise RuntimeError("old unscoped 35136 post-exec bridge survived in fs/exec.c")
+        raise RuntimeError("old unscoped 35137 post-exec bridge survived in fs/exec.c")
     if exec_src.count("int su_fd = ksu_install_su_fd();") != 1:
         raise RuntimeError("expected exactly one direct scoped FD install in fs/exec.c")
     if exec_src.find("is_su_session && retval >= 0") < exec_src.find("retval = bprm_execve(bprm, fd, filename, flags);"):
         raise RuntimeError("success-only su FD install is not after bprm_execve")
 
-    # 35136 UAPI4 userspace must natively understand the scoped driver name; do not
+    # 35137 UAPI4 userspace must natively understand the scoped driver name; do not
     # apply the old 35119 optional UAPI2 ksud patch.
     ksucalls = sucompat_path.parents[2] / "userspace/ksud/src/android/ksucalls.rs"
     if not ksucalls.is_file():
-        raise RuntimeError("35136 ksud source is missing")
+        raise RuntimeError("35137 ksud source is missing")
     ksud_text = ksucalls.read_text(encoding="utf-8")
     if 'SU_DRIVER_FD_NAME: &str = "anon_inode:[ksu_driver_su]"' not in ksud_text:
-        raise RuntimeError("35136 userspace does not recognize [ksu_driver_su]")
+        raise RuntimeError("35137 userspace does not recognize [ksu_driver_su]")
 
     exec_path.write_text(exec_src, encoding="utf-8", newline="\n")
     sucompat_path.write_text(su, encoding="utf-8", newline="\n")
@@ -392,8 +401,8 @@ def transform(common, ksu):
     setuid_path.write_text(setuid, encoding="utf-8", newline="\n")
 
     print(
-        "ReSukiSU 35136 UAPI4 native su-session port applied: "
-        f"35119 semantics + SUSFS {upstream_fix}; upstream base 153f88df"
+        "ReSukiSU 35137 UAPI4 native su-session port applied: "
+        f"35119 semantics + SUSFS {upstream_fix}; upstream base 88792822"
     )
 
 
@@ -459,9 +468,9 @@ def verify(common, ksu):
     if "if (unlikely(new_uid == WEBVIEW_ZYGOTE_UID))" not in setuid:
         raise RuntimeError("zygote_next does not consult the WebView UID 1053 profile")
     if 'SU_DRIVER_FD_NAME: &str = "anon_inode:[ksu_driver_su]"' not in ksud:
-        raise RuntimeError("35136 UAPI4 ksud lacks native scoped driver support")
+        raise RuntimeError("35137 UAPI4 ksud lacks native scoped driver support")
 
-    print("Verified 35136 native UAPI4 session gate: real ksud session + retval >= 0 + scoped FD")
+    print("Verified 35137 native UAPI4 session gate: real ksud session + retval >= 0 + scoped FD")
     print("Verified generated C quoting: no malformed pr_warn escaped quotes remain")
     print("Verified UAPI-neutral 35119 carryovers: ucounts + WebView UID 1053 consistency")
 
@@ -497,9 +506,9 @@ def main():
         verify(common, ksu)
     else:
         apply(common, ksu)
-    receipt = {"resukisu_version":35136, "resukisu_commit":RESUKISU_PIN,
+    receipt = {"resukisu_version":35137, "resukisu_commit":RESUKISU_PIN,
                "susfs_version":"v2.3.0", "susfs_commit":SUSFS_PIN, "uapi":4,
-               "base_run":34632704761, "reference_run":34262304602,
+               "base_run":34684249719, "reference_run":34262304602,
                "session_policy":"explicit ksud session and successful exec before FD install",
                "source_sha256":{name:sha(ksu/name) for name in SOURCE_FILES},
                "exec_sha256":sha(common/"fs/exec.c"),
@@ -516,7 +525,7 @@ def main():
             if not re.search(r"^"+name+r"=y$", config, re.M):
                 raise RuntimeError(f"Final config missing {name}=y")
         # KSU_VERSION is a numeric C macro; its decimal spelling is not
-        # guaranteed to survive in the compressed Image. Prove 35136 from
+        # guaranteed to survive in the compressed Image. Prove 35137 from
         # the exact pinned source history plus the Kbuild formula instead.
         commit_count = int(git(ksu, "rev-list", "--count", "HEAD").strip())
         kbuild = (ksu / "kernel/Kbuild").read_text(encoding="utf-8")
@@ -530,10 +539,10 @@ def main():
         except ValueError as exc:
             raise RuntimeError(f"Invalid ReSukiSU KSU_VERSION formula: {version_lines[0]}") from exc
         compiled_version = 30000 + commit_count + version_offset
-        if compiled_version != 35136:
+        if compiled_version != 35137:
             raise RuntimeError(
                 f"ReSukiSU version formula mismatch: commits={commit_count} "
-                f"offset={version_offset} result={compiled_version} expected=35136"
+                f"offset={version_offset} result={compiled_version} expected=35137"
             )
 
         image = args.image.read_bytes()
