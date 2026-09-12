@@ -1,5 +1,5 @@
-name: S928B ZZHL ReSukiSU 35133 SUSFS v2.3.0 Scoped Session v2
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35133 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
+name: S928B ZZHL ReSukiSU 35136 SUSFS v2.3.0 Scoped Session v2
+run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35136 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -12,6 +12,7 @@ on:
       - agent/resukisu-35127-postexec-success-gate
       - agent/resukisu-35129-susfs-230
       - agent/resukisu-35133-susfs-230
+      - agent/resukisu-35136-susfs-230
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -31,7 +32,7 @@ on:
       - 'android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py'
       - 'android14-6.1/build-helpers/gunyah-reclaim/**'
       - 'android14-6.1/build-helpers/su-session/**'
-      - 'android14-6.1/build-helpers/su-session-35133/**'
+      - 'android14-6.1/build-helpers/su-session-35136/**'
       - 'android14-6.1/build-helpers/apply-resukisu-35127-susfs-postexec.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
       - 'android14-6.1/build-helpers/allow-e3q-gunyah-rm-vmid-kmi.sh'
@@ -62,7 +63,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35133-susfs-native-uapi4-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35136-susfs-native-uapi4-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -83,15 +84,15 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: 6930e97b59f8f5a7a2e75583f7be1cf982856157
-      resukisu_version_code: "35133"
+      resukisu_commit: fa1da13f890a19335d3f8f5c62bb5bde466fc384
+      resukisu_version_code: "35136"
 
   dependencies:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35133 UAPI4 Scoped Session v2 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 35136 UAPI4 Scoped Session v2 / Gunyah RM MEM_APPEND + SCM-VMID
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -116,15 +117,15 @@ jobs:
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 6930e97b59f8f5a7a2e75583f7be1cf982856157
+      sukisu_commit: fa1da13f890a19335d3f8f5c62bb5bde466fc384
       resukisu_source_branch: main
-      resukisu_version_code: "35133"
+      resukisu_version_code: "35136"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# Based on successful kernel run 34501538739; ZeroMount module run 34512261330.
-# ReSukiSU 35133 = 30700 + 4433 commits. SUSFS 2.3.0 is pinned to the
+# Based on successful kernel run 34632704761; ZeroMount module run 34512261330.
+# ReSukiSU 35136 = 30700 + 4436 commits. SUSFS 2.3.0 is pinned to the
 # gki-android14-6.1 head verified on 2026-09-11: 153f88df3be2501d2d33364f8fe05247aecb3cef.

@@ -10,7 +10,7 @@ import sys
 import uuid
 sys.dont_write_bytecode=True
 HERE=Path(__file__).resolve().parent
-spec=importlib.util.spec_from_file_location("session35133",HERE/"apply.py")
+spec=importlib.util.spec_from_file_location("session35136",HERE/"apply.py")
 port=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(port)
 
@@ -48,7 +48,8 @@ def sources(common, ksu):
         "PROFILE": extract(read("kernel/policy/app_profile.c"), "escape_with_root_profile"),
         "SUCOMPAT": "\n\n".join(extract(compat, n) for n in (
             "do_ksu_handle_execveat_sucompat", "ksu_handle_execveat_init", "ksu_handle_execve_common",
-            "ksu_handle_execve", "ksu_handle_execveat", "ksu_handle_execveat_su_session", "ksu_handle_execveat_sucompat")),
+            "ksu_handle_execve", "ksu_handle_execveat", "ksu_handle_execveat_su_session", "ksu_handle_execveat_sucompat",
+            "ksu_handle_post_execve")),
         "INSTALL": "\n\n".join(extract(supercall, n) for n in (
             "ksu_install_fd_with_permissions", "ksu_install_fd", "ksu_install_su_fd", "ksu_is_su_session_fd")),
         "DISPATCH_STUBS": "\n".join(f"#define {n} {i+1}" for i, n in enumerate(commands)) + "\n" +
@@ -137,7 +138,7 @@ def main():
     args=parser.parse_args()
     port.validate_identity(args.common,args.ksu,port.SUSFS_PIN)
     port.verify(args.common,args.ksu)
-    root=args.work_dir.resolve()/('session35133-'+uuid.uuid4().hex)
+    root=args.work_dir.resolve()/('session35136-'+uuid.uuid4().hex)
     root.mkdir(parents=True)
     code=sources(args.common,args.ksu)
     result=compile_run(code,"production",args,root)
@@ -155,6 +156,8 @@ def main():
         "ucounts-error":("ret = set_cred_ucounts(cred);","set_cred_ucounts(cred);"),
         "unscoped-ioctl":("ksu_ioctl_handlers[i].allow_su_session && ksu_is_su_session_fd(filp)","ksu_is_su_session_fd(filp)"),
         "ksud-missing":("out:\n    ret = 0;","out:\n    if (is_su_session) *is_su_session = true;\n    ret = 0;"),
+        "stale-exec-flag":("clear_thread_flag(TIF_PROC_IN_KSU_EXECVE);", "(void)0;"),
+        "legacy-unscoped":("if (likely(!is_su_session))", "if (false)"),
     }
     for name,(old,new) in mutations.items():
         assert code.count(old)==1,name
@@ -177,11 +180,11 @@ def main():
     expect_reject(lambda:port.apply(args.common,args.ksu),"repeat application")
     assert all(p.read_bytes()==data for p,data in saved.items())
     result={"resukisu_commit":port.RESUKISU_PIN,"susfs_commit":port.SUSFS_PIN,
-            "production":result,"webview":web_result,"mutations_rejected":9,
+            "production":result,"webview":web_result,"mutations_rejected":11,
             "aarch64_object":args.aarch64_check,
             "limitation":"Kernel API mocks; complete build and exact-Image device test are separate."}
     (root/"result.json").write_text(json.dumps(result,indent=2)+"\n")
-    print("PASS: exact-C fault tests, nine negative controls and rejection rollback checks")
+    print("PASS: exact-C fault tests, eleven negative controls and rejection rollback checks")
 
 if __name__=="__main__":
     main()

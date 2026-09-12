@@ -39,6 +39,7 @@ typedef _Bool bool;
 #define RLIMIT_NPROC 0
 #define MAX_ARG_STRINGS 100
 #define TIF_KSU_DISABLE_ESCAPE_WITH_ROOT 0
+#define TIF_PROC_IN_KSU_EXECVE 61
 #define FLAG_KSU_NO_NEW_PRIVS 1
 #define CAP_DAC_READ_SEARCH 4
 #define BUILD_BUG_ON(x) _Static_assert(!(x), "bad mock layout")
@@ -76,8 +77,10 @@ static void setup_groups(struct root_profile *p,struct cred *c) {}
 static void setup_selinux(const char *s,struct cred *c) {}
 static void disable_seccomp(void) {}
 static void setup_mount_ns(int n) {}
-static bool test_thread_flag(int flag) { return escape_disabled; }
-static void set_thread_flag(int flag) { escape_disabled=true; }
+static bool exec_pending;
+static bool test_thread_flag(int flag) { return flag==TIF_PROC_IN_KSU_EXECVE ? exec_pending : escape_disabled; }
+static void set_thread_flag(int flag) { if(flag==TIF_PROC_IN_KSU_EXECVE) exec_pending=true; else escape_disabled=true; }
+static void clear_thread_flag(int flag) { if(flag==TIF_PROC_IN_KSU_EXECVE) exec_pending=false; else escape_disabled=false; }
 static bool is_init(const struct cred *c) { return init_cred; }
 static bool ksu_is_allow_uid_for_current(int uid) { return allowed; }
 static bool ksu_is_current_proc_unprivillege(void) { return unprivileged; }
@@ -101,6 +104,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture_sucompat_manual(const c
 static void ksu_sulog_emit_pending(struct ksu_sulog_pending_event *p,int r,int g) {}
 
 @@PROFILE@@
+int ksu_install_su_fd(void);
 @@SUCOMPAT@@
 
 struct inode_security_struct { int sid; } wrapper_security;
@@ -193,7 +197,29 @@ static int run_exec(const char *path,int fd,int flags,int argc) {
 }
 int test_main(void) {
     checks=0;
+    reset(); exec_pending=false;
+    int post_ret=0;
+    CHECK(ksu_handle_post_execve(NULL,NULL,NULL,NULL,NULL,&post_ret)==-EINVAL);
+    CHECK(installs==0);
+    for(int failed=0;failed<2;failed++) {
+        reset(); exec_pending=true; post_ret=failed ? -EPERM : 0;
+        CHECK(ksu_handle_post_execve(NULL,NULL,NULL,NULL,NULL,&post_ret)==0);
+        CHECK(!exec_pending && installs==(failed ? 0 : 1));
+        CHECK(ksu_handle_post_execve(NULL,NULL,NULL,NULL,NULL,&post_ret)==-EINVAL);
+        CHECK(installs==(failed ? 0 : 1));
+    }
+    reset(); exec_pending=true;
+    CHECK(ksu_handle_post_execve(NULL,NULL,NULL,NULL,NULL,NULL)==0);
+    CHECK(!exec_pending && installs==0);
+    reset(); exec_pending=false;
+    char legacy_name[128]="/system/bin/su";
+    struct user_arg_ptr legacy_args={1};
+    int legacy_fd=AT_FDCWD, legacy_flags=0;
+    CHECK(ksu_handle_execve(&legacy_fd,legacy_name,&legacy_args,NULL,&legacy_flags)==0);
+    CHECK(exec_pending && strcmp(legacy_name,KSUD_PATH)==0);
+    exec_pending=false;
     reset(); CHECK(run_exec(su_path,AT_FDCWD,0,1)==0); CHECK(exec_done==1 && installs==1 && commits==1);
+    CHECK(!exec_pending);
     CHECK(reserved_flags==O_CLOEXEC && installed_flags==O_RDWR); CHECK(ksu_is_su_session_fd(&anon_file));
     CHECK(strcmp(anon_name,"[ksu_driver_su]")==0); CHECK(profile_refs==0);
     reset(); root_profile.uid=2000; root_profile.flags=FLAG_KSU_NO_NEW_PRIVS;
