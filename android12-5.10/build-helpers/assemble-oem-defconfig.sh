@@ -21,7 +21,7 @@ if [ ! -f "$DEFCONFIG" ]; then
   exit 1
 fi
 
-# Base KSU configs
+# Base KSU configs + hardening
 cat >> "$DEFCONFIG" << 'EOF'
 CONFIG_KSU=y
 CONFIG_KSU_MANUAL_HOOK=y
@@ -34,6 +34,7 @@ CONFIG_MODULE_UNLOAD=y
 CONFIG_MODULE_FORCE_UNLOAD=y
 CONFIG_MODVERSIONS=y
 CONFIG_TRIM_UNUSED_KSYMS=n
+CONFIG_BPF_UNPRIV_DEFAULT_OFF=y
 EOF
 
 if [ "$ADD_SUSFS" != "true" ]; then
