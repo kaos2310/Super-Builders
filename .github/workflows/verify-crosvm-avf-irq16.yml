@@ -1,0 +1,64 @@
+name: Verify crosvm AVF Gunyah IRQFD patch
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - avf-crosvm-irq16
+    paths:
+      - 'patches/crosvm/**'
+      - 'scripts/patch-crosvm-gunyah-irqfd.py'
+      - '.github/workflows/verify-crosvm-avf-irq16.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Super-Builders
+        uses: actions/checkout@v4
+
+      - name: Fetch Android 16 r4 crosvm
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch android-16.0.0_r4 \
+            https://android.googlesource.com/platform/external/crosvm \
+            "$RUNNER_TEMP/crosvm"
+          cd "$RUNNER_TEMP/crosvm"
+          echo "HEAD=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "738b7016fc50d6eadc94c8ca28022ad7c21f798d"
+          git log -1 --oneline
+
+      - name: Verify source anchors before patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/crosvm"
+          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ|let has_bios' aarch64/src/lib.rs
+          grep -n 'pub fn register_irqfd' hypervisor/src/gunyah/mod.rs
+          grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' aarch64/src/lib.rs
+          grep -q 'const AARCH64_VMWDT_IRQ: u32 = 15;' aarch64/src/lib.rs
+
+      - name: Apply Gunyah IRQFD source-anchor patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/scripts/patch-crosvm-gunyah-irqfd.py" "$RUNNER_TEMP/crosvm"
+
+      - name: Verify patched IRQ allocator and logging
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/crosvm"
+          grep -n -E 'AARCH64_IRQ_BASE|AARCH64_VMWDT_IRQ|reserve_irq' aarch64/src/lib.rs
+          grep -n 'GUNYAH IRQFD' hypervisor/src/gunyah/mod.rs
+          grep -q 'const AARCH64_IRQ_BASE: u32 = 4;' aarch64/src/lib.rs
+          grep -q 'const AARCH64_VMWDT_IRQ: u32 = 15;' aarch64/src/lib.rs
+          grep -q 'reserve_irq(AARCH64_VMWDT_IRQ)' aarch64/src/lib.rs
+          grep -q 'GUNYAH IRQFD add:' hypervisor/src/gunyah/mod.rs
+          grep -q 'GUNYAH IRQFD add failed:' hypervisor/src/gunyah/mod.rs
+          git diff --check
+          git diff -- aarch64/src/lib.rs hypervisor/src/gunyah/mod.rs
