@@ -110,7 +110,7 @@ print("Verified UAPI-neutral 35119 carryovers: ucounts + WebView UID 1053 consis
 PY
 fi
 
-if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" ]]; then
+if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" == "35139" ]]; then
   PORT="$(dirname "$0")/su-session-35137"
   python3 "$PORT/apply.py" --common "$COMMON_TREE" --ksu "$KSU_TREE" \
     --susfs-commit "${SUSFS_PINNED_COMMIT:?}"
