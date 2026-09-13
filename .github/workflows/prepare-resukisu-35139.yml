@@ -1,0 +1,98 @@
+name: Prepare ReSukiSU 35139 branch
+
+on:
+  push:
+    branches:
+      - agent/resukisu-35139-susfs-230
+    paths:
+      - '.github/workflows/prepare-resukisu-35139.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/resukisu-35139-susfs-230
+          fetch-depth: 0
+
+      - name: Port successful 35137 configuration to 35139
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          root = Path('.')
+          old_version = '35137'
+          new_version = '35139'
+          old_commit = '3380d41f2043644d0ef6c0e0e91be6b229024d00'
+          new_commit = '601f6d2af4801492339f74f622e1a4ae3a445250'
+
+          src = root / 'android14-6.1/build-helpers/su-session-35137'
+          dst = root / 'android14-6.1/build-helpers/su-session-35139'
+          if not src.is_dir():
+              raise SystemExit(f'missing source adapter: {src}')
+          if dst.exists():
+              shutil.rmtree(dst)
+          shutil.copytree(src, dst)
+
+          for path in dst.rglob('*'):
+              if not path.is_file():
+                  continue
+              try:
+                  text = path.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              text = text.replace(old_version, new_version).replace(old_commit, new_commit)
+              path.write_text(text, encoding='utf-8')
+
+          workflow = root / '.github/workflows/run-resukisu-35057-strict.yml'
+          text = workflow.read_text(encoding='utf-8')
+          if old_commit not in text or old_version not in text:
+              raise SystemExit('expected 35137 workflow identity not found')
+          text = text.replace(old_commit, new_commit).replace(old_version, new_version)
+          text = text.replace('4437 commits', '4439 commits')
+          text = text.replace('Based on successful kernel run 34684249719',
+                              'Based on successful kernel run 34703196045')
+          workflow.write_text(text, encoding='utf-8')
+
+          reusable = root / '.github/workflows/build-resukisu.yml'
+          text = reusable.read_text(encoding='utf-8')
+          if old_version not in text:
+              raise SystemExit('expected 35137 reusable-workflow identity not found')
+          reusable.write_text(text.replace(old_version, new_version), encoding='utf-8')
+
+          pin = root / 'android14-6.1/resukisu-pin.txt'
+          if pin.read_text(encoding='utf-8').strip() != old_commit:
+              raise SystemExit('unexpected ReSukiSU pin before update')
+          pin.write_text(new_commit + '\n', encoding='utf-8')
+
+          assert new_commit in workflow.read_text(encoding='utf-8')
+          assert old_commit not in workflow.read_text(encoding='utf-8')
+          assert old_version not in workflow.read_text(encoding='utf-8')
+          assert old_version not in reusable.read_text(encoding='utf-8')
+          assert pin.read_text(encoding='utf-8').strip() == new_commit
+          assert dst.is_dir()
+          PY
+
+          git diff --check
+          echo '===== remaining 35137 references outside preserved old adapter ====='
+          git grep -n '35137' -- ':!android14-6.1/build-helpers/su-session-35137/**' || true
+          echo '===== changed files ====='
+          git status --short
+
+      - name: Commit ReSukiSU 35139 update
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/run-resukisu-35057-strict.yml \
+                  .github/workflows/build-resukisu.yml \
+                  android14-6.1/resukisu-pin.txt \
+                  android14-6.1/build-helpers/su-session-35139
+          git commit -m 'Update ReSukiSU to 35139 from successful 35137 baseline'
+          git push origin HEAD:agent/resukisu-35139-susfs-230
