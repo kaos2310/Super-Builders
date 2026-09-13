@@ -110,50 +110,55 @@ print("Verified UAPI-neutral 35119 carryovers: ucounts + WebView UID 1053 consis
 PY
 fi
 
-if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" == "35139" ]]; then
+if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" == "35139" || "${RESUKISU_VERSION_CODE:-}" == "35140" ]]; then
   PORT="$(dirname "$0")/su-session-35137"
 
-  # ReSukiSU 35139 is two commits ahead of the validated 35137 pin. That
-  # upstream range changes manager/UI files only; the kernel/UAPI sources used
-  # by this exact-source adapter are unchanged. Rebind the complete adapter
-  # identity in the job workspace while retaining native 35137 support.
-  if [[ "${RESUKISU_VERSION_CODE:-}" == "35139" ]]; then
+  # 35139 and 35140 only advance manager/UI relative to the validated 35137
+  # kernel/UAPI source used by this adapter. Rebind the complete adapter identity
+  # in the job workspace while keeping the transformation itself source-identical.
+  if [[ "${RESUKISU_VERSION_CODE:-}" == "35139" || "${RESUKISU_VERSION_CODE:-}" == "35140" ]]; then
     ADAPTER="$PORT/apply.py"
     OLD_PIN='3380d41f2043644d0ef6c0e0e91be6b229024d00'
-    NEW_PIN='601f6d2af4801492339f74f622e1a4ae3a445250'
+    TARGET_VERSION="${RESUKISU_VERSION_CODE}"
+    case "$TARGET_VERSION" in
+      35139) NEW_PIN='601f6d2af4801492339f74f622e1a4ae3a445250' ;;
+      35140) NEW_PIN='c04159fcbdfdb71b0c3765ecaaf23c4e0a498c93' ;;
+      *) echo "::error::Unsupported ReSukiSU adapter target: $TARGET_VERSION"; exit 1 ;;
+    esac
 
-    python3 - "$ADAPTER" "$OLD_PIN" "$NEW_PIN" <<'PY'
+    python3 - "$ADAPTER" "$OLD_PIN" "$NEW_PIN" "$TARGET_VERSION" <<'PY'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1])
 old_pin = sys.argv[2]
 new_pin = sys.argv[3]
+target_version = sys.argv[4]
 text = path.read_text(encoding="utf-8")
 
 if old_pin not in text and new_pin not in text:
     raise SystemExit(f"unexpected ReSukiSU pin in {path}")
 
-# Fresh CI workspaces contain the validated 35137 adapter. Rebind both its
-# exact commit and every version-identity assertion/receipt label to 35139.
+# Fresh CI workspaces contain the validated 35137 adapter. Rebind its exact
+# commit and all identity assertions/receipt labels to the selected target.
 # Kernel/UAPI transformation code itself remains unchanged.
 text = text.replace(old_pin, new_pin)
-text = text.replace("35137", "35139")
+text = text.replace("35137", target_version)
 path.write_text(text, encoding="utf-8", newline="\n")
 
 updated = path.read_text(encoding="utf-8")
 required = (
     f'RESUKISU_PIN = "{new_pin}"',
-    '"resukisu_version":35139',
-    'if compiled_version != 35139:',
-    'expected=35139',
+    f'"resukisu_version":{target_version}',
+    f'if compiled_version != {target_version}:',
+    f'expected={target_version}',
 )
 for marker in required:
     if marker not in updated:
-        raise SystemExit(f"35139 adapter identity marker missing: {marker}")
+        raise SystemExit(f"{target_version} adapter identity marker missing: {marker}")
 if old_pin in updated or "35137" in updated:
-    raise SystemExit("stale 35137 adapter identity survived 35139 rebinding")
-print("Rebound complete ReSukiSU session adapter identity: 35137 -> 35139")
+    raise SystemExit(f"stale 35137 adapter identity survived {target_version} rebinding")
+print(f"Rebound complete ReSukiSU session adapter identity: 35137 -> {target_version}")
 PY
   fi
 
