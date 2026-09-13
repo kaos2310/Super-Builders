@@ -1,0 +1,61 @@
+name: One-shot ReSukiSU 35140 gate migration
+
+on:
+  push:
+    branches:
+      - agent/resukisu-35140-susfs-230
+    paths:
+      - '.github/workflows/migrate-resukisu-35140.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/resukisu-35140-susfs-230
+          fetch-depth: 0
+      - name: Move reusable build gates from 35139 to 35140
+        run: |
+          set -euo pipefail
+          FILE=.github/workflows/build-resukisu.yml
+          python3 - "$FILE" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          text = path.read_text(encoding="utf-8")
+          expected = (
+              'default: "35139"',
+              'Test ReSukiSU 35139 and latest SUSFS with exact C fault injection',
+              "inputs.resukisu_version_code == '35139'",
+              'ReSukiSU-35139-SUSFS-88792822-UAPI4',
+              'Verify ReSukiSU 35139 compiled integration and attest package',
+          )
+          for marker in expected:
+              if marker not in text:
+                  raise SystemExit(f"missing expected 35139 gate marker: {marker}")
+          updated = text.replace("35139", "35140")
+          if "35139" in updated:
+              raise SystemExit("stale 35139 build-gate marker survived migration")
+          for marker in (
+              'default: "35140"',
+              'Test ReSukiSU 35140 and latest SUSFS with exact C fault injection',
+              "inputs.resukisu_version_code == '35140'",
+              'ReSukiSU-35140-SUSFS-88792822-UAPI4',
+              'Verify ReSukiSU 35140 compiled integration and attest package',
+          ):
+              if marker not in updated:
+                  raise SystemExit(f"missing migrated 35140 gate marker: {marker}")
+          path.write_text(updated, encoding="utf-8", newline="\n")
+          PY
+          git diff --check
+          git diff -- "$FILE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "Move strict ReSukiSU gates to 35140"
+          git push origin HEAD:agent/resukisu-35140-susfs-230
