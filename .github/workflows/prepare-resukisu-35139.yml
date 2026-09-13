@@ -1,4 +1,4 @@
-name: Prepare ReSukiSU 35139 branch
+name: Prepare ReSukiSU 35139 commit
 
 on:
   push:
@@ -8,10 +8,10 @@ on:
       - '.github/workflows/prepare-resukisu-35139.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  render:
+  prepare:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,12 +19,11 @@ jobs:
           ref: agent/resukisu-35139-susfs-230
           fetch-depth: 0
 
-      - name: Render exact 35139 file contents
+      - name: Render and validate exact 35139 changes
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import base64
 
           old_version = '35137'
           new_version = '35139'
@@ -32,34 +31,97 @@ jobs:
           new_commit = '601f6d2af4801492339f74f622e1a4ae3a445250'
 
           top = Path('.github/workflows/run-resukisu-35057-strict.yml')
-          top_text = top.read_text(encoding='utf-8')
-          top_text = top_text.replace(old_commit, new_commit).replace(old_version, new_version)
-          top_text = top_text.replace('4437 commits', '4439 commits')
-          top_text = top_text.replace('Based on successful kernel run 34684249719',
-                                      'Based on successful kernel run 34703196045')
+          text = top.read_text(encoding='utf-8')
+          text = text.replace(old_commit, new_commit).replace(old_version, new_version)
+          text = text.replace('4437 commits', '4439 commits')
+          text = text.replace('Based on successful kernel run 34684249719',
+                              'Based on successful kernel run 34703196045')
+          # 35139 only changes Manager code, so retain the already validated
+          # 35137 kernel/SUSFS adapter and make its path trigger explicit.
+          text = text.replace("'android14-6.1/build-helpers/su-session-35139/**'",
+                              "'android14-6.1/build-helpers/su-session-35137/**'")
+          top.write_text(text, encoding='utf-8')
 
           build = Path('.github/workflows/build-resukisu.yml')
-          build_text = build.read_text(encoding='utf-8').replace(old_version, new_version)
-          # 35139 is two manager-only commits ahead of 35137. Reuse the exact
-          # validated kernel/SUSFS UAPI4 adapter and its existing test-output tag.
-          build_text = build_text.replace('su-session-35139', 'su-session-35137')
-          build_text = build_text.replace('session35139-*', 'session35137-*')
+          text = build.read_text(encoding='utf-8').replace(old_version, new_version)
+          text = text.replace('su-session-35139', 'su-session-35137')
+          text = text.replace('session35139-*', 'session35137-*')
+          build.write_text(text, encoding='utf-8')
 
           verifier = Path('android14-6.1/build-helpers/verify-zeromount-susfs-source.sh')
-          verifier_text = verifier.read_text(encoding='utf-8')
+          text = verifier.read_text(encoding='utf-8')
           old_gate = 'if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" ]]; then'
           new_gate = 'if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" == "35139" ]]; then'
-          if old_gate not in verifier_text:
+          if old_gate not in text:
               raise SystemExit('35137 verifier gate not found')
-          verifier_text = verifier_text.replace(old_gate, new_gate)
+          verifier.write_text(text.replace(old_gate, new_gate), encoding='utf-8')
 
-          for label, text in (
-              ('TOP', top_text),
-              ('BUILD', build_text),
-              ('VERIFIER', verifier_text),
-          ):
-              data = base64.b64encode(text.encode()).decode()
-              print(f'BEGIN_{label}_BASE64')
-              print(data)
-              print(f'END_{label}_BASE64')
+          pin = Path('android14-6.1/resukisu-pin.txt')
+          if pin.read_text(encoding='utf-8').strip() != old_commit:
+              raise SystemExit('unexpected ReSukiSU pin before update')
+          pin.write_text(new_commit + '\n', encoding='utf-8')
+
+          assert new_commit in top.read_text(encoding='utf-8')
+          assert old_commit not in top.read_text(encoding='utf-8')
+          assert 'resukisu_version_code: "35139"' in top.read_text(encoding='utf-8')
+          assert 'su-session-35137/**' in top.read_text(encoding='utf-8')
+          assert 'su-session-35139' not in build.read_text(encoding='utf-8')
+          assert "resukisu_version_code == '35139'" in build.read_text(encoding='utf-8')
+          assert pin.read_text(encoding='utf-8').strip() == new_commit
           PY
+
+          git diff --check
+          echo '===== intended diff ====='
+          git diff -- .github/workflows/run-resukisu-35057-strict.yml \
+                       .github/workflows/build-resukisu.yml \
+                       android14-6.1/build-helpers/verify-zeromount-susfs-source.sh \
+                       android14-6.1/resukisu-pin.txt
+
+      - name: Create detached Git commit object for connector to publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BASE_COMMIT="$(git rev-parse HEAD)"
+          BASE_TREE="$(git rev-parse HEAD^{tree})"
+
+          make_blob() {
+            local path="$1"
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/blobs" \
+              --raw-field "content=$(cat "$path")" \
+              --raw-field encoding=utf-8 \
+              --jq .sha
+          }
+
+          TOP_SHA="$(make_blob .github/workflows/run-resukisu-35057-strict.yml)"
+          BUILD_SHA="$(make_blob .github/workflows/build-resukisu.yml)"
+          VERIFY_SHA="$(make_blob android14-6.1/build-helpers/verify-zeromount-susfs-source.sh)"
+          PIN_SHA="$(make_blob android14-6.1/resukisu-pin.txt)"
+
+          jq -n \
+            --arg base "$BASE_TREE" \
+            --arg top "$TOP_SHA" \
+            --arg build "$BUILD_SHA" \
+            --arg verify "$VERIFY_SHA" \
+            --arg pin "$PIN_SHA" \
+            '{base_tree:$base,tree:[
+              {path:".github/workflows/run-resukisu-35057-strict.yml",mode:"100644",type:"blob",sha:$top},
+              {path:".github/workflows/build-resukisu.yml",mode:"100644",type:"blob",sha:$build},
+              {path:"android14-6.1/build-helpers/verify-zeromount-susfs-source.sh",mode:"100755",type:"blob",sha:$verify},
+              {path:"android14-6.1/resukisu-pin.txt",mode:"100644",type:"blob",sha:$pin},
+              {path:".github/workflows/prepare-resukisu-35139.yml",mode:"100644",type:"blob",sha:null}
+            ]}' > "$RUNNER_TEMP/tree.json"
+
+          TREE_SHA="$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/trees" --input "$RUNNER_TEMP/tree.json" --jq .sha)"
+
+          jq -n \
+            --arg message 'Update ReSukiSU to 35139 from successful 35137 baseline' \
+            --arg tree "$TREE_SHA" \
+            --arg parent "$BASE_COMMIT" \
+            '{message:$message,tree:$tree,parents:[$parent]}' > "$RUNNER_TEMP/commit.json"
+
+          COMMIT_SHA="$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/commits" --input "$RUNNER_TEMP/commit.json" --jq .sha)"
+          echo "PREPARED_COMMIT_SHA=$COMMIT_SHA"
+          echo "BASE_COMMIT_SHA=$BASE_COMMIT"
+          echo "TREE_SHA=$TREE_SHA"
+          echo "Prepared commit object only; branch ref intentionally not modified here."
