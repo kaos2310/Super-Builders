@@ -8,10 +8,10 @@ on:
       - '.github/workflows/prepare-resukisu-35139.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  update:
+  render:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,80 +19,47 @@ jobs:
           ref: agent/resukisu-35139-susfs-230
           fetch-depth: 0
 
-      - name: Port successful 35137 configuration to 35139
+      - name: Render exact 35139 file contents
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import shutil
+          import base64
 
-          root = Path('.')
           old_version = '35137'
           new_version = '35139'
           old_commit = '3380d41f2043644d0ef6c0e0e91be6b229024d00'
           new_commit = '601f6d2af4801492339f74f622e1a4ae3a445250'
 
-          src = root / 'android14-6.1/build-helpers/su-session-35137'
-          dst = root / 'android14-6.1/build-helpers/su-session-35139'
-          if not src.is_dir():
-              raise SystemExit(f'missing source adapter: {src}')
-          if dst.exists():
-              shutil.rmtree(dst)
-          shutil.copytree(src, dst)
+          top = Path('.github/workflows/run-resukisu-35057-strict.yml')
+          top_text = top.read_text(encoding='utf-8')
+          top_text = top_text.replace(old_commit, new_commit).replace(old_version, new_version)
+          top_text = top_text.replace('4437 commits', '4439 commits')
+          top_text = top_text.replace('Based on successful kernel run 34684249719',
+                                      'Based on successful kernel run 34703196045')
 
-          for path in dst.rglob('*'):
-              if not path.is_file():
-                  continue
-              try:
-                  text = path.read_text(encoding='utf-8')
-              except UnicodeDecodeError:
-                  continue
-              text = text.replace(old_version, new_version).replace(old_commit, new_commit)
-              path.write_text(text, encoding='utf-8')
+          build = Path('.github/workflows/build-resukisu.yml')
+          build_text = build.read_text(encoding='utf-8').replace(old_version, new_version)
+          # 35139 is two manager-only commits ahead of 35137. Reuse the exact
+          # validated kernel/SUSFS UAPI4 adapter and its existing test-output tag.
+          build_text = build_text.replace('su-session-35139', 'su-session-35137')
+          build_text = build_text.replace('session35139-*', 'session35137-*')
 
-          workflow = root / '.github/workflows/run-resukisu-35057-strict.yml'
-          text = workflow.read_text(encoding='utf-8')
-          if old_commit not in text or old_version not in text:
-              raise SystemExit('expected 35137 workflow identity not found')
-          text = text.replace(old_commit, new_commit).replace(old_version, new_version)
-          text = text.replace('4437 commits', '4439 commits')
-          text = text.replace('Based on successful kernel run 34684249719',
-                              'Based on successful kernel run 34703196045')
-          workflow.write_text(text, encoding='utf-8')
+          verifier = Path('android14-6.1/build-helpers/verify-zeromount-susfs-source.sh')
+          verifier_text = verifier.read_text(encoding='utf-8')
+          old_gate = 'if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" ]]; then'
+          new_gate = 'if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" == "35139" ]]; then'
+          if old_gate not in verifier_text:
+              raise SystemExit('35137 verifier gate not found')
+          verifier_text = verifier_text.replace(old_gate, new_gate)
 
-          reusable = root / '.github/workflows/build-resukisu.yml'
-          text = reusable.read_text(encoding='utf-8')
-          if old_version not in text:
-              raise SystemExit('expected 35137 reusable-workflow identity not found')
-          reusable.write_text(text.replace(old_version, new_version), encoding='utf-8')
-
-          pin = root / 'android14-6.1/resukisu-pin.txt'
-          if pin.read_text(encoding='utf-8').strip() != old_commit:
-              raise SystemExit('unexpected ReSukiSU pin before update')
-          pin.write_text(new_commit + '\n', encoding='utf-8')
-
-          assert new_commit in workflow.read_text(encoding='utf-8')
-          assert old_commit not in workflow.read_text(encoding='utf-8')
-          assert old_version not in workflow.read_text(encoding='utf-8')
-          assert old_version not in reusable.read_text(encoding='utf-8')
-          assert pin.read_text(encoding='utf-8').strip() == new_commit
-          assert dst.is_dir()
+          for label, text in (
+              ('TOP', top_text),
+              ('BUILD', build_text),
+              ('VERIFIER', verifier_text),
+          ):
+              data = base64.b64encode(text.encode()).decode()
+              print(f'BEGIN_{label}_BASE64')
+              print(data)
+              print(f'END_{label}_BASE64')
           PY
-
-          git diff --check
-          echo '===== remaining 35137 references outside preserved old adapter ====='
-          git grep -n '35137' -- ':!android14-6.1/build-helpers/su-session-35137/**' || true
-          echo '===== changed files ====='
-          git status --short
-
-      - name: Commit ReSukiSU 35139 update
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/workflows/run-resukisu-35057-strict.yml \
-                  .github/workflows/build-resukisu.yml \
-                  android14-6.1/resukisu-pin.txt \
-                  android14-6.1/build-helpers/su-session-35139
-          git commit -m 'Update ReSukiSU to 35139 from successful 35137 baseline'
-          git push origin HEAD:agent/resukisu-35139-susfs-230
