@@ -112,6 +112,27 @@ fi
 
 if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" == "35139" ]]; then
   PORT="$(dirname "$0")/su-session-35137"
+
+  # ReSukiSU 35139 is two commits ahead of the validated 35137 pin. That
+  # upstream range changes manager/UI files only; the kernel/UAPI sources used
+  # by this exact-source adapter are unchanged. Bind the adapter to the exact
+  # 35139 commit in the job workspace while retaining native 35137 support.
+  if [[ "${RESUKISU_VERSION_CODE:-}" == "35139" ]]; then
+    ADAPTER="$PORT/apply.py"
+    OLD_PIN='3380d41f2043644d0ef6c0e0e91be6b229024d00'
+    NEW_PIN='601f6d2af4801492339f74f622e1a4ae3a445250'
+    grep -qF "RESUKISU_PIN = \"$OLD_PIN\"" "$ADAPTER" || \
+      grep -qF "RESUKISU_PIN = \"$NEW_PIN\"" "$ADAPTER" || {
+        echo "::error::Unexpected ReSukiSU pin in $ADAPTER"
+        exit 1
+      }
+    sed -i "s/$OLD_PIN/$NEW_PIN/g; s/ReSukiSU 35137 pin mismatch/ReSukiSU 35139 pin mismatch/g" "$ADAPTER"
+    grep -qF "RESUKISU_PIN = \"$NEW_PIN\"" "$ADAPTER" || {
+      echo "::error::Failed to bind session adapter to ReSukiSU 35139 pin"
+      exit 1
+    }
+  fi
+
   python3 "$PORT/apply.py" --common "$COMMON_TREE" --ksu "$KSU_TREE" \
     --susfs-commit "${SUSFS_PINNED_COMMIT:?}"
 fi
