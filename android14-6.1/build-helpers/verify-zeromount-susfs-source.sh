@@ -115,22 +115,46 @@ if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" ==
 
   # ReSukiSU 35139 is two commits ahead of the validated 35137 pin. That
   # upstream range changes manager/UI files only; the kernel/UAPI sources used
-  # by this exact-source adapter are unchanged. Bind the adapter to the exact
-  # 35139 commit in the job workspace while retaining native 35137 support.
+  # by this exact-source adapter are unchanged. Rebind the complete adapter
+  # identity in the job workspace while retaining native 35137 support.
   if [[ "${RESUKISU_VERSION_CODE:-}" == "35139" ]]; then
     ADAPTER="$PORT/apply.py"
     OLD_PIN='3380d41f2043644d0ef6c0e0e91be6b229024d00'
     NEW_PIN='601f6d2af4801492339f74f622e1a4ae3a445250'
-    grep -qF "RESUKISU_PIN = \"$OLD_PIN\"" "$ADAPTER" || \
-      grep -qF "RESUKISU_PIN = \"$NEW_PIN\"" "$ADAPTER" || {
-        echo "::error::Unexpected ReSukiSU pin in $ADAPTER"
-        exit 1
-      }
-    sed -i "s/$OLD_PIN/$NEW_PIN/g; s/ReSukiSU 35137 pin mismatch/ReSukiSU 35139 pin mismatch/g" "$ADAPTER"
-    grep -qF "RESUKISU_PIN = \"$NEW_PIN\"" "$ADAPTER" || {
-      echo "::error::Failed to bind session adapter to ReSukiSU 35139 pin"
-      exit 1
-    }
+
+    python3 - "$ADAPTER" "$OLD_PIN" "$NEW_PIN" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+old_pin = sys.argv[2]
+new_pin = sys.argv[3]
+text = path.read_text(encoding="utf-8")
+
+if old_pin not in text and new_pin not in text:
+    raise SystemExit(f"unexpected ReSukiSU pin in {path}")
+
+# Fresh CI workspaces contain the validated 35137 adapter. Rebind both its
+# exact commit and every version-identity assertion/receipt label to 35139.
+# Kernel/UAPI transformation code itself remains unchanged.
+text = text.replace(old_pin, new_pin)
+text = text.replace("35137", "35139")
+path.write_text(text, encoding="utf-8", newline="\n")
+
+updated = path.read_text(encoding="utf-8")
+required = (
+    f'RESUKISU_PIN = "{new_pin}"',
+    '"resukisu_version":35139',
+    'if compiled_version != 35139:',
+    'expected=35139',
+)
+for marker in required:
+    if marker not in updated:
+        raise SystemExit(f"35139 adapter identity marker missing: {marker}")
+if old_pin in updated or "35137" in updated:
+    raise SystemExit("stale 35137 adapter identity survived 35139 rebinding")
+print("Rebound complete ReSukiSU session adapter identity: 35137 -> 35139")
+PY
   fi
 
   python3 "$PORT/apply.py" --common "$COMMON_TREE" --ksu "$KSU_TREE" \
