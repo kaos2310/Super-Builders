@@ -51,7 +51,7 @@ int strcmp(const char *a,const char *b) { while(*a && *a==*b) {a++;b++;} return 
 char *strstr(const char *a,const char *b) { for(;*a;a++) { const char *x=a,*y=b; while(*y&&*x==*y) {x++;y++;} if(!*y) return (char *)a; } return NULL; }
 
 struct user_struct { int unused; } user;
-struct cred { int uid,suid,euid,fsuid,gid,sgid,egid,fsgid,securebits; struct user_struct *user; kernel_cap_t cap_effective,cap_permitted,cap_bset; } live_cred, pending_cred, root_cred;
+struct cred { int uid,suid,euid,fsuid,gid,sgid,egid,fsgid,securebits; struct user_struct *user; kernel_cap_t cap_effective,cap_permitted,cap_bset,cap_inheritable,cap_ambient; } live_cred, pending_cred, root_cred;
 static struct cred *ksu_cred=&root_cred;
 struct root_profile { int uid,gid,flags,namespaces; const char *selinux_domain; struct { u64 effective; } capabilities; } root_profile;
 struct task_struct { int pid,flags; const char *comm; } task;
@@ -222,8 +222,8 @@ int test_main(void) {
     CHECK(!exec_pending);
     CHECK(reserved_flags==O_CLOEXEC && installed_flags==O_RDWR); CHECK(ksu_is_su_session_fd(&anon_file));
     CHECK(strcmp(anon_name,"[ksu_driver_su]")==0); CHECK(profile_refs==0);
-    reset(); root_profile.uid=2000; root_profile.flags=FLAG_KSU_NO_NEW_PRIVS;
-    CHECK(run_exec(su_path,AT_FDCWD,0,1)==0); CHECK(live_cred.uid==2000 && installs==1 && escape_disabled);
+    reset(); root_profile.uid=2000; root_profile.flags=FLAG_KSU_NO_NEW_PRIVS; root_profile.capabilities.effective=0x5a;
+    CHECK(run_exec(su_path,AT_FDCWD,0,1)==0); CHECK(live_cred.uid==2000 && installs==1 && escape_disabled); CHECK(live_cred.cap_inheritable==0x5a && live_cred.cap_ambient==0x5a);
     reset(); CHECK(run_exec("/system/bin/true",AT_FDCWD,0,1)==0); CHECK(reserve_calls==0 && commits==0);
     reset(); allowed=false; CHECK(run_exec(su_path,AT_FDCWD,0,1)==0); CHECK(reserve_calls==0 && commits==0);
     reset(); enabled=false; CHECK(run_exec(su_path,AT_FDCWD,0,1)==0); CHECK(reserve_calls==0 && commits==0);
