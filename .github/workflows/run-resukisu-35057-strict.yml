@@ -1,5 +1,5 @@
-name: S928B ZZHL ReSukiSU 35148 SUSFS v2.3.0 Scoped Session v2
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35148 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
+name: S928B ZZHL ReSukiSU 35153 SUSFS v2.3.0 Scoped Session v2
+run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35153 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ on:
       - agent/resukisu-35139-susfs-230
       - agent/resukisu-35140-susfs-230
       - agent/resukisu-35146-susfs-230
-      - agent/resukisu-35148-susfs-230
+      - agent/resukisu-35153-susfs-230
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -71,7 +71,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35148-susfs-native-uapi4-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35153-susfs-native-uapi4-strict-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -92,15 +92,15 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: b22a46e6ee79931b1e3b39fc562d56176936ab77
-      resukisu_version_code: "35148"
+      resukisu_commit: 6d674e50a022a85076dcfe4498af9a8bfead2cf9
+      resukisu_version_code: "35153"
 
   dependencies:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35148 UAPI4 Scoped Session v2 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 35153 UAPI4 Scoped Session v2 / Gunyah RM MEM_APPEND + SCM-VMID
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -125,9 +125,9 @@ jobs:
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: b22a46e6ee79931b1e3b39fc562d56176936ab77
+      sukisu_commit: 6d674e50a022a85076dcfe4498af9a8bfead2cf9
       resukisu_source_branch: main
-      resukisu_version_code: "35148"
+      resukisu_version_code: "35153"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
@@ -135,5 +135,5 @@ jobs:
       package_strict_anykernel: true
 
 # Based on successful kernel run 34876964395; ZeroMount module run 34512261330.
-# ReSukiSU 35148 = 30700 + 4448 commits. SUSFS 2.3.0 is pinned to the
+# ReSukiSU 35153 = 30700 + 4453 commits. SUSFS 2.3.0 is pinned to the
 # gki-android14-6.1 head verified on 2026-09-12: 887928223bf685113f32837d5282117c9e4a04ca.

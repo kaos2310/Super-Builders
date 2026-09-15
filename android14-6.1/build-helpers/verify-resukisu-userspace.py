@@ -72,8 +72,8 @@ def main():
 
     lock = tomllib.loads((source / 'userspace/ksud/Cargo.lock').read_text())
     bindgen = [p['version'] for p in lock['package'] if p['name'] == 'bindgen']
-    if bindgen != ['0.73.1']:
-        raise RuntimeError(f'Expected locked bindgen 0.73.1, got {bindgen}')
+    if bindgen != ['0.73.2']:
+        raise RuntimeError(f'Expected locked bindgen 0.73.2, got {bindgen}')
 
     clang = run(os.environ['CLANG_PATH'], '--version')
     libpath = Path(os.environ['LIBCLANG_PATH']) / 'libclang.so'
@@ -89,7 +89,7 @@ def main():
     receipt = dict(commit=args.commit, version=args.version, version_name=version_name,
                    commit_count=count, rustc=rust, cargo=cargo, clang=clang,
                    libclang=str(libpath.resolve()), locked_source_sha256=locked,
-                   bindgen='0.73.1', target='aarch64-linux-android',
+                   bindgen='0.73.2', target='aarch64-linux-android',
                    runtime_test='not performed', build_verified=False)
     if args.verify_build:
         previous = json.loads(args.receipt.read_text())

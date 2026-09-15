@@ -84,7 +84,7 @@ jobs:
           cd userspace/ksuinit
           cargo +nightly build --locked --package ksuinit --target aarch64-linux-android --release
 
-      - name: Build ksud with bindgen 0.73.1 and its checked-in lockfile
+      - name: Build ksud with bindgen 0.73.2 and its checked-in lockfile
         working-directory: resukisu
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
