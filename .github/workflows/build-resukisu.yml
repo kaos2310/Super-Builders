@@ -61,7 +61,7 @@ on:
         default: "main"
       resukisu_version_code:
         type: string
-        default: "35146"
+        default: "35148"
       resukisu_expected_size:
         type: string
         default: ""
@@ -853,8 +853,8 @@ jobs:
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
 
-    - name: Test ReSukiSU 35146 and latest SUSFS with exact C fault injection
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35146'
+    - name: Test ReSukiSU 35148 and latest SUSFS with exact C fault injection
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35148'
       run: |
         set -euo pipefail
         PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35137"
@@ -862,7 +862,7 @@ jobs:
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
         python3 "$PORT/test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/session-tests" --cc gcc
-        echo "RESUKISU_SU_SESSION_PORT=ReSukiSU-35146-SUSFS-88792822-UAPI4" >> "$GITHUB_ENV"
+        echo "RESUKISU_SU_SESSION_PORT=ReSukiSU-35148-SUSFS-88792822-UAPI4" >> "$GITHUB_ENV"
 
     - name: Verify ReSukiSU build identity
       if: inputs.device_codename == 'e3q'
@@ -1443,8 +1443,8 @@ jobs:
           --receipt "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
         test -s "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
 
-    - name: Verify ReSukiSU 35146 compiled integration and attest package
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35146' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
+    - name: Verify ReSukiSU 35148 compiled integration and attest package
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35148' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
       run: |
         set -euo pipefail
         VMLINUX="$KERNEL_ROOT/bazel-bin/common/kernel_aarch64/vmlinux"
