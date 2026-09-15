@@ -546,7 +546,7 @@ def main():
             )
 
         image = args.image.read_bytes()
-        for marker in [b"v2.3.0", b"6.1.162-android14-11-34343818-abS928BXXU6ZZHL"]:
+        for marker in [b"v2.3.0", b"6.1.162-android14-11-34343818-abS928BXXU6ZZI4"]:
             if marker not in image:
                 raise RuntimeError(f"Image identity missing {marker!r}")
         symbols = subprocess.check_output([args.nm, "--defined-only", str(args.vmlinux)], text=True)

@@ -1,5 +1,5 @@
-name: S928B ZZHL ReSukiSU 35153 SUSFS v2.3.0 Scoped Session v2
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35153 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
+name: S928B ZZI4 ReSukiSU 35153 SUSFS v2.3.0 Scoped Session v2
+run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35153 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -17,6 +17,7 @@ on:
       - agent/resukisu-35140-susfs-230
       - agent/resukisu-35146-susfs-230
       - agent/resukisu-35153-susfs-230
+      - agent/resukisu-35153-zzi4-susfs-230
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -43,10 +44,10 @@ on:
       - 'android14-6.1/build-helpers/audit-e3q-gunyah-qcom-module.sh'
       - 'android14-6.1/build-helpers/apply-s928b-zzhl-source-port.sh'
       - 'android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh'
-      - 'android14-6.1/e3q-zzhl-gunyah-qcom-stock-modversions.tsv'
-      - 'android14-6.1/samsung-e3q-zzhl-dlkm-crc-baseline.tsv'
+      - 'android14-6.1/e3q-zzi4-gunyah-qcom-stock-modversions.tsv'
+      - 'android14-6.1/samsung-e3q-zzi4-dlkm-crc-baseline.tsv'
       - 'android14-6.1/samsung-s928bxxu6zzhl-source.env'
-      - 'android14-6.1/samsung-s928bxxu6zzhl-target.env'
+      - 'android14-6.1/samsung-s928bxxu6zzi4-target.env'
       - 'android14-6.1/samsung-sm-s928b-17-zzhl-common-port.tar.xz'
       - 'device-profiles.json'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'

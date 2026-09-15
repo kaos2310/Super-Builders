@@ -4,8 +4,8 @@ set -euo pipefail
 KERNEL_ROOT="${1:?kernel root}"
 REPORT_DIR="${2:?report dir}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-EXPECTED_RELEASE='6.1.162-android14-11-34343818-abS928BXXU6ZZHL'
-STOCK_MODVERSIONS="$SCRIPT_DIR/../e3q-zzhl-gunyah-qcom-stock-modversions.tsv"
+EXPECTED_RELEASE='6.1.162-android14-11-34343818-abS928BXXU6ZZI4'
+STOCK_MODVERSIONS="$SCRIPT_DIR/../e3q-zzi4-gunyah-qcom-stock-modversions.tsv"
 ABI_LIST="$KERNEL_ROOT/common/android/abi_gki_aarch64"
 QCOM_SRC="$KERNEL_ROOT/common/drivers/virt/gunyah/gunyah_qcom.c"
 BACKING_SRC="$KERNEL_ROOT/common/drivers/virt/gunyah/cma_compat.c"
@@ -116,7 +116,7 @@ readelf -Ws "$PROVIDER" | grep -qE '[[:space:]]qcom_scm_assign_mem$'
 #
 # Compatibility rule for a replacement module:
 #   * every stock import that the replacement still uses must retain the exact
-#     ZZHL CRC;
+#     ZZI4 CRC;
 #   * gh_rm_get_vmid is the only allowed new import and must be KMI-listed;
 #   * stock imports that optimized/code-generated replacement code no longer
 #     references are recorded as dropped dependencies, not treated as failures.
@@ -309,7 +309,7 @@ cat >> "$REPORT_DIR/summary.md" <<EOF
 - Module: \`gunyah_qcom.ko\`
 - SHA-256: \`${MODULE_SHA}\`
 - Kernel release: \`${EXPECTED_RELEASE}\`
-- Retained stock ZZHL imports: \`${STOCK_RETAINED_COUNT}/${STOCK_BASELINE_COUNT}\`, all CRC-exact
+- Retained stock ZZI4 imports: \`${STOCK_RETAINED_COUNT}/${STOCK_BASELINE_COUNT}\`, all CRC-exact
 - Dropped stock-only imports (not runtime dependencies): \`${STOCK_DROPPED_IMPORTS}\`
 - New \`gh_rm_get_vmid\` import: present and KMI-listed
 - \`qcom_scm_assign_mem\`: stock CRC \`0xcdaced8a\`
@@ -326,7 +326,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 
 ### Patched e3q gunyah_qcom module
 - SHA-256: \`${MODULE_SHA}\`
-- retained stock ZZHL imports: \`${STOCK_RETAINED_COUNT}/${STOCK_BASELINE_COUNT}\`, all CRC-exact
+- retained stock ZZI4 imports: \`${STOCK_RETAINED_COUNT}/${STOCK_BASELINE_COUNT}\`, all CRC-exact
 - dropped stock-only imports: \`${STOCK_DROPPED_IMPORTS}\`
 - gh_rm_get_vmid: imported + KMI-listed
 - qcom_scm_assign_mem: stock CRC exact via build-only qcom-scm provider
