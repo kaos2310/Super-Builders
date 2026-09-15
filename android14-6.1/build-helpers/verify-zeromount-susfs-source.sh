@@ -110,15 +110,16 @@ print("Verified UAPI-neutral 35119 carryovers: ucounts + WebView UID 1053 consis
 PY
 fi
 
-if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" == "35139" || "${RESUKISU_VERSION_CODE:-}" == "35140" || "${RESUKISU_VERSION_CODE:-}" == "35146" ]]; then
+if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" == "35139" || "${RESUKISU_VERSION_CODE:-}" == "35140" || "${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148" ]]; then
   PORT="$(dirname "$0")/su-session-35137"
 
   # 35139/35140 keep the validated 35137 kernel/UAPI source anchors unchanged.
-  # 35146 additionally carries upstream's non-root capability inheritance fix in
-  # app_profile.c, outside the adapter's exact set_cred_ucounts() replacement.
+  # 35146 carries upstream's non-root capability inheritance fix in app_profile.c,
+  # outside the adapter's exact set_cred_ucounts() replacement. 35148 adds only
+  # manager/CI changes, so it keeps the same validated kernel/UAPI source shape.
   # Rebind the complete adapter identity while keeping the transformation itself
-  # source-identical, then explicitly verify that the 35146 capability fix survived.
-  if [[ "${RESUKISU_VERSION_CODE:-}" == "35139" || "${RESUKISU_VERSION_CODE:-}" == "35140" || "${RESUKISU_VERSION_CODE:-}" == "35146" ]]; then
+  # source-identical, then explicitly verify that capability inheritance survives.
+  if [[ "${RESUKISU_VERSION_CODE:-}" == "35139" || "${RESUKISU_VERSION_CODE:-}" == "35140" || "${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148" ]]; then
     ADAPTER="$PORT/apply.py"
     OLD_PIN='3380d41f2043644d0ef6c0e0e91be6b229024d00'
     TARGET_VERSION="${RESUKISU_VERSION_CODE}"
@@ -126,6 +127,7 @@ if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" ==
       35139) NEW_PIN='601f6d2af4801492339f74f622e1a4ae3a445250' ;;
       35140) NEW_PIN='c04159fcbdfdb71b0c3765ecaaf23c4e0a498c93' ;;
       35146) NEW_PIN='833edb0e8e4bc11ac8e976edd7de42da6bdc5bd2' ;;
+      35148) NEW_PIN='b22a46e6ee79931b1e3b39fc562d56176936ab77' ;;
       *) echo "::error::Unsupported ReSukiSU adapter target: $TARGET_VERSION"; exit 1 ;;
     esac
 
@@ -168,17 +170,17 @@ PY
   python3 "$PORT/apply.py" --common "$COMMON_TREE" --ksu "$KSU_TREE" \
     --susfs-commit "${SUSFS_PINNED_COMMIT:?}"
 
-  if [[ "${RESUKISU_VERSION_CODE:-}" == "35146" ]]; then
+  if [[ "${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148" ]]; then
     APP_PROFILE="$KSU_TREE/kernel/policy/app_profile.c"
     for marker in \
       'memcpy(&cred->cap_inheritable, &profile->capabilities.effective, sizeof(cred->cap_inheritable));' \
       'memcpy(&cred->cap_ambient, &profile->capabilities.effective, sizeof(cred->cap_ambient));'; do
       grep -qF "$marker" "$APP_PROFILE" || {
-        echo "::error::ReSukiSU 35146 non-root capability inheritance was lost: $marker"
+        echo "::error::ReSukiSU ${RESUKISU_VERSION_CODE} non-root capability inheritance was lost: $marker"
         exit 1
       }
     done
-    echo "Verified ReSukiSU 35146 non-root capability inheritance survives the SUSFS UAPI4 adapter"
+    echo "Verified ReSukiSU ${RESUKISU_VERSION_CODE} non-root capability inheritance survives the SUSFS UAPI4 adapter"
   fi
 fi
 
