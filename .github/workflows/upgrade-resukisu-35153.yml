@@ -1,0 +1,146 @@
+name: Upgrade S928B ReSukiSU 35153
+
+on:
+  push:
+    branches:
+      - agent/resukisu-35153-susfs-230
+    paths:
+      - '.github/workflows/upgrade-resukisu-35153.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/resukisu-35153-susfs-230
+          fetch-depth: 0
+
+      - name: Rebind successful 35148 build to ReSukiSU 35153
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          OLD_VERSION = '35148'
+          NEW_VERSION = '35153'
+          OLD_PIN = 'b22a46e6ee79931b1e3b39fc562d56176936ab77'
+          NEW_PIN = '6d674e50a022a85076dcfe4498af9a8bfead2cf9'
+
+          def read(path):
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path, text):
+              Path(path).write_text(text, encoding='utf-8', newline='\n')
+
+          # Immutable ReSukiSU source pin.
+          pin_path = 'android14-6.1/resukisu-pin.txt'
+          if read(pin_path).strip() != OLD_PIN:
+              raise SystemExit(f'unexpected old ReSukiSU pin in {pin_path}')
+          write(pin_path, NEW_PIN + '\n')
+
+          # Rebind the validated native-UAPI4/SUSFS adapter without changing its
+          # source transformation. 35153 contains no kernel source changes versus
+          # 35148, so the 35146 capability-inheritance gate must still survive.
+          verify_path = 'android14-6.1/build-helpers/verify-zeromount-susfs-source.sh'
+          text = read(verify_path)
+          required_old = [
+              '"${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148"',
+              '35148) NEW_PIN=\'b22a46e6ee79931b1e3b39fc562d56176936ab77\' ;;',
+          ]
+          for marker in required_old:
+              if text.count(marker) < 1:
+                  raise SystemExit(f'missing expected 35148 adapter marker: {marker}')
+          text = text.replace(
+              '"${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148"',
+              '"${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148" || "${RESUKISU_VERSION_CODE:-}" == "35153"'
+          )
+          text = text.replace(
+              '35148) NEW_PIN=\'b22a46e6ee79931b1e3b39fc562d56176936ab77\' ;;',
+              '35148) NEW_PIN=\'b22a46e6ee79931b1e3b39fc562d56176936ab77\' ;;\n      35153) NEW_PIN=\'6d674e50a022a85076dcfe4498af9a8bfead2cf9\' ;;'
+          )
+          text = text.replace(
+              '# outside the adapter\'s exact set_cred_ucounts() replacement. 35148 adds only\n  # manager/CI changes, so it keeps the same validated kernel/UAPI source shape.',
+              '# outside the adapter\'s exact set_cred_ucounts() replacement. 35148 adds only\n  # manager/CI changes; 35153 adds CI/manager plus userspace dependency updates.\n  # Neither changes the validated kernel/UAPI source shape.'
+          )
+          write(verify_path, text)
+
+          # Reusable kernel workflow: move every 35148-specific exact-C and final
+          # attestation gate to 35153. Historical branches retain their own commit.
+          build_path = '.github/workflows/build-resukisu.yml'
+          text = read(build_path)
+          count = text.count(OLD_VERSION)
+          if count < 4:
+              raise SystemExit(f'expected multiple 35148 kernel workflow gates, found {count}')
+          text = text.replace(OLD_VERSION, NEW_VERSION)
+          if OLD_VERSION in text:
+              raise SystemExit('stale 35148 kernel workflow gate survived migration')
+          write(build_path, text)
+
+          # Top-level S928B strict workflow: branch, labels, immutable pin, version,
+          # concurrency and version formula all move together.
+          run_path = '.github/workflows/run-resukisu-35057-strict.yml'
+          text = read(run_path)
+          if text.count(OLD_VERSION) < 6:
+              raise SystemExit('unexpectedly few 35148 markers in strict workflow')
+          if text.count(OLD_PIN) != 2:
+              raise SystemExit(f'expected two 35148 pin uses in strict workflow, found {text.count(OLD_PIN)}')
+          text = text.replace(OLD_VERSION, NEW_VERSION)
+          text = text.replace(OLD_PIN, NEW_PIN)
+          text = text.replace('30700 + 4448 commits', '30700 + 4453 commits')
+          write(run_path, text)
+
+          # Upstream 35153 bumps ksud bindgen 0.73.1 -> 0.73.2. Keep the verifier
+          # fail-closed against the new checked-in lockfile rather than weakening it.
+          userspace_verify = 'android14-6.1/build-helpers/verify-resukisu-userspace.py'
+          text = read(userspace_verify)
+          count = text.count('0.73.1')
+          if count < 2:
+              raise SystemExit(f'expected bindgen 0.73.1 verifier markers, found {count}')
+          text = text.replace('0.73.1', '0.73.2')
+          write(userspace_verify, text)
+
+          userspace_workflow = '.github/workflows/build-resukisu-userspace.yml'
+          text = read(userspace_workflow)
+          if text.count('bindgen 0.73.1') != 1:
+              raise SystemExit('unexpected bindgen label in userspace workflow')
+          text = text.replace('bindgen 0.73.1', 'bindgen 0.73.2')
+          write(userspace_workflow, text)
+
+          # Final static sanity gates before committing.
+          checks = {
+              pin_path: [NEW_PIN],
+              verify_path: [NEW_VERSION, NEW_PIN],
+              build_path: [NEW_VERSION],
+              run_path: [NEW_VERSION, NEW_PIN, '30700 + 4453 commits'],
+              userspace_verify: ['0.73.2'],
+              userspace_workflow: ['bindgen 0.73.2'],
+          }
+          for path, markers in checks.items():
+              data = read(path)
+              for marker in markers:
+                  if marker not in data:
+                      raise SystemExit(f'missing migrated marker in {path}: {marker}')
+          PY
+
+          git diff --check
+          git diff -- android14-6.1/resukisu-pin.txt \
+            android14-6.1/build-helpers/verify-zeromount-susfs-source.sh \
+            android14-6.1/build-helpers/verify-resukisu-userspace.py \
+            .github/workflows/build-resukisu.yml \
+            .github/workflows/build-resukisu-userspace.yml \
+            .github/workflows/run-resukisu-35057-strict.yml
+
+          git config user.name kaos2310
+          git config user.email 85377322+kaos2310@users.noreply.github.com
+          git add android14-6.1/resukisu-pin.txt \
+            android14-6.1/build-helpers/verify-zeromount-susfs-source.sh \
+            android14-6.1/build-helpers/verify-resukisu-userspace.py \
+            .github/workflows/build-resukisu.yml \
+            .github/workflows/build-resukisu-userspace.yml \
+            .github/workflows/run-resukisu-35057-strict.yml
+          git commit -m 'Move S928B strict build to ReSukiSU 35153'
+          git push origin HEAD:agent/resukisu-35153-susfs-230
