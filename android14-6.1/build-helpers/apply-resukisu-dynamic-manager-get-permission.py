@@ -17,64 +17,96 @@ def fail(msg: str) -> None:
     raise SystemExit(f"ERROR: {msg}")
 
 
-def verify(text: str) -> None:
-    required = [
+def verify(dispatch_text: str, feature_text: str) -> None:
+    required_dispatch = [
         MARKER,
         "cmd.operation != DYNAMIC_MANAGER_OP_GET && !only_root()",
         '.name = "DYNAMIC_MANAGER"',
         ".perm_check = manager_or_root",
     ]
-    for item in required:
-        if item not in text:
-            fail(f"post-patch verification missing: {item}")
+    for item in required_dispatch:
+        if item not in dispatch_text:
+            fail(f"post-patch dispatch verification missing: {item}")
 
-    dynamic_block_start = text.find(".cmd = KSU_IOCTL_DYNAMIC_MANAGER")
-    dynamic_block_end = text.find("},", dynamic_block_start)
+    dynamic_block_start = dispatch_text.find(".cmd = KSU_IOCTL_DYNAMIC_MANAGER")
+    dynamic_block_end = dispatch_text.find("},", dynamic_block_start)
     if dynamic_block_start < 0 or dynamic_block_end < 0:
         fail("dynamic-manager dispatch table entry not found after patch")
-    dynamic_block = text[dynamic_block_start:dynamic_block_end]
+    dynamic_block = dispatch_text[dynamic_block_start:dynamic_block_end]
     if ".perm_check = only_root" in dynamic_block:
         fail("dynamic-manager dispatcher is still root-only")
+    if ".perm_check = manager_or_root" not in dynamic_block:
+        fail("dynamic-manager dispatcher does not use manager_or_root")
 
-    handler_start = text.find("static int do_dynamic_manager")
-    handler_end = text.find("static int do_get_managers", handler_start)
+    handler_start = dispatch_text.find("static int do_dynamic_manager")
+    handler_end = dispatch_text.find("static int do_get_managers", handler_start)
     if handler_start < 0 or handler_end < 0:
         fail("do_dynamic_manager handler bounds not found")
-    handler = text[handler_start:handler_end]
-    if "DYNAMIC_MANAGER_OP_SET" not in text or "DYNAMIC_MANAGER_OP_WIPE" not in text:
-        fail("expected mutating dynamic-manager operations are missing from UAPI/source")
-    if "!only_root()" not in handler:
+    handler = dispatch_text[handler_start:handler_end]
+    if "cmd.operation != DYNAMIC_MANAGER_OP_GET && !only_root()" not in handler:
         fail("handler does not retain root-only guard for mutating operations")
+    if "return -EPERM;" not in handler:
+        fail("handler does not fail closed for non-root mutating operations")
+    if "ksu_handle_dynamic_manager(&cmd)" not in handler:
+        fail("handler no longer calls ksu_handle_dynamic_manager")
+
+    required_feature = [
+        "case DYNAMIC_MANAGER_OP_SET_SYNCHRONOUS:",
+        "case DYNAMIC_MANAGER_OP_SET:",
+        "case DYNAMIC_MANAGER_OP_GET:",
+        "case DYNAMIC_MANAGER_OP_WIPE:",
+    ]
+    for item in required_feature:
+        if item not in feature_text:
+            fail(f"dynamic-manager feature verification missing: {item}")
+
+    # Guard against silently changing the semantics we are protecting.
+    if "dynamic_manager.is_set = 1;" not in feature_text:
+        fail("dynamic-manager SET path no longer marks configuration active")
+    if "dynamic_manager.is_set = 0;" not in feature_text:
+        fail("dynamic-manager WIPE path no longer clears configuration")
 
 
-def patch_dispatch(dispatch: Path) -> None:
+def patch_dispatch(ksu_root: Path) -> None:
+    dispatch = ksu_root / "kernel" / "supercall" / "dispatch.c"
+    feature = ksu_root / "kernel" / "feature" / "dynamic_manager.c"
     if not dispatch.is_file():
         fail(f"missing ReSukiSU dispatch source: {dispatch}")
+    if not feature.is_file():
+        fail(f"missing ReSukiSU dynamic-manager feature source: {feature}")
 
-    text = dispatch.read_text(encoding="utf-8")
+    dispatch_text = dispatch.read_text(encoding="utf-8")
+    feature_text = feature.read_text(encoding="utf-8")
 
-    if MARKER in text:
-        verify(text)
+    if MARKER in dispatch_text:
+        verify(dispatch_text, feature_text)
         print(f"ReSukiSU dynamic-manager permission fix already present: {dispatch}")
         return
 
-    if text.count(HANDLER_NEEDLE) != 1:
-        fail(f"expected exactly one dynamic-manager handler call, found {text.count(HANDLER_NEEDLE)}")
-    if text.count(TABLE_NEEDLE) != 1:
-        fail(f"expected exactly one root-only dynamic-manager table entry, found {text.count(TABLE_NEEDLE)}")
+    if dispatch_text.count(HANDLER_NEEDLE) != 1:
+        fail(
+            "expected exactly one dynamic-manager handler call, "
+            f"found {dispatch_text.count(HANDLER_NEEDLE)}"
+        )
+    if dispatch_text.count(TABLE_NEEDLE) != 1:
+        fail(
+            "expected exactly one root-only dynamic-manager table entry, "
+            f"found {dispatch_text.count(TABLE_NEEDLE)}"
+        )
 
-    text = text.replace(HANDLER_NEEDLE, HANDLER_REPLACEMENT, 1)
-    text = text.replace(TABLE_NEEDLE, TABLE_REPLACEMENT, 1)
-    verify(text)
-    dispatch.write_text(text, encoding="utf-8")
+    patched = dispatch_text.replace(HANDLER_NEEDLE, HANDLER_REPLACEMENT, 1)
+    patched = patched.replace(TABLE_NEEDLE, TABLE_REPLACEMENT, 1)
+    verify(patched, feature_text)
+    dispatch.write_text(patched, encoding="utf-8")
     print(f"Applied operation-aware ReSukiSU dynamic-manager permission fix: {dispatch}")
+    print(f"Verified mutating operation semantics in: {feature}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("ksu_root", type=Path, help="Checked-out ReSukiSU source directory")
     args = parser.parse_args()
-    patch_dispatch(args.ksu_root / "kernel" / "supercall" / "dispatch.c")
+    patch_dispatch(args.ksu_root)
 
 
 if __name__ == "__main__":
