@@ -1,5 +1,5 @@
 name: S928B ZZHL ReSukiSU 35153 SUSFS v2.3.0 Scoped Session v2
-run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35153 + SUSFS v2.3.0 / Scoped Session v2 / Gunyah Reclaim v1"
+run-name: "S928BXXU6ZZHL EUX — ReSukiSU 35153 + SUSFS v2.3.0 / DynamicManager GET-fix / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -17,6 +17,7 @@ on:
       - agent/resukisu-35140-susfs-230
       - agent/resukisu-35146-susfs-230
       - agent/resukisu-35153-susfs-230
+      - agent/resukisu-35153-dynamic-manager-getfix
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -50,6 +51,7 @@ on:
       - 'android14-6.1/samsung-sm-s928b-17-zzhl-common-port.tar.xz'
       - 'device-profiles.json'
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
+      - 'android14-6.1/build-helpers/apply-resukisu-dynamic-manager-get-permission.py'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
       - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh'
       - 'android14-6.1/build-helpers/susfs-kstat-redirect-v2.c'
@@ -71,7 +73,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35153-susfs-native-uapi4-strict-${{ github.ref_name }}
+  group: s928b-resukisu-35153-dynamic-manager-getfix-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -100,7 +102,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35153 UAPI4 Scoped Session v2 / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 35153 UAPI4 DynamicManager GET-fix / Gunyah RM MEM_APPEND + SCM-VMID
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -137,3 +139,4 @@ jobs:
 # Based on successful kernel run 34876964395; ZeroMount module run 34512261330.
 # ReSukiSU 35153 = 30700 + 4453 commits. SUSFS 2.3.0 is pinned to the
 # gki-android14-6.1 head verified on 2026-09-12: 887928223bf685113f32837d5282117c9e4a04ca.
+# DynamicManager GET fix: manager may query state; SET/SET_SYNCHRONOUS/WIPE remain uid 0 only.
