@@ -171,6 +171,16 @@ UMOUNT_HELPER="$HELPER_DIR/make-resukisu-umount-add-idempotent.sh"
 }
 bash "$UMOUNT_HELPER" "$KSU_ROOT"
 
+# Upstream UAPI 4 multiplexes Dynamic Manager GET and mutating operations on
+# one ioctl. Let the registered manager query GET, while the helper injects a
+# handler-level uid-0 guard for SET/SET_SYNCHRONOUS/WIPE.
+DYNAMIC_MANAGER_HELPER="$HELPER_DIR/apply-resukisu-dynamic-manager-get-permission.py"
+[[ -f "$DYNAMIC_MANAGER_HELPER" ]] || {
+  echo "::error::Missing ReSukiSU dynamic-manager permission helper: $DYNAMIC_MANAGER_HELPER"
+  exit 1
+}
+"$PYTHON_BIN" "$DYNAMIC_MANAGER_HELPER" "$KSU_ROOT"
+
 TAG=$(git -C "$KSU_ROOT" describe --abbrev=0 --tags 2>/dev/null || true)
 [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || {
   echo "::error::Unexpected ReSukiSU release tag at $EXPECTED_COMMIT: ${TAG:-none}"
