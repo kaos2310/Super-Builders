@@ -1,5 +1,5 @@
 name: S928B ZZI4 ReSukiSU 35154 Manual Hook Test
-run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35154 / Manual Hook diagnostic / Gunyah Reclaim v1"
+run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35154 / Manual Hook isolation / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -103,8 +103,8 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
-  strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35154 Manual Hook / Gunyah RM MEM_APPEND + SCM-VMID
+  manual-hook-isolation:
+    name: Symtypes diagnostic / ReSukiSU 35154 Manual Hook / Gunyah RM MEM_APPEND + SCM-VMID
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -130,14 +130,19 @@ jobs:
       resukisu_source_branch: main
       resukisu_version_code: "35154"
       device_codename: e3q
-      kmi_mode: strict
-      kmi_profile: full-strict
+      # Strict mode currently has a pipeline bug: it unconditionally requires
+      # CONFIG_ZEROMOUNT=y even when add_zeromount=false. Use symtypes for this
+      # hook-isolation build so we test the Manual Hook itself instead of the
+      # unrelated strict-config normalizer. Do not enable SUSFS/ZeroMount here.
+      kmi_mode: symtypes
+      kmi_profile: manual-hook-isolation
       kmi_minimal_config: false
-      package_strict_anykernel: true
+      package_strict_anykernel: false
 
 # Exact base: successful run 35135374934 @ 03edc6bce8f8bb089d5249d1bfc93006609d3ce8.
 # ReSukiSU 35154 = direct child 6ec8d9a8a8be30878c388504cacf8ae7849c757b of the 35153 pin.
 # Diagnostic variant: KSU_MANUAL_HOOK=y. ReSukiSU exposes KSU_SUSFS as a mutually
-# exclusive hook choice, so SUSFS/ZeroMount are intentionally disabled here to avoid
-# a false Manual-Hook result. Droidspaces, ZRAM, BBG, performance patches, Samsung
-# ZZI4 source port, strict KMI checks and Gunyah fixes remain aligned with the baseline.
+# exclusive hook choice, so SUSFS/ZeroMount remain intentionally disabled here.
+# The prior strict run failed before compilation because the reusable strict-KMI
+# normalizer expected CONFIG_ZEROMOUNT=y despite add_zeromount=false. This run uses
+# symtypes mode only to isolate the Manual Hook compile/runtime path cleanly.
