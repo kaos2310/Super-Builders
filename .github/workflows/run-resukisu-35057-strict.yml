@@ -1,5 +1,5 @@
-name: S928B ZZI4 ReSukiSU 35153 SUSFS v2.3.0 Scoped Session v2
-run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35153 + SUSFS v2.3.0 / DynamicManager GET-fix / Gunyah Reclaim v1"
+name: S928B ZZI4 ReSukiSU 35154 Manual Hook Test
+run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35154 / Manual Hook diagnostic / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -19,6 +19,7 @@ on:
       - agent/resukisu-35153-susfs-230
       - agent/resukisu-35153-zzi4-susfs-230
       - agent/resukisu-35153-zzi4-dynamic-manager-getfix
+      - agent/resukisu-35154-zzi4-manual-hook-test
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -74,7 +75,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35153-zzi4-dynamic-manager-getfix-${{ github.ref_name }}
+  group: s928b-resukisu-35154-zzi4-manual-hook-test-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -95,15 +96,15 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: 6d674e50a022a85076dcfe4498af9a8bfead2cf9
-      resukisu_version_code: "35153"
+      resukisu_commit: 6ec8d9a8a8be30878c388504cacf8ae7849c757b
+      resukisu_version_code: "35154"
 
   dependencies:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35153 UAPI4 DynamicManager GET-fix / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 35154 Manual Hook / Gunyah RM MEM_APPEND + SCM-VMID
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -114,30 +115,29 @@ jobs:
       kernel_version: "6.1"
       sub_level: "162"
       os_patch_level: "2026-03"
-      add_susfs: true
-      add_zeromount: true
+      add_susfs: false
+      add_zeromount: false
       add_droidspaces: true
       add_zram: true
       add_bbg: true
       add_overlayfs_support: true
       add_kpm: false
       susfs_open_redirect: false
-      # Adapt the SUSFS 88792822 callback to native UAPI4, retaining the explicit
-      # session decision and success guard from reference run 34262304602.
-      # The legacy 35119/UAPI2 backport is not applicable to native UAPI4.
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 6d674e50a022a85076dcfe4498af9a8bfead2cf9
+      sukisu_commit: 6ec8d9a8a8be30878c388504cacf8ae7849c757b
       resukisu_source_branch: main
-      resukisu_version_code: "35153"
+      resukisu_version_code: "35154"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# ZZI4 migration baseline: agent/resukisu-35153-zzi4-susfs-230 @ 7605e96c.
-# ReSukiSU 35153 is pinned to 6d674e50a022a85076dcfe4498af9a8bfead2cf9.
-# SUSFS 2.3.0 remains pinned to 887928223bf685113f32837d5282117c9e4a04ca.
-# DynamicManager GET fix: manager may query state; SET/SET_SYNCHRONOUS/WIPE remain uid 0 only.
+# Exact base: successful run 35135374934 @ 03edc6bce8f8bb089d5249d1bfc93006609d3ce8.
+# ReSukiSU 35154 = direct child 6ec8d9a8a8be30878c388504cacf8ae7849c757b of the 35153 pin.
+# Diagnostic variant: KSU_MANUAL_HOOK=y. ReSukiSU exposes KSU_SUSFS as a mutually
+# exclusive hook choice, so SUSFS/ZeroMount are intentionally disabled here to avoid
+# a false Manual-Hook result. Droidspaces, ZRAM, BBG, performance patches, Samsung
+# ZZI4 source port, strict KMI checks and Gunyah fixes remain aligned with the baseline.
