@@ -1,80 +1,18 @@
-name: S928B ZZI4 ReSukiSU 35153 SUSFS v2.3.0 Scoped Session v2
-run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35153 + SUSFS v2.3.0 / DynamicManager GET-fix / Gunyah Reclaim v1"
+name: S928B ZZI4 ReSukiSU 35154 SUSFS Inline + ZeroMount Test
+run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35154 / SUSFS Inline Hook + ZeroMount / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - agent/resukisu-35115-eux-zzhl
-      - agent/resukisu-35119-susfs-su-session-port
-      - agent/resukisu-35119-susfs-native-v2
-      - agent/resukisu-35127-susfs-native-v2
-      - agent/resukisu-35127-postexec-success-gate
-      - agent/resukisu-35129-susfs-230
-      - agent/resukisu-35133-susfs-230
-      - agent/resukisu-35136-susfs-230
-      - agent/resukisu-35139-susfs-230
-      - agent/resukisu-35140-susfs-230
-      - agent/resukisu-35146-susfs-230
-      - agent/resukisu-35153-susfs-230
-      - agent/resukisu-35153-zzi4-susfs-230
-      - agent/resukisu-35153-zzi4-dynamic-manager-getfix
-    paths:
-      - '.github/workflows/run-resukisu-35057-strict.yml'
-      - '.github/workflows/build-resukisu.yml'
-      - '.github/workflows/build-resukisu-userspace.yml'
-      - 'android14-6.1/build-helpers/verify-resukisu-userspace.py'
-      - '.github/workflows/cache-dependencies.yml'
-      - '.github/actions/susfs-v2.2/**'
-      - 'android14-6.1/defconfig.fragment'
-      - 'android14-6.1/build-helpers/clean-build-flags.sh'
-      - 'android14-6.1/build-helpers/apply-e3q-cgroup-pids-compat.sh'
-      - 'android14-6.1/build-helpers/apply-e3q-cmdline-governor-compat.sh'
-      - 'android14-6.1/build-helpers/apply-e3q-gunyah-vm-metadata-allocation.sh'
-      - 'android14-6.1/build-helpers/apply-e3q-gunyah-cma-compat.sh'
-      - 'android14-6.1/build-helpers/patch-e3q-gunyah-adaptive-backing.py'
-      - 'android14-6.1/build-helpers/test-e3q-gunyah-adaptive-backing.py'
-      - 'android14-6.1/build-helpers/patch-e3q-gunyah-reclaim.py'
-      - 'android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py'
-      - 'android14-6.1/build-helpers/gunyah-reclaim/**'
-      - 'android14-6.1/build-helpers/su-session/**'
-      - 'android14-6.1/build-helpers/su-session-35137/**'
-      - 'android14-6.1/build-helpers/apply-resukisu-35127-susfs-postexec.sh'
-      - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
-      - 'android14-6.1/build-helpers/allow-e3q-gunyah-rm-vmid-kmi.sh'
-      - 'android14-6.1/build-helpers/audit-e3q-gunyah-qcom-module.sh'
-      - 'android14-6.1/build-helpers/apply-s928b-zzhl-source-port.sh'
-      - 'android14-6.1/build-helpers/verify-samsung-dlkm-crcs.sh'
-      - 'android14-6.1/e3q-zzi4-gunyah-qcom-stock-modversions.tsv'
-      - 'android14-6.1/samsung-e3q-zzi4-dlkm-crc-baseline.tsv'
-      - 'android14-6.1/samsung-s928bxxu6zzhl-source.env'
-      - 'android14-6.1/samsung-s928bxxu6zzi4-target.env'
-      - 'android14-6.1/samsung-sm-s928b-17-zzhl-common-port.tar.xz'
-      - 'device-profiles.json'
-      - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
-      - 'android14-6.1/build-helpers/apply-resukisu-dynamic-manager-get-permission.py'
-      - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
-      - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh'
-      - 'android14-6.1/build-helpers/susfs-kstat-redirect-v2.c'
-      - 'android14-6.1/build-helpers/apply-enhanced-susfs-header.py'
-      - 'android14-6.1/build-helpers/apply-enhanced-susfs-vfs.py'
-      - 'android14-6.1/build-helpers/repair-s928b-dzg1-susfs-namespace.sh'
-      - 'android14-6.1/build-helpers/assemble-defconfig.sh'
-      - 'android14-6.1/build-helpers/harden-resukisu-zeromount-kallsyms.sh'
-      - 'android14-6.1/build-helpers/make-resukisu-umount-add-idempotent.sh'
-      - 'android14-6.1/build-helpers/setup-bbg.sh'
-      - 'android14-6.1/build-helpers/verify-susfs-v2.2-procfs.sh'
-      - 'android14-6.1/build-helpers/verify-zeromount-susfs-source.sh'
-      - 'android14-6.1/SukiSU-Ultra/patches/51_enhanced_susfs-android14-6.1.patch'
-      - 'android14-6.1/SukiSU-Ultra/patches/60_zeromount-android14-6.1.patch'
-      - 'android14-6.1/resukisu-pin.txt'
+      - agent/resukisu-35154-zzi4-susfs-inline-test
 
 permissions:
   contents: write
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35153-zzi4-dynamic-manager-getfix-${{ github.ref_name }}
+  group: s928b-resukisu-35154-zzi4-susfs-inline-zeromount-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -95,15 +33,15 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: 6d674e50a022a85076dcfe4498af9a8bfead2cf9
-      resukisu_version_code: "35153"
+      resukisu_commit: 6ec8d9a8a8be30878c388504cacf8ae7849c757b
+      resukisu_version_code: "35154"
 
   dependencies:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35153 UAPI4 DynamicManager GET-fix / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 35154 SUSFS Inline + ZeroMount / Gunyah RM MEM_APPEND + SCM-VMID
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -122,22 +60,20 @@ jobs:
       add_overlayfs_support: true
       add_kpm: false
       susfs_open_redirect: false
-      # Adapt the SUSFS 88792822 callback to native UAPI4, retaining the explicit
-      # session decision and success guard from reference run 34262304602.
-      # The legacy 35119/UAPI2 backport is not applicable to native UAPI4.
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 6d674e50a022a85076dcfe4498af9a8bfead2cf9
+      sukisu_commit: 6ec8d9a8a8be30878c388504cacf8ae7849c757b
       resukisu_source_branch: main
-      resukisu_version_code: "35153"
+      resukisu_version_code: "35154"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# ZZI4 migration baseline: agent/resukisu-35153-zzi4-susfs-230 @ 7605e96c.
-# ReSukiSU 35153 is pinned to 6d674e50a022a85076dcfe4498af9a8bfead2cf9.
-# SUSFS 2.3.0 remains pinned to 887928223bf685113f32837d5282117c9e4a04ca.
-# DynamicManager GET fix: manager may query state; SET/SET_SYNCHRONOUS/WIPE remain uid 0 only.
+# BUILD C based on successful run 35135374934 / ZZI4 kernel 6.1.162 baseline.
+# Hook selection is explicit in android14-6.1/defconfig.fragment:
+# KSU_TRACEPOINT_HOOK=n, KSU_MANUAL_HOOK=n, KSU_SUSFS=y.
+# ZeroMount remains enabled to match the known-good production stack and strict KMI config.
+# ReSukiSU 35154 pin: 6ec8d9a8a8be30878c388504cacf8ae7849c757b.
