@@ -1,5 +1,5 @@
-name: S928B ZZI4 ReSukiSU 35154 Manual Hook Test
-run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35154 / Manual Hook diagnostic / Gunyah Reclaim v1"
+name: S928B ZZI4 ReSukiSU 35154 Tracepoint Baseline
+run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35154 / Tracepoint baseline / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -20,6 +20,7 @@ on:
       - agent/resukisu-35153-zzi4-susfs-230
       - agent/resukisu-35153-zzi4-dynamic-manager-getfix
       - agent/resukisu-35154-zzi4-manual-hook-test
+      - agent/resukisu-35154-zzi4-tracepoint-baseline
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -75,7 +76,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35154-zzi4-manual-hook-test-${{ github.ref_name }}
+  group: s928b-resukisu-35154-zzi4-tracepoint-baseline-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -104,7 +105,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35154 Manual Hook / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 35154 Tracepoint Hook / Gunyah RM MEM_APPEND + SCM-VMID
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -135,9 +136,10 @@ jobs:
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# Exact base: successful run 35135374934 @ 03edc6bce8f8bb089d5249d1bfc93006609d3ce8.
-# ReSukiSU 35154 = direct child 6ec8d9a8a8be30878c388504cacf8ae7849c757b of the 35153 pin.
-# Diagnostic variant: KSU_MANUAL_HOOK=y. ReSukiSU exposes KSU_SUSFS as a mutually
-# exclusive hook choice, so SUSFS/ZeroMount are intentionally disabled here to avoid
-# a false Manual-Hook result. Droidspaces, ZRAM, BBG, performance patches, Samsung
-# ZZI4 source port, strict KMI checks and Gunyah fixes remain aligned with the baseline.
+# Exact comparison base: ReSukiSU 35154 Manual-Hook test branch derived from successful
+# run 35135374934 @ 03edc6bce8f8bb089d5249d1bfc93006609d3ce8.
+# Hook variant A: CONFIG_KSU_TRACEPOINT_HOOK=y, CONFIG_KSU_MANUAL_HOOK=n,
+# CONFIG_KSU_SUSFS=n. SUSFS/ZeroMount remain intentionally disabled so the only
+# meaningful ReSukiSU hook difference versus BUILD B is Tracepoint vs Manual Hook.
+# Droidspaces, ZRAM, BBG, performance patches, Samsung ZZI4 source port, strict KMI
+# checks, DynamicManager GET fix and Gunyah fixes remain aligned with the test baseline.
