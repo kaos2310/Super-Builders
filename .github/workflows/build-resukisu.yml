@@ -724,6 +724,7 @@ jobs:
         ADD_DROIDSPACES: ${{ inputs.add_droidspaces }}
         ADD_OVERLAYFS: ${{ inputs.add_overlayfs_support }}
         ADD_ZRAM: ${{ inputs.add_zram }}
+        ADD_BBG: ${{ inputs.add_bbg }}
         ADD_KPM: ${{ inputs.add_kpm }}
         SUSFS_OPEN_REDIRECT_TEST: ${{ inputs.susfs_open_redirect }}
         DEVICE_CODENAME: ${{ inputs.device_codename }}
@@ -784,10 +785,13 @@ jobs:
           grep -qx '# CONFIG_CGROUP_PIDS is not set' "$DEFCONFIG_FRAGMENT"
           grep -qx '# CONFIG_LRU_GEN_STATS is not set' "$DEFCONFIG_FRAGMENT"
 
-          # ZeroMount and BBG are custom fragment options. Move any assignment
-          # from the base GKI defconfig into the fragment so Kleaf can keep its
-          # base savedefconfig normalized without changing the final values.
-          for SYMBOL in ZEROMOUNT BBG; do
+          # ZeroMount and BBG are custom fragment options. Only normalize a
+          # custom symbol when the corresponding workflow feature is enabled.
+          # This keeps hook-isolation builds valid when ZeroMount or BBG is off.
+          CUSTOM_FRAGMENT_SYMBOLS=()
+          [[ "$ADD_ZEROMOUNT" == "true" ]] && CUSTOM_FRAGMENT_SYMBOLS+=(ZEROMOUNT)
+          [[ "$ADD_BBG" == "true" ]] && CUSTOM_FRAGMENT_SYMBOLS+=(BBG)
+          for SYMBOL in "${CUSTOM_FRAGMENT_SYMBOLS[@]}"; do
             if ! grep -qx "CONFIG_${SYMBOL}=y" "$DEFCONFIG_FRAGMENT"; then
               grep -qx "CONFIG_${SYMBOL}=y" "$DEFCONFIG"
               "$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --enable "$SYMBOL"
