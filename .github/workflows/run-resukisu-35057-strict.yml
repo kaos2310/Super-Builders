@@ -1,5 +1,5 @@
-name: S928B ZZI4 ReSukiSU 35157 SUSFS v2.3.0 Scoped Session v2
-run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35157 + SUSFS v2.3.0 / DynamicManager GET-fix / Gunyah Reclaim v1"
+name: S928B ZZI4 ReSukiSU 35158 SUSFS v2.3.0 Scoped Session v2
+run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35158 + SUSFS v2.3.0 / DynamicManager GET-fix / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -20,6 +20,7 @@ on:
       - agent/resukisu-35153-zzi4-susfs-230
       - agent/resukisu-35153-zzi4-dynamic-manager-getfix
       - agent/resukisu-35157-zzi4-exact-artifact
+      - agent/resukisu-35158-zzi4-exact-artifact
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -75,7 +76,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35157-zzi4-exact-artifact-${{ github.ref_name }}
+  group: s928b-resukisu-35158-zzi4-exact-artifact-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -96,15 +97,15 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: 3d1185d878a856ea6435799b436b3d3ec510da76
-      resukisu_version_code: "35157"
+      resukisu_commit: 6d18926ae6eeb571a04c1ce7552c324d606fa9d8
+      resukisu_version_code: "35158"
 
   dependencies:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35157 UAPI4 DynamicManager GET-fix / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 35158 UAPI4 DynamicManager GET-fix / Gunyah RM MEM_APPEND + SCM-VMID
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -129,9 +130,9 @@ jobs:
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 3d1185d878a856ea6435799b436b3d3ec510da76
+      sukisu_commit: 6d18926ae6eeb571a04c1ce7552c324d606fa9d8
       resukisu_source_branch: main
-      resukisu_version_code: "35157"
+      resukisu_version_code: "35158"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
@@ -139,6 +140,6 @@ jobs:
       package_strict_anykernel: true
 
 # ZZI4 migration baseline: agent/resukisu-35153-zzi4-susfs-230 @ 7605e96c.
-# ReSukiSU 35157 is pinned to 3d1185d878a856ea6435799b436b3d3ec510da76.
+# ReSukiSU 35158 is pinned to 6d18926ae6eeb571a04c1ce7552c324d606fa9d8.
 # SUSFS 2.3.0 remains pinned to 887928223bf685113f32837d5282117c9e4a04ca.
 # DynamicManager GET fix: manager may query state; SET/SET_SYNCHRONOUS/WIPE remain uid 0 only.
