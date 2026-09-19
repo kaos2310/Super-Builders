@@ -110,17 +110,18 @@ print("Verified UAPI-neutral 35119 carryovers: ucounts + WebView UID 1053 consis
 PY
 fi
 
-if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" == "35139" || "${RESUKISU_VERSION_CODE:-}" == "35140" || "${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148" || "${RESUKISU_VERSION_CODE:-}" == "35153" ]]; then
+if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" == "35139" || "${RESUKISU_VERSION_CODE:-}" == "35140" || "${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148" || "${RESUKISU_VERSION_CODE:-}" == "35153" || "${RESUKISU_VERSION_CODE:-}" == "35157" ]]; then
   PORT="$(dirname "$0")/su-session-35137"
 
   # 35139/35140 keep the validated 35137 kernel/UAPI source anchors unchanged.
   # 35146 carries upstream's non-root capability inheritance fix in app_profile.c,
   # outside the adapter's exact set_cred_ucounts() replacement. 35148 adds only
   # manager/CI changes; 35153 adds CI/manager plus userspace dependency updates.
-  # Neither changes the validated kernel/UAPI source shape.
+  # 35157 additionally carries kernel/compat/lsm/ksud/manager updates, including
+  # the manager RCU copy_to_user fix; none change the adapter-transformed anchors.
   # Rebind the complete adapter identity while keeping the transformation itself
   # source-identical, then explicitly verify that capability inheritance survives.
-  if [[ "${RESUKISU_VERSION_CODE:-}" == "35139" || "${RESUKISU_VERSION_CODE:-}" == "35140" || "${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148" || "${RESUKISU_VERSION_CODE:-}" == "35153" ]]; then
+  if [[ "${RESUKISU_VERSION_CODE:-}" == "35139" || "${RESUKISU_VERSION_CODE:-}" == "35140" || "${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148" || "${RESUKISU_VERSION_CODE:-}" == "35153" || "${RESUKISU_VERSION_CODE:-}" == "35157" ]]; then
     ADAPTER="$PORT/apply.py"
     OLD_PIN='3380d41f2043644d0ef6c0e0e91be6b229024d00'
     TARGET_VERSION="${RESUKISU_VERSION_CODE}"
@@ -130,6 +131,7 @@ if [[ "${RESUKISU_VERSION_CODE:-}" == "35137" || "${RESUKISU_VERSION_CODE:-}" ==
       35146) NEW_PIN='833edb0e8e4bc11ac8e976edd7de42da6bdc5bd2' ;;
       35148) NEW_PIN='b22a46e6ee79931b1e3b39fc562d56176936ab77' ;;
       35153) NEW_PIN='6d674e50a022a85076dcfe4498af9a8bfead2cf9' ;;
+      35157) NEW_PIN='3d1185d878a856ea6435799b436b3d3ec510da76' ;;
       *) echo "::error::Unsupported ReSukiSU adapter target: $TARGET_VERSION"; exit 1 ;;
     esac
 
@@ -172,7 +174,7 @@ PY
   python3 "$PORT/apply.py" --common "$COMMON_TREE" --ksu "$KSU_TREE" \
     --susfs-commit "${SUSFS_PINNED_COMMIT:?}"
 
-  if [[ "${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148" || "${RESUKISU_VERSION_CODE:-}" == "35153" ]]; then
+  if [[ "${RESUKISU_VERSION_CODE:-}" == "35146" || "${RESUKISU_VERSION_CODE:-}" == "35148" || "${RESUKISU_VERSION_CODE:-}" == "35153" || "${RESUKISU_VERSION_CODE:-}" == "35157" ]]; then
     APP_PROFILE="$KSU_TREE/kernel/policy/app_profile.c"
     for marker in \
       'memcpy(&cred->cap_inheritable, &profile->capabilities.effective, sizeof(cred->cap_inheritable));' \
