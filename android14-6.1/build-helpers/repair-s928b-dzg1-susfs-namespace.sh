@@ -17,7 +17,8 @@ import sys
 
 source = Path(sys.argv[1])
 text = source.read_text(encoding="utf-8")
-refactored_mounts = sys.argv[2] == "887928223bf685113f32837d5282117c9e4a04ca"
+latched_mounts = sys.argv[2] == "24743360ea08d98f6ad72b856851abed8de5854f"
+refactored_mounts = latched_mounts or sys.argv[2] == "887928223bf685113f32837d5282117c9e4a04ca"
 
 marker_re = re.compile(
     r"^#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT\n"
@@ -201,7 +202,7 @@ if refactored_mounts:
         "if (old->mnt_id >= DEFAULT_KSU_MNT_ID)",
         "susfs_alloc_non_unshare_ksu_vfsmnt(old->mnt_devname)",
         "bypass_orig_flow:",
-        "susfs_is_current_ksu_domain() && (flag & CL_COPY_MNT_NS)",
+        "if (unlikely(is_mnt_ksu_unshared))" if latched_mounts else "susfs_is_current_ksu_domain() && (flag & CL_COPY_MNT_NS)",
         "VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT",
     )
 else:
@@ -213,6 +214,14 @@ else:
         "bypass_orig_flow:",
         "VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT",
     )
+
+if latched_mounts:
+    ordered(clone, "latched mount allocation",
+            "bool is_mnt_ksu_unshared = false;",
+            "susfs_alloc_unshare_ksu_vfsmnt(old->mnt_devname, old->mnt_id)",
+            "is_mnt_ksu_unshared = true;",
+            "if (unlikely(is_mnt_ksu_unshared))",
+            "VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT")
 
 copy_namespace = region(signature, next_signature, "copy_mnt_ns")
 ordered(

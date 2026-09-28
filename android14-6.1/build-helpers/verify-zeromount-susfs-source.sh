@@ -190,6 +190,12 @@ PY
   fi
 fi
 
+if [[ "${RESUKISU_VERSION_CODE:-}" == "35184" ]]; then
+  python3 "$(dirname "$0")/su-session-35184/apply.py" \
+    --common "$COMMON_TREE" --ksu "$KSU_TREE" \
+    --susfs-commit "${SUSFS_PINNED_COMMIT:?}"
+fi
+
 require_source() {
   local relative="$1"
   local needle="$2"

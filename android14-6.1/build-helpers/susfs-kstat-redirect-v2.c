@@ -1,4 +1,4 @@
-/* Enhanced KSTAT redirect registration for the SUSFS ed8a8328/88792822 layout.
+/* Enhanced KSTAT redirect registration for the SUSFS 24743360 layout.
  * Keep the existing userspace command layout; initialize every new lookup and
  * statfs field before publishing either inode to SUS_KSTAT_HLIST. */
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT
@@ -24,7 +24,9 @@ static int susfs_prepare_redirect_entry(const struct path *path,
 	entry->target_dev = inode->i_sb->s_dev;
 	entry->spoofed_mnt_id = susfs_get_non_sus_mnt_id_from_mnt(real_mount(path->mnt));
 	visible_mnt = susfs_get_non_sus_vfsmnt_from_vfsmnt(path->mnt);
-	err = statfs_by_dentry(visible_mnt->mnt_root, &entry->spoofed_kstatfs);
+	err = statfs_by_dentry_wrapper(visible_mnt->mnt_root, &entry->spoofed_kstatfs);
+	if (!err)
+		entry->spoofed_kstatfs.f_flags = calculate_f_flags_wrapper(visible_mnt);
 	dput(visible_mnt->mnt_root);
 	mntput(visible_mnt);
 	if (!err)
