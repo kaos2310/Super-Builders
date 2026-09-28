@@ -14,8 +14,9 @@ Immutable inputs checked on 2026-09-28:
 The session adapter carries the reference explicit session decision, successful
 exec gate, credential error propagation and WebView UID 1053 handling forward.
 The upstream UAPI4 definitions, scoped driver implementation, ksud interface and
-non-root capability inheritance are verified. Upstream Cargo manifests and locks
-are retained, and CI builds ARM64 ksud and ksuinit with Nightly and `--locked`.
+non-root capability inheritance are verified. Upstream Cargo manifests and the
+ksud lock are retained. The bounded ksuinit lock correction described below is
+audited, and CI builds ARM64 ksud and ksuinit with Nightly and `--locked`.
 The operation-aware DynamicManager GET fix and upstream ADB-root feature remain.
 
 SUSFS now latches the unshared-mount allocation decision before setting its
@@ -41,3 +42,19 @@ patch plus Enhanced SUSFS and ZeroMount to AOSP
 Windows uses Git apply with reduced context plus structural checks. CI uses
 GNU patch and performs the complete kernel build, KMI and packaging gates.
 Mocked C checks do not establish a successful kernel build or device boot.
+
+## ksuinit lock correction
+
+Run 36461959250 stopped before compilation because the 35184 ksuinit manifest
+patches libc to Git revision `1a661633f11a261ff9c00b40875ef72f1cbec818`, while its
+checked-in lock still selects crates.io libc 0.2.189. The ksud lock at the same
+ReSukiSU commit already contains the correct Git libc 0.2.189 record.
+
+`resukisu_35184_lock.py` checks the exact source pin and unchanged manifests/ksud
+lock, then copies only that libc record into the original ksuinit lock. It does
+not regenerate either dependency graph or change any package version. It rejects
+unexpected inputs and is idempotent. The verifier accepts only the exact derived
+lock, before and after building, and records both original and repaired SHA-256
+values. CI retains the original and effective lockfiles in the artifact and runs
+`cargo metadata --locked` for both Android dependency graphs before compilation.
+Both actual builds continue to require `--locked`.

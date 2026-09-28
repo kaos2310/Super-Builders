@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import tomllib
+import resukisu_35184_lock
 
 
 def run(*args):
@@ -68,7 +69,14 @@ def main():
         'userspace/ksuinit/Cargo.toml',
         'userspace/ksuinit/Cargo.lock',
     ]
-    locked = {relative: verify_pinned_file(source, args.commit, relative) for relative in locked_paths}
+    repairs = {}
+    locked = {}
+    for relative in locked_paths:
+        if args.commit == resukisu_35184_lock.PIN and relative == resukisu_35184_lock.LOCK:
+            repairs[relative] = resukisu_35184_lock.verify(source)
+            locked[relative] = repairs[relative]['repaired_sha256']
+        else:
+            locked[relative] = verify_pinned_file(source, args.commit, relative)
 
     lock = tomllib.loads((source / 'userspace/ksud/Cargo.lock').read_text())
     bindgen = [p['version'] for p in lock['package'] if p['name'] == 'bindgen']
@@ -89,11 +97,12 @@ def main():
     receipt = dict(commit=args.commit, version=args.version, version_name=version_name,
                    commit_count=count, rustc=rust, cargo=cargo, clang=clang,
                    libclang=str(libpath.resolve()), locked_source_sha256=locked,
+                   lockfile_repairs=repairs,
                    bindgen='0.73.2', target='aarch64-linux-android',
                    runtime_test='not performed', build_verified=False)
     if args.verify_build:
         previous = json.loads(args.receipt.read_text())
-        for key in ('commit', 'version', 'version_name', 'locked_source_sha256', 'rustc', 'cargo'):
+        for key in ('commit', 'version', 'version_name', 'locked_source_sha256', 'lockfile_repairs', 'rustc', 'cargo'):
             if previous[key] != receipt[key]:
                 raise RuntimeError(f'Build inputs changed: {key}')
 

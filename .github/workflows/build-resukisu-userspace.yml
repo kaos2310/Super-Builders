@@ -26,12 +26,12 @@ jobs:
       EXPECTED_PIN: ${{ inputs.resukisu_commit }}
       EXPECTED_VERSION: ${{ inputs.resukisu_version_code }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: builder
 
       - name: Checkout exact ReSukiSU source with version history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ReSukiSU/ReSukiSU
           ref: ${{ inputs.resukisu_commit }}
@@ -58,6 +58,13 @@ jobs:
         with:
           ndk-version: r29
 
+      - name: Repair the pinned 35184 ksuinit libc lock record
+        if: inputs.resukisu_commit == 'fa8311f632a215b5381ec644627c6198d1e8a13e'
+        run: |
+          set -euo pipefail
+          python3 builder/android14-6.1/build-helpers/test-resukisu-35184-lock.py resukisu
+          python3 builder/android14-6.1/build-helpers/resukisu_35184_lock.py resukisu
+
       - name: Verify source, toolchain, locked dependencies and Libclang
         run: |
           set -euo pipefail
@@ -66,10 +73,19 @@ jobs:
             resukisu --commit "$EXPECTED_PIN" --version "$EXPECTED_VERSION" \
             --receipt userspace-artifacts/BUILD-IDENTITY.json
 
+      - name: Validate both Android dependency graphs without changing locks
+        working-directory: resukisu
+        run: |
+          set -euo pipefail
+          cargo +nightly metadata --locked --format-version 1 --filter-platform aarch64-linux-android \
+            --manifest-path userspace/ksuinit/Cargo.toml > ../userspace-artifacts/ksuinit-metadata.json
+          cargo +nightly metadata --locked --format-version 1 --filter-platform aarch64-linux-android \
+            --manifest-path userspace/ksud/Cargo.toml > ../userspace-artifacts/ksud-metadata.json
+
       - name: Install pinned cargo-ndk with its lockfile
         run: cargo +nightly install cargo-ndk --version 4.1.2 --locked
 
-      - name: Build ksuinit from its checked-in lockfile
+      - name: Build ksuinit with the audited lockfile and --locked
         working-directory: resukisu
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
@@ -111,10 +127,12 @@ jobs:
           cp resukisu/userspace/ksuinit/target/aarch64-linux-android/release/ksuinit userspace-artifacts/
           cp resukisu/userspace/ksud/Cargo.lock userspace-artifacts/ksud-Cargo.lock
           cp resukisu/userspace/ksuinit/Cargo.lock userspace-artifacts/ksuinit-Cargo.lock
+          git -C resukisu show "$EXPECTED_PIN:userspace/ksuinit/Cargo.lock" \
+            > userspace-artifacts/ksuinit-Cargo.upstream.lock
           cd userspace-artifacts
-          sha256sum ksud ksuinit *Cargo.lock BUILD-IDENTITY.json > SHA256SUMS
+          sha256sum ksud ksuinit *.lock *-metadata.json BUILD-IDENTITY.json > SHA256SUMS
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ReSukiSU-${{ inputs.resukisu_version_code }}-ARM64-ksud-ksuinit
           path: userspace-artifacts/

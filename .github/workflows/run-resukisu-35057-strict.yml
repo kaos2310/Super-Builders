@@ -27,6 +27,8 @@ on:
       - '.github/workflows/build-resukisu.yml'
       - '.github/workflows/build-resukisu-userspace.yml'
       - 'android14-6.1/build-helpers/verify-resukisu-userspace.py'
+      - 'android14-6.1/build-helpers/resukisu_35184_lock.py'
+      - 'android14-6.1/build-helpers/test-resukisu-35184-lock.py'
       - '.github/workflows/cache-dependencies.yml'
       - '.github/actions/susfs-v2.2/**'
       - 'android14-6.1/defconfig.fragment'
@@ -83,11 +85,11 @@ concurrency:
 jobs:
   gunyah-preflight:
     name: Gunyah allocator and exact-C reclaim fault tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Validate transformation, budget bounds and exact C function
         run: |
           set -euo pipefail
