@@ -1,5 +1,5 @@
-name: S928B ZZI4 ReSukiSU 35184 SUSFS v2.3.0 Scoped Session v2
-run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35184 + SUSFS v2.3.0 @ 24743360 / DynamicManager GET-fix / Gunyah Reclaim v1"
+name: S928B ZZI4 ReSukiSU 35184 SUSFS v2.3.0 UIDGate v1
+run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35184 + SUSFS v2.3.0 @ 24743360 / UID-gated hiding v1 / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -22,6 +22,7 @@ on:
       - agent/resukisu-35157-zzi4-exact-artifact
       - agent/resukisu-35158-zzi4-exact-artifact
       - agent/resukisu-35184-susfs-latest-zzi4
+      - agent/susfs-uid-gated-35184-zzi4
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -44,6 +45,7 @@ on:
       - 'android14-6.1/build-helpers/gunyah-reclaim/**'
       - 'android14-6.1/build-helpers/su-session/**'
       - 'android14-6.1/build-helpers/su-session-35184/**'
+      - 'android14-6.1/build-helpers/susfs-uid-gated/**'
       - 'android14-6.1/build-helpers/apply-resukisu-35127-susfs-postexec.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
       - 'android14-6.1/build-helpers/allow-e3q-gunyah-rm-vmid-kmi.sh'
@@ -79,12 +81,12 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35184-zzi4-exact-artifact-${{ github.ref_name }}
+  group: s928b-resukisu-35184-zzi4-uidgate-v1-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   gunyah-preflight:
-    name: Gunyah allocator and exact-C reclaim fault tests
+    name: UID gate and Gunyah exact-C preflight tests
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -95,6 +97,7 @@ jobs:
           set -euo pipefail
           python3 android14-6.1/build-helpers/test-e3q-gunyah-adaptive-backing.py
           python3 android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py
+          python3 android14-6.1/build-helpers/susfs-uid-gated/test.py --cc gcc --work-dir "$RUNNER_TEMP/uid-gate-tests"
 
   userspace:
     needs: gunyah-preflight
@@ -108,7 +111,7 @@ jobs:
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35184 UAPI4 DynamicManager GET-fix / Gunyah RM MEM_APPEND + SCM-VMID
+    name: Full strict KMI gate / ReSukiSU 35184 UAPI4 / UID-gated hiding v1 / Gunyah
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -120,6 +123,7 @@ jobs:
       sub_level: "162"
       os_patch_level: "2026-03"
       add_susfs: true
+      susfs_uid_gated_hiding: true
       add_zeromount: true
       add_droidspaces: true
       add_zram: true
@@ -143,6 +147,7 @@ jobs:
       package_strict_anykernel: true
 
 # Update baseline: successful run 35443096947 @ 4bad7d66a2e43c6ffbcd5046ce209207ec8a590d.
+# UIDGate-v1 baseline: successful run 36463712058 @ 8c379ba853e084a42d70633e1a9b29b00793bd7e.
 # ZZI4 migration baseline: agent/resukisu-35153-zzi4-susfs-230 @ 7605e96c.
 # ReSukiSU 35184 is pinned to fa8311f632a215b5381ec644627c6198d1e8a13e.
 # Latest compatible SUSFS 2.3.0 (checked 2026-09-28) is pinned to 24743360ea08d98f6ad72b856851abed8de5854f.

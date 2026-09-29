@@ -7,6 +7,7 @@ DEFCONFIG="${3:?}"
 shift 3
 
 ADD_SUSFS=false
+ADD_SUSFS_UID_GATE=false
 ADD_OVERLAYFS=false
 ADD_ZRAM=false
 ADD_KPM=false
@@ -17,6 +18,7 @@ USE_KLEAF=false
 for arg in "$@"; do
   case "$arg" in
     --susfs) ADD_SUSFS=true ;;
+    --susfs-uid-gated-hiding) ADD_SUSFS_UID_GATE=true ;;
     --overlayfs) ADD_OVERLAYFS=true ;;
     --zram) ADD_ZRAM=true ;;
     --kpm) ADD_KPM=true ;;
@@ -25,6 +27,11 @@ for arg in "$@"; do
     --kleaf) USE_KLEAF=true ;;
   esac
 done
+
+if $ADD_SUSFS_UID_GATE && ! $ADD_SUSFS; then
+  echo "::error::UID-gated hiding requires SUSFS"
+  exit 1
+fi
 
 extract_section() {
   awk "/^# \\[$1\\]/{found=1; next} /^# \\[/{found=0} found && NF" "$FRAGMENT_SRC"
@@ -258,6 +265,7 @@ fi
 
 extract_section "base" >> "$FRAGMENT_DST"
 $ADD_SUSFS && extract_section "susfs" >> "$FRAGMENT_DST"
+$ADD_SUSFS_UID_GATE && extract_section "susfs_uid_gated_hiding" >> "$FRAGMENT_DST"
 $ADD_OVERLAYFS && extract_section "overlayfs" >> "$FRAGMENT_DST"
 $ADD_ZRAM && extract_section "zram" >> "$FRAGMENT_DST"
 $ADD_KPM && extract_section "kpm" >> "$FRAGMENT_DST"

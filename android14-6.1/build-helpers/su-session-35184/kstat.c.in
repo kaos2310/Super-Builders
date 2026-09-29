@@ -18,6 +18,7 @@ typedef unsigned int dev_t;
 #define EFAULT 14
 #define EINVAL 22
 #define SUSFS_LOGI(...) ((void)0)
+@@UID_GATE@@
 struct hlist_node { int unused; };
 struct kstatfs { long f_type, f_bsize, f_blocks, f_bfree, f_frsize, f_flags; };
 @@LAYOUT@@
@@ -70,6 +71,9 @@ static void rcu_read_unlock(void) {}
 @@LOOKUP@@
 static struct st_susfs_sus_kstat_redirect request;
 static void reset(void) {
+#ifdef CONFIG_KSU_SUSFS_UID_GATED_HIDING
+ mock_uid=0; /* Root must still be able to register KSTAT redirects. */
+#endif
  memset(allocations,0,sizeof(allocations));memset(live,0,sizeof(live));memset(mapping,0,sizeof(mapping));
  allocation_calls=fail_alloc=nr_published=lock_depth=order_bad=0;
  real_error=virtual_error=statfs_calls=fail_statfs=path_refs=mount_refs=dentry_refs=copy_fault=0;
@@ -88,6 +92,18 @@ static int success(bool fuse,bool missing,bool same) {
  if(missing)virtual_error=-ENOENT;
  if(same){dentries[1].inode=dentries[0].inode;}
  invoke();CHECK(request.err==0);CHECK(balanced());CHECK(nr_published==(missing||same?1:2));CHECK(live_count()==nr_published);
+#ifdef CONFIG_KSU_SUSFS_UID_GATED_HIDING
+ for(int user=0;user<2;user++) {
+  mock_uid=user?101000:0;
+  struct kstatfs untouched={.f_blocks=123};bool is_fuse=fuse;
+  CHECK(susfs_sus_kstat_spoof_vfs_statfs(&inodes[0].inode,&untouched,&is_fuse)==-EINVAL);
+  CHECK(untouched.f_blocks==123);
+  int id=77;unsigned long ino=200;
+  susfs_sus_kstat_spoof_proc_fd_seq_show(&id,&ino,40);
+  CHECK(id==77 && ino==200);
+ }
+ mock_uid=110000; /* An app in user 1 follows the existing lookup tests. */
+#endif
  for(int i=0;i<nr_published;i++) {
   struct st_susfs_sus_kstat_hlist *e=published[i];
   CHECK(e->target_ino==200+i);CHECK(e->info.target_ino==200+i);CHECK(e->target_dev==40+i);CHECK(e->is_fuse==fuse);

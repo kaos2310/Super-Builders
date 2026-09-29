@@ -22,6 +22,10 @@ on:
       add_susfs:
         type: boolean
         default: true
+      susfs_uid_gated_hiding:
+        description: 'Local UIDGate-v1 extension for pinned ReSukiSU 35184 / SUSFS 24743360'
+        type: boolean
+        default: false
       add_zeromount:
         type: boolean
         default: true
@@ -103,6 +107,19 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v6
+
+    - name: Validate UID-gated hiding target
+      if: inputs.susfs_uid_gated_hiding
+      env:
+        ANDROID: ${{ inputs.android_version }}
+        KERNEL: ${{ inputs.kernel_version }}
+        KSU_PIN: ${{ inputs.sukisu_commit }}
+        ADD_SUSFS: ${{ inputs.add_susfs }}
+        MINIMAL: ${{ inputs.kmi_minimal_config }}
+      run: |
+        set -euo pipefail
+        [[ "$ANDROID" == android14 && "$KERNEL" == 6.1 && "$ADD_SUSFS" == true && "$MINIMAL" == false ]]
+        [[ "$KSU_PIN" == fa8311f632a215b5381ec644627c6198d1e8a13e ]]
 
     - name: Validate KMI build mode
       env:
@@ -470,6 +487,7 @@ jobs:
         fi
 
         ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-ReSukiSU-${RESUKISU_VERSION_LABEL}"
+        [[ "${{ inputs.susfs_uid_gated_hiding }}" == "true" ]] && ARTIFACT_BASE+="-UIDGate-v1"
         [[ "${GUNYAH_ADAPTIVE_BACKING:-0}" == "1" ]] && ARTIFACT_BASE+="-GunyahAdaptive-v1"
         [[ "${GUNYAH_RECLAIM_V1:-0}" == "1" ]] && ARTIFACT_BASE+="-Reclaim-v1"
         [[ "$SUSFS_OPEN_REDIRECT_TEST" == "true" ]] && ARTIFACT_BASE+="-OpenRedirect-Test"
@@ -591,6 +609,14 @@ jobs:
         patch -p1 -F3 --no-backup-if-mismatch < "$FILTERED_PATCH"
         python3 "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-enhanced-susfs-vfs.py" \
           zeromount "$KERNEL_ROOT/common" "$PATCH"
+
+    - name: Apply UID-gated SUSFS visibility consumers
+      if: inputs.susfs_uid_gated_hiding
+      run: |
+        set -euo pipefail
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-uid-gated/apply.py" \
+          --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
+          --susfs-commit "$SUSFS_PINNED_COMMIT"
 
     - name: Apply audited Samsung XHCI hooks for ZZI4
       if: inputs.device_codename == 'e3q'
@@ -720,6 +746,7 @@ jobs:
       working-directory: ${{ env.KERNEL_ROOT }}
       env:
         ADD_SUSFS: ${{ inputs.add_susfs }}
+        ADD_SUSFS_UID_GATE: ${{ inputs.susfs_uid_gated_hiding }}
         ADD_ZEROMOUNT: ${{ inputs.add_zeromount }}
         ADD_DROIDSPACES: ${{ inputs.add_droidspaces }}
         ADD_OVERLAYFS: ${{ inputs.add_overlayfs_support }}
@@ -755,6 +782,7 @@ jobs:
         else
           ASSEMBLE_FLAGS=""
           [[ "$ADD_SUSFS" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --susfs"
+          [[ "$ADD_SUSFS_UID_GATE" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --susfs-uid-gated-hiding"
           [[ "$ADD_ZEROMOUNT" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --zeromount"
           [[ "$ADD_DROIDSPACES" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --droidspaces"
           [[ "$ADD_OVERLAYFS" == "true" ]] && ASSEMBLE_FLAGS="$ASSEMBLE_FLAGS --overlayfs"
@@ -863,6 +891,17 @@ jobs:
         python3 "$PORT/test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/session-tests" --cc gcc
         echo "RESUKISU_SU_SESSION_PORT=ReSukiSU-35184-SUSFS-24743360-UAPI4" >> "$GITHUB_ENV"
+
+    - name: Reverify UID gate after downstream patches and test exact policy C
+      if: inputs.susfs_uid_gated_hiding
+      run: |
+        set -euo pipefail
+        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-uid-gated"
+        python3 "$PORT/apply.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
+          --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
+        python3 "$PORT/test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
+          --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/uid-gate-tests" --cc gcc
+        grep -qx 'CONFIG_KSU_SUSFS_UID_GATED_HIDING=y' "$DEFCONFIG_FRAGMENT"
 
     - name: Verify ReSukiSU build identity
       if: inputs.device_codename == 'e3q'
@@ -1460,6 +1499,19 @@ jobs:
           "$ANYKERNEL3/RESUKISU-SUSFS-TESTS.json"
         test -s "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
 
+    - name: Attest UID gate in packaged Image and embedded config
+      if: inputs.susfs_uid_gated_hiding && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
+      run: |
+        set -euo pipefail
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-uid-gated/apply.py" \
+          --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
+          --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only \
+          --config "$FINAL_CONFIG_FILE" --image "$ANYKERNEL3/Image" \
+          --receipt "$ANYKERNEL3/SUSFS-UID-GATE.json"
+        cp "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/uid-gate-tests/result.json" "$ANYKERNEL3/SUSFS-UID-GATE-TESTS.json"
+        test -s "$ANYKERNEL3/SUSFS-UID-GATE.json"
+        echo 'SUSFS_UID_GATE_ATTESTED=Image-IKCONFIG-and-feature-string' >> "$GITHUB_ENV"
+
     - name: Audit S928B daily AnyKernel3
       if: inputs.device_codename == 'e3q' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
       env:
@@ -1760,6 +1812,8 @@ jobs:
             echo "| **SUSFS source** | ${SUSFS_EXPECTED_VERSION:-not-recorded} @ ${SUSFS_PINNED_COMMIT:-not-recorded} |"
           fi
           echo "| **Native SUSFS port** | ${RESUKISU_SU_SESSION_PORT:-disabled} |"
+          echo "| **UIDGate-v1 requested** | ${{ inputs.susfs_uid_gated_hiding }} |"
+          echo "| **UIDGate-v1 packaged Image proof** | ${SUSFS_UID_GATE_ATTESTED:-not-attested} |"
           echo "| **Enhanced SUSFS** | $(S "$ADD_SUSFS") |"
           echo "| **SUSFS Open Redirect (Test)** | $(S "$SUSFS_OPEN_REDIRECT_TEST") |"
           echo "| **ZeroMount** | $(S "$ADD_ZEROMOUNT") |"

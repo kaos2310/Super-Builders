@@ -95,7 +95,17 @@ def kstat_sources(common):
     layout="\n".join(re.findall(r"^#define KSTAT_SPOOF_[^\n]+",header,re.M))
     for name in ("st_susfs_sus_kstat", "st_susfs_sus_kstat_hlist", "st_susfs_sus_kstat_redirect"):
         layout += "\n" + re.search(r"^struct "+name+r" \{.*?^};",header,re.M|re.S)[0]
-    values={"LAYOUT":layout,
+    uid_gate = ""
+    uid_header = common / "include/linux/susfs_uid_gate.h"
+    if uid_header.exists():
+        # Exercise the actual new policy with credential mocks, not a stub
+        # which always permits hiding. Unmodified baselines keep the old tests.
+        uid_gate = ("#define CONFIG_KSU_SUSFS_UID_GATED_HIDING 1\n"
+                    "static unsigned int mock_uid;\n"
+                    "typedef struct { unsigned int val; } kuid_t;\n"
+                    "static kuid_t current_uid(void) { return (kuid_t){mock_uid}; }\n"
+                    + uid_header.read_text().replace("#include <linux/cred.h>", ""))
+    values={"LAYOUT":layout, "UID_GATE":uid_gate,
             "REGISTRATION":"\n".join(extract(source,n) for n in ("susfs_prepare_redirect_entry","susfs_add_sus_kstat_redirect")),
             "LOOKUP":"\n".join(extract(source,n) for n in ("susfs_sus_kstat_spoof_vfs_statfs","susfs_sus_kstat_spoof_proc_fd_seq_show"))}
     text=(HERE/"kstat.c.in").read_text()
