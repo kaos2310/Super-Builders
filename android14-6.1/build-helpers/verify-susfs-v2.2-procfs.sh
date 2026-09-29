@@ -7,6 +7,7 @@ EXPECTED_SUSFS_VERSION="${SUSFS_EXPECTED_VERSION:-v2.2.0}"
 
 TASK_MMU="$COMMON/fs/proc/task_mmu.c"
 PROC_BASE="$COMMON/fs/proc/base.c"
+BOOTCONFIG="$COMMON/fs/proc/bootconfig.c"
 NAMEI="$COMMON/fs/namei.c"
 OPEN_C="$COMMON/fs/open.c"
 SUSFS_C="$COMMON/fs/susfs.c"
@@ -68,7 +69,7 @@ log "SUSFS ${EXPECTED_SUSFS_VERSION} Procfs/SUS_MAP/Open Redirect source audit"
 log "common tree: $COMMON"
 log ""
 
-for file in "$TASK_MMU" "$PROC_BASE" "$NAMEI" "$SUSFS_C" "$SUSFS_H" "$SUSFS_DEF"; do
+for file in "$TASK_MMU" "$PROC_BASE" "$BOOTCONFIG" "$NAMEI" "$SUSFS_C" "$SUSFS_H" "$SUSFS_DEF"; do
   require_file "$file"
 done
 
@@ -86,6 +87,16 @@ require_pattern "$SUSFS_C" 'susfs_add_sus_map' \
   "SUS_MAP registration path exists"
 require_pattern "$SUSFS_C" 'AS_FLAGS_SUS_MAP|SUSFS_SET_INODE_SUS_MAP|susfs_set_inode_sus_map' \
   "SUS_MAP inode/address-space flag is assigned"
+
+require_pattern "$BOOTCONFIG" 'static_key_enabled\(&susfs_is_fake_cmdline_or_bootconfig_buffer_set\)' \
+  "bootconfig runtime gate reads the static key directly"
+require_pattern "$BOOTCONFIG" 'susfs_spoof_cmdline_or_bootconfig\(m\);' \
+  "bootconfig proc reader calls the SUSFS spoof helper"
+if grep -Eq 'static_branch_(likely|unlikely)\([[:space:]]*&susfs_is_fake_cmdline_or_bootconfig_buffer_set[[:space:]]*\)' "$BOOTCONFIG"; then
+  fail "legacy jump-label bootconfig gate remains"
+else
+  pass "legacy jump-label bootconfig gate is absent"
+fi
 
 # Pinned upstream revisions may use direct AS_FLAGS tests or the SUSFS_IS_INODE_SUS_MAP
 # wrapper. Both represent the same reader integration and must be accepted.

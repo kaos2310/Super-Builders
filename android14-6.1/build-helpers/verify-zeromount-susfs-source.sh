@@ -202,6 +202,14 @@ if [[ "${RESUKISU_VERSION_CODE:-}" == "35187" ]]; then
     --susfs-commit "${SUSFS_PINNED_COMMIT:?}"
 fi
 
+BOOTCONFIG_FIX="$(dirname "$0")/apply-susfs-bootconfig-static-key-fix.sh"
+[[ -s "$BOOTCONFIG_FIX" ]] || {
+  echo "::error::SUSFS bootconfig static-key fix helper is missing: $BOOTCONFIG_FIX"
+  exit 1
+}
+chmod +x "$BOOTCONFIG_FIX"
+"$BOOTCONFIG_FIX" "$COMMON_TREE"
+
 require_source() {
   local relative="$1"
   local needle="$2"
@@ -235,6 +243,8 @@ require_source fs/statfs.c 'zeromount_spoof_statfs'
 require_source fs/xattr.c 'zeromount_spoof_xattr'
 require_source fs/susfs.c 'susfs_add_sus_kstat_redirect'
 require_source fs/susfs.c 'susfs_add_sus_map'
+require_source fs/proc/bootconfig.c 'static_key_enabled(&susfs_is_fake_cmdline_or_bootconfig_buffer_set)'
+require_source fs/proc/bootconfig.c 'susfs_spoof_cmdline_or_bootconfig(m);'
 
 [[ -d "$KSU_TREE" ]] || {
   echo "::error::KernelSU tree not found: $KSU_TREE"
@@ -250,6 +260,11 @@ for needle in \
   }
 done
 
+if grep -Eq 'static_branch_(likely|unlikely)\([[:space:]]*&susfs_is_fake_cmdline_or_bootconfig_buffer_set[[:space:]]*\)' "$COMMON_TREE/fs/proc/bootconfig.c"; then
+  echo "::error::Legacy jump-label SUSFS bootconfig gate survived the runtime fix"
+  exit 1
+fi
+
 # The legacy ZeroMount maps hook overlaps the pinned SUSFS show_map_vma() and caused
 # a real apexd Oops on e3q. SUSFS SUS_MAP supplies map hiding, so the unsafe
 # duplicate task_mmu hook must remain absent.
@@ -258,4 +273,4 @@ if grep -qF 'zeromount_spoof_mmap_metadata' "$COMMON_TREE/fs/proc/task_mmu.c"; t
   exit 1
 fi
 
-echo "Verified ZeroMount VFS hooks, full statfs spoofing, SUSFS ${SUSFS_EXPECTED_VERSION:-pinned} bridge, and external-directory compatibility"
+echo "Verified ZeroMount VFS hooks, SUSFS bootconfig static-key runtime gate, full statfs spoofing, SUSFS ${SUSFS_EXPECTED_VERSION:-pinned} bridge, and external-directory compatibility"

@@ -1,5 +1,5 @@
-name: S928B ZZI4 ReSukiSU 35187 SUSFS v2.3.0 UIDGate v1
-run-name: "S928BXXU6ZZI4 EUX â€” ReSukiSU 35187 + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1"
+name: S928B ZZI4 ReSukiSU 35187 SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
+run-name: "S928BXXU6ZZI4 EUX â€” ReSukiSU 35187 + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1 / BootconfigStaticKey-v1"
 
 on:
   workflow_dispatch:
@@ -62,6 +62,7 @@ on:
       - 'android14-6.1/build-helpers/configure-resukisu-release.sh'
       - 'android14-6.1/build-helpers/apply-resukisu-dynamic-manager-get-permission.py'
       - 'android14-6.1/build-helpers/configure-susfs-log-default.sh'
+      - 'android14-6.1/build-helpers/apply-susfs-bootconfig-static-key-fix.sh'
       - 'android14-6.1/build-helpers/apply-enhanced-susfs-v2.2.sh'
       - 'android14-6.1/build-helpers/susfs-kstat-redirect-v2.c'
       - 'android14-6.1/build-helpers/apply-enhanced-susfs-header.py'
@@ -155,3 +156,5 @@ jobs:
 # DynamicManager GET fix: manager may query state; SET/SET_SYNCHRONOUS/WIPE remain uid 0 only.
 
 # 35187 migration baseline: successful run 36514881342 @ 4d93c4e71993de95309f3975f0ea97da1750422e.
+
+# BootconfigStaticKey-v1: runtime diagnosis on run 36606929441 showed static_key_count=1 while boot_config_proc_show skipped susfs_spoof_cmdline_or_bootconfig; use static_key_enabled() and fail CI if the legacy jump-label gate returns.
