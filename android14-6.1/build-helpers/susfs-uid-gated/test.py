@@ -137,6 +137,7 @@ struct seq_file { const char *output; };
 static char *saved_boot_config = "original";
 static bool susfs_is_fake_cmdline_or_bootconfig_buffer_set = true;
 #define static_branch_likely(p) (*(p))
+#define static_key_enabled(p) (*(p))
 static void seq_puts(struct seq_file *m, const char *s) { m->output = s; }
 static void susfs_spoof_cmdline_or_bootconfig(struct seq_file *m) { m->output = "fake"; }
 static int boot_config_proc_show(struct seq_file *m, void *v __attribute__((unused)))

@@ -589,6 +589,14 @@ jobs:
         chmod +x "$HELPER"
         "$HELPER" "$KERNEL_ROOT/common" "$KERNEL_ROOT/$KSU_DIR" "$PATCH"
 
+    - name: Apply SUSFS bootconfig static-key runtime fix
+      if: inputs.add_susfs
+      run: |
+        set -euo pipefail
+        HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-susfs-bootconfig-static-key-fix.sh"
+        chmod +x "$HELPER"
+        "$HELPER" "$KERNEL_ROOT/common"
+
     - name: Apply ZeroMount to pinned SUSFS
       if: inputs.add_susfs && inputs.add_zeromount
       working-directory: ${{ env.KERNEL_ROOT }}/common

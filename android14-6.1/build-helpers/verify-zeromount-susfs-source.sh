@@ -207,8 +207,8 @@ BOOTCONFIG_FIX="$(dirname "$0")/apply-susfs-bootconfig-static-key-fix.sh"
   echo "::error::SUSFS bootconfig static-key fix helper is missing: $BOOTCONFIG_FIX"
   exit 1
 }
-chmod +x "$BOOTCONFIG_FIX"
-"$BOOTCONFIG_FIX" "$COMMON_TREE"
+# Read-only verifier: the runtime fix must already have been applied before
+# UIDGate records its source receipt. Do not mutate bootconfig here.
 
 require_source() {
   local relative="$1"

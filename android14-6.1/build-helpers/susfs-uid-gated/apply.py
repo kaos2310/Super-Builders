@@ -131,8 +131,10 @@ def plan(original):
     edit("fs/proc/bootconfig.c", "#include <linux/slab.h>\n",
          "#include <linux/slab.h>\n#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG\n"
          "#include <linux/susfs_uid_gate.h>\n#endif\n")
-    edit("fs/proc/bootconfig.c", "if (static_branch_likely(&susfs_is_fake_cmdline_or_bootconfig_buffer_set))",
-         "if (susfs_uid_gate_current() && static_branch_likely(&susfs_is_fake_cmdline_or_bootconfig_buffer_set))",
+    # The bootconfig jump-label runtime fix is applied before UIDGate so the
+    # receipt hashes the final production callsite rather than a transient form.
+    edit("fs/proc/bootconfig.c", "if (static_key_enabled(&susfs_is_fake_cmdline_or_bootconfig_buffer_set))",
+         "if (susfs_uid_gate_current() && static_key_enabled(&susfs_is_fake_cmdline_or_bootconfig_buffer_set))",
          "boot_config_proc_show")
     files[HEADER] = (HERE / "susfs_uid_gate.h").read_text(encoding="utf-8")
     for path, names in PROTECTED.items():
