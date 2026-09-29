@@ -2,7 +2,7 @@
 
 Local extension of the successful reference run [36463712058](https://github.com/kaos2310/Super-Builders/actions/runs/36463712058), not an upstream SUSFS release or a userspace toggle.
 
-- ReSukiSU 35184: `fa8311f632a215b5381ec644627c6198d1e8a13e`.
+- ReSukiSU 35187: `94dd3c93c2053a84fd752df6eb85db99b7d70ab8`.
 - SUSFS v2.3.0: `24743360ea08d98f6ad72b856851abed8de5854f`.
 - Android14 / 6.1, Samsung S928BXXU6ZZI4 / EUX; original strict KMI gates retained.
 

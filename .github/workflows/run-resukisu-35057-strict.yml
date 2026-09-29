@@ -1,5 +1,5 @@
-name: S928B ZZI4 ReSukiSU 35184 SUSFS v2.3.0 UIDGate v1
-run-name: "S928BXXU6ZZI4 EUX — ReSukiSU 35184 + SUSFS v2.3.0 @ 24743360 / UID-gated hiding v1 / Gunyah Reclaim v1"
+name: S928B ZZI4 ReSukiSU 35187 SUSFS v2.3.0 UIDGate v1
+run-name: "S928BXXU6ZZI4 EUX â€” ReSukiSU 35187 + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1"
 
 on:
   workflow_dispatch:
@@ -23,13 +23,14 @@ on:
       - agent/resukisu-35158-zzi4-exact-artifact
       - agent/resukisu-35184-susfs-latest-zzi4
       - agent/susfs-uid-gated-35184-zzi4
+      - agent/resukisu-35187-brene69-zzi4
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
       - '.github/workflows/build-resukisu-userspace.yml'
       - 'android14-6.1/build-helpers/verify-resukisu-userspace.py'
-      - 'android14-6.1/build-helpers/resukisu_35184_lock.py'
-      - 'android14-6.1/build-helpers/test-resukisu-35184-lock.py'
+      - 'android14-6.1/build-helpers/resukisu_35187_lock.py'
+      - 'android14-6.1/build-helpers/test-resukisu-35187-lock.py'
       - '.github/workflows/cache-dependencies.yml'
       - '.github/actions/susfs-v2.2/**'
       - 'android14-6.1/defconfig.fragment'
@@ -44,7 +45,7 @@ on:
       - 'android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py'
       - 'android14-6.1/build-helpers/gunyah-reclaim/**'
       - 'android14-6.1/build-helpers/su-session/**'
-      - 'android14-6.1/build-helpers/su-session-35184/**'
+      - 'android14-6.1/build-helpers/su-session-35187/**'
       - 'android14-6.1/build-helpers/susfs-uid-gated/**'
       - 'android14-6.1/build-helpers/apply-resukisu-35127-susfs-postexec.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
@@ -81,7 +82,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35184-zzi4-uidgate-v1-${{ github.ref_name }}
+  group: s928b-resukisu-35187-zzi4-uidgate-v1-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -103,15 +104,15 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: fa8311f632a215b5381ec644627c6198d1e8a13e
-      resukisu_version_code: "35184"
+      resukisu_commit: 94dd3c93c2053a84fd752df6eb85db99b7d70ab8
+      resukisu_version_code: "35187"
 
   dependencies:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35184 UAPI4 / UID-gated hiding v1 / Gunyah
+    name: Full strict KMI gate / ReSukiSU 35187 UAPI4 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -130,16 +131,16 @@ jobs:
       add_bbg: true
       add_overlayfs_support: true
       add_kpm: false
-      susfs_open_redirect: false
+      susfs_open_redirect: true
       # Adapt the SUSFS 24743360 callback to native UAPI4, retaining the explicit
       # session decision and success guard from reference run 34262304602.
       # The legacy 35119/UAPI2 backport is not applicable to native UAPI4.
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: fa8311f632a215b5381ec644627c6198d1e8a13e
+      sukisu_commit: 94dd3c93c2053a84fd752df6eb85db99b7d70ab8
       resukisu_source_branch: main
-      resukisu_version_code: "35184"
+      resukisu_version_code: "35187"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
@@ -149,6 +150,8 @@ jobs:
 # Update baseline: successful run 35443096947 @ 4bad7d66a2e43c6ffbcd5046ce209207ec8a590d.
 # UIDGate-v1 baseline: successful run 36463712058 @ 8c379ba853e084a42d70633e1a9b29b00793bd7e.
 # ZZI4 migration baseline: agent/resukisu-35153-zzi4-susfs-230 @ 7605e96c.
-# ReSukiSU 35184 is pinned to fa8311f632a215b5381ec644627c6198d1e8a13e.
-# Latest compatible SUSFS 2.3.0 (checked 2026-09-28) is pinned to 24743360ea08d98f6ad72b856851abed8de5854f.
+# ReSukiSU 35187 is pinned to 94dd3c93c2053a84fd752df6eb85db99b7d70ab8.
+# Latest compatible SUSFS 2.3.0 (checked 2026-09-29) is pinned to 24743360ea08d98f6ad72b856851abed8de5854f.
 # DynamicManager GET fix: manager may query state; SET/SET_SYNCHRONOUS/WIPE remain uid 0 only.
+
+# 35187 migration baseline: successful run 36514881342 @ 4d93c4e71993de95309f3975f0ea97da1750422e.

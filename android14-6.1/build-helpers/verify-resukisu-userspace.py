@@ -10,6 +10,7 @@ import re
 import subprocess
 import tomllib
 import resukisu_35184_lock
+import resukisu_35187_lock
 
 
 def run(*args):
@@ -69,11 +70,12 @@ def main():
         'userspace/ksuinit/Cargo.toml',
         'userspace/ksuinit/Cargo.lock',
     ]
+    repair = {m.PIN: m for m in (resukisu_35184_lock, resukisu_35187_lock)}.get(args.commit)
     repairs = {}
     locked = {}
     for relative in locked_paths:
-        if args.commit == resukisu_35184_lock.PIN and relative == resukisu_35184_lock.LOCK:
-            repairs[relative] = resukisu_35184_lock.verify(source)
+        if repair is not None and relative == repair.LOCK:
+            repairs[relative] = repair.verify(source)
             locked[relative] = repairs[relative]['repaired_sha256']
         else:
             locked[relative] = verify_pinned_file(source, args.commit, relative)

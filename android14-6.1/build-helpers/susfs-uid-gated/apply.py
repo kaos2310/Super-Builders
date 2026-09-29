@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded consumer-side UID gate for SUSFS 24743360 / ReSukiSU 35184.
+"""Bounded consumer-side UID gate for SUSFS 24743360 / ReSukiSU 35187.
 
 All anchors are planned before writes. An on-tree receipt makes reapplication
 idempotent and detects later changes to the gated functions or protected hooks.
@@ -15,7 +15,7 @@ import subprocess
 
 HERE = Path(__file__).resolve().parent
 SUSFS_PIN = "24743360ea08d98f6ad72b856851abed8de5854f"
-KSU_PIN = "fa8311f632a215b5381ec644627c6198d1e8a13e"
+KSU_PIN = "94dd3c93c2053a84fd752df6eb85db99b7d70ab8"
 SYMBOL = "CONFIG_KSU_SUSFS_UID_GATED_HIDING"
 STATE = ".susfs-uid-gate-v1.json"
 HEADER = "include/linux/susfs_uid_gate.h"
@@ -160,7 +160,7 @@ def read_tree(common, ksu):
 def identity(common, ksu, pin):
     actual = subprocess.check_output(["git", "-C", str(ksu), "rev-parse", "HEAD"], text=True).strip()
     if actual != KSU_PIN or pin != SUSFS_PIN:
-        raise RuntimeError("UIDGate-v1 requires exact ReSukiSU 35184 and SUSFS 24743360 pins")
+        raise RuntimeError("UIDGate-v1 requires exact ReSukiSU 35187 and SUSFS 24743360 pins")
     if not re.search(r'#define\s+SUSFS_VERSION\s+"v2\.3\.0"', (common / "include/linux/susfs.h").read_text()):
         raise RuntimeError("Unexpected SUSFS source version")
 

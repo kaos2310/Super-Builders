@@ -58,12 +58,12 @@ jobs:
         with:
           ndk-version: r29
 
-      - name: Repair the pinned 35184 ksuinit libc lock record
-        if: inputs.resukisu_commit == 'fa8311f632a215b5381ec644627c6198d1e8a13e'
+      - name: Repair the pinned 35187 ksuinit libc lock record
+        if: inputs.resukisu_commit == '94dd3c93c2053a84fd752df6eb85db99b7d70ab8'
         run: |
           set -euo pipefail
-          python3 builder/android14-6.1/build-helpers/test-resukisu-35184-lock.py resukisu
-          python3 builder/android14-6.1/build-helpers/resukisu_35184_lock.py resukisu
+          python3 builder/android14-6.1/build-helpers/test-resukisu-35187-lock.py resukisu
+          python3 builder/android14-6.1/build-helpers/resukisu_35187_lock.py resukisu
 
       - name: Verify source, toolchain, locked dependencies and Libclang
         run: |
