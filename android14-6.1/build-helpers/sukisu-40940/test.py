@@ -38,7 +38,11 @@ int memcmp(const void *a,const void *b,size_t n) {const unsigned char *x=a,*y=b;
 int strcmp(const char *a,const char *b) {while(*a&&*a==*b){a++;b++;}return *a-*b;}
 char *strcpy(char *d,const char *s) {char *p=d;while((*p++=*s++));return d;}
 #define SU_PATH "/system/bin/su"
+#define SH_PATH "/system/bin/sh"
 #define KSUD_PATH "/data/adb/ksud"
+#define TIF_KSU_DISABLE_ESCAPE_WITH_ROOT 1
+#define EPERM 1
+#define LOOKUP_FOLLOW 1
 #define GFP_KERNEL 0
 #define likely(x) (x)
 #define unlikely(x) (x)
@@ -51,8 +55,12 @@ char *strcpy(char *d,const char *s) {char *p=d;while((*p++=*s++));return d;}
 struct filename { char name[160]; } filename;
 struct user_arg_ptr { int unused; } args;
 struct ksu_sulog_pending_event { int unused; } event;
-static const char su_path[]=SU_PATH,ksud_path[]=KSUD_PATH;
-static int root_ret,allowed,chrooted,root_calls,fd_calls,fd_ret,checks;
+struct path {int unused;};
+static const char su_path[]=SU_PATH,ksud_path[]=KSUD_PATH,sh_path[]=SH_PATH;
+static int root_ret,allowed,chrooted,root_calls,fd_calls,fd_ret,checks,no_privs,path_ret;
+static int test_thread_flag(int flag) {return no_privs;}
+static int kern_path(const char *name,int flag,struct path *path) {return path_ret;}
+static void path_put(struct path *path) {}
 static struct { unsigned val; } current_uid(void) { return (typeof(current_uid())){11000}; }
 static int ksu_handle_execveat_init(struct filename *f,struct user_arg_ptr *a,struct user_arg_ptr *e) { return -22; }
 static bool __ksu_is_allow_uid_for_current(unsigned uid) { return allowed; }
@@ -70,16 +78,20 @@ static void post_exec(bool is_su_session,int retval) {
 int test_main(void) {
  struct filename *p=&filename;
  int fd=0,flags=0;
- for(int failure=0;failure<6;failure++) {
-  strcpy(filename.name,SU_PATH);root_ret=0;allowed=1;chrooted=root_calls=fd_calls=0;fd_ret=5;
+ for(int failure=0;failure<8;failure++) {
+  strcpy(filename.name,SU_PATH);root_ret=0;allowed=1;chrooted=root_calls=fd_calls=no_privs=path_ret=0;fd_ret=5;
   if(failure==1)allowed=0;
   if(failure==2)chrooted=1;
   if(failure==3)root_ret=-12;
   if(failure==4)strcpy(filename.name,"/system/bin/sh");
   if(failure==5)fd_ret=-24;
+  if(failure==6)no_privs=1;
+  if(failure==7)path_ret=-2;
   bool session=ksu_handle_execveat_su_session(&fd,&p,&args,&args,&flags);
   CHECK(session==(failure==0||failure==5));
-  if(failure==3)CHECK(!strcmp(filename.name,SU_PATH));
+  if(failure==3||failure==6)CHECK(!strcmp(filename.name,SU_PATH));
+  if(failure==6)CHECK(root_calls==0);
+  if(failure==7)CHECK(!strcmp(filename.name,SH_PATH));
   post_exec(session,-2);CHECK(fd_calls==0);
   post_exec(session,0);CHECK(fd_calls==(session?1:0));
   post_exec(false,0);CHECK(fd_calls==(session?1:0));
@@ -131,14 +143,16 @@ def main():
     for label, old, new in (
         ('failed-exec', 'is_su_session && retval >= 0', 'is_su_session'),
         ('ordinary-exec', 'is_su_session && retval >= 0', 'retval >= 0'),
-        ('profile-failure', 'return ret;\n    }\n    memcpy', '(void)0;\n    }\n    memcpy'),
+        ('profile-failure', 'return ret;\n    }\n    /* Preserve', '(void)0;\n    }\n    /* Preserve'),
+        ('no-new-privileges', 'if (test_thread_flag(TIF_KSU_DISABLE_ESCAPE_WITH_ROOT)) {', 'if (false) {'),
+        ('missing-ksud', 'if (kern_path(KSUD_PATH, LOOKUP_FOLLOW, &kpath)) {', 'if (false) {'),
     ):
         if code.count(old) != 1:
             raise RuntimeError(f'Mutation anchor drift: {label}')
         util.compile_run(code.replace(old, new, 1), label, a, root, expect_failure=True)
     util.verify_vfs(a.common)
     kstat = util.compile_run(util.kstat_sources(a.common), 'kstat', a, root)
-    record = dict(native=native, webview=webview, kstat=kstat, mutation_rejections=3,
+    record = dict(native=native, webview=webview, kstat=kstat, mutation_rejections=5,
                   vfs_scope_order='passed', runtime_test='not performed')
     (root / 'result.json').write_text(json.dumps(record, indent=2) + '\n')
 

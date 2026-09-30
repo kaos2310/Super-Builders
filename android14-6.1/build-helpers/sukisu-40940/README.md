@@ -15,7 +15,9 @@ SukiSU builtin uses a boolean `ksu_su_compat_enabled` and the native
 before writing and bridges the generic SUSFS hooks to that native ABI. It
 carries the reference su-session behavior: root-profile and ucounts failures
 propagate, a failed privilege transition leaves the su path unchanged, and
-only a successful su exec installs the native driver FD after exec.
+only a successful su exec installs the native driver FD after exec. A blocked
+privilege transition cannot create a session. Missing ksud retains the native
+reference shell fallback without installing an extra FD.
 
 The WebView UID 1053 remains a non-root persisted profile after allowlist
 pruning, including in the zygote_next path. Exact-C tests execute the native

@@ -57,12 +57,24 @@ def expected(ksu):
 '''
     new = '''    pending_sucompat = ksu_sulog_capture_sucompat(filename->name, (struct user_arg_ptr*)argv_user, GFP_KERNEL);
 
+    if (test_thread_flag(TIF_KSU_DISABLE_ESCAPE_WITH_ROOT)) {
+        ksu_sulog_emit_pending(pending_sucompat, -EPERM, GFP_KERNEL);
+        return -EPERM;
+    }
     ret = escape_with_root_profile();
     if (ret) {
         pr_err("escape_with_root_profile() failed: %d\\n", ret);
         ksu_sulog_emit_pending(pending_sucompat, ret, GFP_KERNEL);
         return ret;
     }
+    /* Preserve the reference fallback without creating a ksud session. */
+    struct path kpath;
+    if (kern_path(KSUD_PATH, LOOKUP_FOLLOW, &kpath)) {
+        memcpy((void *)filename->name, sh_path, sizeof(sh_path));
+        ksu_sulog_emit_pending(pending_sucompat, 0, GFP_KERNEL);
+        return 0;
+    }
+    path_put(&kpath);
     memcpy((void *)filename->name, ksud_path, sizeof(ksud_path));
 '''
     files[p] = once(files[p], old, new)
