@@ -628,12 +628,16 @@ static int ksu_susfs_ack_deprecated_external_dir(void __user **arg,
         ("CMD_SUSFS_ADD_SUS_PATH", "susfs_add_sus_path", "false"),
         ("CMD_SUSFS_ADD_SUS_PATH_LOOP", "susfs_add_sus_path_loop", "true"),
     )
+    native_reboot = dispatch_anchor.startswith("int ksu_handle_sys_reboot(")
     for command, function, loop in path_cases:
+        # The immutable builtin dispatcher uses unbraced case bodies.
+        # Match that exact shape separately from ReSukiSU's braced cases.
+        case_start = rf"(?P<indent>^[ \t]*)case {command}:"
+        body = (rf"(?P=indent)[ \t]+{function}\(arg\);\n"
+                rf"(?P=indent)[ \t]+return 0;\n")
         pattern = re.compile(
-            rf"(?P<indent>^[ \t]*)case {command}: \{{\n"
-            rf"(?P=indent)[ \t]+{function}\(arg\);\n"
-            rf"(?P=indent)[ \t]+return 0;\n"
-            rf"(?P=indent)\}}\n",
+            case_start + ("\n" + body if native_reboot else
+                          r" \{" + "\n" + body + r"(?P=indent)\}" + "\n"),
             re.MULTILINE,
         )
         match = pattern.search(text)
