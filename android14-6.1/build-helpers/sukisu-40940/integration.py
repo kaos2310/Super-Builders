@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 from configure import PIN, MAIN_PIN, VERSION, FULL
+import features
 
 SUSFS_PIN = '24743360ea08d98f6ad72b856851abed8de5854f'
 
@@ -24,9 +25,6 @@ def identity(common, ksu):
     # The native driver is installed through the upstream LSM/task-work path.
     # Its [ksu_driver] ABI is distinct from ReSukiSU's post-exec scoped FD.
     source = (ksu / 'kernel/feature/sucompat.c').read_bytes()
-    original = subprocess.check_output(['git', '-C', str(ksu), 'show', f'{PIN}:kernel/feature/sucompat.c'])
-    if source != original:
-        raise RuntimeError('Native SukiSU sucompat source was changed')
     if 'bool ksu_su_compat_enabled __read_mostly = true;' not in source.decode():
         raise RuntimeError('Expected native SukiSU boolean hook switch')
     if 'anon_inode_getfile("[ksu_driver]"' not in (ksu / 'kernel/supercall/supercall.c').read_text():
@@ -48,13 +46,16 @@ def apply(common, ksu):
         planned[path] = text
     path = common / 'fs/exec.c'
     text = planned[path]
-    text = once(text, 'extern int ksu_handle_post_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,\n\t\t\t\tvoid *envp, int *flags, int *retval);\n', '')
-    text = once(text, '#ifdef CONFIG_KSU_SUSFS\n\tbool is_su_session = false;\n#endif // #ifdef CONFIG_KSU_SUSFS\n', '')
-    for function in ('ksu_handle_execveat', 'ksu_handle_execveat_sucompat'):
-        text = once(text, f'is_su_session = !{function}(&fd, &filename, &argv, &envp, &flags);',
-                    f'(void){function}(&fd, &filename, &argv, &envp, &flags);')
-    text = once(text, '#ifdef CONFIG_KSU_SUSFS\n\tif (unlikely(is_su_session))\n\t\t(void)ksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval);\n#endif // #ifdef CONFIG_KSU_SUSFS\n', '')
+    text = once(text, 'extern int ksu_handle_post_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv,\n\t\t\t\tvoid *envp, int *flags, int *retval);\n',
+                'extern bool ksu_handle_execveat_su_session(int *fd, struct filename **filename_ptr, void *argv,\n\t\t\t\tvoid *envp, int *flags);\nextern int ksu_install_fd(void);\n')
+    old = '\tif (READ_ONCE(ksu_su_compat_enabled)) {\n\t\tif (static_branch_unlikely(&susfs_is_sdcard_android_data_not_decrypted)) {\n\t\t\tis_su_session = !ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);\n\t\t} else {\n\t\t\tis_su_session = !ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);\n\t\t}\n\t}'
+    new = '\tif (READ_ONCE(ksu_su_compat_enabled))\n\t\tis_su_session = ksu_handle_execveat_su_session(&fd, &filename, &argv, &envp, &flags);'
+    text = once(text, old, new)
+    text = once(text, '#ifdef CONFIG_KSU_SUSFS\n\tif (unlikely(is_su_session))\n\t\t(void)ksu_handle_post_execveat_sucompat(&fd, &filename, &argv, &envp, &flags, &retval);\n#endif // #ifdef CONFIG_KSU_SUSFS\n',
+                '#ifdef CONFIG_KSU_SUSFS\n\tif (unlikely(is_su_session && retval >= 0)) {\n\t\tint su_fd = ksu_install_fd();\n\t\tif (su_fd < 0)\n\t\t\tpr_warn("SukiSU: native su-session FD installation failed: %d\\n", su_fd);\n\t}\n#endif // #ifdef CONFIG_KSU_SUSFS\n')
     planned[path] = text
+    # Validate all native source changes before writing the filesystem bridge.
+    features.apply(ksu)
     # No writes occur until every exact pinned-source anchor passes.
     for path, text in planned.items():
         path.write_text(text, encoding='utf-8', newline='\n')
@@ -62,6 +63,7 @@ def apply(common, ksu):
 
 def verify(common, ksu):
     identity(common, ksu)
+    features.verify(ksu)
     for name in ('exec', 'open', 'stat'):
         text = (common / f'fs/{name}.c').read_text()
         if 'extern bool ksu_su_compat_enabled;' not in text or 'READ_ONCE(ksu_su_compat_enabled)' not in text:
@@ -69,12 +71,13 @@ def verify(common, ksu):
         if 'static_branch_likely(&ksu_su_compat_enabled)' in text:
             raise RuntimeError('Foreign static-key declaration survived')
     exec_text = (common / 'fs/exec.c').read_text()
-    if 'ksu_handle_post_execveat_sucompat' in exec_text or 'is_su_session' in exec_text:
+    if 'ksu_handle_post_execveat_sucompat' in exec_text:
         raise RuntimeError('Foreign post-exec driver contract survived')
-    for function in ('ksu_handle_execveat', 'ksu_handle_execveat_sucompat'):
-        if f'(void){function}(&fd, &filename, &argv, &envp, &flags);' not in exec_text:
-            raise RuntimeError('Native SukiSU pre-exec hook missing')
-    print('Verified SukiSU builtin boolean hooks, native pre-exec handling and unchanged [ksu_driver] ABI')
+    for marker in ('is_su_session = ksu_handle_execveat_su_session',
+                   'is_su_session && retval >= 0', 'int su_fd = ksu_install_fd();'):
+        if marker not in exec_text:
+            raise RuntimeError('Native SukiSU success-gated su-session hook missing')
+    print('Verified native SukiSU su-session, root-profile/ucounts failure propagation, WebView profile and [ksu_driver] ABI')
 
 def attest(args):
     verify(args.common, args.ksu)
@@ -89,7 +92,8 @@ def attest(args):
         if marker not in image:
             raise RuntimeError(f'SukiSU compiled image marker missing: {marker!r}')
     symbols = subprocess.check_output(['nm', '--defined-only', str(args.vmlinux)], text=True)
-    for symbol in ('ksu_handle_execveat', 'susfs_add_sus_kstat_redirect'):
+    for symbol in ('ksu_handle_execveat_su_session', 'ksu_install_fd', 'susfs_add_sus_kstat_redirect',
+                   'susfs_add_sus_map', 'susfs_add_open_redirect', 'susfs_init', 'zeromount_init'):
         matches = re.findall(r'^[0-9a-fA-F]+ [Tt] ' + symbol + r'$', symbols, re.M)
         if len(matches) != 1:
             raise RuntimeError(f'Expected exactly one compiled definition: {symbol}')

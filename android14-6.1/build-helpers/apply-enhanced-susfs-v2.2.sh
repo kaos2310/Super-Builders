@@ -530,6 +530,11 @@ for candidate in candidates:
         raise SystemExit(f"Partial ZeroMount external-dir compatibility in {candidate}")
 
     dispatch_anchor = "int ksu_handle_susfs_cmd(unsigned int cmd, void __user **arg)\n"
+    # SukiSU builtin routes the same SUSFS command ABI through reboot(2).
+    # Keep that native entry point; insert the dual-layout ZeroMount adapter
+    # before its exact signature instead of importing ReSukiSU's dispatcher.
+    if text.count(dispatch_anchor) == 0:
+        dispatch_anchor = "int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg)\n"
     if text.count(dispatch_anchor) != 1:
         raise SystemExit(f"Expected one SUSFS dispatcher anchor in {candidate}")
 

@@ -535,6 +535,7 @@ jobs:
         python3 "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/sukisu-40940/integration.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
         echo "SUSFS_HOOKS_PREINSTALLED=true" >> "$GITHUB_ENV"
+        echo "SUKISU_SU_SESSION_PORT=SukiSU-40940-builtin-SUSFS-24743360-native" >> "$GITHUB_ENV"
 
     - name: Apply Enhanced SUSFS features
       if: inputs.add_susfs
@@ -857,6 +858,13 @@ jobs:
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" --verify-only
         test "$SUSFS_PINNED_COMMIT" = 24743360ea08d98f6ad72b856851abed8de5854f
         grep -qx 'CONFIG_ZEROMOUNT=y' "$DEFCONFIG_FRAGMENT"
+
+    - name: Test native SukiSU sessions and full SUSFS KSTAT VFS integration
+      run: |
+        set -euo pipefail
+        python3 "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/sukisu-40940/test.py" \
+          --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
+          --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/sukisu-tests" --cc gcc
 
     - name: Clean Module Lists
       if: inputs.add_zram
@@ -1384,6 +1392,8 @@ jobs:
           --config "$FINAL_CONFIG_FILE" --image "$ANYKERNEL3/Image" --vmlinux "$VMLINUX" \
           --receipt "$ANYKERNEL3/SUKISU-SUSFS-INTEGRATION.json"
         cp "$FINAL_CONFIG_FILE" "$ANYKERNEL3/BUILD-CONFIG.txt"
+        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/sukisu-tests/sukisu40940-*/result.json \
+          "$ANYKERNEL3/SUKISU-SUSFS-TESTS.json"
 
     - name: Attest UID gate in packaged Image and embedded config
       if: inputs.susfs_uid_gated_hiding && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
@@ -1472,7 +1482,7 @@ jobs:
             exit 1
           }
         fi
-        grep -aF 'd3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64' "$ANYKERNEL3/Image" >/dev/null || {
+        grep -aF '947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef' "$ANYKERNEL3/Image" >/dev/null || {
           echo "::error::Official SukiSU manager certificate hash is missing from the kernel image"
           exit 1
         }
