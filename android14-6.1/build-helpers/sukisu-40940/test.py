@@ -96,6 +96,23 @@ int main(void) {int line=test_main();printf("Native SukiSU exact-C checks: %d; f
 '''
     return code.replace('@@FUNCTIONS@@', functions).replace('@@POST@@', post[0])
 
+def webview_sources(ksu):
+    policy = (ksu / 'kernel/policy/allowlist.c').read_text()
+    lsm = (ksu / 'kernel/hook/lsm_hook.c').read_text()
+    code = (HERE.parent / 'su-session-35187/webview.c.in').read_text()
+    code = code.replace('static uid_t manager_uid;', '''static uid_t manager_uid;
+#define PER_USER_RANGE 100000
+static bool ksu_is_manager_appid_valid(void) {return manager_uid!=0;}
+static unsigned ksu_get_manager_appid(void) {return manager_uid;}
+static bool is_uid_manager(uid_t uid) {return uid%PER_USER_RANGE==manager_uid;}
+''')
+    code = code.replace('@@NEXT@@', '''static void disable_seccomp(void) {}
+static void ksu_handle_extra_susfs_work(void) {if(!work_pending(&susfs_extra_works))schedule_work(&susfs_extra_works);}
+''' + util.extract(lsm, 'handle_zygote_next_setresuid'))
+    for key, name in (('VALID','profile_valid'), ('POLICY','ksu_uid_should_umount'), ('PRUNE','ksu_prune_allowlist')):
+        code = code.replace(f'@@{key}@@', util.extract(policy, name))
+    return code
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--common', required=True, type=Path)
@@ -110,6 +127,7 @@ def main():
     root.mkdir(parents=True)
     code = native_sources(a.common, a.ksu)
     native = util.compile_run(code, 'native', a, root)
+    webview = util.compile_run(webview_sources(a.ksu), 'webview', a, root)
     for label, old, new in (
         ('failed-exec', 'is_su_session && retval >= 0', 'is_su_session'),
         ('ordinary-exec', 'is_su_session && retval >= 0', 'retval >= 0'),
@@ -120,7 +138,7 @@ def main():
         util.compile_run(code.replace(old, new, 1), label, a, root, expect_failure=True)
     util.verify_vfs(a.common)
     kstat = util.compile_run(util.kstat_sources(a.common), 'kstat', a, root)
-    record = dict(native=native, kstat=kstat, mutation_rejections=3,
+    record = dict(native=native, webview=webview, kstat=kstat, mutation_rejections=3,
                   vfs_scope_order='passed', runtime_test='not performed')
     (root / 'result.json').write_text(json.dumps(record, indent=2) + '\n')
 

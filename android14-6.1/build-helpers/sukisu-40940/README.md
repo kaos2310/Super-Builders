@@ -10,11 +10,18 @@ The ZZI4 pipeline retains source and firmware identity, strict Samsung DLKM CRC
 checks, Gunyah changes, SUSFS 2.3.0, ZeroMount, UIDGate, OPEN_REDIRECT,
 bootconfig static-key fix and final package audits from run 36634254677.
 
-SukiSU builtin uses a boolean `ksu_su_compat_enabled`, native pre-exec handlers
-and the `[ksu_driver]` FD installed by its LSM/task-work path. The generic SUSFS
-static-key and post-exec scoped-driver assumptions do not apply. The bounded
-adapter verifies all source anchors before writing, changes only the generic
-filesystem hook bridge and preserves native SukiSU sucompat and manager ABI.
+SukiSU builtin uses a boolean `ksu_su_compat_enabled` and the native
+`[ksu_driver]` manager ABI. The bounded adapter verifies all source anchors
+before writing and bridges the generic SUSFS hooks to that native ABI. It
+carries the reference su-session behavior: root-profile and ucounts failures
+propagate, a failed privilege transition leaves the su path unchanged, and
+only a successful su exec installs the native driver FD after exec.
+
+The WebView UID 1053 remains a non-root persisted profile after allowlist
+pruning, including in the zygote_next path. Exact-C tests execute the native
+session, WebView policy and SUSFS KSTAT code; mutation checks reject FD
+installation after failed or ordinary exec and ignored root-profile errors.
+VFS scope/order, UIDGate and Gunyah checks remain mandatory CI gates.
 
 Package attestation requires final config, compiled version and driver strings,
 compiled executable SUSFS/root-hook definitions, firmware/KMI checks and a
