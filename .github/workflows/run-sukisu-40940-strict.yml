@@ -1,0 +1,60 @@
+name: S928B ZZI4 SukiSU 40940 SUSFS v2.3.0 Strict KMI
+run-name: S928BXXU6ZZI4 EUX - SukiSU 40940 builtin b20dee70 / SUSFS 2.3.0 / UIDGate / Strict KMI
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/sukisu-40940-zzi4]
+    paths:
+      - '.github/workflows/run-sukisu-40940-strict.yml'
+      - '.github/workflows/build-sukisu.yml'
+      - 'android14-6.1/**'
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: s928b-sukisu-40940-zzi4-${{ github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: |
+          set -euo pipefail
+          python3 android14-6.1/build-helpers/test-e3q-gunyah-adaptive-backing.py
+          python3 android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py
+          python3 android14-6.1/build-helpers/susfs-uid-gated-sukisu/test.py --cc gcc --work-dir "$RUNNER_TEMP/uid-gate-tests"
+  dependencies:
+    needs: preflight
+    uses: ./.github/workflows/cache-dependencies.yml
+  strict-gate:
+    needs: dependencies
+    uses: ./.github/workflows/build-sukisu.yml
+    with:
+      android_version: android14
+      kernel_version: "6.1"
+      sub_level: "162"
+      os_patch_level: "2026-03"
+      add_susfs: true
+      susfs_uid_gated_hiding: true
+      add_zeromount: true
+      add_droidspaces: true
+      add_zram: true
+      add_bbg: true
+      add_overlayfs_support: true
+      add_kpm: false
+      susfs_open_redirect: true
+      susfs_su_session: false
+      add_ptrace_fix: true
+      add_perf_patches: true
+      sukisu_commit: b20dee702035af09cb2ecb5f35443bbc1747f3e6
+      sukisu_source_branch: builtin
+      sukisu_version_code: "40940"
+      device_codename: e3q
+      kmi_mode: strict
+      kmi_profile: full-strict
+      kmi_minimal_config: false
+      package_strict_anykernel: true
+# Baseline: successful ZZI4 run 36634254677 at e3a3da909a8bba40637b9ae31639a5fbb15b76ab.
+# Version formula: 40000 + 3755 - 2815 = 40940, immutable main reference 7fbbb1f12e2410b69c8ebf958be84f165b8d0c93.
+# Kernel source: latest SUSFS-integrated builtin commit b20dee702035af09cb2ecb5f35443bbc1747f3e6 (checked 2026-09-30).

@@ -167,7 +167,7 @@ fi
 # The targeted Procfs reconciliation below is specific to the enhanced
 # SukiSU patch stack. ReSukiSU already receives the complete pinned SUSFS
 # patch in its composite action, so replaying SukiSU hunks corrupts detection.
-if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" == "SukiSU" ]]; then
+if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" == "SukiSU" && "${SUSFS_HOOKS_PREINSTALLED:-false}" != true ]]; then
   SUSFS_CLONE="${SUSFS_FOLDER:-${RUNNER_TEMP:-/tmp}/susfs4ksu}"
   TARGETED_FIX_SCRIPT="$VERSION_DIR/build-helpers/apply-susfs-targeted.sh"
   TARGETED_DIR="${RUNNER_TEMP:-/tmp}/susfs-targeted-fixes"
@@ -253,7 +253,7 @@ fi
 
 # ReSukiSU must not replay the SukiSU reconciliation patch, but it must still
 # prove that the pinned SUSFS action installed the complete functional hook set.
-if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" != "SukiSU" ]]; then
+if $ADD_SUSFS && [[ "${KSU_VARIANT:-SukiSU}" != "SukiSU" || "${SUSFS_HOOKS_PREINSTALLED:-false}" == true ]]; then
   chmod +x "$VERIFY_SCRIPT"
   EXPECTED_SUSFS_VERSION="${SUSFS_EXPECTED_VERSION:-v2.2.0}"
   echo "Verifying pinned SUSFS ${EXPECTED_SUSFS_VERSION} hooks for ${KSU_VARIANT:-ReSukiSU}"
