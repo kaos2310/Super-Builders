@@ -101,8 +101,8 @@ jobs:
       KSU_VARIANT: SukiSU
       KSU_DIR: KernelSU
       SUKISU_VERSION_CODE: ${{ inputs.sukisu_version_code }}
-      SUKISU_VERSION_LABEL: ${{ inputs.sukisu_version_code }}
-      SUKISU_VERSION_FULL: SukiSU-${{ inputs.sukisu_version_code }}
+      SUKISU_VERSION_LABEL: ${{ inputs.sukisu_version_code }}-UAPI4
+      SUKISU_VERSION_FULL: SukiSU-${{ inputs.sukisu_version_code }}-UAPI4
 
     steps:
     - name: Checkout Repository
@@ -511,7 +511,7 @@ jobs:
         curl --fail --location "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/${PIN}/kernel/setup.sh" | bash -s "$PIN"
         git -C "$KERNEL_ROOT/$KSU_DIR" fetch origin 7fbbb1f12e2410b69c8ebf958be84f165b8d0c93
         python3 "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/sukisu-40940/configure.py" "$KERNEL_ROOT/$KSU_DIR"
-        echo "SUKISU_VERSION_FULL=v4.2.0-40940-b20dee70@builtin" >> "$GITHUB_ENV"
+        echo "SUKISU_VERSION_FULL=v4.2.0-40940-b20dee70@builtin+uapi4" >> "$GITHUB_ENV"
 
     - name: Fix Old Kernel Compatibility
       working-directory: ${{ env.KERNEL_ROOT }}/common
@@ -528,14 +528,14 @@ jobs:
         sub_level: ${{ env.SUBLEVEL }}
         os_patch_level: ${{ inputs.os_patch_level }}
 
-    - name: Adapt pinned SUSFS to native SukiSU builtin hooks
+    - name: Port SukiSU UAPI4 driver and adapt pinned SUSFS hooks
       if: inputs.add_susfs
       run: |
         set -euo pipefail
         python3 "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/sukisu-40940/integration.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
         echo "SUSFS_HOOKS_PREINSTALLED=true" >> "$GITHUB_ENV"
-        echo "SUKISU_SU_SESSION_PORT=SukiSU-40940-builtin-SUSFS-24743360-native" >> "$GITHUB_ENV"
+        echo "SUKISU_SU_SESSION_PORT=SukiSU-40940-builtin-UAPI4-SUSFS-24743360" >> "$GITHUB_ENV"
 
     - name: Apply Enhanced SUSFS features
       if: inputs.add_susfs
@@ -859,7 +859,7 @@ jobs:
         test "$SUSFS_PINNED_COMMIT" = 24743360ea08d98f6ad72b856851abed8de5854f
         grep -qx 'CONFIG_ZEROMOUNT=y' "$DEFCONFIG_FRAGMENT"
 
-    - name: Test native SukiSU sessions and full SUSFS KSTAT VFS integration
+    - name: Test SukiSU UAPI4 driver permissions, sessions and SUSFS KSTAT VFS
       run: |
         set -euo pipefail
         python3 "$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/sukisu-40940/test.py" \

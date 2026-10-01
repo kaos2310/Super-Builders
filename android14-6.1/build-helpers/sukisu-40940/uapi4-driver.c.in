@@ -1,0 +1,132 @@
+typedef __SIZE_TYPE__ size_t;
+typedef __INTPTR_TYPE__ intptr_t;
+typedef _Bool bool;
+typedef unsigned char __u8;
+typedef unsigned short __u16;
+typedef unsigned int __u32;
+typedef int __s32;
+typedef unsigned long long __u64;
+#define __aligned_u64 __u64 __attribute__((aligned(8)))
+#define true 1
+#define false 0
+#define NULL ((void *)0)
+#define __user
+#define GFP_KERNEL 0
+#define ENOMEM 12
+#define EPERM 1
+#define EFAULT 14
+#define ENOTTY 25
+#define O_CLOEXEC 0x80000
+#define O_RDWR 2
+#define THIS_MODULE NULL
+#define KERNEL_SU_VERSION 40940
+#define KSU_FEATURE_MAX 5
+#define _IOC(dir,type,nr,size) (((dir)<<30)|((type)<<8)|(nr)|((size)<<16))
+#define _IOC_NONE 0U
+#define _IOC_WRITE 1U
+#define _IOC_READ 2U
+#define _IOR(type,nr,arg) _IOC(_IOC_READ,type,nr,sizeof(arg))
+#define _IOW(type,nr,arg) _IOC(_IOC_WRITE,type,nr,sizeof(arg))
+#define _IOWR(type,nr,arg) _IOC(_IOC_READ|_IOC_WRITE,type,nr,sizeof(arg))
+#define _IO(type,nr) _IOC(_IOC_NONE,type,nr,0)
+#define pr_info(...) ((void)0)
+#define pr_warn(...) ((void)0)
+#define pr_err(...) ((void)0)
+#define IS_ERR(p) ((intptr_t)(p)<0)
+#define PTR_ERR(p) ((intptr_t)(p))
+#define ERR_PTR(e) ((void *)(intptr_t)(e))
+#define READ_ONCE(x) (x)
+@@UAPI@@
+struct inode {int unused;};
+struct callback_head {int unused;};
+struct file;
+struct file_operations {
+ void *owner;
+ long (*unlocked_ioctl)(struct file *,unsigned int,unsigned long);
+ long (*compat_ioctl)(struct file *,unsigned int,unsigned long);
+ int (*release)(struct inode *,struct file *);
+};
+struct file {void *private_data;};
+struct {int pid;} task={10},*current=&task;
+static int manager,root,allow_root,checks,copy_error,alloc_error,fd_error,inode_error;
+static int allocations,frees,fd_installs,put_fds,last_fd_flags,last_file_flags;
+static const char *last_name;
+static struct file result_file;
+static unsigned char allocation[64];
+void *memcpy(void *d,const void *s,size_t n) {char *a=d;const char *b=s;while(n--)*a++=*b++;return d;}
+int strcmp(const char *a,const char *b) {while(*a&&*a==*b){a++;b++;}return *a-*b;}
+static bool is_manager(void) {return manager;}
+static bool only_manager(void) {return manager;}
+static bool only_root(void) {return root;}
+static bool manager_or_root(void) {return manager||root;}
+static bool always_allow(void) {return true;}
+static bool allowed_for_su(void) {return manager||allow_root;}
+static int copy_to_user(void *dest,const void *src,size_t n) {if(copy_error)return 1;memcpy(dest,src,n);return 0;}
+static void *kzalloc(size_t n,int flags) {if(alloc_error)return NULL;allocations++;for(size_t i=0;i<n;i++)allocation[i]=0;return allocation;}
+static void kfree(void *ptr) {if(ptr)frees++;}
+static int get_unused_fd_flags(int flags) {last_fd_flags=flags;return fd_error?fd_error:6;}
+static void put_unused_fd(int fd) {put_fds++;}
+static struct file *anon_inode_getfile(const char *name,const struct file_operations *ops,void *ctx,int flags) {
+ last_name=name;last_file_flags=flags;if(inode_error)return ERR_PTR(inode_error);result_file.private_data=ctx;return &result_file;
+}
+static void fd_install(int fd,struct file *filp) {fd_installs++;}
+@@TYPES@@
+long ksu_supercall_handle_ioctl(const struct file *,unsigned int,void *);
+@@DRIVER@@
+@@INFO@@
+@@HANDLERS@@
+@@DISPATCH@@
+#define CHECK(x) do {checks++;if(!(x))return __LINE__;}while(0)
+int test_main(void) {
+ struct ksu_get_info_cmd info={0};
+ CHECK(KERNEL_SU_UAPI_VERSION==4);
+ CHECK(sizeof(info)==16);
+ CHECK(KSU_GET_INFO_FLAG_BUNDLED==(1U<<4));
+ for(manager=0;manager<2;manager++) {
+  CHECK(do_get_info(&info)==0);
+  CHECK(info.version==40940&&info.uapi_version==4&&info.features==5);
+  CHECK(info.flags==(manager?KSU_GET_INFO_FLAG_MANAGER:0));
+ }
+ manager=0;copy_error=1;CHECK(do_get_info(&info)==-EFAULT);copy_error=0;
+ for(int su=0;su<2;su++) {
+  allocations=frees=fd_installs=put_fds=0;
+  CHECK((su?ksu_install_su_fd():ksu_install_fd())==6);
+  CHECK(last_fd_flags==O_CLOEXEC&&last_file_flags==O_RDWR);
+  CHECK(strcmp(last_name,su?"[ksu_driver_su]":"[ksu_driver]")==0);
+  CHECK(ksu_is_su_session_fd(&result_file)==su);
+  CHECK(allocations==1&&frees==0&&fd_installs==1&&put_fds==0);
+  for(int mode=0;mode<4;mode++) {
+   manager=mode==1;root=mode==2;allow_root=mode==3;
+   int scoped=0;
+   for(int i=0;ksu_ioctl_handlers[i].handler;i++) {
+    const struct ksu_ioctl_cmd_map *entry=&ksu_ioctl_handlers[i];
+    if(entry->allow_su_session) {
+     scoped++;CHECK(entry->cmd==KSU_IOCTL_GET_WRAPPER_FD||entry->cmd==KSU_IOCTL_DISABLE_ESCAPE_TO_ROOT);
+    }
+    bool permit=!entry->perm_check||entry->perm_check()||(su&&entry->allow_su_session);
+    long ret=anon_ksu_ioctl(&result_file,entry->cmd,(unsigned long)(intptr_t)&info);
+    CHECK(ret==(permit?(entry->cmd==KSU_IOCTL_GET_INFO?0:123):-EPERM));
+   }
+   CHECK(scoped==2);
+  }
+  CHECK(anon_ksu_ioctl(&result_file,0xffffffff,0)==-ENOTTY);
+  CHECK(anon_ksu_release(NULL,&result_file)==0&&frees==1);
+ }
+ struct file empty={0};CHECK(!ksu_is_su_session_fd(&empty));
+ for(int failure=0;failure<3;failure++) {
+  alloc_error=fd_error=inode_error=allocations=frees=put_fds=fd_installs=0;
+  if(failure==0)alloc_error=1;
+  if(failure==1)fd_error=-24;
+  if(failure==2)inode_error=-12;
+  CHECK(ksu_install_su_fd()==(failure==1?-24:-12));
+  CHECK(fd_installs==0);
+  CHECK(frees==(failure!=0));
+  CHECK(put_fds==(failure==2));
+ }
+ return 0;
+}
+int test_count(void) {return checks;}
+#ifndef WASM_TEST
+int printf(const char *,...);
+int main(void) {int line=test_main();printf("UAPI4 driver exact-C checks: %d; failure line: %d\n",checks,line);return line?1:0;}
+#endif

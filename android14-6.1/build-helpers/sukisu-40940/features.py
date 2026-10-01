@@ -83,8 +83,8 @@ def expected(ksu):
 }
 '''
     wrapper = '''
-/* Explicit success decision for the generic SUSFS exec bridge. The FD remains
- * SukiSU's native [ksu_driver] ABI and is installed only after successful exec. */
+/* Explicit success decision for the generic SUSFS exec bridge. The scoped
+ * UAPI4 [ksu_driver_su] FD is installed only after successful exec. */
 bool ksu_handle_execveat_su_session(int *fd, struct filename **filename_ptr,
                                    void *argv, void *envp, int *flags)
 {

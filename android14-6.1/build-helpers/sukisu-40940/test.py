@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import uuid
 import integration
+import uapi4
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('reference_tests', HERE.parent / 'su-session-35187/test.py')
@@ -69,7 +70,7 @@ static struct ksu_sulog_pending_event *ksu_sulog_capture_sucompat(const char *f,
 static void ksu_sulog_emit_pending(struct ksu_sulog_pending_event *e,int ret,int g) {}
 static int escape_with_root_profile(void) { root_calls++;return root_ret; }
 static const char *get_user_arg_ptr(struct user_arg_ptr a,int n) { return "su"; }
-static int ksu_install_fd(void) { fd_calls++;return fd_ret; }
+static int ksu_install_su_fd(void) { fd_calls++;return fd_ret; }
 @@FUNCTIONS@@
 static void post_exec(bool is_su_session,int retval) {
 @@POST@@
@@ -125,6 +126,71 @@ static void ksu_handle_extra_susfs_work(void) {if(!work_pending(&susfs_extra_wor
         code = code.replace(f'@@{key}@@', util.extract(policy, name))
     return code
 
+def driver_sources(ksu):
+    read = lambda p: (ksu / p).read_text()
+    driver = read('kernel/supercall/supercall.c')
+    dispatch = read('kernel/supercall/dispatch.c')
+    table = uapi4.extract(dispatch, 'ksu_ioctl_handlers', array=True)
+    handlers = set(re.findall(r'\.handler\s*=\s*(\w+)', table)) - {'NULL', 'do_get_info'}
+    header = read('kernel/supercall/supercall.h')
+    payloads = read('kernel/include/uapi/app_profile.h') + '\n' + read('kernel/include/uapi/supercall.h')
+    payloads = re.sub(r'^#include[^\n]*', '', payloads, flags=re.M)
+    values = dict(
+        UAPI=payloads,
+        TYPES='\n'.join(re.findall(r'^typedef .*;$', header, re.M)) + '\n' +
+              re.search(r'struct ksu_ioctl_cmd_map \{.*?\};', header, re.S)[0],
+        DRIVER=driver[driver.index('#define KSU_DRIVER_PERMISSION_SU_SESSION'):driver.index('static void ksu_install_fd_tw_func(')],
+        INFO='const __u32 ksu_uapi4_contract = KERNEL_SU_UAPI_VERSION;\n' + uapi4.extract(dispatch, 'do_get_info'),
+        HANDLERS='\n'.join(f'static int {n}(void *p) {{return 123;}}' for n in sorted(handlers)),
+        DISPATCH=table + '\n' + uapi4.extract(dispatch, 'ksu_supercall_handle_ioctl'),
+    )
+    code = (HERE / 'uapi4-driver.c.in').read_text()
+    for key, value in values.items():
+        if code.count(f'@@{key}@@') != 1:
+            raise RuntimeError(f'Driver test template mismatch: {key}')
+        code = code.replace(f'@@{key}@@', value)
+    return code
+
+def wrapper_sources(ksu):
+    # Reuse only the reference API mocks; compile the actual pinned SukiSU
+    # function with its credential and cleanup paths inserted verbatim.
+    mocks = (HERE.parent / 'su-session-35187/harness.c.in').read_text()
+    code = mocks.split('@@PROFILE@@', 1)[0]
+    code += mocks[mocks.index('struct inode_security_struct'):mocks.index('@@INSTALL@@')]
+    code += mocks[mocks.index('static int wrapper_fault'):mocks.index('@@WRAPPER@@')]
+    code += uapi4.extract((ksu / 'kernel/infra/file_wrapper.c').read_text(), 'ksu_install_file_wrapper')
+    code += r'''
+int test_main(void) {
+ for(int f=0;f<=5;f++) {
+  wrapper_fault=f==5?0:f;fd_error=f==5?-24:0;
+  mock_violation=original_puts=wrapper_puts=wrapper_releases=installs=releases=0;
+  override_active=override_calls=revert_calls=0;
+  original_inode.i_mode=0620;wrapper_security.sid=0;
+  orig_file=(struct file){.f_path={&original_dentry},.inode=&original_inode};
+  wrapper_file=(struct file){.f_path={&wrapper_dentry},.inode=&wrapper_inode};
+  wrapper_dentry=(struct dentry){0};
+  int ret=ksu_install_file_wrapper(1);
+  CHECK(ret==(f==0?7:f==1?-EBADF:f==2||f==4?-ENOMEM:f==3?-EPERM:-24));
+  CHECK(override_active==0 && override_calls==revert_calls && mock_violation==0);
+  CHECK(override_calls==((f==0||f==3||f==4)?1:0));
+  CHECK(original_puts==(f==1?0:1));CHECK(installs==(f==0?1:0));
+  CHECK(releases==((f==2||f==3||f==4)?1:0));
+  CHECK(wrapper_puts==(f==4?1:0));CHECK(wrapper_releases==(f==3?1:0));
+  if(f==0) {
+   CHECK(wrapper_inode.i_mode==original_inode.i_mode && wrapper_security.sid==42);
+   CHECK(wrapper_dentry.d_fsdata==&allocated_path && allocated_path.dentry==&original_dentry);
+  }
+ }
+ return 0;
+}
+int test_count(void) {return checks;}
+#ifndef WASM_TEST
+int printf(const char *,...);
+int main(void) {int line=test_main();printf("SukiSU exact-C wrapper checks: %d; failure line: %d\n",checks,line);return line?1:0;}
+#endif
+'''
+    return code
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--common', required=True, type=Path)
@@ -139,6 +205,26 @@ def main():
     root.mkdir(parents=True)
     code = native_sources(a.common, a.ksu)
     native = util.compile_run(code, 'native', a, root)
+    driver_code = driver_sources(a.ksu)
+    driver = util.compile_run(driver_code, 'uapi4-driver', a, root)
+    wrapper_code = wrapper_sources(a.ksu)
+    wrapper = util.compile_run(wrapper_code, 'uapi4-wrapper', a, root)
+    for label, old, new in (
+        ('wrapper-credentials', 'old_cred = override_creds(ksu_cred);', 'old_cred = &live_cred;'),
+        ('wrapper-restore', 'revert_creds(old_cred);', '(void)old_cred;'),
+    ):
+        if wrapper_code.count(old) != 1:
+            raise RuntimeError(f'Wrapper mutation anchor drift: {label}')
+        util.compile_run(wrapper_code.replace(old, new, 1), label, a, root, expect_failure=True)
+    for label, old, new in (
+        ('unscoped-driver', 'KSU_DRIVER_PERMISSION_SU_SESSION ? "[ksu_driver_su]"', 'KSU_DRIVER_PERMISSION_SU_SESSION ? "[ksu_driver]"'),
+        ('ordinary-fd-permissions', 'ksu_install_fd_with_permissions(O_CLOEXEC, 0)', 'ksu_install_fd_with_permissions(O_CLOEXEC, KSU_DRIVER_PERMISSION_SU_SESSION)'),
+        ('unscoped-ioctl', 'ksu_ioctl_handlers[i].allow_su_session && ksu_is_su_session_fd(filp)', 'ksu_is_su_session_fd(filp)'),
+        ('uapi-version', 'KERNEL_SU_UAPI_VERSION, 4)', 'KERNEL_SU_UAPI_VERSION, 2)'),
+    ):
+        if driver_code.count(old) != 1:
+            raise RuntimeError(f'UAPI4 mutation anchor drift: {label}')
+        util.compile_run(driver_code.replace(old, new, 1), label, a, root, expect_failure=True)
     webview = util.compile_run(webview_sources(a.ksu), 'webview', a, root)
     for label, old, new in (
         ('failed-exec', 'is_su_session && retval >= 0', 'is_su_session'),
@@ -152,7 +238,9 @@ def main():
         util.compile_run(code.replace(old, new, 1), label, a, root, expect_failure=True)
     util.verify_vfs(a.common)
     kstat = util.compile_run(util.kstat_sources(a.common), 'kstat', a, root)
-    record = dict(native=native, webview=webview, kstat=kstat, mutation_rejections=5,
+    record = dict(native=native, uapi4_driver=driver, uapi4_wrapper=wrapper, webview=webview,
+                  kstat=kstat, mutation_rejections=11,
+                  uapi=4, uapi_reference_commit=uapi4.MAIN_PIN,
                   vfs_scope_order='passed', runtime_test='not performed')
     (root / 'result.json').write_text(json.dumps(record, indent=2) + '\n')
 

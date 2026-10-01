@@ -1,5 +1,5 @@
-name: S928B ZZI4 SukiSU 40940 SUSFS v2.3.0 Strict KMI
-run-name: S928BXXU6ZZI4 EUX - SukiSU 40940 builtin b20dee70 / SUSFS 2.3.0 / UIDGate / Strict KMI
+name: S928B ZZI4 SukiSU 40940 UAPI4 SUSFS v2.3.0 Strict KMI
+run-name: S928BXXU6ZZI4 EUX - SukiSU 40940 UAPI4 builtin b20dee70 / SUSFS 2.3.0 / UIDGate / Strict KMI
 on:
   workflow_dispatch:
   push:
@@ -58,3 +58,4 @@ jobs:
 # Baseline: successful ZZI4 run 36634254677 at e3a3da909a8bba40637b9ae31639a5fbb15b76ab.
 # Version formula: 40000 + 3755 - 2815 = 40940, immutable main reference 7fbbb1f12e2410b69c8ebf958be84f165b8d0c93.
 # Kernel source: latest SUSFS-integrated builtin commit b20dee702035af09cb2ecb5f35443bbc1747f3e6 (checked 2026-09-30).
+# UAPI4 driver/permission contract: bounded port from the immutable main reference above.

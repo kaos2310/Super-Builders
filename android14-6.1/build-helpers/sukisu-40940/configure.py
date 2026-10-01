@@ -8,7 +8,7 @@ from pathlib import Path
 PIN = 'b20dee702035af09cb2ecb5f35443bbc1747f3e6'
 MAIN_PIN = '7fbbb1f12e2410b69c8ebf958be84f165b8d0c93'
 VERSION = 40940
-FULL = 'v4.2.0-40940-b20dee70@builtin'
+FULL = 'v4.2.0-40940-b20dee70@builtin+uapi4'
 
 def configure(root, verify=False):
     def git(*args):
