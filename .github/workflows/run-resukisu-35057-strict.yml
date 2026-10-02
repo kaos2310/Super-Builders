@@ -1,5 +1,5 @@
-name: S928B ZZI4 ReSukiSU 35189 SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
-run-name: "S928BXXU6ZZI4 EUX â€” ReSukiSU 35189 + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1 / BootconfigStaticKey-v1"
+name: S928B ZZI4 ReSukiSU 35193 SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
+run-name: "S928BXXU6ZZI4 EUX â€” ReSukiSU 35193 + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1 / BootconfigStaticKey-v1"
 
 on:
   workflow_dispatch:
@@ -24,13 +24,14 @@ on:
       - agent/resukisu-35184-susfs-latest-zzi4
       - agent/susfs-uid-gated-35184-zzi4
       - agent/resukisu-35189-zzi4
+      - agent/resukisu-35193-zzi4
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
       - '.github/workflows/build-resukisu-userspace.yml'
       - 'android14-6.1/build-helpers/verify-resukisu-userspace.py'
-      - 'android14-6.1/build-helpers/resukisu_35189_lock.py'
-      - 'android14-6.1/build-helpers/test-resukisu-35189-lock.py'
+      - 'android14-6.1/build-helpers/resukisu_35193_lock.py'
+      - 'android14-6.1/build-helpers/test-resukisu-35193-lock.py'
       - '.github/workflows/cache-dependencies.yml'
       - '.github/actions/susfs-v2.2/**'
       - 'android14-6.1/defconfig.fragment'
@@ -45,7 +46,7 @@ on:
       - 'android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py'
       - 'android14-6.1/build-helpers/gunyah-reclaim/**'
       - 'android14-6.1/build-helpers/su-session/**'
-      - 'android14-6.1/build-helpers/su-session-35189/**'
+      - 'android14-6.1/build-helpers/su-session-35193/**'
       - 'android14-6.1/build-helpers/susfs-uid-gated/**'
       - 'android14-6.1/build-helpers/apply-resukisu-35127-susfs-postexec.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
@@ -83,7 +84,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35189-zzi4-uidgate-v1-${{ github.ref_name }}
+  group: s928b-resukisu-35193-zzi4-uidgate-v1-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -105,15 +106,15 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: 83850e8e93c5f7cfaec69cf03707f13e799df36a
-      resukisu_version_code: "35189"
+      resukisu_commit: 72fe0d0c9d2738f175eb296167ee061fcd3e0dbf
+      resukisu_version_code: "35193"
 
   dependencies:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35189 UAPI4 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
+    name: Full strict KMI gate / ReSukiSU 35193 UAPI4 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -139,9 +140,9 @@ jobs:
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 83850e8e93c5f7cfaec69cf03707f13e799df36a
+      sukisu_commit: 72fe0d0c9d2738f175eb296167ee061fcd3e0dbf
       resukisu_source_branch: main
-      resukisu_version_code: "35189"
+      resukisu_version_code: "35193"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
@@ -151,7 +152,7 @@ jobs:
 # Update baseline: successful run 35443096947 @ 4bad7d66a2e43c6ffbcd5046ce209207ec8a590d.
 # UIDGate-v1 baseline: successful run 36463712058 @ 8c379ba853e084a42d70633e1a9b29b00793bd7e.
 # ZZI4 migration baseline: agent/resukisu-35153-zzi4-susfs-230 @ 7605e96c.
-# ReSukiSU 35189 is pinned to 83850e8e93c5f7cfaec69cf03707f13e799df36a.
+# ReSukiSU 35193 is pinned to 72fe0d0c9d2738f175eb296167ee061fcd3e0dbf.
 # Latest compatible SUSFS 2.3.0 (checked 2026-09-29) is pinned to 24743360ea08d98f6ad72b856851abed8de5854f.
 # DynamicManager GET fix: manager may query state; SET/SET_SYNCHRONOUS/WIPE remain uid 0 only.
 
@@ -160,4 +161,5 @@ jobs:
 # BootconfigStaticKey-v1: runtime diagnosis on run 36606929441 showed static_key_count=1 while boot_config_proc_show skipped susfs_spoof_cmdline_or_bootconfig; use static_key_enabled() and fail CI if the legacy jump-label gate returns.
 
 # Update source: successful run 36634254677 @ e3a3da909a8bba40637b9ae31639a5fbb15b76ab.
-# 35189: 30700 + 4489 at 83850e8e; kernel delta is confined to pre-3.6 dentry_open.
+# 35193: 30700 + 4493 at 72fe0d0c; kernel/ and uapi/ are identical to 35189.
+# Update source: successful run 36781819535 @ b0fec64478f22c97b9371af745b2da769a7230e5.

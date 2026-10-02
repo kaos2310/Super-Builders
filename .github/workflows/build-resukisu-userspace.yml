@@ -65,6 +65,13 @@ jobs:
           python3 builder/android14-6.1/build-helpers/test-resukisu-35189-lock.py resukisu
           python3 builder/android14-6.1/build-helpers/resukisu_35189_lock.py resukisu
 
+      - name: Repair the pinned 35193 ksuinit libc lock record
+        if: inputs.resukisu_commit == '72fe0d0c9d2738f175eb296167ee061fcd3e0dbf'
+        run: |
+          set -euo pipefail
+          python3 builder/android14-6.1/build-helpers/test-resukisu-35193-lock.py resukisu
+          python3 builder/android14-6.1/build-helpers/resukisu_35193_lock.py resukisu
+
       - name: Verify source, toolchain, locked dependencies and Libclang
         run: |
           set -euo pipefail
