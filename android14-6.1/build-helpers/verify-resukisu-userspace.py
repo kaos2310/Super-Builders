@@ -13,6 +13,7 @@ import resukisu_35184_lock
 import resukisu_35187_lock
 import resukisu_35189_lock
 import resukisu_35193_lock
+import resukisu_35201_lock
 
 
 def run(*args):
@@ -72,7 +73,7 @@ def main():
         'userspace/ksuinit/Cargo.toml',
         'userspace/ksuinit/Cargo.lock',
     ]
-    repair = {m.PIN: m for m in (resukisu_35184_lock, resukisu_35187_lock, resukisu_35189_lock, resukisu_35193_lock)}.get(args.commit)
+    repair = {m.PIN: m for m in (resukisu_35184_lock, resukisu_35187_lock, resukisu_35189_lock, resukisu_35193_lock, resukisu_35201_lock)}.get(args.commit)
     repairs = {}
     locked = {}
     for relative in locked_paths:
