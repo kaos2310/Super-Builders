@@ -208,7 +208,7 @@ if [[ "${RESUKISU_VERSION_CODE:-}" == "35189" ]]; then
     --susfs-commit "${SUSFS_PINNED_COMMIT:?}"
 fi
 
-if [[ "${RESUKISU_VERSION_CODE:-}" == "35193" ]]; then
+if [[ "${RESUKISU_VERSION_CODE:-}" == "35201" ]]; then
   python3 "$(dirname "$0")/su-session-35193/apply.py" \
     --common "$COMMON_TREE" --ksu "$KSU_TREE" \
     --susfs-commit "${SUSFS_PINNED_COMMIT:?}"
