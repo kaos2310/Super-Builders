@@ -424,7 +424,8 @@ def verify(common, ksu):
     ksud = ksud_path.read_text(encoding="utf-8")
 
     fixed_warn = r'pr_warn("ReSukiSU: su-session FD installation failed: %d\n", su_fd);'
-    if source.count(fixed_warn) != 1 or r'pr_warn(\"' in source or r'pr_warn(\"' in su:
+    malformed_warn = r'pr_warn(\"'
+    if source.count(fixed_warn) != 1 or malformed_warn in source or malformed_warn in su:
         raise RuntimeError("Invalid generated C warning")
     if "is_su_session = !ksu_handle_execveat" in source:
         raise RuntimeError("Ambiguous integer return used as session decision")
