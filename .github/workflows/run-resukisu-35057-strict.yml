@@ -1,5 +1,5 @@
-name: S928B ZZI4 ReSukiSU 35201 SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
-run-name: "S928BXXU6ZZI4 EUX â€” ReSukiSU 35201 + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1 / BootconfigStaticKey-v1"
+name: S928B ZZI4 ReSukiSU 35202 SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
+run-name: "S928BXXU6ZZI4 EUX â€” ReSukiSU 35202 + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1 / BootconfigStaticKey-v1"
 
 on:
   workflow_dispatch:
@@ -25,7 +25,7 @@ on:
       - agent/susfs-uid-gated-35184-zzi4
       - agent/resukisu-35189-zzi4
       - agent/resukisu-35193-zzi4
-      - agent/resukisu-35201-zzi4
+      - agent/resukisu-35202-zzi4
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -35,6 +35,8 @@ on:
       - 'android14-6.1/build-helpers/test-resukisu-35193-lock.py'
       - 'android14-6.1/build-helpers/resukisu_35201_lock.py'
       - 'android14-6.1/build-helpers/test-resukisu-35201-lock.py'
+      - 'android14-6.1/build-helpers/resukisu_35202_lock.py'
+      - 'android14-6.1/build-helpers/test-resukisu-35202-lock.py'
       - '.github/workflows/cache-dependencies.yml'
       - '.github/actions/susfs-v2.2/**'
       - 'android14-6.1/defconfig.fragment'
@@ -87,7 +89,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35201-zzi4-uidgate-v1-${{ github.ref_name }}
+  group: s928b-resukisu-35202-zzi4-uidgate-v1-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -109,15 +111,15 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: 75de877b5d920609a7d920a92380779d9d0c01a8
-      resukisu_version_code: "35201"
+      resukisu_commit: 4c5c8cedaf3cecf297f9b529362e529f506e6891
+      resukisu_version_code: "35202"
 
   dependencies:
     needs: gunyah-preflight
     uses: ./.github/workflows/cache-dependencies.yml
 
   strict-gate:
-    name: Full strict KMI gate / ReSukiSU 35201 UAPI4 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
+    name: Full strict KMI gate / ReSukiSU 35202 UAPI4 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
     needs: [dependencies, userspace]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -143,7 +145,7 @@ jobs:
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 75de877b5d920609a7d920a92380779d9d0c01a8
+      sukisu_commit: 4c5c8cedaf3cecf297f9b529362e529f506e6891
       resukisu_source_branch: main
       resukisu_version_code: "35201"
       device_codename: e3q
@@ -155,7 +157,7 @@ jobs:
 # Update baseline: successful run 35443096947 @ 4bad7d66a2e43c6ffbcd5046ce209207ec8a590d.
 # UIDGate-v1 baseline: successful run 36463712058 @ 8c379ba853e084a42d70633e1a9b29b00793bd7e.
 # ZZI4 migration baseline: agent/resukisu-35153-zzi4-susfs-230 @ 7605e96c.
-# ReSukiSU 35193 is pinned to 75de877b5d920609a7d920a92380779d9d0c01a8.
+# ReSukiSU 35202 is pinned to 4c5c8cedaf3cecf297f9b529362e529f506e6891.
 # Latest compatible SUSFS 2.3.0 (checked 2026-09-29) is pinned to 24743360ea08d98f6ad72b856851abed8de5854f.
 # DynamicManager GET fix: manager may query state; SET/SET_SYNCHRONOUS/WIPE remain uid 0 only.
 
@@ -166,5 +168,6 @@ jobs:
 # Update source: successful run 36634254677 @ e3a3da909a8bba40637b9ae31639a5fbb15b76ab.
 # 35200 baseline: f397410c7da5f2b85e769b64992f8868cac990ba (AVTAB/XPERMS fix).
 # 35201: 30700 + 4501 at 75de877b; manager splashscreen/WebUI hang fix (#439).
-# Relative to 35200, 35201 itself changes manager sources only; all 35200 kernel/ksud fixes remain pinned.
+# 35202: 30700 + 4502 at 4c5c8ced; manager adds XZ-compressed module support.
+# Relative to 35201, 35202 changes manager sources only; kernel/ksud/SUSFS integration remains on the proven ZZI4 baseline.
 # Update source: successful run 36781819535 @ b0fec64478f22c97b9371af745b2da769a7230e5.
