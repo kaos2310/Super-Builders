@@ -147,7 +147,7 @@ jobs:
       add_perf_patches: true
       sukisu_commit: 4c5c8cedaf3cecf297f9b529362e529f506e6891
       resukisu_source_branch: main
-      resukisu_version_code: "35201"
+      resukisu_version_code: "35202"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
