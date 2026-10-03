@@ -1,4 +1,4 @@
-# ReSukiSU 35193 / SUSFS 2.3.0 / ZeroMount kernel integration
+# ReSukiSU 35201 / SUSFS 2.3.0 / ZeroMount kernel integration
 
 Base: successful [run 36781819535](https://github.com/kaos2310/Super-Builders/actions/runs/36781819535)
 at Super-Builders `b0fec64478f22c97b9371af745b2da769a7230e5`.
@@ -6,21 +6,21 @@ Target: S928BXXU6ZZI4 / EUX, Android 14 / Linux 6.1.162, full-strict KMI.
 
 Source verified on 2026-10-02:
 
-- ReSukiSU `72fe0d0c9d2738f175eb296167ee061fcd3e0dbf`: 4493 + 30700 = **35193**.
+- ReSukiSU `75de877b5d920609a7d920a92380779d9d0c01a8`: 4501 + 30700 = **35201**.
 - SUSFS remains pinned to `24743360ea08d98f6ad72b856851abed8de5854f`, **v2.3.0**.
 - The four commits after 35189 change CI, manager dependencies and the ksud
   cc lock from 1.4.7 to 1.5.1. The kernel, UAPI and ksuinit source trees are
   byte-identical to 35189. This adapter keeps the baseline transformations and
-  tests, while requiring the exact 35193 source and compiled version.
+  tests, while requiring the exact 35201 source and compiled version.
 
 The build retains OPEN_REDIRECT, Enhanced SUSFS, ZeroMount, UIDGate-v1,
 Gunyah reclaim, the bootconfig static-key fix and strict Samsung DLKM CRC gates.
 The historical 35189 adapter remains available for its source pin.
 
-35193 retains the stale ksuinit libc lock record. `resukisu_35193_lock.py`
+35201 retains the stale ksuinit libc lock record. `resukisu_35201_lock.py`
 requires the exact commit, manifests and same-commit ksud lock, and replaces
 only that record with Git libc `1a661633f11a261ff9c00b40875ef72f1cbec818`.
-The package version remains 0.2.189. Both Android dependency graphs and builds
+The repaired package record follows ksud at libc 0.2.190. Both Android dependency graphs and builds
 use `--locked`; CI archives the original and effective locks and build identity.
 
 Run `apply.py` after Enhanced SUSFS/ZeroMount integration, then `test.py` and
