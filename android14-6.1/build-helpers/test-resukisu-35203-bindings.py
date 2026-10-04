@@ -225,9 +225,18 @@ print(json.dumps(dict(reason='build-finished', success=True)))
         environment.update(CARGO=str(executable), RESUKISU_REAL_CARGO=str(fake_cargo),
                            RESUKISU_CARGO_MESSAGES=str(self.recording),
                            CAPTURE_SMOKE_OUT_DIR=str(root / 'generated'))
+        ndk_binary = Path(os.environ['RESUKISU_TEST_CARGO_NDK']).resolve(strict=True)
+        environment['PATH'] = str(ndk_binary.parent) + os.pathsep + environment['PATH']
+        ndk_args = ['ndk', '-P', '26', '-t', 'arm64-v8a', 'build', '--locked', '--release']
+        # Reproduce the exact CI failure: PATH finds the binary, but version
+        # 4.1.2 canonicalizes the bare argv[0] relative to the package directory.
+        bare = subprocess.run(['cargo-ndk', *ndk_args], cwd=root, env=environment,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        self.assertNotEqual(bare.returncode, 0)
+        self.assertIn(b'Failed to canonicalize absolute path to cargo-ndk', bare.stdout + bare.stderr)
+        self.assertFalse(self.recording.exists())
         result = subprocess.run(
-            [os.environ['RESUKISU_TEST_CARGO_NDK'], 'ndk', '-P', '26', '-t', 'arm64-v8a',
-             'build', '--locked', '--release'], cwd=root, env=environment,
+            [str(ndk_binary), *ndk_args], cwd=root, env=environment,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
         messages = list(audit.cargo_messages(self.recording.read_text().splitlines()))

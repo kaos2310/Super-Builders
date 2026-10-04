@@ -165,8 +165,10 @@ jobs:
           export CARGO="$GITHUB_WORKSPACE/builder/android14-6.1/build-helpers/capture-resukisu-cargo.py"
           chmod +x "$CARGO"
           # The Cargo launcher overwrites CARGO; call the installed NDK wrapper
-          # directly so the tap sees raw JSON before cargo-ndk consumes it.
-          cargo-ndk ndk -P 26 -t arm64-v8a build --locked --release \
+          # by absolute path: cargo-ndk 4.1.2 canonicalizes argv[0] for its linker.
+          RESUKISU_CARGO_NDK_BIN="$(command -v cargo-ndk)"
+          test -x "$RESUKISU_CARGO_NDK_BIN"
+          "$RESUKISU_CARGO_NDK_BIN" ndk -P 26 -t arm64-v8a build --locked --release \
             -Z build-std-features=optimize_for_size -Z trim-paths
 
       - name: Verify unchanged lockfiles and ARM64 release artifacts

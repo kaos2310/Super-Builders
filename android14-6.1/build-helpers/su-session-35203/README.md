@@ -36,13 +36,17 @@ The Cargo build messages are included in the artifact checksum manifest.
 forwarding them. `capture-resukisu-cargo.py` records the raw Cargo subprocess
 stdout before that filter, while forwarding the same bytes to cargo-ndk and
 preserving stderr, arguments, NDK environment and the build exit status.
-The installed cargo-ndk binary is invoked directly with `ndk` as its first
-argument because the Cargo subcommand launcher overwrites the `CARGO` variable.
+The installed cargo-ndk binary is invoked by its absolute path, resolved with
+`command -v cargo-ndk`, with `ndk` as its first argument. The Cargo subcommand
+launcher overwrites `CARGO`; a bare direct invocation also fails because
+cargo-ndk 4.1.2 canonicalizes argv[0] to locate its linker binary.
 The real subprocess remains the selected Nightly Cargo. Only its build stream
 is recorded; metadata invocations are passed through without recording, and
 exclusive file creation rejects a stale receipt or a second build invocation.
 CI smoke-tests this boundary using its installed cargo-ndk 4.1.2, real Cargo
-metadata and a stub build stream before compiling ARM64 ksud or ksuinit.
+metadata and a stub build stream before compiling ARM64 ksud or ksuinit. The
+bare invocation must reproduce the canonicalization failure, while the
+absolute invocation must capture the complete successful build stream.
 
 Run `apply.py` after Enhanced SUSFS/ZeroMount integration, then `test.py` and
 `--verify-only` after downstream patches. The inherited exact-C fault tests,
