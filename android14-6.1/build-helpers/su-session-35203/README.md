@@ -29,6 +29,9 @@ The repaired package record follows ksud at libc 0.2.190. Both Android dependenc
 use `--locked`; CI archives the original and effective locks and build identity.
 The userspace workflow requires fresh target directories and records UAPI source
 hashes plus the newly generated Rust bindings with UAPI=5 and EVENT_SERVICES=4.
+The bindings path comes from the recorded Cargo `build-script-executed.out_dir`
+for the local ksud package; no private Cargo directory layout is assumed.
+The Cargo build messages are included in the artifact checksum manifest.
 
 Run `apply.py` after Enhanced SUSFS/ZeroMount integration, then `test.py` and
 `--verify-only` after downstream patches. The inherited exact-C fault tests,

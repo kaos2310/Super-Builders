@@ -55,6 +55,7 @@ on:
       - 'android14-6.1/build-helpers/su-session-35193/**'
       - 'android14-6.1/build-helpers/su-session-35203/**'
       - 'android14-6.1/build-helpers/resukisu_35203_uapi.py'
+      - 'android14-6.1/build-helpers/test-resukisu-35203-bindings.py'
       - 'android14-6.1/build-helpers/susfs-uid-gated/**'
       - 'android14-6.1/build-helpers/apply-resukisu-35127-susfs-postexec.sh'
       - 'android14-6.1/build-helpers/apply-e3q-gunyah-qcom-vmid-compat.sh'
@@ -106,6 +107,7 @@ jobs:
       - name: Validate transformation, budget bounds and exact C function
         run: |
           set -euo pipefail
+          python3 android14-6.1/build-helpers/test-resukisu-35203-bindings.py
           python3 android14-6.1/build-helpers/test-e3q-gunyah-adaptive-backing.py
           python3 android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py
           python3 android14-6.1/build-helpers/susfs-uid-gated/test.py --cc gcc --work-dir "$RUNNER_TEMP/uid-gate-tests"

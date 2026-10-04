@@ -150,7 +150,10 @@ jobs:
             -o userspace/ksud/.lkm_image_bootstrap.o userspace/ksud/src/lkm_image_bootstrap.S
           cd userspace/ksud
           cargo +nightly ndk -P 26 -t arm64-v8a build --locked --release \
-            -Z build-std-features=optimize_for_size -Z trim-paths
+            -Z build-std-features=optimize_for_size -Z trim-paths \
+            --message-format=json-render-diagnostics \
+            | tee "$GITHUB_WORKSPACE/userspace-artifacts/ksud-build-messages.jsonl" \
+            | python3 "$GITHUB_WORKSPACE/builder/android14-6.1/build-helpers/resukisu_35203_uapi.py" --render-cargo
 
       - name: Verify unchanged lockfiles and ARM64 release artifacts
         env:
@@ -160,7 +163,8 @@ jobs:
           set -euo pipefail
           python3 builder/android14-6.1/build-helpers/verify-resukisu-userspace.py \
             resukisu --commit "$EXPECTED_PIN" --version "$EXPECTED_VERSION" \
-            --receipt userspace-artifacts/BUILD-IDENTITY.json --verify-build
+            --receipt userspace-artifacts/BUILD-IDENTITY.json --verify-build \
+            --build-messages userspace-artifacts/ksud-build-messages.jsonl
           cp resukisu/userspace/ksud/target/aarch64-linux-android/release/ksud userspace-artifacts/
           cp resukisu/userspace/ksuinit/target/aarch64-linux-android/release/ksuinit userspace-artifacts/
           cp resukisu/userspace/ksud/Cargo.lock userspace-artifacts/ksud-Cargo.lock
@@ -168,7 +172,7 @@ jobs:
           git -C resukisu show "$EXPECTED_PIN:userspace/ksuinit/Cargo.lock" \
             > userspace-artifacts/ksuinit-Cargo.upstream.lock
           cd userspace-artifacts
-          sha256sum ksud ksuinit *.lock *-metadata.json BUILD-IDENTITY.json > SHA256SUMS
+          sha256sum ksud ksuinit *.lock *-metadata.json ksud-build-messages.jsonl BUILD-IDENTITY.json > SHA256SUMS
 
       - uses: actions/upload-artifact@v7
         with:

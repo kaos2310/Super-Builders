@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 PIN = '8770c7e324a22895703c4916b8a16520e0b81c79'
 
@@ -66,18 +67,65 @@ def verify_sources(source):
                 source_sha256=hashes, report_event_sha256=sha(event.encode()))
 
 
-def verify_bindings(source):
-    # Fresh checkout and no target cache are required by the workflow. Audit the
-    # generated file as additional evidence beyond a successful Android compile.
-    paths = list((source / 'userspace/ksud/target/aarch64-linux-android/release/build').glob('ksud-*/out/bindings.rs'))
-    if len(paths) != 1:
-        raise RuntimeError(f'Expected one fresh ksud bindings.rs, found {len(paths)}')
-    text = paths[0].read_text()
+def cargo_messages(lines):
+    for line in lines:
+        if line.lstrip().startswith('{'):
+            try:
+                message = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(message, dict):
+                yield message
+
+
+def render_cargo():
+    # Preserve readable Rust diagnostics while tee records the complete Cargo
+    # JSON stream. The workflow uses pipefail to retain every pipeline failure.
+    for line in sys.stdin:
+        messages = list(cargo_messages([line]))
+        if not messages:
+            sys.stdout.write(line)
+        elif messages[0].get('reason') == 'compiler-message':
+            rendered = messages[0].get('message', {}).get('rendered')
+            if rendered:
+                sys.stdout.write(rendered)
+        sys.stdout.flush()
+
+
+def verify_bindings(source, build_messages=None):
+    # Cargo's build-script-executed.out_dir is the supported OUT_DIR contract.
+    # Its private directory layout can change between toolchain versions.
+    # Freshness is independently enforced by the checkout/no-cache workflow.
+    if build_messages is None:
+        raise RuntimeError('Bindings audit requires messages from this ksud build')
+    with build_messages.open(encoding='utf-8') as stream:
+        messages = list(cargo_messages(stream))
+    finished = [m for m in messages if m.get('reason') == 'build-finished']
+    if len(finished) != 1 or finished[0].get('success') is not True:
+        raise RuntimeError('Cargo messages do not attest one successful ksud build')
+    manifest = (source / 'userspace/ksud/Cargo.toml').resolve()
+    packages = {m['package_id'] for m in messages
+                if m.get('reason') == 'compiler-artifact'
+                and 'custom-build' in m.get('target', {}).get('kind', [])
+                and m.get('manifest_path')
+                and Path(m['manifest_path']).resolve() == manifest}
+    if len(packages) != 1:
+        raise RuntimeError('Cargo messages must identify exactly one local ksud build script')
+    outputs = [m for m in messages if m.get('reason') == 'build-script-executed'
+               and m.get('package_id') in packages]
+    if len(outputs) != 1 or not outputs[0].get('out_dir'):
+        raise RuntimeError('Cargo messages must report exactly one ksud OUT_DIR')
+    out_dir = Path(outputs[0]['out_dir'])
+    if not out_dir.is_absolute():
+        raise RuntimeError('Cargo ksud OUT_DIR must be absolute')
+    path = out_dir / 'bindings.rs'
+    text = path.read_text(encoding='utf-8')
     for name, value in [('KERNEL_SU_UAPI_VERSION', 5), ('EVENT_SERVICES', 4)]:
         if not re.search(r'pub const ' + name + r':\s*[^=;\n]+\s*=\s*' + str(value) + r'\s*;', text):
             raise RuntimeError(f'Generated Rust bindings lack {name}={value}')
-    return dict(path=paths[0].relative_to(source).as_posix(), sha256=sha(paths[0].read_bytes()),
-                uapi_version=5, event_services=4)
+    return dict(path=str(path), sha256=sha(path.read_bytes()),
+                cargo_messages_sha256=sha(build_messages.read_bytes()),
+                package_id=outputs[0]['package_id'], uapi_version=5, event_services=4)
 
 
 PRELUDE = r'''
@@ -178,11 +226,17 @@ def test_events(source, cc, work):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('source', type=Path)
+    parser.add_argument('source', type=Path, nargs='?')
+    parser.add_argument('--render-cargo', action='store_true')
     parser.add_argument('--cc')
     parser.add_argument('--work-dir', type=Path)
     parser.add_argument('--receipt', type=Path)
     args = parser.parse_args()
+    if args.render_cargo:
+        render_cargo()
+        return
+    if args.source is None:
+        parser.error('source is required for the UAPI audit')
     result = verify_sources(args.source.resolve())
     if args.cc:
         if not args.work_dir:

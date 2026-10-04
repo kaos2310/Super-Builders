@@ -42,6 +42,7 @@ def main():
     parser.add_argument('--version', required=True, type=int)
     parser.add_argument('--receipt', required=True, type=Path)
     parser.add_argument('--verify-build', action='store_true')
+    parser.add_argument('--build-messages', type=Path)
     args = parser.parse_args()
     source = args.source.resolve()
     if not re.fullmatch(r'[0-9a-f]{40}', args.commit):
@@ -146,7 +147,7 @@ def main():
             raise RuntimeError(f'ksud binary does not contain expected version name {version_name!r}')
 
         if uapi is not None:
-            receipt["generated_uapi_bindings"] = resukisu_35203_uapi.verify_bindings(source)
+            receipt["generated_uapi_bindings"] = resukisu_35203_uapi.verify_bindings(source, args.build_messages)
         receipt.update(build_verified=True, binaries=outputs,
                        generated_version_verified_in_binary=True,
                        generated_bindings_verified_by_successful_android_compile=True,
