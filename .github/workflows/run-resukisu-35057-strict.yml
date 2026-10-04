@@ -56,6 +56,7 @@ on:
       - 'android14-6.1/build-helpers/su-session-35203/**'
       - 'android14-6.1/build-helpers/resukisu_35203_uapi.py'
       - 'android14-6.1/build-helpers/test-resukisu-35203-bindings.py'
+      - 'android14-6.1/build-helpers/fixtures/resukisu-35203-bindgen-0.73.2.rs'
       - 'android14-6.1/build-helpers/capture-resukisu-cargo.py'
       - 'android14-6.1/build-helpers/susfs-uid-gated/**'
       - 'android14-6.1/build-helpers/apply-resukisu-35127-susfs-postexec.sh'

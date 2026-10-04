@@ -44,6 +44,27 @@ class BindingsTests(unittest.TestCase):
         self.assertEqual(result['package_id'], self.package)
         self.assertEqual(result['uapi_version'], 5)
 
+    def test_accepts_real_bindgen_0732_output_without_rustfmt(self):
+        self.valid = (Path(__file__).parent / 'fixtures/resukisu-35203-bindgen-0.73.2.rs').read_text(encoding='utf-8')
+        self.bindings.write_text(self.valid, encoding='utf-8')
+        result = self.verify()
+        self.assertEqual(result['uapi_version'], 5)
+        self.assertEqual(result['event_services'], 4)
+
+    def test_rejects_stale_uapi_in_real_bindgen_output(self):
+        text = (Path(__file__).parent / 'fixtures/resukisu-35203-bindgen-0.73.2.rs').read_text(encoding='utf-8')
+        self.bindings.write_text(text.replace('KERNEL_SU_UAPI_VERSION : __u32 = 5 ;',
+                                              'KERNEL_SU_UAPI_VERSION : __u32 = 4 ;'), encoding='utf-8')
+        with self.assertRaisesRegex(RuntimeError, 'KERNEL_SU_UAPI_VERSION=5'):
+            self.verify()
+
+    def test_rejects_wrong_service_in_real_bindgen_output(self):
+        text = (Path(__file__).parent / 'fixtures/resukisu-35203-bindgen-0.73.2.rs').read_text(encoding='utf-8')
+        self.bindings.write_text(text.replace('EVENT_SERVICES : _bindgen_ty_26 = 4 ;',
+                                              'EVENT_SERVICES : _bindgen_ty_26 = 3 ;'), encoding='utf-8')
+        with self.assertRaisesRegex(RuntimeError, 'EVENT_SERVICES=4'):
+            self.verify()
+
     def test_ignores_stale_bindings_in_the_old_assumed_directory(self):
         stale = self.root / 'userspace/ksud/target/aarch64-linux-android/release/build/ksud-stale/out/bindings.rs'
         stale.parent.mkdir(parents=True)

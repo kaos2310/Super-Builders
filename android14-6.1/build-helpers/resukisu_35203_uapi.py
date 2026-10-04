@@ -106,7 +106,9 @@ def verify_bindings(source, build_messages=None):
     path = out_dir / 'bindings.rs'
     text = path.read_text(encoding='utf-8')
     for name, value in [('KERNEL_SU_UAPI_VERSION', 5), ('EVENT_SERVICES', 4)]:
-        if not re.search(r'pub const ' + name + r':\s*[^=;\n]+\s*=\s*' + str(value) + r'\s*;', text):
+        # Without rustfmt, bindgen writes its token stream with spaces around
+        # punctuation, including between the constant name and its colon.
+        if not re.search(r'\bpub\s+const\s+' + name + r'\s*:\s*[^=;\n]+\s*=\s*' + str(value) + r'\s*;', text):
             raise RuntimeError(f'Generated Rust bindings lack {name}={value}')
     return dict(path=str(path), sha256=sha(path.read_bytes()),
                 cargo_messages_sha256=sha(build_messages.read_bytes()),

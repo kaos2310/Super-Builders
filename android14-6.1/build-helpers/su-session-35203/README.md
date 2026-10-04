@@ -32,6 +32,10 @@ hashes plus the newly generated Rust bindings with UAPI=5 and EVENT_SERVICES=4.
 The bindings path comes from the recorded Cargo `build-script-executed.out_dir`
 for the local ksud package; no private Cargo directory layout is assumed.
 The Cargo build messages are included in the artifact checksum manifest.
+The bindings check accepts whitespace around Rust punctuation, including
+bindgen's unformatted token stream (`KERNEL_SU_UAPI_VERSION : __u32 = 5 ;`).
+The checked-in fixture preserves actual bindgen 0.73.2 / Libclang 18.1.1 output
+from this source pin; altered UAPI4 and service-event values must still fail.
 `cargo-ndk 4.1.2` consumes build-script and build-finished messages instead of
 forwarding them. `capture-resukisu-cargo.py` records the raw Cargo subprocess
 stdout before that filter, while forwarding the same bytes to cargo-ndk and
