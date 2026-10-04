@@ -32,6 +32,17 @@ hashes plus the newly generated Rust bindings with UAPI=5 and EVENT_SERVICES=4.
 The bindings path comes from the recorded Cargo `build-script-executed.out_dir`
 for the local ksud package; no private Cargo directory layout is assumed.
 The Cargo build messages are included in the artifact checksum manifest.
+`cargo-ndk 4.1.2` consumes build-script and build-finished messages instead of
+forwarding them. `capture-resukisu-cargo.py` records the raw Cargo subprocess
+stdout before that filter, while forwarding the same bytes to cargo-ndk and
+preserving stderr, arguments, NDK environment and the build exit status.
+The installed cargo-ndk binary is invoked directly with `ndk` as its first
+argument because the Cargo subcommand launcher overwrites the `CARGO` variable.
+The real subprocess remains the selected Nightly Cargo. Only its build stream
+is recorded; metadata invocations are passed through without recording, and
+exclusive file creation rejects a stale receipt or a second build invocation.
+CI smoke-tests this boundary using its installed cargo-ndk 4.1.2, real Cargo
+metadata and a stub build stream before compiling ARM64 ksud or ksuinit.
 
 Run `apply.py` after Enhanced SUSFS/ZeroMount integration, then `test.py` and
 `--verify-only` after downstream patches. The inherited exact-C fault tests,

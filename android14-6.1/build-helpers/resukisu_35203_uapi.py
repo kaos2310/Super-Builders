@@ -10,7 +10,6 @@ import json
 from pathlib import Path
 import re
 import subprocess
-import sys
 
 PIN = '8770c7e324a22895703c4916b8a16520e0b81c79'
 
@@ -76,20 +75,6 @@ def cargo_messages(lines):
                 continue
             if isinstance(message, dict):
                 yield message
-
-
-def render_cargo():
-    # Preserve readable Rust diagnostics while tee records the complete Cargo
-    # JSON stream. The workflow uses pipefail to retain every pipeline failure.
-    for line in sys.stdin:
-        messages = list(cargo_messages([line]))
-        if not messages:
-            sys.stdout.write(line)
-        elif messages[0].get('reason') == 'compiler-message':
-            rendered = messages[0].get('message', {}).get('rendered')
-            if rendered:
-                sys.stdout.write(rendered)
-        sys.stdout.flush()
 
 
 def verify_bindings(source, build_messages=None):
@@ -226,17 +211,11 @@ def test_events(source, cc, work):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('source', type=Path, nargs='?')
-    parser.add_argument('--render-cargo', action='store_true')
+    parser.add_argument('source', type=Path)
     parser.add_argument('--cc')
     parser.add_argument('--work-dir', type=Path)
     parser.add_argument('--receipt', type=Path)
     args = parser.parse_args()
-    if args.render_cargo:
-        render_cargo()
-        return
-    if args.source is None:
-        parser.error('source is required for the UAPI audit')
     result = verify_sources(args.source.resolve())
     if args.cc:
         if not args.work_dir:

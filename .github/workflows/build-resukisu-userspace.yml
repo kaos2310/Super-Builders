@@ -123,6 +123,17 @@ jobs:
       - name: Install pinned cargo-ndk with its lockfile
         run: cargo +nightly install cargo-ndk --version 4.1.2 --locked
 
+      - name: Smoke-test raw Cargo capture through installed cargo-ndk
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -euo pipefail
+          export RESUKISU_TEST_CARGO_NDK="$(command -v cargo-ndk)"
+          export RESUKISU_TEST_REAL_CARGO="$(rustup which --toolchain nightly cargo)"
+          python3 builder/android14-6.1/build-helpers/test-resukisu-35203-bindings.py \
+            CaptureTests.test_pinned_cargo_ndk_exposes_internal_build_messages
+
       - name: Build ksuinit with the audited lockfile and --locked
         working-directory: resukisu
         env:
@@ -149,11 +160,14 @@ jobs:
           /usr/bin/clang-18 --target=aarch64-linux-gnu -c -nostdlib \
             -o userspace/ksud/.lkm_image_bootstrap.o userspace/ksud/src/lkm_image_bootstrap.S
           cd userspace/ksud
-          cargo +nightly ndk -P 26 -t arm64-v8a build --locked --release \
-            -Z build-std-features=optimize_for_size -Z trim-paths \
-            --message-format=json-render-diagnostics \
-            | tee "$GITHUB_WORKSPACE/userspace-artifacts/ksud-build-messages.jsonl" \
-            | python3 "$GITHUB_WORKSPACE/builder/android14-6.1/build-helpers/resukisu_35203_uapi.py" --render-cargo
+          export RESUKISU_REAL_CARGO="$(rustup which --toolchain nightly cargo)"
+          export RESUKISU_CARGO_MESSAGES="$GITHUB_WORKSPACE/userspace-artifacts/ksud-build-messages.jsonl"
+          export CARGO="$GITHUB_WORKSPACE/builder/android14-6.1/build-helpers/capture-resukisu-cargo.py"
+          chmod +x "$CARGO"
+          # The Cargo launcher overwrites CARGO; call the installed NDK wrapper
+          # directly so the tap sees raw JSON before cargo-ndk consumes it.
+          cargo-ndk ndk -P 26 -t arm64-v8a build --locked --release \
+            -Z build-std-features=optimize_for_size -Z trim-paths
 
       - name: Verify unchanged lockfiles and ARM64 release artifacts
         env:

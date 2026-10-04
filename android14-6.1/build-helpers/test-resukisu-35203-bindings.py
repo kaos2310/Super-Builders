@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Regression tests for Cargo-reported ksud bindings paths and UAPI5 rejection."""
-import io
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 import resukisu_35203_uapi as audit
@@ -96,13 +96,145 @@ class BindingsTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'exactly one ksud OUT_DIR'):
             self.verify()
 
-    def test_keeps_rendered_rust_errors_visible(self):
-        stream = io.StringIO('native tool output\n' + json.dumps(dict(
-            reason='compiler-message', message=dict(rendered='error: sample Rust error\n'))) + '\n')
-        output = io.StringIO()
-        with patch.object(sys, 'stdin', stream), patch.object(sys, 'stdout', output):
-            audit.render_cargo()
-        self.assertEqual(output.getvalue(), 'native tool output\nerror: sample Rust error\n')
+    def test_recorded_subprocess_stream_attests_bindings_before_ndk_filter(self):
+        payload = '\n'.join(json.dumps(m) for m in self.messages) + '\n'
+        result = run_capture(self.messages_path, payload.encode('utf-8'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, payload.encode('utf-8'))
+        # cargo-ndk 4.1.2 does not forward these messages to its own stdout.
+        forwarded = [m for m in audit.cargo_messages(result.stdout.decode().splitlines())
+                     if m['reason'] in ('compiler-message', 'text-line')]
+        self.assertEqual(forwarded, [])
+        self.assertEqual(audit.verify_bindings(self.root, self.messages_path)['path'], str(self.bindings))
+
+
+def run_capture(recording, payload, status=0, cargo_args=None, executable=None):
+    environment = os.environ.copy()
+    environment.update(RESUKISU_REAL_CARGO=str(Path(sys.executable).resolve()),
+                       RESUKISU_CARGO_MESSAGES=str(recording),
+                       CAPTURE_PAYLOAD=payload.hex(), CAPTURE_STATUS=str(status),
+                       _CARGO_NDK_LINK_TARGET='--target=aarch64-linux-android26',
+                       CC_aarch64_linux_android='/unchanged/ndk/clang')
+    script = (
+        'import os,sys; '
+        'assert os.environ["CARGO"] == os.environ["RESUKISU_REAL_CARGO"]; '
+        'assert os.environ["_CARGO_NDK_LINK_TARGET"] == "--target=aarch64-linux-android26"; '
+        'assert os.environ["CC_aarch64_linux_android"] == "/unchanged/ndk/clang"; '
+        'sys.stdout.buffer.write(bytes.fromhex(os.environ["CAPTURE_PAYLOAD"])); '
+        'sys.stdout.buffer.flush(); '
+        'sys.stderr.buffer.write(b"original compiler diagnostic\\n"); '
+        'sys.exit(int(os.environ["CAPTURE_STATUS"]))'
+    )
+    arguments = ['build', '--locked', '--release', '--message-format', 'json-render-diagnostics']
+    launcher = ([str(executable)] if executable is not None else
+                [sys.executable, str(Path(__file__).with_name('capture-resukisu-cargo.py'))])
+    return subprocess.run(
+        [*launcher, '-c', script, *(arguments if cargo_args is None else cargo_args)],
+        env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    )
+
+
+class CaptureTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.recording = Path(self.temp.name) / 'build-messages.jsonl'
+
+    def test_preserves_all_stdout_bytes_stderr_environment_and_success(self):
+        payload = b'{"reason":"build-finished","success":true}\nraw:\x00\xff\n'
+        result = run_capture(self.recording, payload)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, payload)
+        self.assertEqual(self.recording.read_bytes(), payload)
+        self.assertEqual(result.stderr, b'original compiler diagnostic\n')
+
+    def test_propagates_build_failure_and_keeps_failed_messages(self):
+        payload = b'{"reason":"build-finished","success":false}\n'
+        result = run_capture(self.recording, payload, status=101)
+        self.assertEqual(result.returncode, 101, result.stderr)
+        self.assertEqual(self.recording.read_bytes(), payload)
+
+    def test_metadata_passes_through_without_creating_build_receipt(self):
+        payload = b'{"packages":[]}\n'
+        result = run_capture(self.recording, payload, cargo_args=['metadata', '--no-deps'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, payload)
+        self.assertFalse(self.recording.exists())
+
+    def test_refuses_to_overwrite_stale_or_duplicate_capture(self):
+        original = b'previous build stream'
+        self.recording.write_bytes(original)
+        result = run_capture(self.recording, b'new build stream')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'')
+        self.assertEqual(self.recording.read_bytes(), original)
+
+    def test_rejects_build_without_json_output(self):
+        result = run_capture(self.recording, b'not JSON', cargo_args=['build', '--release'])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'Expected cargo-ndk JSON', result.stderr)
+        self.assertFalse(self.recording.exists())
+
+    def test_accepts_single_joined_message_format_argument(self):
+        result = run_capture(self.recording, b'raw JSON\n',
+                             cargo_args=['build', '--message-format=json-render-diagnostics'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.recording.read_bytes(), b'raw JSON\n')
+
+    @unittest.skipIf(os.name == 'nt', 'Executable shebang is a Linux runner contract')
+    def test_linux_executable_shebang_for_cargo_ndk_subprocess(self):
+        executable = self.recording.with_name('capture-cargo')
+        executable.write_bytes(Path(__file__).with_name('capture-resukisu-cargo.py').read_bytes())
+        executable.chmod(0o755)
+        result = run_capture(self.recording, b'Linux executable stream\n', executable=executable)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.recording.read_bytes(), b'Linux executable stream\n')
+
+    @unittest.skipUnless(os.environ.get('RESUKISU_TEST_CARGO_NDK'), 'Requires installed cargo-ndk and NDK')
+    def test_pinned_cargo_ndk_exposes_internal_build_messages(self):
+        # Exercise the actual installed wrapper with real Cargo metadata and a
+        # tiny stub build. No Android compilation or dependencies are needed.
+        root = self.recording.parent
+        (root / 'Cargo.toml').write_text(
+            '[package]\nname="capture-smoke"\nversion="0.0.0"\nedition="2024"\n'
+            '[[bin]]\nname="capture-smoke"\npath="main.rs"\n', encoding='utf-8')
+        (root / 'main.rs').write_text('fn main() {}\n', encoding='utf-8')
+        executable = root / 'capture-cargo'
+        executable.write_bytes(Path(__file__).with_name('capture-resukisu-cargo.py').read_bytes())
+        executable.chmod(0o755)
+        fake_cargo = root / 'stub-cargo'
+        fake_cargo.write_text('''#!/usr/bin/env python3
+import json, os, subprocess, sys
+args = sys.argv[1:]
+if 'build' not in args:
+    environment = os.environ.copy()
+    environment['CARGO'] = os.environ['RESUKISU_TEST_REAL_CARGO']
+    sys.exit(subprocess.call([environment['CARGO'], *args], env=environment))
+assert '--locked' in args and '--release' in args
+assert args[args.index('--target') + 1] == 'aarch64-linux-android'
+assert os.environ['_CARGO_NDK_LINK_TARGET'] == '--target=aarch64-linux-android26'
+assert os.environ['_CARGO_NDK_LINK_CLANG']
+assert os.environ['BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android']
+print(json.dumps(dict(reason='build-script-executed', package_id='capture-smoke 0.0.0',
+                     linked_libs=[], linked_paths=[], cfgs=[], env=[],
+                     out_dir=os.environ['CAPTURE_SMOKE_OUT_DIR'])))
+print(json.dumps(dict(reason='build-finished', success=True)))
+''', encoding='utf-8')
+        fake_cargo.chmod(0o755)
+        environment = os.environ.copy()
+        environment.update(CARGO=str(executable), RESUKISU_REAL_CARGO=str(fake_cargo),
+                           RESUKISU_CARGO_MESSAGES=str(self.recording),
+                           CAPTURE_SMOKE_OUT_DIR=str(root / 'generated'))
+        result = subprocess.run(
+            [os.environ['RESUKISU_TEST_CARGO_NDK'], 'ndk', '-P', '26', '-t', 'arm64-v8a',
+             'build', '--locked', '--release'], cwd=root, env=environment,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+        messages = list(audit.cargo_messages(self.recording.read_text().splitlines()))
+        self.assertEqual([m['reason'] for m in messages], ['build-script-executed', 'build-finished'])
+        self.assertEqual(messages[0]['out_dir'], str(root / 'generated'))
+        self.assertIs(messages[1]['success'], True)
+        self.assertNotIn(b'build-script-executed', result.stdout)
 
 
 if __name__ == '__main__':
