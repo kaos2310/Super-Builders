@@ -86,6 +86,23 @@ jobs:
           python3 builder/android14-6.1/build-helpers/test-resukisu-35202-lock.py resukisu
           python3 builder/android14-6.1/build-helpers/resukisu_35202_lock.py resukisu
 
+      - name: Repair the pinned 35203 ksuinit libc lock record
+        if: inputs.resukisu_commit == '8770c7e324a22895703c4916b8a16520e0b81c79'
+        run: |
+          set -euo pipefail
+          python3 builder/android14-6.1/build-helpers/test-resukisu-35203-lock.py resukisu
+          python3 builder/android14-6.1/build-helpers/resukisu_35203_lock.py resukisu
+
+      - name: Require fresh UAPI headers and Rust build outputs
+        run: |
+          set -euo pipefail
+          test -z "${CARGO_TARGET_DIR:-}"
+          test ! -e resukisu/userspace/ksud/target
+          test ! -e resukisu/userspace/ksuinit/target
+          if [[ "$EXPECTED_PIN" == '8770c7e324a22895703c4916b8a16520e0b81c79' ]]; then
+            python3 builder/android14-6.1/build-helpers/resukisu_35203_uapi.py resukisu
+          fi
+
       - name: Verify source, toolchain, locked dependencies and Libclang
         run: |
           set -euo pipefail

@@ -15,6 +15,8 @@ import resukisu_35189_lock
 import resukisu_35193_lock
 import resukisu_35201_lock
 import resukisu_35202_lock
+import resukisu_35203_lock
+import resukisu_35203_uapi
 
 
 def run(*args):
@@ -74,7 +76,10 @@ def main():
         'userspace/ksuinit/Cargo.toml',
         'userspace/ksuinit/Cargo.lock',
     ]
-    repair = {m.PIN: m for m in (resukisu_35184_lock, resukisu_35187_lock, resukisu_35189_lock, resukisu_35193_lock, resukisu_35201_lock, resukisu_35202_lock)}.get(args.commit)
+    locked_paths += sorted(p.relative_to(source).as_posix() for p in (source / "uapi").rglob("*.h"))
+    locked_paths += ["userspace/ksud/src/android/init_event.rs", "userspace/ksud/src/android/ksucalls.rs"]
+    uapi = resukisu_35203_uapi.verify_sources(source) if args.commit == resukisu_35203_uapi.PIN else None
+    repair = {m.PIN: m for m in (resukisu_35184_lock, resukisu_35187_lock, resukisu_35189_lock, resukisu_35193_lock, resukisu_35201_lock, resukisu_35202_lock, resukisu_35203_lock)}.get(args.commit)
     repairs = {}
     locked = {}
     for relative in locked_paths:
@@ -103,12 +108,12 @@ def main():
     receipt = dict(commit=args.commit, version=args.version, version_name=version_name,
                    commit_count=count, rustc=rust, cargo=cargo, clang=clang,
                    libclang=str(libpath.resolve()), locked_source_sha256=locked,
-                   lockfile_repairs=repairs,
+                   lockfile_repairs=repairs, uapi=uapi,
                    bindgen='0.73.2', target='aarch64-linux-android',
                    runtime_test='not performed', build_verified=False)
     if args.verify_build:
         previous = json.loads(args.receipt.read_text())
-        for key in ('commit', 'version', 'version_name', 'locked_source_sha256', 'lockfile_repairs', 'rustc', 'cargo'):
+        for key in ('commit', 'version', 'version_name', 'locked_source_sha256', 'lockfile_repairs', 'uapi', 'rustc', 'cargo'):
             if previous[key] != receipt[key]:
                 raise RuntimeError(f'Build inputs changed: {key}')
 
@@ -140,6 +145,8 @@ def main():
         if version_name.encode() not in ksud:
             raise RuntimeError(f'ksud binary does not contain expected version name {version_name!r}')
 
+        if uapi is not None:
+            receipt["generated_uapi_bindings"] = resukisu_35203_uapi.verify_bindings(source)
         receipt.update(build_verified=True, binaries=outputs,
                        generated_version_verified_in_binary=True,
                        generated_bindings_verified_by_successful_android_compile=True,

@@ -23,7 +23,7 @@ on:
         type: boolean
         default: true
       susfs_uid_gated_hiding:
-        description: 'Local UIDGate-v1 extension for pinned ReSukiSU 35202 / SUSFS 24743360'
+        description: 'Local UIDGate-v1 extension for pinned ReSukiSU 35203 / SUSFS 24743360'
         type: boolean
         default: false
       add_zeromount:
@@ -65,7 +65,7 @@ on:
         default: "main"
       resukisu_version_code:
         type: string
-        default: "35202"
+        default: "35203"
       resukisu_expected_size:
         type: string
         default: ""
@@ -119,7 +119,7 @@ jobs:
       run: |
         set -euo pipefail
         [[ "$ANDROID" == android14 && "$KERNEL" == 6.1 && "$ADD_SUSFS" == true && "$MINIMAL" == false ]]
-        [[ "$KSU_PIN" == 4c5c8cedaf3cecf297f9b529362e529f506e6891 ]]
+        [[ "$KSU_PIN" == 8770c7e324a22895703c4916b8a16520e0b81c79 ]]
 
     - name: Validate KMI build mode
       env:
@@ -889,16 +889,20 @@ jobs:
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
 
-    - name: Test ReSukiSU 35202 and latest SUSFS with exact C fault injection
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35202'
+    - name: Test ReSukiSU 35203 and latest SUSFS with exact C fault injection
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35203'
       run: |
         set -euo pipefail
-        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35193"
+        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35203"
         python3 "$PORT/apply.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
         python3 "$PORT/test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/session-tests" --cc gcc
-        echo "RESUKISU_SU_SESSION_PORT=ReSukiSU-35202-SUSFS-24743360-UAPI4" >> "$GITHUB_ENV"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/resukisu_35203_uapi.py" \
+          "$KERNEL_ROOT/$KSU_DIR" --cc gcc \
+          --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/service-tests" \
+          --receipt "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI5-SERVICES.json"
+        echo "RESUKISU_SU_SESSION_PORT=ReSukiSU-35203-SUSFS-24743360-UAPI5" >> "$GITHUB_ENV"
 
     - name: Reverify UID gate after downstream patches and test exact policy C
       if: inputs.susfs_uid_gated_hiding
@@ -1490,22 +1494,25 @@ jobs:
           --receipt "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
         test -s "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
 
-    - name: Verify ReSukiSU 35202 compiled integration and attest package
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35202' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
+    - name: Verify ReSukiSU 35203 compiled integration and attest package
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35203' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
       run: |
         set -euo pipefail
         VMLINUX="$KERNEL_ROOT/bazel-bin/common/kernel_aarch64/vmlinux"
         [[ -s "$VMLINUX" ]] || VMLINUX="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/dist/vmlinux"
         test -s "$VMLINUX"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35193/apply.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35203/apply.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only \
           --config "$FINAL_CONFIG_FILE" --image "$ANYKERNEL3/Image" --vmlinux "$VMLINUX" \
           --receipt "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
         cp "$FINAL_CONFIG_FILE" "$ANYKERNEL3/BUILD-CONFIG.txt"
-        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35202-*/result.json \
+        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35203-*/result.json \
           "$ANYKERNEL3/RESUKISU-SUSFS-TESTS.json"
         test -s "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/resukisu_35203_uapi.py" \
+          "$KERNEL_ROOT/$KSU_DIR"
+        cp "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI5-SERVICES.json" "$ANYKERNEL3/"
 
     - name: Attest UID gate in packaged Image and embedded config
       if: inputs.susfs_uid_gated_hiding && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
