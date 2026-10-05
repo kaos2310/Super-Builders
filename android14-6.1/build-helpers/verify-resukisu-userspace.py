@@ -17,7 +17,9 @@ import resukisu_35201_lock
 import resukisu_35202_lock
 import resukisu_35203_lock
 import resukisu_35203_uapi
+import resukisu_35205_lock
 import resukisu_35204_lock
+import resukisu_35205_uapi
 import resukisu_35204_uapi
 
 
@@ -81,9 +83,9 @@ def main():
     ]
     locked_paths += sorted(p.relative_to(source).as_posix() for p in (source / "uapi").rglob("*.h"))
     locked_paths += ["userspace/ksud/src/android/init_event.rs", "userspace/ksud/src/android/ksucalls.rs"]
-    uapi_audit = {m.PIN: m for m in (resukisu_35203_uapi, resukisu_35204_uapi)}.get(args.commit)
+    uapi_audit = {m.PIN: m for m in (resukisu_35203_uapi, resukisu_35204_uapi, resukisu_35205_uapi)}.get(args.commit)
     uapi = uapi_audit.verify_sources(source) if uapi_audit else None
-    repair = {m.PIN: m for m in (resukisu_35184_lock, resukisu_35187_lock, resukisu_35189_lock, resukisu_35193_lock, resukisu_35201_lock, resukisu_35202_lock, resukisu_35203_lock, resukisu_35204_lock)}.get(args.commit)
+    repair = {m.PIN: m for m in (resukisu_35184_lock, resukisu_35187_lock, resukisu_35189_lock, resukisu_35193_lock, resukisu_35201_lock, resukisu_35202_lock, resukisu_35203_lock, resukisu_35204_lock, resukisu_35205_lock)}.get(args.commit)
     repairs = {}
     locked = {}
     for relative in locked_paths:

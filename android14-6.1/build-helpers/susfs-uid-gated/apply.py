@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded consumer-side UID gate for SUSFS 24743360 / ReSukiSU 35203 / BakaSU 35204.
+"""Bounded consumer-side UID gate for SUSFS 24743360 / ReSukiSU 35203 / BakaSU 35204/35205.
 
 All anchors are planned before writes. An on-tree receipt makes reapplication
 idempotent and detects later changes to the gated functions or protected hooks.
@@ -15,7 +15,7 @@ import subprocess
 
 HERE = Path(__file__).resolve().parent
 SUSFS_PIN = "24743360ea08d98f6ad72b856851abed8de5854f"
-KSU_PINS = {"8770c7e324a22895703c4916b8a16520e0b81c79", "97c102ba05ee2915390cacae6d11e1727d6ca350"}
+KSU_PINS = {"8770c7e324a22895703c4916b8a16520e0b81c79", "97c102ba05ee2915390cacae6d11e1727d6ca350", "9dbce02e511ea6b6305a238b84e456f6a92e1d0b"}
 SYMBOL = "CONFIG_KSU_SUSFS_UID_GATED_HIDING"
 STATE = ".susfs-uid-gate-v1.json"
 HEADER = "include/linux/susfs_uid_gate.h"
@@ -166,7 +166,7 @@ def source_pin(ksu):
 def identity(common, ksu, pin):
     actual = source_pin(ksu)
     if actual not in KSU_PINS or pin != SUSFS_PIN:
-        raise RuntimeError("UIDGate-v1 requires exact ReSukiSU 35203 / BakaSU 35204 and SUSFS 24743360 pins")
+        raise RuntimeError("UIDGate-v1 requires exact ReSukiSU 35203 / BakaSU 35204/35205 and SUSFS 24743360 pins")
     if not re.search(r'#define\s+SUSFS_VERSION\s+"v2\.3\.0"', (common / "include/linux/susfs.h").read_text()):
         raise RuntimeError("Unexpected SUSFS source version")
 
