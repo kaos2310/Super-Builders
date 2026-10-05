@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded consumer-side UID gate for SUSFS 24743360 / ReSukiSU 35203.
+"""Bounded consumer-side UID gate for SUSFS 24743360 / ReSukiSU 35203 / BakaSU 35204.
 
 All anchors are planned before writes. An on-tree receipt makes reapplication
 idempotent and detects later changes to the gated functions or protected hooks.
@@ -15,7 +15,7 @@ import subprocess
 
 HERE = Path(__file__).resolve().parent
 SUSFS_PIN = "24743360ea08d98f6ad72b856851abed8de5854f"
-KSU_PIN = "8770c7e324a22895703c4916b8a16520e0b81c79"
+KSU_PINS = {"8770c7e324a22895703c4916b8a16520e0b81c79", "97c102ba05ee2915390cacae6d11e1727d6ca350"}
 SYMBOL = "CONFIG_KSU_SUSFS_UID_GATED_HIDING"
 STATE = ".susfs-uid-gate-v1.json"
 HEADER = "include/linux/susfs_uid_gate.h"
@@ -159,10 +159,14 @@ def read_tree(common, ksu):
     return {p: tree_path(common, ksu, p).read_text(encoding="utf-8") for p in PATHS}
 
 
+def source_pin(ksu):
+    return subprocess.check_output(["git", "-C", str(ksu), "rev-parse", "HEAD"], text=True).strip()
+
+
 def identity(common, ksu, pin):
-    actual = subprocess.check_output(["git", "-C", str(ksu), "rev-parse", "HEAD"], text=True).strip()
-    if actual != KSU_PIN or pin != SUSFS_PIN:
-        raise RuntimeError("UIDGate-v1 requires exact ReSukiSU 35203 and SUSFS 24743360 pins")
+    actual = source_pin(ksu)
+    if actual not in KSU_PINS or pin != SUSFS_PIN:
+        raise RuntimeError("UIDGate-v1 requires exact ReSukiSU 35203 / BakaSU 35204 and SUSFS 24743360 pins")
     if not re.search(r'#define\s+SUSFS_VERSION\s+"v2\.3\.0"', (common / "include/linux/susfs.h").read_text()):
         raise RuntimeError("Unexpected SUSFS source version")
 
@@ -180,7 +184,7 @@ def scope_hashes(files, scopes):
 
 def verify(common, ksu):
     state = json.loads((common / STATE).read_text())
-    if state["susfs_commit"] != SUSFS_PIN or state["resukisu_commit"] != KSU_PIN:
+    if state["susfs_commit"] != SUSFS_PIN or state["resukisu_commit"] not in KSU_PINS or state["resukisu_commit"] != source_pin(ksu):
         raise RuntimeError("Invalid UIDGate receipt identity")
     files = read_tree(common, ksu)
     if (common / HEADER).read_bytes() != (HERE / "susfs_uid_gate.h").read_bytes():
@@ -200,7 +204,7 @@ def apply(common, ksu):
         raise RuntimeError("Partial or foreign UID-gate implementation; refusing to overwrite")
     files, scopes = plan(original)  # No file writes before ALL anchors pass.
     state = {"extension": "Super-Builders-UIDGate-v1", "susfs_commit": SUSFS_PIN,
-             "resukisu_commit": KSU_PIN, "base_run": 36463712058,
+             "resukisu_commit": source_pin(ksu), "base_run": 36463712058,
              "scopes": scopes, "scope_sha256": scope_hashes(files, scopes),
              "header_sha256": digest(files[HEADER])}
     for path, value in files.items():

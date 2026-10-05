@@ -33,7 +33,7 @@ jobs:
       - name: Checkout exact ReSukiSU source with version history
         uses: actions/checkout@v6
         with:
-          repository: ReSukiSU/ReSukiSU
+          repository: Baka-SU/BakaSU
           ref: ${{ inputs.resukisu_commit }}
           fetch-depth: 0
           path: resukisu
@@ -93,6 +93,13 @@ jobs:
           python3 builder/android14-6.1/build-helpers/test-resukisu-35203-lock.py resukisu
           python3 builder/android14-6.1/build-helpers/resukisu_35203_lock.py resukisu
 
+      - name: Repair the pinned 35204 ksuinit libc lock record
+        if: inputs.resukisu_commit == '97c102ba05ee2915390cacae6d11e1727d6ca350'
+        run: |
+          set -euo pipefail
+          python3 builder/android14-6.1/build-helpers/test-resukisu-35204-lock.py resukisu
+          python3 builder/android14-6.1/build-helpers/resukisu_35204_lock.py resukisu
+
       - name: Require fresh UAPI headers and Rust build outputs
         run: |
           set -euo pipefail
@@ -101,6 +108,8 @@ jobs:
           test ! -e resukisu/userspace/ksuinit/target
           if [[ "$EXPECTED_PIN" == '8770c7e324a22895703c4916b8a16520e0b81c79' ]]; then
             python3 builder/android14-6.1/build-helpers/resukisu_35203_uapi.py resukisu
+          elif [[ "$EXPECTED_PIN" == '97c102ba05ee2915390cacae6d11e1727d6ca350' ]]; then
+            python3 builder/android14-6.1/build-helpers/resukisu_35204_uapi.py resukisu
           fi
 
       - name: Verify source, toolchain, locked dependencies and Libclang
@@ -131,7 +140,7 @@ jobs:
           set -euo pipefail
           export RESUKISU_TEST_CARGO_NDK="$(command -v cargo-ndk)"
           export RESUKISU_TEST_REAL_CARGO="$(rustup which --toolchain nightly cargo)"
-          python3 builder/android14-6.1/build-helpers/test-resukisu-35203-bindings.py \
+          python3 builder/android14-6.1/build-helpers/test-resukisu-35204-bindings.py \
             CaptureTests.test_pinned_cargo_ndk_exposes_internal_build_messages
 
       - name: Build ksuinit with the audited lockfile and --locked
