@@ -1,4 +1,4 @@
-name: Build ReSukiSU
+name: Build BakaSU
 
 permissions:
   contents: write
@@ -23,7 +23,7 @@ on:
         type: boolean
         default: true
       susfs_uid_gated_hiding:
-        description: 'Local UIDGate-v1 extension for pinned ReSukiSU 35205 / SUSFS 24743360'
+        description: 'Local UIDGate-v1 extension for pinned BakaSU 35212 / SUSFS 24743360'
         type: boolean
         default: false
       add_zeromount:
@@ -65,7 +65,7 @@ on:
         default: "main"
       resukisu_version_code:
         type: string
-        default: "35205"
+        default: "35212"
       resukisu_expected_size:
         type: string
         default: ""
@@ -84,7 +84,7 @@ on:
         type: string
         default: "full"
       kmi_minimal_config:
-        description: "Use only the minimum ReSukiSU config for CRC attribution"
+        description: "Use only the minimum BakaSU config for CRC attribution"
         type: boolean
         default: false
       package_strict_anykernel:
@@ -94,15 +94,15 @@ on:
 
 jobs:
   build:
-    name: "ReSukiSU ${{ inputs.kernel_version }}.${{ inputs.sub_level }}"
+    name: "BakaSU ${{ inputs.kernel_version }}.${{ inputs.sub_level }}"
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      KSU_VARIANT: ReSukiSU
+      KSU_VARIANT: BakaSU
       KSU_DIR: KernelSU
       RESUKISU_VERSION_CODE: ${{ inputs.resukisu_version_code }}
       RESUKISU_VERSION_LABEL: ${{ inputs.resukisu_version_code }}
-      RESUKISU_VERSION_FULL: ReSukiSU-${{ inputs.resukisu_version_code }}
+      RESUKISU_VERSION_FULL: BakaSU-${{ inputs.resukisu_version_code }}
 
     steps:
     - name: Checkout Repository
@@ -119,7 +119,7 @@ jobs:
       run: |
         set -euo pipefail
         [[ "$ANDROID" == android14 && "$KERNEL" == 6.1 && "$ADD_SUSFS" == true && "$MINIMAL" == false ]]
-        [[ "$KSU_PIN" == 9dbce02e511ea6b6305a238b84e456f6a92e1d0b ]]
+        [[ "$KSU_PIN" == e5423590bec3e24daffa4e9555c9592071319c68 ]]
 
     - name: Validate KMI build mode
       env:
@@ -486,7 +486,7 @@ jobs:
           [[ -n "$EXTRACTED" ]] && SUBLEVEL="$EXTRACTED"
         fi
 
-        ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-ReSukiSU-${RESUKISU_VERSION_LABEL}"
+        ARTIFACT_BASE="${KERNEL_VER}.${SUBLEVEL}-${ANDROID_VER}-${OS_PATCH}-BakaSU-${RESUKISU_VERSION_LABEL}"
         [[ "${{ inputs.susfs_uid_gated_hiding }}" == "true" ]] && ARTIFACT_BASE+="-UIDGate-v1"
         [[ "${GUNYAH_ADAPTIVE_BACKING:-0}" == "1" ]] && ARTIFACT_BASE+="-GunyahAdaptive-v1"
         [[ "${GUNYAH_RECLAIM_V1:-0}" == "1" ]] && ARTIFACT_BASE+="-Reclaim-v1"
@@ -500,7 +500,7 @@ jobs:
           echo "FILE_NAME=$ARTIFACT_BASE"
         } >> "$GITHUB_ENV"
 
-    - name: Setup ReSukiSU
+    - name: Setup BakaSU
       working-directory: ${{ env.KERNEL_ROOT }}
       env:
         SUKISU_COMMIT: ${{ inputs.sukisu_commit }}
@@ -510,7 +510,7 @@ jobs:
         MANAGER_CERT_HASH: ${{ inputs.resukisu_expected_hash }}
       run: |
         PIN="${SUKISU_COMMIT:-$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/resukisu-pin.txt" 2>/dev/null || true)}"
-        [ -n "$PIN" ] || { echo "::error::ReSukiSU commit pin is required"; exit 1; }
+        [ -n "$PIN" ] || { echo "::error::BakaSU commit pin is required"; exit 1; }
         curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/${PIN}/kernel/setup.sh" | bash -s "$PIN"
         [ -d "$KERNEL_ROOT/$KSU_DIR" ] || { echo "FATAL: $KSU_DIR not created by setup.sh"; exit 1; }
 
@@ -521,10 +521,10 @@ jobs:
           git fetch origin "$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
           ACTUAL_PIN=$(git rev-parse HEAD)
           [ "$ACTUAL_PIN" = "$PIN" ] || {
-            echo "::error::ReSukiSU pin mismatch: expected $PIN, got $ACTUAL_PIN"
+            echo "::error::BakaSU pin mismatch: expected $PIN, got $ACTUAL_PIN"
             exit 1
           }
-          echo "Pinned ReSukiSU to $ACTUAL_PIN"
+          echo "Pinned BakaSU to $ACTUAL_PIN"
         fi
 
         RELEASE_CONFIG="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/configure-resukisu-release.sh"
@@ -532,7 +532,7 @@ jobs:
           "$TARGET_VERSION_CODE" "$MANAGER_CERT_SIZE" "$MANAGER_CERT_HASH"
         RELEASE_TAG=$(git -C "$KERNEL_ROOT/$KSU_DIR" describe --abbrev=0 --tags)
         echo "RESUKISU_VERSION_FULL=${RELEASE_TAG}-${TARGET_VERSION_CODE}" >> "$GITHUB_ENV"
-        echo "Resolved ReSukiSU release: ${RELEASE_TAG}-${TARGET_VERSION_CODE}"
+        echo "Resolved BakaSU release: ${RELEASE_TAG}-${TARGET_VERSION_CODE}"
 
         cd "$KERNEL_ROOT/common"
 
@@ -559,7 +559,7 @@ jobs:
         sub_level: ${{ env.SUBLEVEL }}
         os_patch_level: ${{ inputs.os_patch_level }}
 
-    - name: Apply and test native ReSukiSU SUSFS v2 backport
+    - name: Apply and test native BakaSU SUSFS v2 backport
       if: inputs.susfs_su_session
       env:
         ADD_SUSFS: ${{ inputs.add_susfs }}
@@ -889,20 +889,20 @@ jobs:
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
 
-    - name: Test ReSukiSU 35205 and latest SUSFS with exact C fault injection
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35205'
+    - name: Test BakaSU 35212 and latest SUSFS with exact C fault injection
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35212'
       run: |
         set -euo pipefail
-        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35205"
+        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35212"
         python3 "$PORT/apply.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
         python3 "$PORT/test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/session-tests" --cc gcc
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/resukisu_35205_uapi.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35212_uapi.py" \
           "$KERNEL_ROOT/$KSU_DIR" --cc gcc \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/service-tests" \
           --receipt "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI5-SERVICES.json"
-        echo "RESUKISU_SU_SESSION_PORT=ReSukiSU-35205-SUSFS-24743360-UAPI5" >> "$GITHUB_ENV"
+        echo "RESUKISU_SU_SESSION_PORT=BakaSU-35212-SUSFS-24743360-UAPI5" >> "$GITHUB_ENV"
 
     - name: Reverify UID gate after downstream patches and test exact policy C
       if: inputs.susfs_uid_gated_hiding
@@ -915,7 +915,7 @@ jobs:
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/uid-gate-tests" --cc gcc
         grep -qx 'CONFIG_KSU_SUSFS_UID_GATED_HIDING=y' "$DEFCONFIG_FRAGMENT"
 
-    - name: Verify ReSukiSU build identity
+    - name: Verify BakaSU build identity
       if: inputs.device_codename == 'e3q'
       env:
         EXPECTED_PIN: ${{ inputs.sukisu_commit }}
@@ -928,7 +928,7 @@ jobs:
         ADD_ZEROMOUNT: ${{ inputs.add_zeromount }}
       run: |
         set -euo pipefail
-        test "$KSU_VARIANT" = "ReSukiSU"
+        test "$KSU_VARIANT" = "BakaSU"
 
         PIN="${EXPECTED_PIN:-$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/$VERSION_DIR/resukisu-pin.txt")}"
         test "$(git -C "$KERNEL_ROOT/$KSU_DIR" rev-parse HEAD)" = "$PIN"
@@ -955,7 +955,7 @@ jobs:
           ! grep -Rqx 'config KPM' "$KERNEL_ROOT/$KSU_DIR" --include='Kconfig*'
         fi
 
-        echo "ReSukiSU: ${RESUKISU_VERSION_FULL}"
+        echo "BakaSU: ${RESUKISU_VERSION_FULL}"
         echo "RESUKISU_VERSION_CODE=${RESUKISU_VERSION_CODE}"
         echo "RESUKISU_SOURCE_BRANCH=${EXPECTED_BRANCH}"
         echo "RESUKISU_COMMIT=$PIN"
@@ -966,7 +966,7 @@ jobs:
           echo "SUSFS disabled for KMI attribution"
         fi
         [[ "$ADD_ZEROMOUNT" == "true" ]] && echo "ZeroMount SUSFS ${SUSFS_EXPECTED_VERSION:-unknown} dual-ABI compatibility enabled" || echo "ZeroMount disabled for KMI attribution"
-        [[ "$ADD_KPM" == "true" ]] && echo "KPM enabled" || echo "KPM unavailable in ReSukiSU ${RESUKISU_VERSION_CODE}"
+        [[ "$ADD_KPM" == "true" ]] && echo "KPM enabled" || echo "KPM unavailable in BakaSU ${RESUKISU_VERSION_CODE}"
 
     - name: Clean Module Lists
       if: inputs.add_zram
@@ -992,7 +992,7 @@ jobs:
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
         HELPERS="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers"
-        bash "$HELPERS/clean-build-flags.sh" . "$KERNEL_VER" "ReSukiSU" "${{ inputs.kmi_mode }}"
+        bash "$HELPERS/clean-build-flags.sh" . "$KERNEL_VER" "BakaSU" "${{ inputs.kmi_mode }}"
 
     - name: Set Stock Build Identity
       working-directory: ${{ env.KERNEL_ROOT }}/common
@@ -1417,7 +1417,7 @@ jobs:
           cat > "$ANYKERNEL3/STRICT-KMI.txt" <<EOF
         S928B strict Samsung DLKM KMI build
         ===================================
-        ReSukiSU: ${RESUKISU_VERSION_FULL}
+        BakaSU: ${RESUKISU_VERSION_FULL}
         Target firmware: ${STOCK_FIRMWARE_EXPECTED} (${STOCK_CSC_EXPECTED})
         Target package: ${SAMSUNG_TARGET_PACKAGE}
         Full Odin AP tar MD5: ${SAMSUNG_TARGET_AP_TAR_MD5}
@@ -1494,23 +1494,23 @@ jobs:
           --receipt "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
         test -s "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
 
-    - name: Verify ReSukiSU 35205 compiled integration and attest package
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35205' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
+    - name: Verify BakaSU 35212 compiled integration and attest package
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35212' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
       run: |
         set -euo pipefail
         VMLINUX="$KERNEL_ROOT/bazel-bin/common/kernel_aarch64/vmlinux"
         [[ -s "$VMLINUX" ]] || VMLINUX="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/dist/vmlinux"
         test -s "$VMLINUX"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35205/apply.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35212/apply.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only \
           --config "$FINAL_CONFIG_FILE" --image "$ANYKERNEL3/Image" --vmlinux "$VMLINUX" \
           --receipt "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
         cp "$FINAL_CONFIG_FILE" "$ANYKERNEL3/BUILD-CONFIG.txt"
-        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35205-*/result.json \
+        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35212-*/result.json \
           "$ANYKERNEL3/RESUKISU-SUSFS-TESTS.json"
         test -s "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/resukisu_35205_uapi.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35212_uapi.py" \
           "$KERNEL_ROOT/$KSU_DIR"
         cp "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI5-SERVICES.json" "$ANYKERNEL3/"
 
@@ -1602,7 +1602,7 @@ jobs:
           }
         fi
         grep -aF 'd3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64' "$ANYKERNEL3/Image" >/dev/null || {
-          echo "::error::Official ReSukiSU manager certificate hash is missing from the kernel image"
+          echo "::error::Official BakaSU manager certificate hash is missing from the kernel image"
           exit 1
         }
 
@@ -1816,7 +1816,7 @@ jobs:
       run: |
         S() { [[ "$1" == "true" ]] && echo "Enabled" || echo "Disabled"; }
         {
-          echo "## ReSukiSU | ${KERNEL_VER}.${SUBLEVEL}"
+          echo "## BakaSU | ${KERNEL_VER}.${SUBLEVEL}"
           echo ""
           echo "| Feature | Status |"
           echo "|---------|--------|"
