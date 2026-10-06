@@ -18,6 +18,8 @@ def main():
     parser.add_argument("--binary", required=True, type=Path)
     parser.add_argument("--tests", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument("--bakasu-version", required=True, type=int)
+    parser.add_argument("--bakasu-commit", required=True)
     args = parser.parse_args()
     source = args.source.resolve()
     receipt = patch.apply(source, verify_only=True)
@@ -31,10 +33,19 @@ def main():
     tests = json.loads(args.tests.read_text())
     if tests["shell_flag_cases"] != 16 or tests["rust_susfs_mode_cases"] != 128 or not tests["legacy_only_mutation_rejected"]:
         raise RuntimeError("Required BakaSU detector matrix was not completed")
+    if args.bakasu_version != 35215 or args.bakasu_commit != "1bfed00f597e65700d70fee0feb1d424fc21a2e5":
+        raise RuntimeError("ZeroMount package requires exact BakaSU 35215 pin")
     receipt.update(official_base_zip_sha256=BASE_SHA256, arm64_binary_sha256=sha(binary),
-                   architecture="arm64-v8a", detection_tests=tests)
+                   architecture="arm64-v8a", detection_tests=tests,
+                   bakasu_version=args.bakasu_version, bakasu_commit=args.bakasu_commit,
+                   susfs_version="v2.3.0",
+                   susfs_commit="24743360ea08d98f6ad72b856851abed8de5854f",
+                   full_r33_features_compatible=[
+                       "Guard6.13","BRENE68/69","UIDGate2","BootGuard2",
+                       "Droidspaces VFS","OPEN_REDIRECT","writer-adapters"
+                   ])
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    output = args.output_dir / "ZeroMount-v2.0.216-dev-BakaSU-35212-compat-arm64.zip"
+    output = args.output_dir / f"ZeroMount-v2.0.216-dev-BakaSU-{args.bakasu_version}-compat-arm64.zip"
     modified = {"customize.sh": (source / "module/customize.sh").read_bytes(),
                 "bin/arm64-v8a/zeromount": binary}
     with zipfile.ZipFile(args.base_zip) as base, zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
