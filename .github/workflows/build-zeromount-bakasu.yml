@@ -65,13 +65,13 @@ jobs:
             https://github.com/Enginex0/zeromount/releases/download/v2.0.216-dev/zeromount-v2.0.216-dev.zip \
             --output "$RUNNER_TEMP/zeromount-official.zip"
           python3 builder/android14-6.1/build-helpers/zeromount-bakasu/package.py zeromount \
-            --bakasu-version 35215 --bakasu-commit 1bfed00f597e65700d70fee0feb1d424fc21a2e5 \
+            --bakasu-version 35220 --bakasu-commit 8450dd287ef6ee25ca2b6b858b43c9354c73060c \
             --base-zip "$RUNNER_TEMP/zeromount-official.zip" \
             --binary zeromount/target/aarch64-linux-android/release/zeromount \
             --tests module-artifacts/DETECTION-TESTS.json --output-dir module-artifacts
       - uses: actions/upload-artifact@v7
         with:
-          name: ZeroMount-BakaSU-35215-compat-ARM64
+          name: ZeroMount-BakaSU-35220-compat-ARM64
           path: module-artifacts/
           if-no-files-found: error
           retention-days: 30

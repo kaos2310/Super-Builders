@@ -121,6 +121,13 @@ jobs:
           python3 builder/android14-6.1/build-helpers/test-bakasu-35215-lock.py resukisu
           python3 builder/android14-6.1/build-helpers/bakasu_35215_lock.py resukisu
 
+      - name: Repair the pinned 35220 ksuinit libc lock record
+        if: inputs.resukisu_commit == '8450dd287ef6ee25ca2b6b858b43c9354c73060c'
+        run: |
+          set -euo pipefail
+          python3 builder/android14-6.1/build-helpers/test-bakasu-35220-lock.py resukisu
+          python3 builder/android14-6.1/build-helpers/bakasu_35220_lock.py resukisu
+
       - name: Require fresh UAPI headers and Rust build outputs
         run: |
           set -euo pipefail
@@ -137,6 +144,8 @@ jobs:
             python3 builder/android14-6.1/build-helpers/bakasu_35212_uapi.py resukisu
           elif [[ "$EXPECTED_PIN" == '1bfed00f597e65700d70fee0feb1d424fc21a2e5' ]]; then
             python3 builder/android14-6.1/build-helpers/bakasu_35215_uapi.py resukisu
+          elif [[ "$EXPECTED_PIN" == '8450dd287ef6ee25ca2b6b858b43c9354c73060c' ]]; then
+            python3 builder/android14-6.1/build-helpers/bakasu_35220_uapi.py resukisu
           fi
 
       - name: Verify source, toolchain, locked dependencies and Libclang
@@ -167,7 +176,7 @@ jobs:
           set -euo pipefail
           export RESUKISU_TEST_CARGO_NDK="$(command -v cargo-ndk)"
           export RESUKISU_TEST_REAL_CARGO="$(rustup which --toolchain nightly cargo)"
-          python3 builder/android14-6.1/build-helpers/test-bakasu-35215-bindings.py \
+          python3 builder/android14-6.1/build-helpers/test-bakasu-35220-bindings.py \
             CaptureTests.test_pinned_cargo_ndk_exposes_internal_build_messages
 
       - name: Build ksuinit with the audited lockfile and --locked

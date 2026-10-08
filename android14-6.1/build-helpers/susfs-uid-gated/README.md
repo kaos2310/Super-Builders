@@ -18,3 +18,5 @@ Deliberately unchanged: raw thread flags, KernelSU authorization/session/manager
 The applier rejects unknown source identities, missing/duplicate anchors and partial installations before writing. Its receipt detects later consumer changes and protects the unchanged thread/redirect functions. CI runs literal-header C tests with CONFIG on/off, multiuser boundary and credential-transition cases, and deliberate failing mutations before the expensive build. Source tests rerun after downstream patches. Package attestation checks both the final config and gzip IKCONFIG inside the packaged Image, plus the compiled enabled-features string. A sidecar config alone is not accepted. The feature is advertised through the existing SUSFS enabled-features API; no supercall or module ABI change is introduced.
 
 Local mock tests are not device validation. A successful CI build is not proof of runtime behavior on the phone; flashing or runtime changes require a separate user request.
+
+- BakaSU 35220: `8450dd287ef6ee25ca2b6b858b43c9354c73060c` (unchanged UID-gated consumer anchors from 35215).
