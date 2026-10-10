@@ -57,6 +57,25 @@ def update(text, values, remove=False):
                 lines.append(f'CONFIG_{key}=y' if value == 'y' else f'# CONFIG_{key} is not set')
     return '\n'.join(lines) + '\n'
 
+def deduplicate_identical(text):
+    """Normalize repeated source entries without choosing between conflicts."""
+    lines, seen, removed = [], {}, {}
+    for number, line in enumerate(text.splitlines(), 1):
+        match = ASSIGNMENT.fullmatch(line)
+        if match:
+            name, value, disabled = match.groups()
+            key, value = name or disabled, value if name else 'n'
+            if key in seen:
+                previous, first_line = seen[key]
+                if value != previous:
+                    raise RuntimeError(f'Conflicting configuration for CONFIG_{key} '
+                                       f'at lines {first_line} and {number}')
+                removed[key] = removed.get(key, 0) + 1
+                continue
+            seen[key] = value, number
+        lines.append(line)
+    return '\n'.join(lines) + '\n', removed
+
 def verify_config(text, resource_limits):
     actual = parse(text)
     missing = [f'CONFIG_{k}={v}' for k,v in desired(resource_limits).items() if actual.get(k) != v]
@@ -86,12 +105,17 @@ def configure(common, defconfig, fragment, resource_limits):
     if missing:
         raise RuntimeError('Required Kconfig definitions missing: ' + ', '.join(missing))
     padding = verify_padding(common)
-    base = update(defconfig.read_text(encoding='utf-8'), values)
-    overlay = update(fragment.read_text(encoding='utf-8'), values, remove=True)
+    # Samsung's source defconfig repeats several unchanged assignments. Apply
+    # explicit DroidSpaces overrides first, then collapse only identical
+    # remaining entries. Keep the final-config parser strict about duplicates.
+    base, base_duplicates = deduplicate_identical(update(defconfig.read_text(encoding='utf-8'), values))
+    overlay, fragment_duplicates = deduplicate_identical(update(fragment.read_text(encoding='utf-8'), values, remove=True))
     verify_config(base, resource_limits)
     defconfig.write_text(base, encoding='utf-8', newline='\n')
     fragment.write_text(overlay, encoding='utf-8', newline='\n')
-    return {'sched_header_sha256': padding, 'defconfig_sha256': hashlib.sha256(base.encode()).hexdigest()}
+    return {'sched_header_sha256': padding, 'defconfig_sha256': hashlib.sha256(base.encode()).hexdigest(),
+            'removed_identical_defconfig_entries': base_duplicates,
+            'removed_identical_fragment_entries': fragment_duplicates}
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
