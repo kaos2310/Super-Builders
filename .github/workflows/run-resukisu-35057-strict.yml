@@ -1,13 +1,13 @@
-name: S928B ZZI4 BakaSU 35222 DroidSpaces CPU PID experiment SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
-run-name: "Rebuild 2026-10-10 — S928BXXU6ZZI4 EUX BakaSU 35222 DroidSpaces CPU/PID experiment + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1 / BootconfigStaticKey-v1"
+name: S928B ZZI4 BakaSU 35222 DroidSpaces strict KMI SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
+run-name: "S928BXXU6ZZI4 EUX — BakaSU 35222 + DroidSpaces / CPU-PID limits ${{ github.event_name == 'workflow_dispatch' && inputs.resource_limits || false }} / SUSFS v2.3.0 / strict KMI"
 
 on:
   workflow_dispatch:
     inputs:
       resource_limits:
-        description: 'Experimental CPU/PID limits; strict ABI checks retained, no flash package'
+        description: 'Optional ABI-breaking CPU/PID experiment; no flash package (default off)'
         type: boolean
-        default: true
+        default: false
   push:
     branches:
       - agent/resukisu-35115-eux-zzhl
@@ -163,7 +163,7 @@ jobs:
     uses: ./.github/workflows/build-zeromount-bakasu.yml
 
   strict-gate:
-    name: Strict ABI experiment / BakaSU 35222 UAPI5 / DroidSpaces / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
+    name: Strict KMI / BakaSU 35222 UAPI5 / DroidSpaces / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
     needs: [dependencies, userspace, zeromount-compat]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -178,7 +178,7 @@ jobs:
       susfs_uid_gated_hiding: true
       add_zeromount: true
       add_droidspaces: true
-      droidspaces_resource_limits: ${{ github.event_name == 'push' || inputs.resource_limits }}
+      droidspaces_resource_limits: ${{ github.event_name == 'workflow_dispatch' && inputs.resource_limits || false }}
       add_zram: true
       add_bbg: true
       add_overlayfs_support: true
@@ -195,9 +195,9 @@ jobs:
       resukisu_version_code: "35222"
       device_codename: e3q
       kmi_mode: strict
-      kmi_profile: ${{ (github.event_name == 'push' || inputs.resource_limits) && 'resource-limits-strict' || 'full-strict' }}
+      kmi_profile: ${{ github.event_name == 'workflow_dispatch' && inputs.resource_limits && 'resource-limits-strict' || 'full-strict' }}
       kmi_minimal_config: false
-      package_strict_anykernel: ${{ github.event_name != 'push' && !inputs.resource_limits }}
+      package_strict_anykernel: ${{ github.event_name != 'workflow_dispatch' || !inputs.resource_limits }}
 
 # Update baseline: successful run 35443096947 @ 4bad7d66a2e43c6ffbcd5046ce209207ec8a590d.
 # UIDGate-v1 baseline: successful run 36463712058 @ 8c379ba853e084a42d70633e1a9b29b00793bd7e.
@@ -215,3 +215,6 @@ jobs:
 # 35222: 30700 + 4522 at 5b76b884; UAPI5 EVENT_SERVICES starts service scripts once.
 # Kernel and ARM64 ksud/ksuinit use the same immutable source commit and fresh bindings.
 # Upstream 35222 is BakaSU; use its matching Manager (org.bakasu.bakasu).
+# 2026-10-10: user permits omitting CPU/PID limits. Pushes and default manual
+# runs use CFS_BANDWIDTH=n, CGROUP_PIDS=n; retain all other DroidSpaces features.
+# An AnyKernel package is published only after every strict stock ABI gate passes.

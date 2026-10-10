@@ -8,6 +8,7 @@ import re
 
 # GKI configuration: Copyright (C) 2026 ravindu644 <droidcasts@protonmail.com>
 GUIDE_COMMIT = 'ac38c11fef1402c0db8172ea8187db0401a0bc30'
+RESEARCH_COMMIT = 'd1d7478d0abc777ab0cfc4e1d9a902769b8b132a'
 PATCH_COMMIT = '1890424779e46c1f3ced182191af28eea7be8c46'
 # Linux 6.1 has family-specific REJECT targets, not NETFILTER_XT_TARGET_REJECT.
 FEATURES = tuple('''SYSVIPC POSIX_MQUEUE IPC_NS PID_NS DEVTMPFS
@@ -19,6 +20,21 @@ DEPENDENCIES = tuple('''NAMESPACES NET_NS CGROUPS MEMCG TMPFS
 NETFILTER NETFILTER_ADVANCED NETFILTER_XTABLES NF_CONNTRACK NF_NAT
 IPV6 IP_NF_IPTABLES IP_NF_FILTER IP6_NF_IPTABLES IP6_NF_FILTER'''.split())
 RESOURCE_LIMITS = ('CGROUP_SCHED', 'FAIR_GROUP_SCHED', 'CFS_BANDWIDTH', 'CGROUP_PIDS')
+# These already-built-in GKI facilities are verified, not enabled or moved
+# between fragments. The current upstream runtime checker uses cgroup BPF on
+# modern kernels; the legacy CGROUP_DEVICE option is not required here.
+RUNTIME_PREREQUISITES = {
+    'core': ('SYSCTL', 'UTS_NS', 'PROC_FS', 'SYSFS', 'SECCOMP', 'SECCOMP_FILTER'),
+    'cgroups': ('CGROUP_BPF', 'BPF', 'BPF_SYSCALL'),
+    'console_and_images': ('EPOLL', 'SIGNALFD', 'UNIX98_PTYS', 'BLK_DEV_LOOP', 'EXT4_FS'),
+    'optional_filesystems': ('FUSE_FS', 'OVERLAY_FS'),
+    'network': ('TUN', 'VETH', 'BRIDGE', 'IP_NF_NAT', 'IP_NF_TARGET_MASQUERADE',
+                'IP6_NF_MANGLE', 'IPV6_MULTIPLE_TABLES', 'IP_ADVANCED_ROUTER',
+                'IP_MULTIPLE_TABLES', 'NF_NAT_REDIRECT',
+                'NETFILTER_XT_TARGET_MASQUERADE', 'NETFILTER_XT_TARGET_TCPMSS',
+                'NF_CT_NETLINK'),
+    'configuration_visibility': ('IKCONFIG', 'IKCONFIG_PROC'),
+}
 ASSIGNMENT = re.compile(r'^(?:CONFIG_(\w+)=(.*)|# CONFIG_(\w+) is not set)$')
 
 def desired(resource_limits):
@@ -83,6 +99,15 @@ def verify_config(text, resource_limits):
         raise RuntimeError('DroidSpaces configuration mismatch: ' + ', '.join(missing))
     return actual
 
+def verify_runtime_prerequisites(text):
+    actual = parse(text)
+    missing = {group: [f'CONFIG_{name}=y' for name in names if actual.get(name) != 'y']
+               for group, names in RUNTIME_PREREQUISITES.items()}
+    missing = {group: names for group, names in missing.items() if names}
+    if missing:
+        raise RuntimeError('DroidSpaces runtime prerequisites missing: ' + json.dumps(missing, sort_keys=True))
+    return RUNTIME_PREREQUISITES
+
 def verify_padding(common):
     source = (common / 'include/linux/sched.h').read_text(encoding='utf-8')
     # Ignore comments so an unapplied patch or stale commented macro cannot pass.
@@ -134,10 +159,14 @@ def main():
     else:
         if not args.config:
             parser.error('verify requires --config')
-        verify_config(args.config.read_text(encoding='utf-8'), args.resource_limits)
-        result = {'config_sha256': hashlib.sha256(args.config.read_bytes()).hexdigest()}
+        final_text = args.config.read_text(encoding='utf-8')
+        verify_config(final_text, args.resource_limits)
+        verified = verify_runtime_prerequisites(final_text)
+        result = {'config_sha256': hashlib.sha256(args.config.read_bytes()).hexdigest(),
+                  'verified_runtime_prerequisites': verified}
     result.update(mode=args.mode, resource_limits_requested=args.resource_limits,
                   expected_config=desired(args.resource_limits), guide_commit=GUIDE_COMMIT,
+                  runtime_checker_commit=RESEARCH_COMMIT,
                   kabi_patch_commit=PATCH_COMMIT,
                   reject_mapping='IP_NF_TARGET_REJECT + IP6_NF_TARGET_REJECT',
                   full_device_module_rebuild_completed=False,

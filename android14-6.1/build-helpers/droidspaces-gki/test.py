@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 import tarfile
 import tempfile
+import subprocess
+import sys
 import unittest
 
 spec = importlib.util.spec_from_file_location('droidspaces', Path(__file__).with_name('configure.py'))
@@ -20,6 +22,39 @@ PATCHED = '''struct task_struct {
 '''
 
 class Tests(unittest.TestCase):
+    def test_actual_successful_35220_baseline_only_lacks_recent_match(self):
+        baseline = Path(__file__).with_name('baseline-35220.config').read_text(encoding='utf-8')
+        droid.verify_runtime_prerequisites(baseline)
+        with self.assertRaisesRegex(RuntimeError, 'CONFIG_NETFILTER_XT_MATCH_RECENT=y'):
+            droid.verify_config(baseline, False)
+        updated = droid.update(baseline, {'NETFILTER_XT_MATCH_RECENT': 'y'})
+        droid.verify_config(updated, False)
+        droid.verify_runtime_prerequisites(updated)
+        self.assertEqual(droid.parse(updated)['CFS_BANDWIDTH'], 'n')
+        self.assertEqual(droid.parse(updated)['CGROUP_PIDS'], 'n')
+
+    def test_final_config_cli_checks_preserved_runtime_facilities(self):
+        values = droid.desired(False)
+        values.update(dict.fromkeys((name for names in droid.RUNTIME_PREREQUISITES.values()
+                                     for name in names), 'y'))
+        good = droid.update('', values)
+        with tempfile.TemporaryDirectory() as work:
+            config, receipt = Path(work) / 'final.config', Path(work) / 'receipt.json'
+            for missing in (None, 'SECCOMP_FILTER', 'VETH'):
+                with self.subTest(missing=missing):
+                    text = good if missing is None else good.replace(f'CONFIG_{missing}=y', f'# CONFIG_{missing} is not set')
+                    config.write_text(text, encoding='utf-8')
+                    result = subprocess.run([sys.executable, '-B', str(Path(__file__).with_name('configure.py')),
+                                             'verify', '--config', str(config), '--receipt', str(receipt)],
+                                            text=True, capture_output=True)
+                    self.assertEqual(result.returncode == 0, missing is None, result.stderr)
+                    if missing is None:
+                        self.assertIn('verified_runtime_prerequisites', receipt.read_text())
+                        receipt.unlink()
+                    else:
+                        self.assertIn('CONFIG_' + missing, result.stderr)
+                        self.assertFalse(receipt.exists())
+
     def test_each_requested_feature_must_survive_kconfig(self):
         for limits in (False, True):
             good = droid.update('', droid.desired(limits))

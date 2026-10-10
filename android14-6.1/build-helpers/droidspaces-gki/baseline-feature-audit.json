@@ -1,0 +1,228 @@
+{
+  "checked_at_utc": "2026-10-10T12:14:59.096648+00:00",
+  "baseline_run": 37831091198,
+  "baseline_builder_commit": "4619b3762a79ec464ae6bea30b4c8544293739d4",
+  "baseline_artifact_id": 11574732164,
+  "baseline_artifact_sha256": "dee78b2d369a4e3339404164b647a9484e60c8299a84833caf87658592156eda",
+  "baseline_config_sha256": "baec30ba6f5c76e72e5cae8fe299fe0a6a57034ae1ac73a4db6165b6d0db6d22",
+  "bakasu_pin": "5b76b884c75f729a220bb317aa4a4fc78f0e0e9c",
+  "bakasu_version": 35222,
+  "resource_limits_requested": false,
+  "missing_droidspaces_features": {
+    "NETFILTER_XT_MATCH_RECENT": {
+      "baseline": "n",
+      "requested": "y"
+    }
+  },
+  "existing_runtime_prerequisites_verified": {
+    "core": [
+      "SYSCTL",
+      "UTS_NS",
+      "PROC_FS",
+      "SYSFS",
+      "SECCOMP",
+      "SECCOMP_FILTER"
+    ],
+    "cgroups": [
+      "CGROUP_BPF",
+      "BPF",
+      "BPF_SYSCALL"
+    ],
+    "console_and_images": [
+      "EPOLL",
+      "SIGNALFD",
+      "UNIX98_PTYS",
+      "BLK_DEV_LOOP",
+      "EXT4_FS"
+    ],
+    "optional_filesystems": [
+      "FUSE_FS",
+      "OVERLAY_FS"
+    ],
+    "network": [
+      "TUN",
+      "VETH",
+      "BRIDGE",
+      "IP_NF_NAT",
+      "IP_NF_TARGET_MASQUERADE",
+      "IP6_NF_MANGLE",
+      "IPV6_MULTIPLE_TABLES",
+      "IP_ADVANCED_ROUTER",
+      "IP_MULTIPLE_TABLES",
+      "NF_NAT_REDIRECT",
+      "NETFILTER_XT_TARGET_MASQUERADE",
+      "NETFILTER_XT_TARGET_TCPMSS",
+      "NF_CT_NETLINK"
+    ],
+    "configuration_visibility": [
+      "IKCONFIG",
+      "IKCONFIG_PROC"
+    ]
+  },
+  "target_values": {
+    "SYSVIPC": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "POSIX_MQUEUE": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IPC_NS": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "PID_NS": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "DEVTMPFS": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NETFILTER_XT_MATCH_ADDRTYPE": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "USER_NS": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IP6_NF_NAT": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IP6_NF_TARGET_MASQUERADE": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IP_NF_TARGET_REJECT": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IP6_NF_TARGET_REJECT": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NETFILTER_XT_TARGET_LOG": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NETFILTER_XT_MATCH_RECENT": {
+      "baseline": "n",
+      "requested": "y"
+    },
+    "IP_SET": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IP_SET_HASH_IP": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IP_SET_HASH_NET": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NETFILTER_XT_SET": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "TMPFS_POSIX_ACL": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "TMPFS_XATTR": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NAMESPACES": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NET_NS": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "CGROUPS": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "MEMCG": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "TMPFS": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NETFILTER": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NETFILTER_ADVANCED": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NETFILTER_XTABLES": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NF_CONNTRACK": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "NF_NAT": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IPV6": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IP_NF_IPTABLES": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IP_NF_FILTER": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IP6_NF_IPTABLES": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "IP6_NF_FILTER": {
+      "baseline": "y",
+      "requested": "y"
+    },
+    "CFS_BANDWIDTH": {
+      "baseline": "n",
+      "requested": "n"
+    },
+    "CGROUP_PIDS": {
+      "baseline": "n",
+      "requested": "n"
+    }
+  },
+  "failed_experiment_run": 38021970398,
+  "failed_experiment_config_delta_from_successful_baseline": {
+    "CFS_BANDWIDTH": {
+      "baseline": "n",
+      "experimental": "y"
+    },
+    "CGROUP_PIDS": {
+      "baseline": "n",
+      "experimental": "y"
+    },
+    "NETFILTER_XT_MATCH_RECENT": {
+      "baseline": "n",
+      "experimental": "y"
+    }
+  },
+  "stock_crc_gate_and_baseline_unchanged": true,
+  "mandatory_sysvipc_patch_unchanged": true,
+  "new_standard_kernel_compiled": false,
+  "new_standard_stock_abi_verified": false,
+  "device_boot_verified": false
+}
