@@ -1,5 +1,5 @@
 name: S928B ZZI4 BakaSU 35222 DroidSpaces CPU PID experiment SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
-run-name: "S928BXXU6ZZI4 EUX — BakaSU 35222 DroidSpaces CPU/PID attempt + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1 / BootconfigStaticKey-v1"
+run-name: "Rebuild 2026-10-10 — S928BXXU6ZZI4 EUX BakaSU 35222 DroidSpaces CPU/PID experiment + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1 / BootconfigStaticKey-v1"
 
 on:
   workflow_dispatch:
@@ -108,7 +108,7 @@ permissions:
 
 concurrency:
   group: s928b-resukisu-35222-zzi4-uidgate-v1-${{ github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   gunyah-preflight:
@@ -123,9 +123,29 @@ jobs:
           set -euo pipefail
           python3 android14-6.1/build-helpers/test-bakasu-35222-bindings.py
           python3 android14-6.1/build-helpers/droidspaces-gki/test.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('android14-6.1/build-helpers/droidspaces-gki/samsung-source-readiness.json')
+          report = json.loads(path.read_text())
+          assert report['bakasu_commit'] == '5b76b884c75f729a220bb317aa4a4fc78f0e0e9c'
+          assert report['unique_stock_modules'] == len({m['name'] for m in report['module_candidates']}) == 543
+          assert report['source_file_verification']['all_regular_source_hashes_match_archive']
+          assert report['resource_limits_requested'] and not report['flash_package_enabled']
+          assert not report['configured_full_module_graph_verified']
+          print('543 static module-source candidates recorded; full device-module build remains pending.')
+          PY
           python3 android14-6.1/build-helpers/test-e3q-gunyah-adaptive-backing.py
           python3 android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py
           python3 android14-6.1/build-helpers/susfs-uid-gated/test.py --cc gcc --work-dir "$RUNNER_TEMP/uid-gate-tests"
+      - name: Upload verified Samsung source readiness report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Samsung-source-readiness-${{ github.run_id }}
+          path: android14-6.1/build-helpers/droidspaces-gki/samsung-source-readiness.json
+          if-no-files-found: error
+          retention-days: 7
 
   userspace:
     needs: gunyah-preflight

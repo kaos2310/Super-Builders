@@ -1,0 +1,5378 @@
+{
+  "schema": 1,
+  "source_import_verified_at_utc": "2026-10-10T01:52:52Z",
+  "build_request": "2026-10-10-project-rebuild-01",
+  "bakasu_commit": "5b76b884c75f729a220bb317aa4a4fc78f0e0e9c",
+  "bakasu_version": 35222,
+  "source_package": "SM-S928B_16_Opensource.zip",
+  "zip_sha256": "512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c",
+  "kernel_tar_sha256": "9fc9d41e0a8c583ce2eb3e0c1858128e4b7030b366a35c5ab490fb528f1aacb7",
+  "samsung_catalog_firmware": "S928BXXS6DZG1",
+  "source_kernel_versions": {
+    "common": "6.1.145",
+    "msm-kernel": "6.1.145"
+  },
+  "target_firmware": "S928BXXU6ZZI4",
+  "target_kernel_version": "6.1.162",
+  "source_file_verification": {
+    "all_regular_source_hashes_match_archive": true,
+    "files_checked": 169694,
+    "bytes_checked": 3401993434,
+    "complete_regular_archive_path_set": true,
+    "all_543_stock_modules_in_mapping": true,
+    "all_mapping_build_rule_files_match_source": true,
+    "build_rule_files_checked": 320,
+    "configured_build_graph_verified": false,
+    "exact_zzi4_source_match": false,
+    "kernel_build_performed": false,
+    "device_test_performed": false
+  },
+  "module_source_mapping_sha256": "d6603cbd674ef6b3f8dbcf3e154b5875f619f228c387a34acd97e2439328a53b",
+  "unique_stock_modules": 543,
+  "stock_module_occurrences": {
+    "vendor_boot": 411,
+    "vendor_dlkm": 351,
+    "system_dlkm": 120
+  },
+  "resource_limits_requested": true,
+  "ci_build_scope": "Existing common-kernel and matching BakaSU userspace/ZeroMount workflows; strict ABI experiment.",
+  "samsung_full_source_uploaded_to_ci": false,
+  "configured_full_module_graph_verified": false,
+  "full_device_module_rebuild_completed": false,
+  "rebuilt_partition_set_completed": false,
+  "flash_package_enabled": false,
+  "device_boot_verified": false,
+  "remaining_full_rebuild_work": [
+    "Align common, msm-kernel and external modules on the 6.1.162 kernel interfaces and enabled resource-limit configuration.",
+    "Supply missing pinned compiler/build prebuilts and evaluate the e3q/pineapple module build graph.",
+    "Rebuild all device modules, verify their imports against rebuilt providers, and repack the complete dependent partition set."
+  ],
+  "module_candidates": [
+    {
+      "name": "6lowpan",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/6lowpan/Makefile",
+        "kernel_platform/msm-kernel/net/6lowpan/Makefile"
+      ]
+    },
+    {
+      "name": "8021q",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/8021q/Makefile",
+        "kernel_platform/msm-kernel/net/8021q/Makefile"
+      ]
+    },
+    {
+      "name": "abc",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/sti/abc/Makefile"
+      ]
+    },
+    {
+      "name": "abc_hub",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/sti/abc/Makefile"
+      ]
+    },
+    {
+      "name": "adsp_factory_module",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/adsp_factory/Makefile"
+      ]
+    },
+    {
+      "name": "adsp_loader_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/dsp/Kbuild"
+      ]
+    },
+    {
+      "name": "adsp_sleepmon",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "aqc111",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "arm_smmu",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/iommu/arm/arm-smmu/Makefile",
+        "kernel_platform/msm-kernel/drivers/iommu/arm/arm-smmu/Makefile"
+      ]
+    },
+    {
+      "name": "asix",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "at803x",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/phy/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/phy/Makefile"
+      ]
+    },
+    {
+      "name": "audio_pkt_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/ipc/Kbuild"
+      ]
+    },
+    {
+      "name": "audio_prm_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/dsp/Kbuild"
+      ]
+    },
+    {
+      "name": "audpkt_ion_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/dsp/Kbuild"
+      ]
+    },
+    {
+      "name": "ax88179_178a",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "bam_dma",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/dma/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/dma/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "bcl_pmic5",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "bcl_soc",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "bhs_irq_controller",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/misc/Makefile"
+      ]
+    },
+    {
+      "name": "blk_sec_common",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/block/Makefile"
+      ]
+    },
+    {
+      "name": "blk_sec_stats",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/block/Makefile"
+      ]
+    },
+    {
+      "name": "blk_sec_wb",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/block/Makefile"
+      ]
+    },
+    {
+      "name": "bluetooth",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/bluetooth/Makefile",
+        "kernel_platform/msm-kernel/net/bluetooth/Makefile"
+      ]
+    },
+    {
+      "name": "boot_stats",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "bsd_comp",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/ppp/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/ppp/Makefile"
+      ]
+    },
+    {
+      "name": "bt_fm_slim",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/bt-kernel/slimbus/Makefile"
+      ]
+    },
+    {
+      "name": "btbcm",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/bluetooth/Makefile",
+        "kernel_platform/msm-kernel/drivers/bluetooth/Makefile"
+      ]
+    },
+    {
+      "name": "btpower",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/bluetooth/Makefile",
+        "vendor/qcom/opensource/bt-kernel/pwr/Makefile"
+      ]
+    },
+    {
+      "name": "btqca",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/bluetooth/Makefile",
+        "kernel_platform/msm-kernel/drivers/bluetooth/Makefile"
+      ]
+    },
+    {
+      "name": "btsdio",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/bluetooth/Makefile",
+        "kernel_platform/msm-kernel/drivers/bluetooth/Makefile"
+      ]
+    },
+    {
+      "name": "bwmon",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "bwprof",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "c1dcvs_scmi_v2",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "camcc_cliffs",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "camcc_pineapple",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "camcc_volcano",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "camera",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/camera-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "can",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/can/Makefile",
+        "kernel_platform/msm-kernel/net/can/Makefile"
+      ]
+    },
+    {
+      "name": "can_bcm",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/can/Makefile",
+        "kernel_platform/msm-kernel/net/can/Makefile"
+      ]
+    },
+    {
+      "name": "can_dev",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/can/dev/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/can/dev/Makefile"
+      ]
+    },
+    {
+      "name": "can_gw",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/can/Makefile",
+        "kernel_platform/msm-kernel/net/can/Makefile"
+      ]
+    },
+    {
+      "name": "can_raw",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/can/Makefile",
+        "kernel_platform/msm-kernel/net/can/Makefile"
+      ]
+    },
+    {
+      "name": "cdc_acm",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/usb/class/Makefile",
+        "kernel_platform/msm-kernel/drivers/usb/class/Makefile"
+      ]
+    },
+    {
+      "name": "cdc_eem",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "cdc_ether",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "cdc_ncm",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "cdsp_loader",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/dsp-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "cdsprm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "cfg80211",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/wireless/Makefile",
+        "kernel_platform/msm-kernel/net/wireless/Makefile"
+      ]
+    },
+    {
+      "name": "cl_dsp",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/firmware/cirrus/Makefile"
+      ]
+    },
+    {
+      "name": "cl_dsp_debugfs",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/firmware/cirrus/Makefile"
+      ]
+    },
+    {
+      "name": "clk_dummy",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "clk_qcom",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/clk/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "clk_rpmh",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/clk/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "cmd_db",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "cnss2",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/wlan/platform/cnss2/Makefile"
+      ]
+    },
+    {
+      "name": "cnss_nl",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/wlan/platform/cnss_genl/Makefile"
+      ]
+    },
+    {
+      "name": "cnss_plat_ipc_qmi_svc",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/wlan/platform/cnss_utils/Makefile"
+      ]
+    },
+    {
+      "name": "cnss_prealloc",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/wlan/platform/cnss_prealloc/Makefile"
+      ]
+    },
+    {
+      "name": "cnss_utils",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/wlan/platform/cnss_utils/Makefile"
+      ]
+    },
+    {
+      "name": "common_muic",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/muic/common/Makefile"
+      ]
+    },
+    {
+      "name": "core_hang_detect",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "coresight",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwtracing/coresight/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_csr",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_cti",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwtracing/coresight/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_dummy",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_funnel",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwtracing/coresight/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_hwevent",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_remote_etm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_replicator",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwtracing/coresight/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_stm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwtracing/coresight/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_tgu",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_tmc",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwtracing/coresight/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_tmc_sec",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_tpda",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_tpdm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "coresight_trace_noc",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwtracing/coresight/Makefile"
+      ]
+    },
+    {
+      "name": "cpu_hotplug",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/arch/riscv/kernel/Makefile",
+        "kernel_platform/common/drivers/xen/Makefile",
+        "kernel_platform/msm-kernel/arch/riscv/kernel/Makefile",
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/xen/Makefile"
+      ]
+    },
+    {
+      "name": "cpu_voltage_cooling",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "cpucp_log",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "cpufreq_limit",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/cpufreq/Makefile"
+      ]
+    },
+    {
+      "name": "cpufreq_stats_scmi_v2",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "cqhci",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/mmc/host/Makefile",
+        "kernel_platform/msm-kernel/drivers/mmc/host/Makefile"
+      ]
+    },
+    {
+      "name": "crc_itu_t",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/lib/Makefile",
+        "kernel_platform/msm-kernel/lib/Makefile"
+      ]
+    },
+    {
+      "name": "crm",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "crypto_qti",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "cs_dsp",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/firmware/cirrus/Makefile",
+        "kernel_platform/msm-kernel/drivers/firmware/cirrus/Makefile"
+      ]
+    },
+    {
+      "name": "dcc_v2",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "dcvs_fp",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "ddr_cdev",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "debug_regulator",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/Makefile"
+      ]
+    },
+    {
+      "name": "debug_symbol",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "debugcc_cliffs",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "debugcc_pineapple",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "debugcc_volcano",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "delayed_sack",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/net/delayed_sack/Makefile"
+      ]
+    },
+    {
+      "name": "dev_ril_bridge",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/misc/Makefile"
+      ]
+    },
+    {
+      "name": "diag",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/arch/s390/kernel/Makefile",
+        "kernel_platform/common/net/tipc/Makefile",
+        "kernel_platform/msm-kernel/arch/s390/kernel/Makefile",
+        "kernel_platform/msm-kernel/net/tipc/Makefile"
+      ]
+    },
+    {
+      "name": "dispcc_pineapple",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "dispcc_volcano",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "dmesg_dumper",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "drm_display_helper",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/gpu/drm/display/Makefile",
+        "kernel_platform/msm-kernel/drivers/gpu/drm/display/Makefile"
+      ]
+    },
+    {
+      "name": "drm_dp_aux_bus",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/gpu/drm/display/Makefile",
+        "kernel_platform/msm-kernel/drivers/gpu/drm/display/Makefile"
+      ]
+    },
+    {
+      "name": "dropdump",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/net/dropdump/Makefile"
+      ]
+    },
+    {
+      "name": "dwc3_msm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/dwc3/Makefile"
+      ]
+    },
+    {
+      "name": "dynpf_scmi",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "ehset",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/usb/misc/Makefile",
+        "kernel_platform/msm-kernel/drivers/usb/misc/Makefile"
+      ]
+    },
+    {
+      "name": "eud",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "f_fs_ipc_log",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/gadget/function/Makefile"
+      ]
+    },
+    {
+      "name": "fingerprint",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/fingerprint/Makefile"
+      ]
+    },
+    {
+      "name": "fingerprint_sysfs",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/fingerprint/Makefile"
+      ]
+    },
+    {
+      "name": "flicker_sensor",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/optics/Makefile"
+      ]
+    },
+    {
+      "name": "flicker_test",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/optics/Makefile"
+      ]
+    },
+    {
+      "name": "frpc_adsprpc",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/dsp-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "ftdi_sio",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/usb/serial/Makefile",
+        "kernel_platform/msm-kernel/drivers/usb/serial/Makefile"
+      ]
+    },
+    {
+      "name": "gcc_cliffs",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gcc_pineapple",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gcc_volcano",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gdsc_regulator",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gh_arm_drv",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/arch/arm64/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gh_cpusys_vm_mem_access",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gh_ctrl",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gh_dbl",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gh_irq_lend",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gh_mem_notifier",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gh_msgq",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gh_panic_notifier",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gh_rm_booster",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gh_rm_drv",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gh_tlmm_vm_mem_access",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gh_virt_wdt",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gic_intr_routing",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "glink_pkt",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/rpmsg/Makefile"
+      ]
+    },
+    {
+      "name": "glink_probe",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gpr_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/ipc/Kbuild"
+      ]
+    },
+    {
+      "name": "gpu_dump_skip_cdev",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gpucc_cliffs",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gpucc_pineapple",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gpucc_volcano",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "gsim",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/dataipa/drivers/platform/msm/gsi/Kbuild"
+      ]
+    },
+    {
+      "name": "gunyah_loader",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gunyah_qcom",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/virt/gunyah/Makefile",
+        "kernel_platform/msm-kernel/drivers/virt/gunyah/Makefile"
+      ]
+    },
+    {
+      "name": "gzvm",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/arch/arm64/geniezone/Makefile",
+        "kernel_platform/msm-kernel/arch/arm64/geniezone/Makefile"
+      ]
+    },
+    {
+      "name": "hall_ic",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/input/misc/hall/Makefile"
+      ]
+    },
+    {
+      "name": "hall_ic_notifier",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/input/misc/hall/Makefile"
+      ]
+    },
+    {
+      "name": "hci_uart",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/bluetooth/Makefile",
+        "kernel_platform/msm-kernel/drivers/bluetooth/Makefile"
+      ]
+    },
+    {
+      "name": "hdcp_qseecom_dlkm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/securemsm-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "hdm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/knox/hdm/Makefile"
+      ]
+    },
+    {
+      "name": "hdmi_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/Kbuild"
+      ]
+    },
+    {
+      "name": "health_monitor",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "heap_mem_ext_v01",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/memshare/Makefile"
+      ]
+    },
+    {
+      "name": "hidp",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/bluetooth/hidp/Makefile",
+        "kernel_platform/msm-kernel/net/bluetooth/hidp/Makefile"
+      ]
+    },
+    {
+      "name": "hung_task_enh",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "hvc_gunyah",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/tty/hvc/Makefile"
+      ]
+    },
+    {
+      "name": "hwkm",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "hwmon",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwmon/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwmon/Makefile"
+      ]
+    },
+    {
+      "name": "i2c_gpio",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/i2c/busses/Makefile",
+        "kernel_platform/msm-kernel/drivers/i2c/busses/Makefile"
+      ]
+    },
+    {
+      "name": "i2c_msm_geni",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/i2c/busses/Makefile"
+      ]
+    },
+    {
+      "name": "i3c_master_msm_geni",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/i3c/master/Makefile"
+      ]
+    },
+    {
+      "name": "icc_bcm_voter",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/interconnect/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/interconnect/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "icc_debug",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/interconnect/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "icc_rpmh",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/interconnect/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/interconnect/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "icc_test",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/interconnect/Makefile"
+      ]
+    },
+    {
+      "name": "ieee802154",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/ieee802154/Makefile",
+        "kernel_platform/msm-kernel/net/ieee802154/Makefile"
+      ]
+    },
+    {
+      "name": "ieee802154_6lowpan",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/ieee802154/6lowpan/Makefile",
+        "kernel_platform/msm-kernel/net/ieee802154/6lowpan/Makefile"
+      ]
+    },
+    {
+      "name": "ieee802154_socket",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/ieee802154/Makefile",
+        "kernel_platform/msm-kernel/net/ieee802154/Makefile"
+      ]
+    },
+    {
+      "name": "if_cb_manager",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/typec/manager/Makefile"
+      ]
+    },
+    {
+      "name": "input_booster_lkm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/input/input_boost/Makefile"
+      ]
+    },
+    {
+      "name": "input_cs40l26_i2c",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/vibrator/cs/cs40l26/Makefile"
+      ]
+    },
+    {
+      "name": "iommu_logger",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/iommu/Makefile"
+      ]
+    },
+    {
+      "name": "ipam",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/dataipa/drivers/platform/msm/ipa/Kbuild"
+      ]
+    },
+    {
+      "name": "ipanetm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/dataipa/drivers/platform/msm/ipa/Kbuild"
+      ]
+    },
+    {
+      "name": "ipclite",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/synx-kernel/msm/Kbuild",
+        "vendor/qcom/opensource/synx-kernel/msm/Makefile"
+      ]
+    },
+    {
+      "name": "ipclite_test",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/synx-kernel/msm/Kbuild"
+      ]
+    },
+    {
+      "name": "kheaders",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/kernel/Makefile",
+        "kernel_platform/msm-kernel/kernel/Makefile"
+      ]
+    },
+    {
+      "name": "kperfmon",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/kperfmon/Makefile"
+      ]
+    },
+    {
+      "name": "l2tp_core",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/l2tp/Makefile",
+        "kernel_platform/msm-kernel/net/l2tp/Makefile"
+      ]
+    },
+    {
+      "name": "l2tp_ppp",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/l2tp/Makefile",
+        "kernel_platform/msm-kernel/net/l2tp/Makefile"
+      ]
+    },
+    {
+      "name": "lcd",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/arch/mips/cobalt/Makefile",
+        "kernel_platform/common/arch/xtensa/platforms/xtfpga/Makefile",
+        "kernel_platform/common/drivers/video/backlight/Makefile",
+        "kernel_platform/msm-kernel/arch/mips/cobalt/Makefile",
+        "kernel_platform/msm-kernel/arch/xtensa/platforms/xtfpga/Makefile",
+        "kernel_platform/msm-kernel/drivers/video/backlight/Makefile"
+      ]
+    },
+    {
+      "name": "leds_qpnp_vibrator_ldo",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/leds/Makefile"
+      ]
+    },
+    {
+      "name": "leds_qti_flash",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/leds/Makefile"
+      ]
+    },
+    {
+      "name": "leds_qti_tri_led",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/leds/Makefile"
+      ]
+    },
+    {
+      "name": "leds_s2mpb02",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/leds/Makefile"
+      ]
+    },
+    {
+      "name": "libarc4",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/lib/crypto/Makefile",
+        "kernel_platform/msm-kernel/lib/crypto/Makefile"
+      ]
+    },
+    {
+      "name": "llcc_perfmon",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "llcc_qcom",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "lpass_cdc_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/lpass-cdc/Kbuild"
+      ]
+    },
+    {
+      "name": "lpass_cdc_rx_macro_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/lpass-cdc/Kbuild"
+      ]
+    },
+    {
+      "name": "lpass_cdc_tx_macro_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/lpass-cdc/Kbuild"
+      ]
+    },
+    {
+      "name": "lpass_cdc_va_macro_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/lpass-cdc/Kbuild"
+      ]
+    },
+    {
+      "name": "lpass_cdc_wsa2_macro_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/lpass-cdc/Kbuild"
+      ]
+    },
+    {
+      "name": "lpass_cdc_wsa_macro_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/lpass-cdc/Kbuild"
+      ]
+    },
+    {
+      "name": "lt9611uxc",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/gpu/drm/bridge/Makefile"
+      ]
+    },
+    {
+      "name": "lvstest",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/usb/misc/Makefile",
+        "kernel_platform/msm-kernel/drivers/usb/misc/Makefile"
+      ]
+    },
+    {
+      "name": "mac80211",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/mac80211/Makefile",
+        "kernel_platform/msm-kernel/net/mac80211/Makefile"
+      ]
+    },
+    {
+      "name": "mac802154",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/mac802154/Makefile",
+        "kernel_platform/msm-kernel/net/mac802154/Makefile"
+      ]
+    },
+    {
+      "name": "machine_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/Kbuild"
+      ]
+    },
+    {
+      "name": "max31760_fan",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "max77705_charger",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/charger/max77705_charger/Makefile"
+      ]
+    },
+    {
+      "name": "max77705_fuelgauge",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/fuelgauge/max77705_fuelgauge/Makefile"
+      ]
+    },
+    {
+      "name": "max77775_charger",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/charger/max77775_charger/Makefile"
+      ]
+    },
+    {
+      "name": "max77775_fuelgauge",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/fuelgauge/max77775_fuelgauge/Makefile"
+      ]
+    },
+    {
+      "name": "mbhc_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/Kbuild"
+      ]
+    },
+    {
+      "name": "mdt_loader",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "mem_buf",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/mem_buf/Makefile"
+      ]
+    },
+    {
+      "name": "mem_buf_dev",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/mem_buf/Makefile"
+      ]
+    },
+    {
+      "name": "mem_buf_msgq",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/mem_buf/Makefile"
+      ]
+    },
+    {
+      "name": "mem_hooks",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "memlat",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "memory_dump_v2",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "mfd_max77705",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/mfd/maxim/Makefile"
+      ]
+    },
+    {
+      "name": "mfd_max77775",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/mfd/maxim/Makefile"
+      ]
+    },
+    {
+      "name": "mfd_s2mpb02",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/mfd/slsi/s2mpb02/Makefile"
+      ]
+    },
+    {
+      "name": "mhi",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/bus/mhi/host/Makefile",
+        "kernel_platform/msm-kernel/drivers/bus/mhi/host/Makefile"
+      ]
+    },
+    {
+      "name": "mhi_dev_satellite",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/bus/mhi/devices/Makefile"
+      ]
+    },
+    {
+      "name": "mhi_dev_uci",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/bus/mhi/devices/Makefile"
+      ]
+    },
+    {
+      "name": "mii",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/Makefile"
+      ]
+    },
+    {
+      "name": "minidump",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "mpam",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "msm_dma_iommu_mapping",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/iommu/Makefile"
+      ]
+    },
+    {
+      "name": "msm_drm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/display-drivers/msm/Kbuild"
+      ]
+    },
+    {
+      "name": "msm_eva",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/eva-kernel/msm/Kbuild",
+        "vendor/qcom/opensource/eva-kernel/msm/Makefile"
+      ]
+    },
+    {
+      "name": "msm_ext_display",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/mm-drivers/msm_ext_display/Kbuild"
+      ]
+    },
+    {
+      "name": "msm_geni_serial",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/tty/serial/Makefile"
+      ]
+    },
+    {
+      "name": "msm_gpi",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/dma/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "msm_hw_fence",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/mm-drivers/hw_fence/Kbuild"
+      ]
+    },
+    {
+      "name": "msm_kgsl",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/graphics-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "msm_lmh_dcvs",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "msm_memshare",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/memshare/Makefile"
+      ]
+    },
+    {
+      "name": "msm_mmrm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/mmrm-driver/driver/Kbuild"
+      ]
+    },
+    {
+      "name": "msm_performance",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "msm_qmp",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/mailbox/Makefile"
+      ]
+    },
+    {
+      "name": "msm_sharedmem",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/uio/msm_sharedmem/Makefile"
+      ]
+    },
+    {
+      "name": "msm_show_epoch",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "msm_show_resume_irq",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/irqchip/Makefile"
+      ]
+    },
+    {
+      "name": "msm_sysstats",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/kernel/Makefile"
+      ]
+    },
+    {
+      "name": "msm_video",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/video-driver/msm_video/Kbuild"
+      ]
+    },
+    {
+      "name": "nb7vpq904m",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/redriver/Makefile"
+      ]
+    },
+    {
+      "name": "nfc",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/nfc/Makefile",
+        "kernel_platform/msm-kernel/drivers/nfc/nxp_combined/Makefile",
+        "kernel_platform/msm-kernel/net/nfc/Makefile"
+      ]
+    },
+    {
+      "name": "nfc_nxp_sec",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/nfc/nxp_combined/Makefile"
+      ]
+    },
+    {
+      "name": "nhc_dest",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/6lowpan/Makefile",
+        "kernel_platform/msm-kernel/net/6lowpan/Makefile"
+      ]
+    },
+    {
+      "name": "nhc_fragment",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/6lowpan/Makefile",
+        "kernel_platform/msm-kernel/net/6lowpan/Makefile"
+      ]
+    },
+    {
+      "name": "nhc_hop",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/6lowpan/Makefile",
+        "kernel_platform/msm-kernel/net/6lowpan/Makefile"
+      ]
+    },
+    {
+      "name": "nhc_ipv6",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/6lowpan/Makefile",
+        "kernel_platform/msm-kernel/net/6lowpan/Makefile"
+      ]
+    },
+    {
+      "name": "nhc_mobility",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/6lowpan/Makefile",
+        "kernel_platform/msm-kernel/net/6lowpan/Makefile"
+      ]
+    },
+    {
+      "name": "nhc_routing",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/6lowpan/Makefile",
+        "kernel_platform/msm-kernel/net/6lowpan/Makefile"
+      ]
+    },
+    {
+      "name": "nhc_udp",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/6lowpan/Makefile",
+        "kernel_platform/msm-kernel/net/6lowpan/Makefile"
+      ]
+    },
+    {
+      "name": "nu1668_charger",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/wireless/Makefile"
+      ]
+    },
+    {
+      "name": "nvmem_qcom_spmi_sdam",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/nvmem/Makefile",
+        "kernel_platform/msm-kernel/drivers/nvmem/Makefile"
+      ]
+    },
+    {
+      "name": "nvmem_qfprom",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/nvmem/Makefile",
+        "kernel_platform/msm-kernel/drivers/nvmem/Makefile"
+      ]
+    },
+    {
+      "name": "panel_event_notifier",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "pca9481_charger",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/charger/pca9481_charger/Makefile"
+      ]
+    },
+    {
+      "name": "pci_msm_drv",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/pci/controller/Makefile"
+      ]
+    },
+    {
+      "name": "pcie_pdc",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "pdic_max77705",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/typec/maxim/Makefile"
+      ]
+    },
+    {
+      "name": "pdic_max77775",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/typec/maxim/Makefile"
+      ]
+    },
+    {
+      "name": "pdic_notifier_module",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/typec/common/Makefile"
+      ]
+    },
+    {
+      "name": "pdr_interface",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "phy_generic",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/usb/phy/Makefile",
+        "kernel_platform/msm-kernel/drivers/usb/phy/Makefile"
+      ]
+    },
+    {
+      "name": "phy_msm_snps_eusb2",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/phy/Makefile"
+      ]
+    },
+    {
+      "name": "phy_msm_ssusb_qmp",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/phy/Makefile"
+      ]
+    },
+    {
+      "name": "phy_qcom_emu",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/phy/Makefile"
+      ]
+    },
+    {
+      "name": "phy_qcom_ufs",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/phy/qualcomm/Makefile"
+      ]
+    },
+    {
+      "name": "phy_qcom_ufs_qmp_v4",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/phy/qualcomm/Makefile"
+      ]
+    },
+    {
+      "name": "phy_qcom_ufs_qmp_v4_crow",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/phy/qualcomm/Makefile"
+      ]
+    },
+    {
+      "name": "phy_qcom_ufs_qmp_v4_pineapple",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/phy/qualcomm/Makefile"
+      ]
+    },
+    {
+      "name": "phy_qcom_ufs_qrbtc_sdm845",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/phy/qualcomm/Makefile"
+      ]
+    },
+    {
+      "name": "pinctrl_cliffs",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/pinctrl/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "pinctrl_lpi_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/soc/Kbuild"
+      ]
+    },
+    {
+      "name": "pinctrl_msm",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/pinctrl/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/pinctrl/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "pinctrl_pineapple",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/pinctrl/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "pinctrl_spmi_gpio",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/pinctrl/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/pinctrl/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "pinctrl_spmi_mpp",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/pinctrl/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/pinctrl/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "pinctrl_volcano",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/pinctrl/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "pm8941_pwrkey",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/input/misc/Makefile",
+        "kernel_platform/msm-kernel/drivers/input/misc/Makefile"
+      ]
+    },
+    {
+      "name": "pmic_class",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/pmic_class/Makefile"
+      ]
+    },
+    {
+      "name": "pmic_pon_log",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "ppp_deflate",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/ppp/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/ppp/Makefile"
+      ]
+    },
+    {
+      "name": "ppp_generic",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/ppp/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/ppp/Makefile"
+      ]
+    },
+    {
+      "name": "ppp_mppe",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/ppp/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/ppp/Makefile"
+      ]
+    },
+    {
+      "name": "pppox",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/ppp/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/ppp/Makefile"
+      ]
+    },
+    {
+      "name": "pptp",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/ppp/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/ppp/Makefile"
+      ]
+    },
+    {
+      "name": "proxy_consumer",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/Makefile"
+      ]
+    },
+    {
+      "name": "pwm_qti_lpg",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/pwm/Makefile"
+      ]
+    },
+    {
+      "name": "q6_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/dsp/Kbuild"
+      ]
+    },
+    {
+      "name": "q6_notifier_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/dsp/Kbuild"
+      ]
+    },
+    {
+      "name": "q6_pdr_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/dsp/Kbuild"
+      ]
+    },
+    {
+      "name": "qca_cld3_kiwi_v2",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/wlan/qcacld-3.0/wlan_qcacld3_modules.bzl"
+      ]
+    },
+    {
+      "name": "qce50_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/securemsm-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "qcedev_mod_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/securemsm-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "qcom_aoss",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_cpu_vendor_hooks",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_cpucp",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_cpufreq_hw",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/cpufreq/Makefile",
+        "kernel_platform/msm-kernel/drivers/cpufreq/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_cpufreq_hw_debug",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/cpufreq/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_cpuss_sleep_stats",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_dcvs",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_dload_mode",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/power/reset/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_dma_heaps",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/dma-buf/heaps/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_edac",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/edac/Makefile",
+        "kernel_platform/msm-kernel/drivers/edac/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_glink",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/rpmsg/Makefile",
+        "kernel_platform/msm-kernel/drivers/rpmsg/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_glink_smem",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/rpmsg/Makefile",
+        "kernel_platform/msm-kernel/drivers/rpmsg/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_glink_spss",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/rpmsg/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_hwspinlock",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwspinlock/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwspinlock/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_i2c_pmic",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/mfd/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_iommu_debug",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/iommu/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_iommu_util",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/iommu/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_ipc_logging",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/kernel/trace/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_ipcc",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/mailbox/Makefile",
+        "kernel_platform/msm-kernel/drivers/mailbox/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_llcc_pmu",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/perf/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_logbuf_boot_log",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_logbuf_vendor_hooks",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_lpm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/cpuidle/governors/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_pdc",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/irqchip/Makefile",
+        "kernel_platform/msm-kernel/drivers/irqchip/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_pil_info",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/remoteproc/Makefile",
+        "kernel_platform/msm-kernel/drivers/remoteproc/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_pm8008_regulator",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_pmu_lib",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_pon",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/power/reset/Makefile",
+        "kernel_platform/msm-kernel/drivers/power/reset/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_q6v5",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/remoteproc/Makefile",
+        "kernel_platform/msm-kernel/drivers/remoteproc/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_q6v5_pas",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/remoteproc/Makefile",
+        "kernel_platform/msm-kernel/drivers/remoteproc/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_ramdump",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_reboot_reason",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/power/reset/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_rpmh",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_scm",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/firmware/Makefile",
+        "kernel_platform/msm-kernel/drivers/firmware/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_scmi_client",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/dcvs/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_scmi_vendor",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/firmware/arm_scmi/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_smd",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/rpmsg/Makefile",
+        "kernel_platform/msm-kernel/drivers/rpmsg/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_spmi_adc5_gen3",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/iio/adc/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_spmi_pmic",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/mfd/Makefile",
+        "kernel_platform/msm-kernel/drivers/mfd/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_spmi_temp_alarm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/thermal/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_spmi_wled",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/video/backlight/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_spss",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/remoteproc/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_stats",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_sysmon",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/remoteproc/Makefile",
+        "kernel_platform/msm-kernel/drivers/remoteproc/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_tsens",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/thermal/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_va_minidump",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_vadc_common",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/iio/adc/Makefile",
+        "kernel_platform/msm-kernel/drivers/iio/adc/Makefile"
+      ]
+    },
+    {
+      "name": "qcom_wdt_core",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qcrypto_msm_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/securemsm-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "qfprom_sys",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qfs4008_spidev",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/fingerprint/Makefile"
+      ]
+    },
+    {
+      "name": "qmi_helpers",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qnoc_cliffs",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/interconnect/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qnoc_pineapple",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/interconnect/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qnoc_qos",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/interconnect/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qnoc_volcano",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/interconnect/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qpnp_amoled_regulator",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/Makefile"
+      ]
+    },
+    {
+      "name": "qpnp_lcdb_regulator",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/Makefile"
+      ]
+    },
+    {
+      "name": "qrng_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/securemsm-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "qrtr",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/qrtr/Makefile",
+        "kernel_platform/msm-kernel/net/qrtr/Makefile"
+      ]
+    },
+    {
+      "name": "qrtr_gunyah",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/net/qrtr/Makefile"
+      ]
+    },
+    {
+      "name": "qrtr_mhi",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/qrtr/Makefile",
+        "kernel_platform/msm-kernel/net/qrtr/Makefile"
+      ]
+    },
+    {
+      "name": "qrtr_smd",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/qrtr/Makefile",
+        "kernel_platform/msm-kernel/net/qrtr/Makefile"
+      ]
+    },
+    {
+      "name": "qsee_ipc_irq_bridge",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qseecom_dlkm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/securemsm-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "qseecom_proxy",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/misc/Makefile"
+      ]
+    },
+    {
+      "name": "qti_amoled_ecm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwmon/Makefile"
+      ]
+    },
+    {
+      "name": "qti_cpufreq_cdev",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qti_devfreq_cdev",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qti_fixed_regulator",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/Makefile"
+      ]
+    },
+    {
+      "name": "qti_ocp_notifier",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/Makefile"
+      ]
+    },
+    {
+      "name": "qti_qmi_cdev",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qti_qmi_sensor_v2",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qti_qmi_ss_cdev",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qti_regmap_debugfs",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/base/regmap/Makefile"
+      ]
+    },
+    {
+      "name": "qti_thermal_vendor_hooks",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "qti_userspace_cdev",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "r8152",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "r8153_ecm",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "radio_i2c_rtc6226_qca",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/bt-kernel/rtc6226/Makefile"
+      ]
+    },
+    {
+      "name": "rdbg",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/char/Makefile"
+      ]
+    },
+    {
+      "name": "reboot_mode",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/power/reset/Makefile",
+        "kernel_platform/msm-kernel/drivers/power/reset/Makefile"
+      ]
+    },
+    {
+      "name": "redriver",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/redriver/Makefile"
+      ]
+    },
+    {
+      "name": "repeater",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/repeater/Makefile"
+      ]
+    },
+    {
+      "name": "repeater_i2c_eusb2",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/repeater/Makefile"
+      ]
+    },
+    {
+      "name": "rfcomm",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/bluetooth/rfcomm/Makefile",
+        "kernel_platform/msm-kernel/net/bluetooth/rfcomm/Makefile"
+      ]
+    },
+    {
+      "name": "rfkill",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/rfkill/Makefile",
+        "kernel_platform/msm-kernel/net/rfkill/Makefile"
+      ]
+    },
+    {
+      "name": "rmnet_aps",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/datarmnet-ext/aps/Kbuild"
+      ]
+    },
+    {
+      "name": "rmnet_core",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/datarmnet/core/Kbuild"
+      ]
+    },
+    {
+      "name": "rmnet_ctl",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/datarmnet/core/Kbuild"
+      ]
+    },
+    {
+      "name": "rmnet_mem",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/datarmnet-ext/mem/Kbuild"
+      ]
+    },
+    {
+      "name": "rmnet_offload",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/datarmnet-ext/offload/Kbuild"
+      ]
+    },
+    {
+      "name": "rmnet_perf",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/datarmnet-ext/perf/Kbuild"
+      ]
+    },
+    {
+      "name": "rmnet_perf_tether",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/datarmnet-ext/perf_tether/Kbuild"
+      ]
+    },
+    {
+      "name": "rmnet_sch",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/datarmnet-ext/sch/Kbuild"
+      ]
+    },
+    {
+      "name": "rmnet_shs",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/datarmnet-ext/shs/Kbuild"
+      ]
+    },
+    {
+      "name": "rmnet_wlan",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/datarmnet-ext/wlan/Kbuild"
+      ]
+    },
+    {
+      "name": "rpmh_regulator",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/Makefile"
+      ]
+    },
+    {
+      "name": "rproc_qcom_common",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/remoteproc/Makefile"
+      ]
+    },
+    {
+      "name": "rtc_pm8xxx",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/rtc/Makefile",
+        "kernel_platform/msm-kernel/drivers/rtc/Makefile"
+      ]
+    },
+    {
+      "name": "rtl8150",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "s2dos05_regulator",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/s2dos05/Makefile"
+      ]
+    },
+    {
+      "name": "s2dos07",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/s2dos07/Makefile"
+      ]
+    },
+    {
+      "name": "s2mpb02_regulator",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/s2mpb02/Makefile"
+      ]
+    },
+    {
+      "name": "s2mpb03",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/s2mpb03/Makefile"
+      ]
+    },
+    {
+      "name": "sb_core",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/core/Makefile"
+      ]
+    },
+    {
+      "name": "sb_wireless",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/common/Makefile"
+      ]
+    },
+    {
+      "name": "sched_walt",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/kernel/sched/walt/Makefile"
+      ]
+    },
+    {
+      "name": "sdhci_msm_sec",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/mmc/host/Makefile"
+      ]
+    },
+    {
+      "name": "sdp",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/sdp/Makefile"
+      ]
+    },
+    {
+      "name": "sec_abc_detect_conn",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/sti/abc/Makefile"
+      ]
+    },
+    {
+      "name": "sec_ap_pmic",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/mfd/Makefile"
+      ]
+    },
+    {
+      "name": "sec_arm64_ap_context",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/arm64/ap_context/Makefile"
+      ]
+    },
+    {
+      "name": "sec_arm64_debug",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/arm64/debug/Makefile"
+      ]
+    },
+    {
+      "name": "sec_arm64_fsimd_debug",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/arm64/fsimd_debug/Makefile"
+      ]
+    },
+    {
+      "name": "sec_audio_sysfs",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/sound/soc/samsung/Makefile"
+      ]
+    },
+    {
+      "name": "sec_battery",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/common/Makefile"
+      ]
+    },
+    {
+      "name": "sec_boot_stat",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/boot_stat/Makefile"
+      ]
+    },
+    {
+      "name": "sec_class",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/bsp/class/Makefile"
+      ]
+    },
+    {
+      "name": "sec_common_fn",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/input/sec_input/Makefile"
+      ]
+    },
+    {
+      "name": "sec_crashkey",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/crashkey/Makefile"
+      ]
+    },
+    {
+      "name": "sec_crashkey_long",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/crashkey_long/Makefile"
+      ]
+    },
+    {
+      "name": "sec_debug",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/common/Makefile"
+      ]
+    },
+    {
+      "name": "sec_debug_region",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/debug_region/Makefile"
+      ]
+    },
+    {
+      "name": "sec_direct_charger",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/common/Makefile"
+      ]
+    },
+    {
+      "name": "sec_input_notifier",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/input/sec_input/Makefile"
+      ]
+    },
+    {
+      "name": "sec_key_notifier",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/bsp/key_notifier/Makefile"
+      ]
+    },
+    {
+      "name": "sec_log_buf",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/log_buf/Makefile"
+      ]
+    },
+    {
+      "name": "sec_panel_notifier_v2",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/sec_panel_notifier_v2/Makefile"
+      ]
+    },
+    {
+      "name": "sec_param",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/bsp/param/Makefile"
+      ]
+    },
+    {
+      "name": "sec_pd",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/battery/common/Makefile"
+      ]
+    },
+    {
+      "name": "sec_pm_log",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/power/Makefile"
+      ]
+    },
+    {
+      "name": "sec_pmsg",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/pmsg/Makefile"
+      ]
+    },
+    {
+      "name": "sec_pon_alarm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/rtc/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_dbg_partition",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/dbg_partition/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_debug",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/debug/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_hw_param",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/hw_param/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_logger",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/logger/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_param",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/bsp/qcom/param/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_qcom_reboot_reason",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/reboot_reason/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_qcom_wdt_core",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/wdt_core/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_rbcmd",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/reboot_cmd/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_rst_exinfo",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/rst_exinfo/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_smem",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/smem/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_soc_id",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/soc_id/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_summary",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/summary/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_upload_cause",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/upload_cause/Makefile"
+      ]
+    },
+    {
+      "name": "sec_qc_user_reset",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/qcom/user_reset/Makefile"
+      ]
+    },
+    {
+      "name": "sec_rdx_bootdev",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/rdx_bootdev/Makefile"
+      ]
+    },
+    {
+      "name": "sec_reboot_cmd",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/reboot_cmd/Makefile"
+      ]
+    },
+    {
+      "name": "sec_reloc_gpio",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/bsp/reloc_gpio/Makefile"
+      ]
+    },
+    {
+      "name": "sec_switch_class",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/staging/android/switch/Makefile"
+      ]
+    },
+    {
+      "name": "sec_thermistor",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/pm/sec_thermistor/Makefile"
+      ]
+    },
+    {
+      "name": "sec_upload_cause",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/samsung/debug/upload_cause/Makefile"
+      ]
+    },
+    {
+      "name": "sec_vibrator_inputff_module",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/vibrator/common/inputff/Makefile"
+      ]
+    },
+    {
+      "name": "secure_buffer",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "sensors_core",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/sensors/Makefile"
+      ]
+    },
+    {
+      "name": "sg",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/scsi/Makefile",
+        "kernel_platform/msm-kernel/drivers/scsi/Makefile"
+      ]
+    },
+    {
+      "name": "slcan",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/can/slcan/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/can/slcan/Makefile"
+      ]
+    },
+    {
+      "name": "slhc",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/slip/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/slip/Makefile"
+      ]
+    },
+    {
+      "name": "slim_qcom_ngd_ctrl",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/slimbus/Makefile",
+        "kernel_platform/msm-kernel/drivers/slimbus/Makefile"
+      ]
+    },
+    {
+      "name": "slimbus",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/slimbus/Makefile",
+        "kernel_platform/msm-kernel/drivers/slimbus/Makefile"
+      ]
+    },
+    {
+      "name": "smcinvoke_dlkm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/securemsm-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "smem",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "smmu_proxy_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/securemsm-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "smp2p",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "smp2p_sleepstate",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "smsc",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/phy/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/phy/Makefile"
+      ]
+    },
+    {
+      "name": "smsc75xx",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "smsc95xx",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "snd_debug_proc",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/sound/soc/samsung/Makefile"
+      ]
+    },
+    {
+      "name": "snd_event_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/soc/Kbuild"
+      ]
+    },
+    {
+      "name": "snd_soc_cirrus_amp",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/sound/soc/codecs/Makefile"
+      ]
+    },
+    {
+      "name": "snd_soc_cs35l43_i2c",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/sound/soc/codecs/Makefile"
+      ]
+    },
+    {
+      "name": "snd_soc_cs35l45_i2c",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/sound/soc/codecs/Makefile",
+        "kernel_platform/msm-kernel/sound/soc/codecs/Makefile"
+      ]
+    },
+    {
+      "name": "snd_soc_cs40l26",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/sound/soc/codecs/Makefile"
+      ]
+    },
+    {
+      "name": "snd_soc_hdmi_codec",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/sound/soc/codecs/Makefile",
+        "kernel_platform/msm-kernel/sound/soc/codecs/Makefile"
+      ]
+    },
+    {
+      "name": "snd_soc_wm_adsp",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/sound/soc/codecs/Makefile",
+        "kernel_platform/msm-kernel/sound/soc/codecs/Makefile"
+      ]
+    },
+    {
+      "name": "snd_usb_audio_qmi",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/sound/usb/Makefile"
+      ]
+    },
+    {
+      "name": "snvm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/nfc/snvm/Makefile"
+      ]
+    },
+    {
+      "name": "snvm_plat",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/misc/k250a/Makefile"
+      ]
+    },
+    {
+      "name": "socinfo",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/soc/qcom/Makefile",
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "softdog",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/watchdog/Makefile",
+        "kernel_platform/msm-kernel/drivers/watchdog/Makefile"
+      ]
+    },
+    {
+      "name": "spcom",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/spu-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "spf_core_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/dsp/Kbuild"
+      ]
+    },
+    {
+      "name": "spi_msm_geni",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/spi/Makefile"
+      ]
+    },
+    {
+      "name": "spmi_pmic_arb",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/spmi/Makefile",
+        "kernel_platform/msm-kernel/drivers/spmi/Makefile"
+      ]
+    },
+    {
+      "name": "spmi_pmic_arb_debug",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/spmi/Makefile"
+      ]
+    },
+    {
+      "name": "sps_drv",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/sps/Makefile"
+      ]
+    },
+    {
+      "name": "spss_utils",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/spu-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "ssg",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/block/Makefile"
+      ]
+    },
+    {
+      "name": "stm_console",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwtracing/stm/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwtracing/stm/Makefile"
+      ]
+    },
+    {
+      "name": "stm_core",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwtracing/stm/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwtracing/stm/Makefile"
+      ]
+    },
+    {
+      "name": "stm_ftrace",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwtracing/stm/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwtracing/stm/Makefile"
+      ]
+    },
+    {
+      "name": "stm_heartbeat",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/hwtracing/stm/Makefile",
+        "kernel_platform/msm-kernel/drivers/hwtracing/stm/Makefile"
+      ]
+    },
+    {
+      "name": "stm_p_ost",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/hwtracing/stm/Makefile"
+      ]
+    },
+    {
+      "name": "stm_ts_spi",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/input/sec_input/stm_spi/Makefile"
+      ]
+    },
+    {
+      "name": "stmvl53l8",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/sensors/vl53l8/Makefile"
+      ]
+    },
+    {
+      "name": "stub_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/Kbuild"
+      ]
+    },
+    {
+      "name": "stub_regulator",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/regulator/Makefile"
+      ]
+    },
+    {
+      "name": "swr_ctrl_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/soc/Kbuild"
+      ]
+    },
+    {
+      "name": "swr_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/soc/Kbuild"
+      ]
+    },
+    {
+      "name": "swr_dmic_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/Kbuild"
+      ]
+    },
+    {
+      "name": "swr_haptics_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/Kbuild"
+      ]
+    },
+    {
+      "name": "synaptics_ts_spi",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/input/sec_input/synaptics/Makefile"
+      ]
+    },
+    {
+      "name": "sync_fence",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/mm-drivers/sync_fence/Kbuild"
+      ]
+    },
+    {
+      "name": "synx_driver",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/synx-kernel/msm/Kbuild",
+        "vendor/qcom/opensource/synx-kernel/msm/Makefile"
+      ]
+    },
+    {
+      "name": "sys_pm_vx",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "sysmon_subsystem_stats",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "tcsrcc_pineapple",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "thermal_config",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "thermal_minidump",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "thermal_pause",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/thermal/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "tipc",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/net/tipc/Makefile",
+        "kernel_platform/msm-kernel/net/tipc/Makefile"
+      ]
+    },
+    {
+      "name": "tmecom_intf",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/tmecom/Makefile"
+      ]
+    },
+    {
+      "name": "tz_log_dlkm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/securemsm-kernel/Kbuild"
+      ]
+    },
+    {
+      "name": "ubwcp",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/mm-sys-kernel/ubwcp/Kbuild"
+      ]
+    },
+    {
+      "name": "ufs_qcom",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/ufs/host/Makefile",
+        "kernel_platform/msm-kernel/drivers/ufs/host/Makefile"
+      ]
+    },
+    {
+      "name": "ufshcd_crypto_qti",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/ufs/host/Makefile"
+      ]
+    },
+    {
+      "name": "usb_f_ccid",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/gadget/function/Makefile"
+      ]
+    },
+    {
+      "name": "usb_f_cdev",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/gadget/function/Makefile"
+      ]
+    },
+    {
+      "name": "usb_f_conn_gadget",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/gadget/function/Makefile"
+      ]
+    },
+    {
+      "name": "usb_f_gsi",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/gadget/function/Makefile"
+      ]
+    },
+    {
+      "name": "usb_f_qdss",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/gadget/function/Makefile"
+      ]
+    },
+    {
+      "name": "usb_f_ss_acm",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/gadget/function/Makefile"
+      ]
+    },
+    {
+      "name": "usb_f_ss_mon_gadget",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/gadget/function/Makefile"
+      ]
+    },
+    {
+      "name": "usb_notifier",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/notify/Makefile"
+      ]
+    },
+    {
+      "name": "usb_notify_layer",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/notify/Makefile"
+      ]
+    },
+    {
+      "name": "usb_typec_manager",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/typec/manager/Makefile"
+      ]
+    },
+    {
+      "name": "usb_vendor_receiver",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/usb/vendor_notify/Makefile",
+        "kernel_platform/msm-kernel/drivers/usb/vendor_notify/Makefile"
+      ]
+    },
+    {
+      "name": "usbnet",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/usb/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/usb/Makefile"
+      ]
+    },
+    {
+      "name": "usbserial",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/usb/serial/Makefile",
+        "kernel_platform/msm-kernel/drivers/usb/serial/Makefile"
+      ]
+    },
+    {
+      "name": "uwb",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/uwb/Makefile"
+      ]
+    },
+    {
+      "name": "vbus_notifier",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/usb/common/vbus_notifier/Makefile"
+      ]
+    },
+    {
+      "name": "vcan",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/can/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/can/Makefile"
+      ]
+    },
+    {
+      "name": "vibrator_vib_info",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/vibrator/common/vib_info/Makefile"
+      ]
+    },
+    {
+      "name": "videocc_pineapple",
+      "partitions": [
+        "vendor_boot"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "videocc_volcano",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/clk/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "wcd938x_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/wcd938x/Kbuild"
+      ]
+    },
+    {
+      "name": "wcd938x_slave_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/wcd938x/Kbuild"
+      ]
+    },
+    {
+      "name": "wcd939x_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/wcd939x/Kbuild"
+      ]
+    },
+    {
+      "name": "wcd939x_slave_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/wcd939x/Kbuild"
+      ]
+    },
+    {
+      "name": "wcd9xxx_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/Kbuild"
+      ]
+    },
+    {
+      "name": "wcd_core_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/Kbuild"
+      ]
+    },
+    {
+      "name": "wcd_usbss_i2c",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/soc/qcom/Makefile"
+      ]
+    },
+    {
+      "name": "wez02",
+      "partitions": [
+        "vendor_boot",
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/msm-kernel/drivers/input/sec_input/wacom/Makefile"
+      ]
+    },
+    {
+      "name": "wlan_firmware_service",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/wlan/platform/cnss_utils/Makefile"
+      ]
+    },
+    {
+      "name": "wonder",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/wlan/wonder/Makefile"
+      ]
+    },
+    {
+      "name": "wsa883x_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/wsa883x/Kbuild"
+      ]
+    },
+    {
+      "name": "wsa884x_dlkm",
+      "partitions": [
+        "vendor_dlkm"
+      ],
+      "build_rules": [
+        "vendor/qcom/opensource/audio-kernel/asoc/codecs/wsa884x/Kbuild"
+      ]
+    },
+    {
+      "name": "wwan",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/net/wwan/Makefile",
+        "kernel_platform/msm-kernel/drivers/net/wwan/Makefile"
+      ]
+    },
+    {
+      "name": "zram",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/drivers/block/zram/Makefile",
+        "kernel_platform/msm-kernel/drivers/block/zram/Makefile"
+      ]
+    },
+    {
+      "name": "zsmalloc",
+      "partitions": [
+        "system_dlkm"
+      ],
+      "build_rules": [
+        "kernel_platform/common/mm/Makefile",
+        "kernel_platform/msm-kernel/mm/Makefile"
+      ]
+    }
+  ]
+}

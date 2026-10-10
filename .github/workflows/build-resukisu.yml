@@ -1231,6 +1231,7 @@ jobs:
         mkdir -p "$GITHUB_WORKSPACE/droidspaces-build-diagnostics"
         cp "$DEFCONFIG" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/gki_defconfig"
         cp "$DEFCONFIG_FRAGMENT" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/sukisu_gki.fragment"
+        cp "$GITHUB_WORKSPACE/android14-6.1/build-helpers/droidspaces-gki/samsung-source-readiness.json" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/SAMSUNG-SOURCE-READINESS.json"
 
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
