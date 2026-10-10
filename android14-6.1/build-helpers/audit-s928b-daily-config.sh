@@ -5,6 +5,7 @@ CONFIG_FILE="${1:?final kernel config}"
 REQUIRE_KPM="${2:-true}"
 REQUIRE_CUSTOM_MANAGER="${3:-false}"
 KMI_MODE="${4:-runtime-compat}"
+RESOURCE_LIMITS="${5:-false}"
 case "$KMI_MODE" in
   runtime-compat|symtypes|strict) ;;
   *)
@@ -74,7 +75,12 @@ REQUIRED=(
   CONFIG_KVM
 )
 if [[ "$KMI_MODE" == "strict" ]]; then
-  STRICT_KMI_DISABLED=(CONFIG_CGROUP_PIDS CONFIG_LRU_GEN_STATS)
+  STRICT_KMI_DISABLED=(CONFIG_LRU_GEN_STATS)
+  if [[ "$RESOURCE_LIMITS" == true ]]; then
+    REQUIRED+=(CONFIG_CGROUP_PIDS CONFIG_CFS_BANDWIDTH CONFIG_FAIR_GROUP_SCHED)
+  else
+    STRICT_KMI_DISABLED+=(CONFIG_CGROUP_PIDS CONFIG_CFS_BANDWIDTH)
+  fi
 else
   REQUIRED+=(CONFIG_CGROUP_PIDS CONFIG_LRU_GEN_STATS)
   STRICT_KMI_DISABLED=()
@@ -109,9 +115,8 @@ grep -qx 'CONFIG_LOG_BUF_SHIFT=22' "$CONFIG_FILE" || {
   exit 1
 }
 
-# IPv6_NAT_FIX deliberately rewrites only the embedded IKCONFIG copy from y to
-# n. The final build .config is checked strictly before packaging.
-grep -Eq '^CONFIG_IP6_NF_NAT=(y|n)$' "$CONFIG_FILE" || {
+# Retain truthful NAT66 capability in both build and embedded configuration.
+grep -qx 'CONFIG_IP6_NF_NAT=y' "$CONFIG_FILE" || {
   echo "::error::CONFIG_IP6_NF_NAT is absent from the final or embedded config"
   exit 1
 }
@@ -157,7 +162,7 @@ fi
 
 echo "Verified ${#REQUIRED[@]} S928B daily features in $CONFIG_FILE"
 if [[ "$KMI_MODE" == "strict" ]]; then
-  echo "Verified strict Samsung KMI layout: CONFIG_CGROUP_PIDS=n and CONFIG_LRU_GEN_STATS=n"
+  echo "Strict ABI checks retained; resource limits requested: $RESOURCE_LIMITS; CONFIG_LRU_GEN_STATS=n"
 fi
 echo "Verified CONFIG_LOG_BUF_SHIFT=22 (4 MiB printk ring buffer)"
 echo "Verified CONFIG_KFENCE=n, CONFIG_KASAN=n and CONFIG_UBSAN=n"

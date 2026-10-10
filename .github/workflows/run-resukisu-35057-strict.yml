@@ -1,8 +1,13 @@
-name: S928B ZZI4 BakaSU 35220 SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
-run-name: "S928BXXU6ZZI4 EUX — BakaSU 35220 + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1 / BootconfigStaticKey-v1"
+name: S928B ZZI4 BakaSU 35222 DroidSpaces CPU PID experiment SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
+run-name: "S928BXXU6ZZI4 EUX — BakaSU 35222 DroidSpaces CPU/PID attempt + SUSFS v2.3.0 @ 24743360 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah Reclaim v1 / BootconfigStaticKey-v1"
 
 on:
   workflow_dispatch:
+    inputs:
+      resource_limits:
+        description: 'Experimental CPU/PID limits; strict ABI checks retained, no flash package'
+        type: boolean
+        default: true
   push:
     branches:
       - agent/resukisu-35115-eux-zzhl
@@ -30,6 +35,7 @@ on:
       - codex/resukisu-35205-zzi4
       - codex/bakasu-35215-zzi4
       - codex/bakasu-35220-zzi4
+      - codex/bakasu-35222-droidspaces-zzi4
     paths:
       - '.github/workflows/run-resukisu-35057-strict.yml'
       - '.github/workflows/build-resukisu.yml'
@@ -41,9 +47,10 @@ on:
       - 'android14-6.1/build-helpers/test-resukisu-35193-lock.py'
       - 'android14-6.1/build-helpers/resukisu_35201_lock.py'
       - 'android14-6.1/build-helpers/test-resukisu-35201-lock.py'
-      - 'android14-6.1/build-helpers/bakasu_35220_lock.py'
-      - 'android14-6.1/build-helpers/test-bakasu-35220-lock.py'
+      - 'android14-6.1/build-helpers/bakasu_35222_lock.py'
+      - 'android14-6.1/build-helpers/test-bakasu-35222-lock.py'
       - '.github/workflows/cache-dependencies.yml'
+      - 'android14-6.1/build-helpers/droidspaces-gki/**'
       - '.github/actions/susfs-v2.2/**'
       - 'android14-6.1/defconfig.fragment'
       - 'android14-6.1/build-helpers/clean-build-flags.sh'
@@ -58,9 +65,9 @@ on:
       - 'android14-6.1/build-helpers/gunyah-reclaim/**'
       - 'android14-6.1/build-helpers/su-session/**'
       - 'android14-6.1/build-helpers/su-session-35193/**'
-      - 'android14-6.1/build-helpers/su-session-35220/**'
-      - 'android14-6.1/build-helpers/bakasu_35220_uapi.py'
-      - 'android14-6.1/build-helpers/test-bakasu-35220-bindings.py'
+      - 'android14-6.1/build-helpers/su-session-35222/**'
+      - 'android14-6.1/build-helpers/bakasu_35222_uapi.py'
+      - 'android14-6.1/build-helpers/test-bakasu-35222-bindings.py'
       - 'android14-6.1/build-helpers/fixtures/resukisu-35203-bindgen-0.73.2.rs'
       - 'android14-6.1/build-helpers/capture-resukisu-cargo.py'
       - 'android14-6.1/build-helpers/susfs-uid-gated/**'
@@ -100,7 +107,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35220-zzi4-uidgate-v1-${{ github.ref_name }}
+  group: s928b-resukisu-35222-zzi4-uidgate-v1-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -114,7 +121,8 @@ jobs:
       - name: Validate transformation, budget bounds and exact C function
         run: |
           set -euo pipefail
-          python3 android14-6.1/build-helpers/test-bakasu-35220-bindings.py
+          python3 android14-6.1/build-helpers/test-bakasu-35222-bindings.py
+          python3 android14-6.1/build-helpers/droidspaces-gki/test.py
           python3 android14-6.1/build-helpers/test-e3q-gunyah-adaptive-backing.py
           python3 android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py
           python3 android14-6.1/build-helpers/susfs-uid-gated/test.py --cc gcc --work-dir "$RUNNER_TEMP/uid-gate-tests"
@@ -123,8 +131,8 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: 8450dd287ef6ee25ca2b6b858b43c9354c73060c
-      resukisu_version_code: "35220"
+      resukisu_commit: 5b76b884c75f729a220bb317aa4a4fc78f0e0e9c
+      resukisu_version_code: "35222"
 
   dependencies:
     needs: gunyah-preflight
@@ -135,7 +143,7 @@ jobs:
     uses: ./.github/workflows/build-zeromount-bakasu.yml
 
   strict-gate:
-    name: Full strict KMI gate / BakaSU 35220 UAPI5 / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
+    name: Strict ABI experiment / BakaSU 35222 UAPI5 / DroidSpaces / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
     needs: [dependencies, userspace, zeromount-compat]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -150,6 +158,7 @@ jobs:
       susfs_uid_gated_hiding: true
       add_zeromount: true
       add_droidspaces: true
+      droidspaces_resource_limits: ${{ github.event_name == 'push' || inputs.resource_limits }}
       add_zram: true
       add_bbg: true
       add_overlayfs_support: true
@@ -161,19 +170,19 @@ jobs:
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: 8450dd287ef6ee25ca2b6b858b43c9354c73060c
+      sukisu_commit: 5b76b884c75f729a220bb317aa4a4fc78f0e0e9c
       resukisu_source_branch: main
-      resukisu_version_code: "35220"
+      resukisu_version_code: "35222"
       device_codename: e3q
       kmi_mode: strict
-      kmi_profile: full-strict
+      kmi_profile: ${{ (github.event_name == 'push' || inputs.resource_limits) && 'resource-limits-strict' || 'full-strict' }}
       kmi_minimal_config: false
-      package_strict_anykernel: true
+      package_strict_anykernel: ${{ github.event_name != 'push' && !inputs.resource_limits }}
 
 # Update baseline: successful run 35443096947 @ 4bad7d66a2e43c6ffbcd5046ce209207ec8a590d.
 # UIDGate-v1 baseline: successful run 36463712058 @ 8c379ba853e084a42d70633e1a9b29b00793bd7e.
 # ZZI4 migration baseline: agent/resukisu-35153-zzi4-susfs-230 @ 7605e96c.
-# BakaSU 35220 is pinned to 8450dd287ef6ee25ca2b6b858b43c9354c73060c.
+# BakaSU 35222 is pinned to 5b76b884c75f729a220bb317aa4a4fc78f0e0e9c.
 # Latest compatible SUSFS 2.3.0 (checked 2026-10-06) is pinned to 24743360ea08d98f6ad72b856851abed8de5854f.
 # DynamicManager GET fix: manager may query state; SET/SET_SYNCHRONOUS/WIPE remain uid 0 only.
 
@@ -182,7 +191,7 @@ jobs:
 # BootconfigStaticKey-v1: runtime diagnosis on run 36606929441 showed static_key_count=1 while boot_config_proc_show skipped susfs_spoof_cmdline_or_bootconfig; use static_key_enabled() and fail CI if the legacy jump-label gate returns.
 
 # Historical update source: successful run 36634254677 @ e3a3da909a8bba40637b9ae31639a5fbb15b76ab.
-# 35220 migration baseline: successful BakaSU 35215 run 37459010103 @ e9f456d2e87b69d244311b7330c4ac3a4826f952.
-# 35220: 30700 + 4520 at 8450dd28; UAPI5 EVENT_SERVICES starts service scripts once.
+# 35222 migration baseline: successful BakaSU 35220 run 37831091198 @ 4619b3762a79ec464ae6bea30b4c8544293739d4.
+# 35222: 30700 + 4522 at 5b76b884; UAPI5 EVENT_SERVICES starts service scripts once.
 # Kernel and ARM64 ksud/ksuinit use the same immutable source commit and fresh bindings.
-# Upstream 35220 is BakaSU; use its matching Manager (org.bakasu.bakasu).
+# Upstream 35222 is BakaSU; use its matching Manager (org.bakasu.bakasu).

@@ -23,12 +23,16 @@ on:
         type: boolean
         default: true
       susfs_uid_gated_hiding:
-        description: 'Local UIDGate-v1 extension for pinned BakaSU 35220 / SUSFS 24743360'
+        description: 'Local UIDGate-v1 extension for pinned BakaSU 35222 / SUSFS 24743360'
         type: boolean
         default: false
       add_zeromount:
         type: boolean
         default: true
+      droidspaces_resource_limits:
+        description: 'Attempt CFS/PID limits with strict ABI enforcement and diagnostic artifacts only'
+        type: boolean
+        default: false
       add_droidspaces:
         type: boolean
         default: true
@@ -65,7 +69,7 @@ on:
         default: "main"
       resukisu_version_code:
         type: string
-        default: "35220"
+        default: "35222"
       resukisu_expected_size:
         type: string
         default: ""
@@ -119,7 +123,23 @@ jobs:
       run: |
         set -euo pipefail
         [[ "$ANDROID" == android14 && "$KERNEL" == 6.1 && "$ADD_SUSFS" == true && "$MINIMAL" == false ]]
-        [[ "$KSU_PIN" == 8450dd287ef6ee25ca2b6b858b43c9354c73060c ]]
+        [[ "$KSU_PIN" == 5b76b884c75f729a220bb317aa4a4fc78f0e0e9c ]]
+
+    - name: Validate experimental DroidSpaces resource-limit request
+      if: inputs.droidspaces_resource_limits
+      env:
+        ADD_DROIDSPACES: ${{ inputs.add_droidspaces }}
+        KMI_MODE: ${{ inputs.kmi_mode }}
+        KMI_PROFILE: ${{ inputs.kmi_profile }}
+        PACKAGE: ${{ inputs.package_strict_anykernel }}
+        DEVICE: ${{ inputs.device_codename }}
+        KERNEL: ${{ inputs.kernel_version }}
+        MINIMAL: ${{ inputs.kmi_minimal_config }}
+      run: |
+        set -euo pipefail
+        [[ "$ADD_DROIDSPACES" == true && "$DEVICE" == e3q && "$KERNEL" == 6.1 && "$MINIMAL" == false ]]
+        [[ "$KMI_MODE" == strict && "$KMI_PROFILE" == resource-limits-strict && "$PACKAGE" == false ]]
+        echo "::notice::CPU/PID experiment requested; stock ABI checks remain enforced. Full Samsung module/partition rebuild is unavailable in this source tree."
 
     - name: Validate KMI build mode
       env:
@@ -657,7 +677,7 @@ jobs:
         kernel_version: ${{ inputs.kernel_version }}
 
     - name: Keep CGROUP_PIDS compatible with Samsung e3q WALT
-      if: inputs.add_droidspaces && inputs.device_codename == 'e3q'
+      if: inputs.add_droidspaces && inputs.device_codename == 'e3q' && !inputs.droidspaces_resource_limits
       run: |
         HELPER="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/apply-e3q-cgroup-pids-compat.sh"
         chmod +x "$HELPER"
@@ -685,7 +705,7 @@ jobs:
         ADD_PTRACE: ${{ inputs.add_ptrace_fix }}
         ADD_PERF: ${{ inputs.add_perf_patches }}
       run: |
-        bash "$GITHUB_WORKSPACE/android12-5.10/build-helpers/apply-kernel-patches.sh" . "$KERNEL_VER" "$KERNEL_PATCHES"
+        SKIP_IPV6_NAT_MASK=true bash "$GITHUB_WORKSPACE/android12-5.10/build-helpers/apply-kernel-patches.sh" . "$KERNEL_VER" "$KERNEL_PATCHES"
 
     - name: Setup Baseband Guard
       if: inputs.add_bbg
@@ -757,6 +777,7 @@ jobs:
         ADD_SUSFS_UID_GATE: ${{ inputs.susfs_uid_gated_hiding }}
         ADD_ZEROMOUNT: ${{ inputs.add_zeromount }}
         ADD_DROIDSPACES: ${{ inputs.add_droidspaces }}
+        DROIDSPACES_RESOURCE_LIMITS: ${{ inputs.droidspaces_resource_limits }}
         ADD_OVERLAYFS: ${{ inputs.add_overlayfs_support }}
         ADD_ZRAM: ${{ inputs.add_zram }}
         ADD_KPM: ${{ inputs.add_kpm }}
@@ -815,9 +836,14 @@ jobs:
           # changes exported type layouts; rewriting their CRCs would hide a
           # real ABI mismatch and can make vendor modules dereference bad data.
           CONFIG_TOOL="$KERNEL_ROOT/common/scripts/config"
-          "$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --disable CGROUP_PIDS
+          if [[ "$DROIDSPACES_RESOURCE_LIMITS" != true ]]; then
+            "$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --disable CGROUP_PIDS
+            "$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --disable CFS_BANDWIDTH
+          fi
           "$CONFIG_TOOL" --file "$DEFCONFIG_FRAGMENT" --disable LRU_GEN_STATS
-          grep -qx '# CONFIG_CGROUP_PIDS is not set' "$DEFCONFIG_FRAGMENT"
+          if [[ "$DROIDSPACES_RESOURCE_LIMITS" != true ]]; then
+            grep -qx '# CONFIG_CGROUP_PIDS is not set' "$DEFCONFIG_FRAGMENT"
+          fi
           grep -qx '# CONFIG_LRU_GEN_STATS is not set' "$DEFCONFIG_FRAGMENT"
 
           # ZeroMount and BBG are custom fragment options. Move any assignment
@@ -832,7 +858,16 @@ jobs:
             "$CONFIG_TOOL" --file "$DEFCONFIG" --undefine "$SYMBOL"
             ! grep -Eq "^(CONFIG_${SYMBOL}=|# CONFIG_${SYMBOL} is not set)" "$DEFCONFIG"
           done
-          echo "Strict Samsung KMI config: CGROUP_PIDS=n and LRU_GEN_STATS=n"
+          echo "Strict ABI enforcement retained; DroidSpaces resource-limit request: $DROIDSPACES_RESOURCE_LIMITS; LRU_GEN_STATS=n"
+        fi
+
+        if [[ "$ADD_DROIDSPACES" == true ]]; then
+          DROID_ARGS=()
+          [[ "$DROIDSPACES_RESOURCE_LIMITS" == true ]] && DROID_ARGS+=(--resource-limits)
+          python3 "$HELPERS/droidspaces-gki/configure.py" configure \
+            --common "$KERNEL_ROOT/common" --defconfig "$DEFCONFIG" \
+            --fragment "$DEFCONFIG_FRAGMENT" "${DROID_ARGS[@]}" \
+            --receipt "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/CONFIG-REQUEST.json"
         fi
 
         while IFS='=' read -r cfg _; do
@@ -889,20 +924,20 @@ jobs:
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
 
-    - name: Test BakaSU 35220 and latest SUSFS with exact C fault injection
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35220'
+    - name: Test BakaSU 35222 and latest SUSFS with exact C fault injection
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35222'
       run: |
         set -euo pipefail
-        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35220"
+        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35222"
         python3 "$PORT/apply.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
         python3 "$PORT/test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/session-tests" --cc gcc
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35220_uapi.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35222_uapi.py" \
           "$KERNEL_ROOT/$KSU_DIR" --cc gcc \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/service-tests" \
           --receipt "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI5-SERVICES.json"
-        echo "RESUKISU_SU_SESSION_PORT=BakaSU-35220-SUSFS-24743360-UAPI5" >> "$GITHUB_ENV"
+        echo "RESUKISU_SU_SESSION_PORT=BakaSU-35222-SUSFS-24743360-UAPI5" >> "$GITHUB_ENV"
 
     - name: Reverify UID gate after downstream patches and test exact policy C
       if: inputs.susfs_uid_gated_hiding
@@ -1189,12 +1224,22 @@ jobs:
           echo "IDENTITY_STATUS=Applied ($DEVICE_CODENAME)"
         } >> "$GITHUB_ENV"
 
+    - name: Record DroidSpaces build inputs
+      if: inputs.add_droidspaces
+      run: |
+        set -euo pipefail
+        mkdir -p "$GITHUB_WORKSPACE/droidspaces-build-diagnostics"
+        cp "$DEFCONFIG" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/gki_defconfig"
+        cp "$DEFCONFIG_FRAGMENT" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/sukisu_gki.fragment"
+
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
       env:
         KMI_MODE: ${{ inputs.kmi_mode }}
       run: |
         set -euo pipefail
+        mkdir -p "$GITHUB_WORKSPACE/droidspaces-build-diagnostics"
+        exec > >(tee "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/build.log") 2>&1
         LTO_MODE=thin
         [[ "$ANDROID_VER" == android16* || "$KERNEL_VER" == "6.12" ]] && LTO_MODE=none
         if [ -f "build/build.sh" ]; then
@@ -1233,6 +1278,7 @@ jobs:
       working-directory: ${{ env.KERNEL_ROOT }}
       env:
         ADD_DROIDSPACES: ${{ inputs.add_droidspaces }}
+        DROIDSPACES_RESOURCE_LIMITS: ${{ inputs.droidspaces_resource_limits }}
         ADD_ZRAM: ${{ inputs.add_zram }}
         ADD_KPM: ${{ inputs.add_kpm }}
         REQUIRE_CUSTOM_MANAGER: ${{ inputs.resukisu_expected_hash != '' }}
@@ -1274,7 +1320,6 @@ jobs:
               CONFIG_ANDROID_BINDERFS CONFIG_SYSVIPC
               CONFIG_POSIX_MQUEUE
             )
-            [[ "$KMI_MODE" != "strict" ]] && REQUIRED+=(CONFIG_CGROUP_PIDS)
           fi
           if [ "$ADD_ZRAM" = "true" ]; then
             REQUIRED+=(
@@ -1303,12 +1348,22 @@ jobs:
         fi
 
         if [[ "$KMI_MODE" == "strict" ]]; then
-          for SYMBOL in CONFIG_CGROUP_PIDS CONFIG_LRU_GEN_STATS; do
+          STRICT_DISABLED=(CONFIG_LRU_GEN_STATS)
+          [[ "$DROIDSPACES_RESOURCE_LIMITS" != true ]] && STRICT_DISABLED+=(CONFIG_CGROUP_PIDS CONFIG_CFS_BANDWIDTH)
+          for SYMBOL in "${STRICT_DISABLED[@]}"; do
             grep -qx "# ${SYMBOL} is not set" "$CONFIG_FILE" || {
               echo "::error::Strict Samsung KMI requires ${SYMBOL}=n"
               exit 1
             }
           done
+        fi
+
+        if [[ "$ADD_DROIDSPACES" == true ]]; then
+          DROID_ARGS=()
+          [[ "$DROIDSPACES_RESOURCE_LIMITS" == true ]] && DROID_ARGS+=(--resource-limits)
+          python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/droidspaces-gki/configure.py" verify \
+            --config "$CONFIG_FILE" "${DROID_ARGS[@]}" \
+            --receipt "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/FINAL-CONFIG.json"
         fi
 
         if [[ "$KMI_MINIMAL_CONFIG" != "true" ]]; then
@@ -1327,7 +1382,7 @@ jobs:
           if [[ "$KMI_MINIMAL_CONFIG" != "true" && ( "$KMI_MODE" == "runtime-compat" || "$KMI_PROFILE" == "full" || "$KMI_MODE" == "strict" ) ]]; then
             DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
             chmod +x "$DAILY_AUDIT"
-            "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE"
+            "$DAILY_AUDIT" "$CONFIG_FILE" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE" "$DROIDSPACES_RESOURCE_LIMITS"
           fi
 
           if [[ "$KMI_MINIMAL_CONFIG" != "true" ]]; then
@@ -1355,6 +1410,23 @@ jobs:
             echo "Kernel-side KVM is present; functional /dev/kvm still requires EL2/HYP handoff by the Samsung bootloader."
           fi
         } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Collect DroidSpaces diagnostics including failed builds
+      if: always() && inputs.add_droidspaces
+      env:
+        RESOURCE_LIMITS: ${{ inputs.droidspaces_resource_limits }}
+      run: |
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/droidspaces-gki/collect.py" \
+          "$KERNEL_ROOT" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics" "$RESOURCE_LIMITS"
+
+    - name: Upload DroidSpaces build diagnostics
+      if: always() && inputs.add_droidspaces
+      uses: actions/upload-artifact@v7
+      with:
+        name: BakaSU-${{ inputs.resukisu_version_code }}-DroidSpaces-${{ inputs.kmi_profile }}-${{ github.run_id }}
+        path: droidspaces-build-diagnostics/
+        if-no-files-found: warn
+        retention-days: 7
 
     - name: Collect KMI symtypes diagnostics
       if: always() && inputs.kmi_mode != 'runtime-compat'
@@ -1494,23 +1566,23 @@ jobs:
           --receipt "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
         test -s "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
 
-    - name: Verify BakaSU 35220 compiled integration and attest package
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35220' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
+    - name: Verify BakaSU 35222 compiled integration and attest package
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35222' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
       run: |
         set -euo pipefail
         VMLINUX="$KERNEL_ROOT/bazel-bin/common/kernel_aarch64/vmlinux"
         [[ -s "$VMLINUX" ]] || VMLINUX="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/dist/vmlinux"
         test -s "$VMLINUX"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35220/apply.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35222/apply.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only \
           --config "$FINAL_CONFIG_FILE" --image "$ANYKERNEL3/Image" --vmlinux "$VMLINUX" \
           --receipt "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
         cp "$FINAL_CONFIG_FILE" "$ANYKERNEL3/BUILD-CONFIG.txt"
-        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35220-*/result.json \
+        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35222-*/result.json \
           "$ANYKERNEL3/RESUKISU-SUSFS-TESTS.json"
         test -s "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35220_uapi.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35222_uapi.py" \
           "$KERNEL_ROOT/$KSU_DIR"
         cp "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI5-SERVICES.json" "$ANYKERNEL3/"
 
@@ -1583,10 +1655,14 @@ jobs:
         DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
         chmod +x "$DAILY_AUDIT"
         "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE"
-        grep -qx 'CONFIG_IP6_NF_NAT=n' "$IKCONFIG" || {
-          echo "::error::Embedded IKCONFIG did not receive the IPv6 NAT masking patch"
+        grep -qx 'CONFIG_IP6_NF_NAT=y' "$IKCONFIG" || {
+          echo "::error::Embedded IKCONFIG must retain actual IPv6 NAT support"
           exit 1
         }
+        if [[ "${{ inputs.add_droidspaces }}" == true ]]; then
+          python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/droidspaces-gki/configure.py" verify \
+            --config "$IKCONFIG" --receipt "$ANYKERNEL3/DROIDSPACES-CONFIG.json"
+        fi
         grep -aF 'tcp_bbr3' "$ANYKERNEL3/Image" >/dev/null || {
           echo "::error::BBRv3 code is missing from the kernel image"
           exit 1
@@ -1833,6 +1909,8 @@ jobs:
           echo "| **SUSFS Open Redirect (Test)** | $(S "$SUSFS_OPEN_REDIRECT_TEST") |"
           echo "| **ZeroMount** | $(S "$ADD_ZEROMOUNT") |"
           echo "| **Droidspaces 6_7_8** | $(S "$ADD_DROIDSPACES") |"
+          echo "| **CPU/PID limits requested** | ${{ inputs.droidspaces_resource_limits }} |"
+          echo "| **Full Samsung module/partition rebuild** | Not available in this tree; no rebuilt vendor partitions |"
           echo "| **ZRAM (LZ4K/LZ4KD)** | $(S "$ADD_ZRAM") |"
           echo "| **LZ4 v1.10.0** | $(S "$ADD_ZRAM") |"
           echo "| **Overlayfs Support** | $(S "$ADD_OVERLAYFS") |"

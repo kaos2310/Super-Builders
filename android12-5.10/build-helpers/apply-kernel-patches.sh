@@ -134,7 +134,7 @@ if [ -f "$COMMON/unicode_bypass_fix_6.1+.patch" ]; then
   fi
 fi
 
-if [ -f "$COMMON/IPv6_NAT_FIX.patch" ]; then
+if [ "${SKIP_IPV6_NAT_MASK:-false}" != true ] && [ -f "$COMMON/IPv6_NAT_FIX.patch" ]; then
   if [ "$TARGET" = "android14-6.1" ]; then
     apply_required "$COMMON/IPv6_NAT_FIX.patch"
     grep -q 'define config_fix' kernel/Makefile

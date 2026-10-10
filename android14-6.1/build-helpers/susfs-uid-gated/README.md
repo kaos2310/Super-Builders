@@ -20,3 +20,5 @@ The applier rejects unknown source identities, missing/duplicate anchors and par
 Local mock tests are not device validation. A successful CI build is not proof of runtime behavior on the phone; flashing or runtime changes require a separate user request.
 
 - BakaSU 35220: `8450dd287ef6ee25ca2b6b858b43c9354c73060c` (unchanged UID-gated consumer anchors from 35215).
+
+- BakaSU 35222: `5b76b884c75f729a220bb317aa4a4fc78f0e0e9c` (UID-gated consumer source unchanged from 35220).
