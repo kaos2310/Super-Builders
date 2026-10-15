@@ -1,0 +1,24 @@
+{
+  "failed_run": 38822867931,
+  "source_pin": "d7260ca1e5c128061122924d0d48754e361e135c",
+  "original_ksud_locked_graph_rejected": true,
+  "original_lock_unchanged_on_failure": true,
+  "lock_regression_tests": 12,
+  "fixed_android_graphs": {
+    "ksuinit": {
+      "packages": 18,
+      "resolved_nodes": 18
+    },
+    "ksud": {
+      "packages": 205,
+      "resolved_nodes": 205
+    }
+  },
+  "locked_hashes_unchanged_after_metadata": {
+    "ksuinit": "e307ba5fd51f9c5eca3fb0d256a7b808fee2b41fab2df79699d91b8bffc3cdf2",
+    "ksud": "3ca5d09043a9fea71dc4d42ad98c60bd8ddf93eafbb5f12779beeba2dbe0b71c"
+  },
+  "package_versions_changed": false,
+  "full_arm64_userspace_build_tested": false,
+  "cargo": "cargo 1.101.0-nightly (3960fa69b 2026-10-12)"
+}

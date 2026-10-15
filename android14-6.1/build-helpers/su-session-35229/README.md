@@ -30,6 +30,9 @@ The historical 35203 adapter and userspace verifiers remain available.
 requires the exact commit, manifests and same-commit ksud lock, and changes only
 that record to Git libc `1a661633f11a261ff9c00b40875ef72f1cbec818`, version 0.2.190.
 Upstream's renamed Git dependency URLs and locked revisions remain unchanged.
+The same exact-pin helper records the already locked prettyplease 0.2.37 as a
+direct ksud build dependency, matching Cargo.toml. Only that root dependency
+edge changes; package versions and checksums remain byte-identical.
 Both Android dependency graphs and builds use `--locked`; CI archives the
 original/effective lockfiles and build identity.
 

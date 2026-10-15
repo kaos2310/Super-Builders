@@ -135,7 +135,7 @@ jobs:
           python3 builder/android14-6.1/build-helpers/test-bakasu-35222-lock.py resukisu
           python3 builder/android14-6.1/build-helpers/bakasu_35222_lock.py resukisu
 
-      - name: Repair the pinned 35229 ksuinit libc lock record
+      - name: Repair the pinned 35229 userspace lock records
         if: inputs.resukisu_commit == 'd7260ca1e5c128061122924d0d48754e361e135c'
         run: |
           set -euo pipefail
@@ -250,6 +250,8 @@ jobs:
           cp resukisu/userspace/ksuinit/Cargo.lock userspace-artifacts/ksuinit-Cargo.lock
           git -C resukisu show "$EXPECTED_PIN:userspace/ksuinit/Cargo.lock" \
             > userspace-artifacts/ksuinit-Cargo.upstream.lock
+          git -C resukisu show "$EXPECTED_PIN:userspace/ksud/Cargo.lock" \
+            > userspace-artifacts/ksud-Cargo.upstream.lock
           cd userspace-artifacts
           sha256sum ksud ksuinit *.lock *-metadata.json ksud-build-messages.jsonl BUILD-IDENTITY.json > SHA256SUMS
 

@@ -17,6 +17,47 @@ MANIFESTS = [repair.upstream(SOURCE, f"userspace/{crate}/Cargo.toml") for crate 
 
 
 class LockRepairTests(unittest.TestCase):
+    def test_ksud_adds_only_existing_prettyplease_dependency(self):
+        after_bytes=repair.repair_ksud_bytes(KSUD,MANIFESTS[1])
+        before=tomllib.loads(KSUD.decode())
+        after=tomllib.loads(after_bytes.decode())
+        changed=[(a,b) for a,b in zip(before['package'],after['package']) if a!=b]
+        self.assertEqual(len(before['package']),len(after['package']))
+        self.assertEqual(len(changed),1)
+        a,b=changed[0]
+        self.assertEqual(a['name'],'ksud')
+        self.assertEqual(b['dependencies'],sorted(a['dependencies']+['prettyplease']))
+        b['dependencies']=a['dependencies']
+        self.assertEqual(a,b)
+        import difflib
+        delta=[line for line in difflib.ndiff(KSUD.decode().splitlines(),after_bytes.decode().splitlines()) if line.startswith(('+ ','- '))]
+        self.assertEqual(delta,['+  "prettyplease",'])
+
+    def test_ksud_rejects_changed_manifest_pin(self):
+        with self.assertRaises(RuntimeError):
+            repair.repair_ksud_bytes(KSUD,MANIFESTS[1].replace(b'=0.2.37',b'=0.2.38'))
+
+    def test_ksud_rejects_changed_locked_package(self):
+        with self.assertRaises(RuntimeError):
+            repair.repair_ksud_bytes(KSUD.replace(b'version = "0.2.37"',b'version = "0.2.38"'),MANIFESTS[1])
+
+    def test_ksud_rejects_duplicate_root(self):
+        import re
+        root=re.findall(rb'(?m)^\[\[package\]\]\nname = "ksud"\n(?:(?!\[\[).)*',KSUD,re.S)[0]
+        with self.assertRaises(RuntimeError):
+            repair.repair_ksud_bytes(KSUD+root,MANIFESTS[1])
+
+    def test_ksud_apply_is_idempotent_and_rejects_unrelated_changes(self):
+        import tempfile
+        fixed=repair.repair_ksud_bytes(KSUD,MANIFESTS[1])
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);path=root/repair.KSUD_LOCK;path.parent.mkdir(parents=True);path.write_bytes(KSUD)
+            with patch.object(repair,'expected_ksud_lock',return_value=(KSUD,fixed,{})):
+                repair.apply_ksud(root);repair.apply_ksud(root);repair.verify_ksud(root)
+                path.write_bytes(fixed+b'# unexpected\n')
+                with self.assertRaises(RuntimeError):repair.apply_ksud(root)
+                with self.assertRaises(RuntimeError):repair.verify_ksud(root)
+
     def test_rejects_another_source_pin(self):
         with patch.object(repair.subprocess, 'check_output', return_value='0' * 40 + '\n'):
             with self.assertRaises(RuntimeError):

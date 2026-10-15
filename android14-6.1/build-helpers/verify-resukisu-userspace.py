@@ -99,7 +99,10 @@ def main():
     repairs = {}
     locked = {}
     for relative in locked_paths:
-        if repair is not None and relative == repair.LOCK:
+        if repair is bakasu_35229_lock and relative == repair.KSUD_LOCK:
+            repairs[relative] = repair.verify_ksud(source)
+            locked[relative] = repairs[relative]['repaired_sha256']
+        elif repair is not None and relative == repair.LOCK:
             repairs[relative] = repair.verify(source)
             locked[relative] = repairs[relative]['repaired_sha256']
         else:
