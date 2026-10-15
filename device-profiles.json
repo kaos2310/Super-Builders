@@ -7,58 +7,70 @@
       "kernel_version": "6.1",
       "sub_level": "162",
       "os_patch_level": "2026-03",
-      "firmware": "S928BXXU6ZZI4",
-      "firmware_package": "AP_S928BXXU6ZZI4_S928BXXU6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5",
-      "firmware_build_datetime": "20260903234809",
-      "ap": "S928BXXU6ZZI4",
-      "csc_build": "S928BOXM6ZZI4",
-      "cp": "S928BXXU6EZI4",
+      "firmware": "S928BXXU6EZIF",
+      "firmware_package": "AP_S928BXXU6EZIF_S928BXXU6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5",
+      "firmware_build_datetime": "20260919081204",
+      "ap": "S928BXXU6EZIF",
+      "csc_build": "S928BOXM6EZIF",
+      "cp": "S928BXXU6EZIF",
       "csc": "EUX",
       "firmware_archives": {
         "ap": {
-          "tar_md5": "not-supplied-component-images-verified",
-          "sha256": "not-supplied-component-images-verified",
-          "verification": "component-images-only-full-ap-archive-not-supplied"
+          "name": "AP_S928BXXU6EZIF_S928BXXU6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5",
+          "tar_md5": "f49b397ad8d4bf5ba099f3129b0564b9",
+          "sha256": "09a16cb9055b8c82e02b9b67635971171ee134ca45d5356c82961defd1e7fe45",
+          "md5_verified": true,
+          "verification": "full-archive-md5-and-sha256"
         },
-        "cp": {
-          "name": "CP_S928BXXU6EZI4_CP36200554_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5",
-          "tar_md5": "ce09f6271f54f8aa1c2920d76cbb4974",
-          "sha256": "aeb17904cc7b8d037d2ae2b840853fb6b583f8e7537cf32ce3b0b9405fc642cd"
-        },
-        "csc": {
-          "name": "CSC_OXM_S928BOXM6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5",
-          "tar_md5": "ba072dccbeb55149608aca301289907a",
-          "sha256": "262e30760c3f62015b8c725393385bbe2a71f96cc62feca55144fa48f6c4a8fe"
-        },
-        "home_csc": {
-          "name": "HOME_CSC_OXM_S928BOXM6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5",
-          "tar_md5": "8a03458bfb4bff67c853b8e79d9c1239",
-          "sha256": "a5a94a327350095816e3b890d9c4171adcffcd4672bedbf8af5d1a5b25f22f94"
+        "bl": {
+          "name": "BL_S928BXXU6EZIF_S928BXXU6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5",
+          "tar_md5": "9c4b4a2767b2a0e5504d99a8886666ba",
+          "sha256": "ff11d4a7500ce4145a494e3c259d1a25ff70ce40b7281dd4b2bea7ce5792bb84",
+          "md5_verified": true
         },
         "keep_oem_unlock_bl": {
-          "name": "BL_S928BXXU6ZZI4_KEEP_OEM_UNLOCK.tar.md5",
-          "tar_md5": "1ae4d250893d70be14b70a5045121b2d",
-          "sha256": "186b3572fef908255bde2404b0e01b000fe15496c4c1ae5015ea5663d85afab9",
+          "name": "BL_S928BXXU6EZIF_KEEP_OEM_UNLOCK.tar.md5",
+          "tar_md5": "e5e4fb30364bbc5d39cefc4ef0111b84",
+          "sha256": "2735ad1386c60cd9ad95bea6deb394ae5718b5d965d74decf4c8ea1f0c0d2106",
+          "md5_verified": true,
           "vbmeta_img_sha256": "67b8d114c5c1af81c473fb649f5b47cca340a5744baed548db9660e5907a4535",
           "vbmeta_flags": 3,
           "compatibility": "avb-flags-3-intentional-keep-oem-unlock"
+        },
+        "cp": {
+          "name": "CP_S928BXXU6EZIF_CP36479546_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5",
+          "tar_md5": "9658d05643fb736322173a3af6094d73",
+          "sha256": "a9ff4fe1c51e2693201916076157a3cf159b3b24542f0256d54d8be8b94dacb2",
+          "md5_verified": true
+        },
+        "csc": {
+          "name": "CSC_OXM_S928BOXM6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5",
+          "tar_md5": "542fdbb61d8657edd550840f1751621c",
+          "sha256": "fbc808a1df6001b6e00a9fda5ba927ac1389e9c199b7fa0d511bbf476c6c45bd",
+          "md5_verified": true
+        },
+        "home_csc": {
+          "name": "HOME_CSC_OXM_S928BOXM6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5",
+          "tar_md5": "f1958bc068b094838ac79364046ba9fd",
+          "sha256": "0fcb8af0836b08de98fc68956134b5db879d79482012851e1ae2439b5f954678",
+          "md5_verified": true
         }
       },
       "stock_images": {
-        "boot_img_sha256": "abc5a0297fd47e9cdfb4d0b84ecb907e1de0dc45303ab8d5c28107b0f6bd5cd5",
-        "init_boot_img_sha256": "f61c74bab1781862e48f8abc4a8b7865f0ba661658a3807431395edc1ce069c8",
-        "vendor_boot_img_sha256": "be1a7fbb823c1b259a7cdb1f9a85ee93e459b2ad5bf7a83193ffabf61a2e1257",
-        "vendor_dlkm_img_sha256": "be9def7fde78c0a97db01af9ecd13480e0d21ae8099a375a8096dc23fd83d582",
-        "system_dlkm_img_sha256": "4bbb76c7ac047596254e4c6a8503276464573a93d7e3a7bafa0411b887bc1462",
-        "dtbo_img_sha256": "65b35a505cb4ba6cb6965a261053a43ea6f4807abeebb81468374e6b44db7f82",
-        "vbmeta_img_sha256": "not-supplied-keep-oem-unlock-vbmeta-only",
-        "apnhlos_bin_sha256": "6d69aa52669f28178e86fa15dacf77b279d9e5762ca7c2eefd640aa8702184ce",
-        "modem_bin_sha256": "c063c91f7314d9db4c855945454904506dae1efb2ee8cf0a579420e2d40efd28"
+        "boot_img_sha256": "b98326455c825062e5350ae88b75488f4de4c7b1e587a47105fffdc41be37500",
+        "init_boot_img_sha256": "cfe9504a0688f65d284d6a341a63c941068a9a8abccb69f69aaf423e795c50c3",
+        "vendor_boot_img_sha256": "37d2acf6ff687d7a6b09e6d0e0c67d863564db2e8d6d5fa9ae3b4509d73443b7",
+        "dtbo_img_sha256": "aab87a43462bc3ba9b7c298d5d194bc42630b143671d42c8da0f5999d1f6cb4e",
+        "system_dlkm_img_sha256": "81ab80e9bb814d4568d5a24ecbcc3767cd69b4c3abdeed833ff355c2902063d1",
+        "vendor_dlkm_img_sha256": "9284bd60c83dd48e9746055a0af7d27e66a9a85aa6a8c0ad4999cba4af86c322",
+        "vbmeta_img_sha256": "d7c6e23e31db471b889da53e6b46edd181d35a555b1612d579b76de22c2c0e85",
+        "apnhlos_bin_sha256": "1a1afe55039d6ac1ea53b2cbca1f8ec73a1cb3a1c987eb756934cd448d917a48",
+        "modem_bin_sha256": "e7e0d7f93a4d2155afb8dcb79c24d76fcaa6d8dd6a61a9c2665795738a20ce55"
       },
       "stock_kernel": {
-        "release": "-android14-11-34343818-abS928BXXU6ZZI4",
-        "version_string": "#1 SMP PREEMPT Thu Sep 3 23:48:09 UTC 2026",
-        "build_timestamp": "Thu Sep 3 23:48:09 UTC 2026",
+        "release": "-android14-11-34343818-abS928BXXU6EZIF",
+        "version_string": "#1 SMP PREEMPT Sat Sep 19 08:12:04 UTC 2026",
+        "build_timestamp": "Sat Sep 19 08:12:04 UTC 2026",
         "build_user": "build-user",
         "build_host": "build-host",
         "compiler_info": "Android (10087095, +pgo, +bolt, +lto, -mlgo, based on r487747c) clang version 17.0.2"

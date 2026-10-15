@@ -23,7 +23,7 @@ on:
         type: boolean
         default: true
       susfs_uid_gated_hiding:
-        description: 'Local UIDGate-v1 extension for pinned BakaSU 35222 / SUSFS 24743360'
+        description: 'Local UIDGate-v1 extension for pinned BakaSU 35229 / SUSFS 24743360'
         type: boolean
         default: false
       add_zeromount:
@@ -69,7 +69,7 @@ on:
         default: "main"
       resukisu_version_code:
         type: string
-        default: "35222"
+        default: "35229"
       resukisu_expected_size:
         type: string
         default: ""
@@ -123,7 +123,7 @@ jobs:
       run: |
         set -euo pipefail
         [[ "$ANDROID" == android14 && "$KERNEL" == 6.1 && "$ADD_SUSFS" == true && "$MINIMAL" == false ]]
-        [[ "$KSU_PIN" == 5b76b884c75f729a220bb317aa4a4fc78f0e0e9c ]]
+        [[ "$KSU_PIN" == d7260ca1e5c128061122924d0d48754e361e135c ]]
 
     - name: Validate experimental DroidSpaces resource-limit request
       if: inputs.droidspaces_resource_limits
@@ -266,7 +266,7 @@ jobs:
 
         if [[ "$DEVICE_CODENAME" == "e3q" ]]; then
           SOURCE_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxu6zzhl-source.env"
-          TARGET_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxu6zzi4-target.env"
+          TARGET_PROFILE="$GITHUB_WORKSPACE/$VERSION_DIR/samsung-s928bxxu6ezif-target.env"
           test -s "$SOURCE_PROFILE"
           test -s "$TARGET_PROFILE"
           # shellcheck disable=SC1090
@@ -278,54 +278,54 @@ jobs:
           test "$SAMSUNG_CSC" = "EUX"
           test "$SAMSUNG_FIRMWARE" = "S928BXXS6DZG1"
           test "$SAMSUNG_SOURCE_FIRMWARE" = "S928BXXS6DZG1"
-          test "$SAMSUNG_TARGET_MODEL" = "SM-S928B"
-          test "$SAMSUNG_TARGET_DEVICE" = "e3q"
-          test "$SAMSUNG_TARGET_CSC" = "EUX"
-          test "$SAMSUNG_TARGET_FIRMWARE" = "S928BXXU6ZZI4"
-          test "$SAMSUNG_TARGET_AP" = "S928BXXU6ZZI4"
-          test "$SAMSUNG_TARGET_CSC_BUILD" = "S928BOXM6ZZI4"
-          test "$SAMSUNG_TARGET_CP" = "S928BXXU6EZI4"
-          test "$SAMSUNG_TARGET_PACKAGE" = "AP_S928BXXU6ZZI4_S928BXXU6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5"
-          test "$SAMSUNG_TARGET_AP_TAR_MD5" = "not-supplied-component-images-verified"
-          test "$SAMSUNG_TARGET_AP_ARCHIVE_SHA256" = "not-supplied-component-images-verified"
-          test "$SAMSUNG_TARGET_CP_PACKAGE" = "CP_S928BXXU6EZI4_CP36200554_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5"
-          test "$SAMSUNG_TARGET_CP_TAR_MD5" = "ce09f6271f54f8aa1c2920d76cbb4974"
-          test "$SAMSUNG_TARGET_CP_ARCHIVE_SHA256" = "aeb17904cc7b8d037d2ae2b840853fb6b583f8e7537cf32ce3b0b9405fc642cd"
-          test "$SAMSUNG_TARGET_CSC_PACKAGE" = "CSC_OXM_S928BOXM6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5"
-          test "$SAMSUNG_TARGET_CSC_TAR_MD5" = "ba072dccbeb55149608aca301289907a"
-          test "$SAMSUNG_TARGET_CSC_ARCHIVE_SHA256" = "262e30760c3f62015b8c725393385bbe2a71f96cc62feca55144fa48f6c4a8fe"
-          test "$SAMSUNG_TARGET_HOME_CSC_PACKAGE" = "HOME_CSC_OXM_S928BOXM6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5"
-          test "$SAMSUNG_TARGET_HOME_CSC_TAR_MD5" = "8a03458bfb4bff67c853b8e79d9c1239"
-          test "$SAMSUNG_TARGET_HOME_CSC_ARCHIVE_SHA256" = "a5a94a327350095816e3b890d9c4171adcffcd4672bedbf8af5d1a5b25f22f94"
-          test "$SAMSUNG_KEEP_BL_TAR_MD5" = "1ae4d250893d70be14b70a5045121b2d"
-          test "$SAMSUNG_KEEP_BL_PACKAGE" = "BL_S928BXXU6ZZI4_KEEP_OEM_UNLOCK.tar.md5"
-          test "$SAMSUNG_KEEP_BL_ARCHIVE_SHA256" = "186b3572fef908255bde2404b0e01b000fe15496c4c1ae5015ea5663d85afab9"
-          test "$SAMSUNG_KEEP_BL_VBMETA_SHA256" = "67b8d114c5c1af81c473fb649f5b47cca340a5744baed548db9660e5907a4535"
-          test "$SAMSUNG_KEEP_BL_VBMETA_FLAGS" = "3"
-          test "$SAMSUNG_KEEP_BL_COMPATIBILITY" = "avb-flags-3-intentional-keep-oem-unlock"
-          test "$SAMSUNG_TARGET_OTA_SOURCE" = "full-odin-zzi4-component-set"
-          test "$SAMSUNG_TARGET_OTA_SHA256" = "not-applicable-full-odin-components"
-          test "$SAMSUNG_TARGET_KERNEL_RELEASE" = "6.1.162-android14-11-34343818-abS928BXXU6ZZI4"
-          test "$SAMSUNG_TARGET_BOOT_IMAGE_SHA256" = "abc5a0297fd47e9cdfb4d0b84ecb907e1de0dc45303ab8d5c28107b0f6bd5cd5"
-          test "$SAMSUNG_TARGET_INIT_BOOT_IMAGE_SHA256" = "f61c74bab1781862e48f8abc4a8b7865f0ba661658a3807431395edc1ce069c8"
-          test "$SAMSUNG_TARGET_APNHLOS_IMAGE_SHA256" = "6d69aa52669f28178e86fa15dacf77b279d9e5762ca7c2eefd640aa8702184ce"
-          test "$SAMSUNG_TARGET_MODEM_IMAGE_SHA256" = "c063c91f7314d9db4c855945454904506dae1efb2ee8cf0a579420e2d40efd28"
-          test "$SAMSUNG_TARGET_VENDOR_BOOT_IMAGE_SHA256" = "be1a7fbb823c1b259a7cdb1f9a85ee93e459b2ad5bf7a83193ffabf61a2e1257"
-          test "$SAMSUNG_TARGET_SYSTEM_DLKM_IMAGE_SHA256" = "4bbb76c7ac047596254e4c6a8503276464573a93d7e3a7bafa0411b887bc1462"
-          test "$SAMSUNG_TARGET_DTBO_IMAGE_SHA256" = "65b35a505cb4ba6cb6965a261053a43ea6f4807abeebb81468374e6b44db7f82"
-          test "$SAMSUNG_TARGET_VBMETA_IMAGE_SHA256" = "not-supplied-keep-oem-unlock-vbmeta-only"
-          test "$SAMSUNG_TARGET_GUNYAH_QCOM_SHA256" = "9e0103d5ff16061c99613f2a5982a7d8bbcc6add300d736c31d17a441421fade"
-          test "$SAMSUNG_TARGET_VENDOR_BOOT_MODULE_COUNT" = "411"
-          test "$SAMSUNG_TARGET_VENDOR_BOOT_BASELINE_OVERLAP" = "2152"
-          test "$SAMSUNG_TARGET_VENDOR_BOOT_CRC_CHANGES" = "0"
-          test "$SAMSUNG_TARGET_VENDOR_DLKM_IMAGE_SHA256" = "be9def7fde78c0a97db01af9ecd13480e0d21ae8099a375a8096dc23fd83d582"
-          test "$SAMSUNG_TARGET_VENDOR_DLKM_MODULE_COUNT" = "351"
-          test "$SAMSUNG_TARGET_VENDOR_DLKM_IMPORT_SYMBOL_COUNT" = "4111"
-          test "$SAMSUNG_TARGET_VENDOR_DLKM_BASELINE_OVERLAP" = "2485"
-          test "$SAMSUNG_TARGET_VENDOR_DLKM_CRC_CHANGES" = "0"
-          test "$SAMSUNG_TARGET_TOTAL_STOCK_MODULE_COUNT" = "762"
-          test "$SAMSUNG_TARGET_TOTAL_IMPORT_SYMBOL_COUNT" = "4900"
-          test "$SAMSUNG_TARGET_TOTAL_CRC_CONFLICTS" = "0"
+          test "$SAMSUNG_TARGET_MODEL" = SM-S928B
+          test "$SAMSUNG_TARGET_DEVICE" = e3q
+          test "$SAMSUNG_TARGET_CSC" = EUX
+          test "$SAMSUNG_TARGET_FIRMWARE" = S928BXXU6EZIF
+          test "$SAMSUNG_TARGET_AP" = S928BXXU6EZIF
+          test "$SAMSUNG_TARGET_CSC_BUILD" = S928BOXM6EZIF
+          test "$SAMSUNG_TARGET_CP" = S928BXXU6EZIF
+          test "$SAMSUNG_TARGET_PACKAGE" = AP_S928BXXU6EZIF_S928BXXU6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5
+          test "$SAMSUNG_TARGET_AP_TAR_MD5" = f49b397ad8d4bf5ba099f3129b0564b9
+          test "$SAMSUNG_TARGET_AP_ARCHIVE_SHA256" = 09a16cb9055b8c82e02b9b67635971171ee134ca45d5356c82961defd1e7fe45
+          test "$SAMSUNG_TARGET_CP_PACKAGE" = CP_S928BXXU6EZIF_CP36479546_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5
+          test "$SAMSUNG_TARGET_CP_TAR_MD5" = 9658d05643fb736322173a3af6094d73
+          test "$SAMSUNG_TARGET_CP_ARCHIVE_SHA256" = a9ff4fe1c51e2693201916076157a3cf159b3b24542f0256d54d8be8b94dacb2
+          test "$SAMSUNG_TARGET_CSC_PACKAGE" = CSC_OXM_S928BOXM6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5
+          test "$SAMSUNG_TARGET_CSC_TAR_MD5" = 542fdbb61d8657edd550840f1751621c
+          test "$SAMSUNG_TARGET_CSC_ARCHIVE_SHA256" = fbc808a1df6001b6e00a9fda5ba927ac1389e9c199b7fa0d511bbf476c6c45bd
+          test "$SAMSUNG_TARGET_HOME_CSC_PACKAGE" = HOME_CSC_OXM_S928BOXM6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5
+          test "$SAMSUNG_TARGET_HOME_CSC_TAR_MD5" = f1958bc068b094838ac79364046ba9fd
+          test "$SAMSUNG_TARGET_HOME_CSC_ARCHIVE_SHA256" = 0fcb8af0836b08de98fc68956134b5db879d79482012851e1ae2439b5f954678
+          test "$SAMSUNG_KEEP_BL_TAR_MD5" = e5e4fb30364bbc5d39cefc4ef0111b84
+          test "$SAMSUNG_KEEP_BL_PACKAGE" = BL_S928BXXU6EZIF_KEEP_OEM_UNLOCK.tar.md5
+          test "$SAMSUNG_KEEP_BL_ARCHIVE_SHA256" = 2735ad1386c60cd9ad95bea6deb394ae5718b5d965d74decf4c8ea1f0c0d2106
+          test "$SAMSUNG_KEEP_BL_VBMETA_SHA256" = 67b8d114c5c1af81c473fb649f5b47cca340a5744baed548db9660e5907a4535
+          test "$SAMSUNG_KEEP_BL_VBMETA_FLAGS" = 3
+          test "$SAMSUNG_KEEP_BL_COMPATIBILITY" = avb-flags-3-intentional-keep-oem-unlock
+          test "$SAMSUNG_TARGET_OTA_SOURCE" = full-odin-ezif-archive-set
+          test "$SAMSUNG_TARGET_OTA_SHA256" = not-applicable-full-odin-archives
+          test "$SAMSUNG_TARGET_KERNEL_RELEASE" = 6.1.162-android14-11-34343818-abS928BXXU6EZIF
+          test "$SAMSUNG_TARGET_BOOT_IMAGE_SHA256" = b98326455c825062e5350ae88b75488f4de4c7b1e587a47105fffdc41be37500
+          test "$SAMSUNG_TARGET_INIT_BOOT_IMAGE_SHA256" = cfe9504a0688f65d284d6a341a63c941068a9a8abccb69f69aaf423e795c50c3
+          test "$SAMSUNG_TARGET_APNHLOS_IMAGE_SHA256" = 1a1afe55039d6ac1ea53b2cbca1f8ec73a1cb3a1c987eb756934cd448d917a48
+          test "$SAMSUNG_TARGET_MODEM_IMAGE_SHA256" = e7e0d7f93a4d2155afb8dcb79c24d76fcaa6d8dd6a61a9c2665795738a20ce55
+          test "$SAMSUNG_TARGET_VENDOR_BOOT_IMAGE_SHA256" = 37d2acf6ff687d7a6b09e6d0e0c67d863564db2e8d6d5fa9ae3b4509d73443b7
+          test "$SAMSUNG_TARGET_SYSTEM_DLKM_IMAGE_SHA256" = 81ab80e9bb814d4568d5a24ecbcc3767cd69b4c3abdeed833ff355c2902063d1
+          test "$SAMSUNG_TARGET_DTBO_IMAGE_SHA256" = aab87a43462bc3ba9b7c298d5d194bc42630b143671d42c8da0f5999d1f6cb4e
+          test "$SAMSUNG_TARGET_VBMETA_IMAGE_SHA256" = d7c6e23e31db471b889da53e6b46edd181d35a555b1612d579b76de22c2c0e85
+          test "$SAMSUNG_TARGET_GUNYAH_QCOM_SHA256" = 806410145e68615d44c646559e401592baaa235883125d05b67ac1c87da60165
+          test "$SAMSUNG_TARGET_VENDOR_BOOT_MODULE_COUNT" = 411
+          test "$SAMSUNG_TARGET_VENDOR_BOOT_BASELINE_OVERLAP" = 2152
+          test "$SAMSUNG_TARGET_VENDOR_BOOT_CRC_CHANGES" = 0
+          test "$SAMSUNG_TARGET_VENDOR_DLKM_IMAGE_SHA256" = 9284bd60c83dd48e9746055a0af7d27e66a9a85aa6a8c0ad4999cba4af86c322
+          test "$SAMSUNG_TARGET_VENDOR_DLKM_MODULE_COUNT" = 351
+          test "$SAMSUNG_TARGET_VENDOR_DLKM_IMPORT_SYMBOL_COUNT" = 4111
+          test "$SAMSUNG_TARGET_VENDOR_DLKM_BASELINE_OVERLAP" = 2485
+          test "$SAMSUNG_TARGET_VENDOR_DLKM_CRC_CHANGES" = 0
+          test "$SAMSUNG_TARGET_TOTAL_STOCK_MODULE_COUNT" = 762
+          test "$SAMSUNG_TARGET_TOTAL_IMPORT_SYMBOL_COUNT" = 4900
+          test "$SAMSUNG_TARGET_TOTAL_CRC_CONFLICTS" = 0
           test "$SAMSUNG_BUILD_TARGET" = "e3q_eur_openx"
           test "$SAMSUNG_CHIPSET" = "pineapple"
           test "$SAMSUNG_OSS_SHA256" = "512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c"
@@ -445,7 +445,7 @@ jobs:
         printf 'Synced %s at common=%s manifest=%s\n' \
           "$MANIFEST_BRANCH" "$COMMON_UPSTREAM_COMMIT" "$MANIFEST_UPSTREAM_COMMIT"
 
-    - name: Apply SM-S928B Samsung source port for ZZI4 / 6.1.162
+    - name: Apply SM-S928B Samsung source port for EZIF / 6.1.162
       if: inputs.device_codename == 'e3q'
       run: |
         set -euo pipefail
@@ -579,6 +579,15 @@ jobs:
         sub_level: ${{ env.SUBLEVEL }}
         os_patch_level: ${{ inputs.os_patch_level }}
 
+    - name: Apply independently audited BakaSU 35229 native SELinux SUSFS port
+      if: inputs.add_susfs && inputs.resukisu_version_code == '35229'
+      run: |
+        set -euo pipefail
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35229-susfs/apply.py" \
+          --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
+          --patch "$SUSFS_FOLDER/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch" \
+          --evidence "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35229-susfs/PREFLIGHT.json"
+
     - name: Apply and test native BakaSU SUSFS v2 backport
       if: inputs.susfs_su_session
       env:
@@ -646,7 +655,7 @@ jobs:
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT"
 
-    - name: Apply audited Samsung XHCI hooks for ZZI4
+    - name: Apply audited Samsung XHCI hooks for EZIF
       if: inputs.device_codename == 'e3q'
       run: |
         set -euo pipefail
@@ -924,20 +933,22 @@ jobs:
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
 
-    - name: Test BakaSU 35222 and latest SUSFS with exact C fault injection
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35222'
+    - name: Test BakaSU 35229 and latest SUSFS with exact C fault injection
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35229'
       run: |
         set -euo pipefail
-        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35222"
+        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35229"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35229-susfs/check.py" \
+          --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
         python3 "$PORT/apply.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
         python3 "$PORT/test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/session-tests" --cc gcc
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35222_uapi.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35229_uapi.py" \
           "$KERNEL_ROOT/$KSU_DIR" --cc gcc \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/service-tests" \
           --receipt "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI5-SERVICES.json"
-        echo "RESUKISU_SU_SESSION_PORT=BakaSU-35222-SUSFS-24743360-UAPI5" >> "$GITHUB_ENV"
+        echo "RESUKISU_SU_SESSION_PORT=BakaSU-35229-SUSFS-24743360-UAPI5" >> "$GITHUB_ENV"
 
     - name: Reverify UID gate after downstream patches and test exact policy C
       if: inputs.susfs_uid_gated_hiding
@@ -1109,13 +1120,13 @@ jobs:
             exit 1
           }
           [ "$STOCK_PACKAGE" = "$SAMSUNG_TARGET_PACKAGE" ] || {
-            echo "::error::e3q firmware package does not match the ZZI4 target"
+            echo "::error::e3q firmware package does not match the EZIF target"
             exit 1
           }
           [ "$STOCK_AP" = "$SAMSUNG_TARGET_AP" ] && \
             [ "$STOCK_CSC_BUILD" = "$SAMSUNG_TARGET_CSC_BUILD" ] && \
             [ "$STOCK_CP" = "$SAMSUNG_TARGET_CP" ] || {
-              echo "::error::e3q AP/CSC/CP identity does not match the ZZI4 target"
+              echo "::error::e3q AP/CSC/CP identity does not match the EZIF target"
               exit 1
             }
           [ "$STOCK_AP_TAR_MD5" = "$SAMSUNG_TARGET_AP_TAR_MD5" ] && \
@@ -1129,7 +1140,7 @@ jobs:
             [ "$STOCK_HOME_CSC_PACKAGE" = "$SAMSUNG_TARGET_HOME_CSC_PACKAGE" ] && \
             [ "$STOCK_HOME_CSC_TAR_MD5" = "$SAMSUNG_TARGET_HOME_CSC_TAR_MD5" ] && \
             [ "$STOCK_HOME_CSC_ARCHIVE_SHA256" = "$SAMSUNG_TARGET_HOME_CSC_ARCHIVE_SHA256" ] || {
-              echo "::error::e3q full Odin firmware archive identity does not match the ZZI4 target"
+              echo "::error::e3q full Odin firmware archive identity does not match the EZIF target"
               exit 1
             }
           [ "$STOCK_KEEP_BL_PACKAGE" = "$SAMSUNG_KEEP_BL_PACKAGE" ] && \
@@ -1150,7 +1161,7 @@ jobs:
             [ "$STOCK_VBMETA_IMAGE_SHA256" = "$SAMSUNG_TARGET_VBMETA_IMAGE_SHA256" ] && \
             [ "$STOCK_APNHLOS_IMAGE_SHA256" = "$SAMSUNG_TARGET_APNHLOS_IMAGE_SHA256" ] && \
             [ "$STOCK_MODEM_IMAGE_SHA256" = "$SAMSUNG_TARGET_MODEM_IMAGE_SHA256" ] || {
-              echo "::error::e3q stock-image hashes do not match the ZZI4 target"
+              echo "::error::e3q stock-image hashes do not match the EZIF target"
               exit 1
             }
           case "$STOCK_RELEASE" in
@@ -1166,7 +1177,7 @@ jobs:
           }
         fi
 
-        # 5.10–6.1: Makefile prepends KERNELVERSION, setlocalversion outputs suffix only
+        # 5.10â€“6.1: Makefile prepends KERNELVERSION, setlocalversion outputs suffix only
         # 6.6+: Makefile delegates entirely to setlocalversion, must output full version
         MAJOR=${KERNEL_VER%%.*}
         MINOR=${KERNEL_VER#*.}
@@ -1231,7 +1242,8 @@ jobs:
         mkdir -p "$GITHUB_WORKSPACE/droidspaces-build-diagnostics"
         cp "$DEFCONFIG" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/gki_defconfig"
         cp "$DEFCONFIG_FRAGMENT" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/sukisu_gki.fragment"
-        cp "$GITHUB_WORKSPACE/android14-6.1/build-helpers/droidspaces-gki/samsung-source-readiness.json" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/SAMSUNG-SOURCE-READINESS.json"
+        cp "$GITHUB_WORKSPACE/android14-6.1/s928b-ezif-firmware-evidence.json" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/EZIF-FIRMWARE-EVIDENCE.json"
+        cp "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35229-susfs/PREFLIGHT.json" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/SUSFS-NATIVE-PREFLIGHT.json"
 
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
@@ -1250,7 +1262,7 @@ jobs:
           [[ "$KMI_MODE" == "strict" ]] && STRICT_MODE=1
           KBUILD_SYMTYPES=$SYMTYPES KMI_SYMBOL_LIST_STRICT_MODE=$STRICT_MODE HOSTLD=/usr/bin/ld.lld GKI_DEFCONFIG_FRAGMENT="$DEFCONFIG_FRAGMENT" LTO=$LTO_MODE BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
         else
-          # Prebuilt clang sysroot lacks glibc 2.39 C23 symbols — link against system libc
+          # Prebuilt clang sysroot lacks glibc 2.39 C23 symbols â€” link against system libc
           if [ -f common/tools/bpf/resolve_btfids/Makefile ]; then
             echo 'override KBUILD_HOSTLDFLAGS += --sysroot=/' >> common/tools/bpf/resolve_btfids/Makefile
             echo 'override LDFLAGS += --sysroot=/' >> common/tools/bpf/resolve_btfids/Makefile
@@ -1522,9 +1534,9 @@ jobs:
         KEEP_OEM_UNLOCK vbmeta.img SHA-256: ${SAMSUNG_KEEP_BL_VBMETA_SHA256}
         KEEP_OEM_UNLOCK vbmeta flags: ${SAMSUNG_KEEP_BL_VBMETA_FLAGS}
         KEEP_OEM_UNLOCK policy: ${SAMSUNG_KEEP_BL_COMPATIBILITY}
-        Stock vbmeta was not supplied; the intentional flags-3 KEEP_OEM_UNLOCK vbmeta is tracked separately.
+        Original BL vbmeta and flags-3 KEEP_OEM_UNLOCK vbmeta were independently hashed and tracked separately.
         Samsung source baseline: ${SAMSUNG_SOURCE_FIRMWARE} / ${SAMSUNG_OSS_PACKAGE} (${SAMSUNG_OSS_SHA256})
-        Exact ZZI4 Samsung OSS source: not published when this build was prepared.
+        Exact EZIF Samsung OSS source: not independently verified; audited source port retained.
         Source method: audited DZG1 Samsung delta ported onto AOSP common ${COMMON_UPSTREAM_COMMIT}.
         Source port archive SHA-256: ${SAMSUNG_COMMON_OVERLAY_SHA256}
         Samsung build target: ${SAMSUNG_BUILD_TARGET} / ${SAMSUNG_CHIPSET}
@@ -1535,10 +1547,10 @@ jobs:
         Samsung XHCI and nf_conn alloc/free hooks are declared, exported, KMI-retained,
         and active at the real runtime call sites.
         CRC mismatches are rejected by the module loader.
-        ZZI4 vendor_boot validation covered ${SAMSUNG_TARGET_VENDOR_BOOT_MODULE_COUNT}
+        EZIF vendor_boot validation covered ${SAMSUNG_TARGET_VENDOR_BOOT_MODULE_COUNT}
         modules and ${SAMSUNG_TARGET_VENDOR_BOOT_BASELINE_OVERLAP} baseline-overlap
         symbols with ${SAMSUNG_TARGET_VENDOR_BOOT_CRC_CHANGES} CRC changes.
-        ZZI4 vendor_dlkm validation covered all ${SAMSUNG_TARGET_VENDOR_DLKM_MODULE_COUNT}
+        EZIF vendor_dlkm validation covered all ${SAMSUNG_TARGET_VENDOR_DLKM_MODULE_COUNT}
         modules and all ${SAMSUNG_TARGET_VENDOR_DLKM_BASELINE_OVERLAP} strict baseline
         symbols with ${SAMSUNG_TARGET_VENDOR_DLKM_CRC_CHANGES} CRC changes.
         Combined vendor_boot/vendor_dlkm validation covered
@@ -1547,8 +1559,9 @@ jobs:
         ${SAMSUNG_TARGET_TOTAL_CRC_CONFLICTS} CRC conflicts.
         CONFIG_EROFS_FS_ZIP_LZMA and CONFIG_XZ_DEC_MICROLZMA are enabled for
         One UI 9 EROFS-LZMA images and verified in the final kernel config.
-        CONFIG_CGROUP_PIDS and CONFIG_LRU_GEN_STATS are disabled to retain
-        the stock Samsung structure layouts; CONFIG_LRU_GEN remains enabled.
+        CPU and PID limits omitted as requested.
+        CONFIG_CGROUP_PIDS, CONFIG_CFS_BANDWIDTH and CONFIG_LRU_GEN_STATS remain disabled.
+        Every strict Samsung CRC gate must pass before this package exists.
         KASAN is disabled and the inactive KMI compatibility layout is retained.
         AnyKernel removes invalid bare off/4M tokens and writes
         log_buf_len=4M to the kernel command line.
@@ -1567,23 +1580,27 @@ jobs:
           --receipt "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
         test -s "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
 
-    - name: Verify BakaSU 35222 compiled integration and attest package
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35222' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
+    - name: Verify BakaSU 35229 compiled integration and attest package
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35229' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
       run: |
         set -euo pipefail
         VMLINUX="$KERNEL_ROOT/bazel-bin/common/kernel_aarch64/vmlinux"
         [[ -s "$VMLINUX" ]] || VMLINUX="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/dist/vmlinux"
         test -s "$VMLINUX"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35222/apply.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35229-susfs/check.py" \
+          --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" --config "$FINAL_CONFIG_FILE"
+        cp "$KERNEL_ROOT/common/.bakasu-35229-susfs-port.json" "$ANYKERNEL3/BAKASU-SUSFS-NATIVE-PORT.json"
+        cp "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35229-susfs/PREFLIGHT.json" "$ANYKERNEL3/BAKASU-SUSFS-PREFLIGHT.json"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35229/apply.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only \
           --config "$FINAL_CONFIG_FILE" --image "$ANYKERNEL3/Image" --vmlinux "$VMLINUX" \
           --receipt "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
         cp "$FINAL_CONFIG_FILE" "$ANYKERNEL3/BUILD-CONFIG.txt"
-        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35222-*/result.json \
+        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35229-*/result.json \
           "$ANYKERNEL3/RESUKISU-SUSFS-TESTS.json"
         test -s "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35222_uapi.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35229_uapi.py" \
           "$KERNEL_ROOT/$KSU_DIR"
         cp "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI5-SERVICES.json" "$ANYKERNEL3/"
 
@@ -1655,7 +1672,7 @@ jobs:
         test -s "$IKCONFIG"
         DAILY_AUDIT="$GITHUB_WORKSPACE/$VERSION_DIR/build-helpers/audit-s928b-daily-config.sh"
         chmod +x "$DAILY_AUDIT"
-        "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE"
+        "$DAILY_AUDIT" "$IKCONFIG" "$ADD_KPM" "$REQUIRE_CUSTOM_MANAGER" "$KMI_MODE" "${{ inputs.droidspaces_resource_limits }}"
         grep -qx 'CONFIG_IP6_NF_NAT=y' "$IKCONFIG" || {
           echo "::error::Embedded IKCONFIG must retain actual IPv6 NAT support"
           exit 1
@@ -1699,38 +1716,38 @@ jobs:
           grep -qx 'CONFIG_LRU_GEN=y' "$IKCONFIG"
           grep -qx 'CONFIG_EROFS_FS_ZIP_LZMA=y' "$IKCONFIG"
           grep -qx 'CONFIG_XZ_DEC_MICROLZMA=y' "$IKCONFIG"
-          test "$STOCK_FIRMWARE_EXPECTED" = "S928BXXU6ZZI4"
+          test "$STOCK_FIRMWARE_EXPECTED" = "S928BXXU6EZIF"
           test "$STOCK_CSC_EXPECTED" = "EUX"
           grep -qF 'patch_cmdline "log_buf_len=" "log_buf_len=4M"' "$ANYKERNEL3/anykernel.sh"
-          grep -qF 'Target firmware: S928BXXU6ZZI4 (EUX)' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Target package: AP_S928BXXU6ZZI4_S928BXXU6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin AP tar MD5: not-supplied-component-images-verified' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin AP SHA-256: not-supplied-component-images-verified' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin CP package: CP_S928BXXU6EZI4_CP36200554_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin CP tar MD5: ce09f6271f54f8aa1c2920d76cbb4974' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin CP SHA-256: aeb17904cc7b8d037d2ae2b840853fb6b583f8e7537cf32ce3b0b9405fc642cd' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin CSC package: CSC_OXM_S928BOXM6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin CSC tar MD5: ba072dccbeb55149608aca301289907a' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin CSC SHA-256: 262e30760c3f62015b8c725393385bbe2a71f96cc62feca55144fa48f6c4a8fe' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin HOME_CSC package: HOME_CSC_OXM_S928BOXM6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin HOME_CSC tar MD5: 8a03458bfb4bff67c853b8e79d9c1239' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Full Odin HOME_CSC SHA-256: a5a94a327350095816e3b890d9c4171adcffcd4672bedbf8af5d1a5b25f22f94' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Source OTA SHA-256: not-applicable-full-odin-components' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Stock init_boot.img SHA-256: f61c74bab1781862e48f8abc4a8b7865f0ba661658a3807431395edc1ce069c8' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Stock vendor_dlkm.img SHA-256: be9def7fde78c0a97db01af9ecd13480e0d21ae8099a375a8096dc23fd83d582' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Stock system_dlkm.img SHA-256: 4bbb76c7ac047596254e4c6a8503276464573a93d7e3a7bafa0411b887bc1462' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Stock dtbo.img SHA-256: 65b35a505cb4ba6cb6965a261053a43ea6f4807abeebb81468374e6b44db7f82' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Stock vbmeta.img SHA-256: not-supplied-keep-oem-unlock-vbmeta-only' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Stock NON-HLOS.bin SHA-256: 6d69aa52669f28178e86fa15dacf77b279d9e5762ca7c2eefd640aa8702184ce' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Stock modem.bin SHA-256: c063c91f7314d9db4c855945454904506dae1efb2ee8cf0a579420e2d40efd28' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'KEEP_OEM_UNLOCK BL package: BL_S928BXXU6ZZI4_KEEP_OEM_UNLOCK.tar.md5' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'KEEP_OEM_UNLOCK BL tar MD5: 1ae4d250893d70be14b70a5045121b2d' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'KEEP_OEM_UNLOCK BL SHA-256: 186b3572fef908255bde2404b0e01b000fe15496c4c1ae5015ea5663d85afab9' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Target firmware: S928BXXU6EZIF (EUX)' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Target package: AP_S928BXXU6EZIF_S928BXXU6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin AP tar MD5: f49b397ad8d4bf5ba099f3129b0564b9' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin AP SHA-256: 09a16cb9055b8c82e02b9b67635971171ee134ca45d5356c82961defd1e7fe45' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin CP package: CP_S928BXXU6EZIF_CP36479546_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin CP tar MD5: 9658d05643fb736322173a3af6094d73' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin CP SHA-256: a9ff4fe1c51e2693201916076157a3cf159b3b24542f0256d54d8be8b94dacb2' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin CSC package: CSC_OXM_S928BOXM6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin CSC tar MD5: 542fdbb61d8657edd550840f1751621c' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin CSC SHA-256: fbc808a1df6001b6e00a9fda5ba927ac1389e9c199b7fa0d511bbf476c6c45bd' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin HOME_CSC package: HOME_CSC_OXM_S928BOXM6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin HOME_CSC tar MD5: f1958bc068b094838ac79364046ba9fd' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Full Odin HOME_CSC SHA-256: 0fcb8af0836b08de98fc68956134b5db879d79482012851e1ae2439b5f954678' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Source OTA SHA-256: not-applicable-full-odin-archives' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock init_boot.img SHA-256: cfe9504a0688f65d284d6a341a63c941068a9a8abccb69f69aaf423e795c50c3' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock vendor_dlkm.img SHA-256: 9284bd60c83dd48e9746055a0af7d27e66a9a85aa6a8c0ad4999cba4af86c322' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock system_dlkm.img SHA-256: 81ab80e9bb814d4568d5a24ecbcc3767cd69b4c3abdeed833ff355c2902063d1' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock dtbo.img SHA-256: aab87a43462bc3ba9b7c298d5d194bc42630b143671d42c8da0f5999d1f6cb4e' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock vbmeta.img SHA-256: d7c6e23e31db471b889da53e6b46edd181d35a555b1612d579b76de22c2c0e85' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock NON-HLOS.bin SHA-256: 1a1afe55039d6ac1ea53b2cbca1f8ec73a1cb3a1c987eb756934cd448d917a48' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Stock modem.bin SHA-256: e7e0d7f93a4d2155afb8dcb79c24d76fcaa6d8dd6a61a9c2665795738a20ce55' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'KEEP_OEM_UNLOCK BL package: BL_S928BXXU6EZIF_KEEP_OEM_UNLOCK.tar.md5' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'KEEP_OEM_UNLOCK BL tar MD5: e5e4fb30364bbc5d39cefc4ef0111b84' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'KEEP_OEM_UNLOCK BL SHA-256: 2735ad1386c60cd9ad95bea6deb394ae5718b5d965d74decf4c8ea1f0c0d2106' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'KEEP_OEM_UNLOCK vbmeta.img SHA-256: 67b8d114c5c1af81c473fb649f5b47cca340a5744baed548db9660e5907a4535' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'KEEP_OEM_UNLOCK vbmeta flags: 3' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'KEEP_OEM_UNLOCK policy: avb-flags-3-intentional-keep-oem-unlock' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'Samsung source baseline: S928BXXS6DZG1 / SM-S928B_16_Opensource.zip (512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c)' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'Exact ZZI4 Samsung OSS source: not published when this build was prepared.' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'Exact EZIF Samsung OSS source: not independently verified; audited source port retained.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'Source method: audited DZG1 Samsung delta ported onto AOSP common 4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'Source port archive SHA-256: a9538364b3539754fcc4be676a02fff81694af61504a0afdcc0212a803042346' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'Samsung common delta: 402 changed,' "$ANYKERNEL3/STRICT-KMI.txt"
@@ -1739,7 +1756,7 @@ jobs:
           grep -qF 'Samsung XHCI and nf_conn alloc/free hooks are declared, exported, KMI-retained,' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'CRC mismatches are rejected by the module loader.' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'symbols with 0 CRC changes.' "$ANYKERNEL3/STRICT-KMI.txt"
-          grep -qF 'ZZI4 vendor_dlkm validation covered all 351' "$ANYKERNEL3/STRICT-KMI.txt"
+          grep -qF 'EZIF vendor_dlkm validation covered all 351' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF 'modules and all 2485 strict baseline' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF '762 modules and' "$ANYKERNEL3/STRICT-KMI.txt"
           grep -qF '4900 imports with' "$ANYKERNEL3/STRICT-KMI.txt"
@@ -1794,35 +1811,35 @@ jobs:
         fi
         if [[ "$PACKAGE_STRICT_ANYKERNEL" == "true" ]]; then
           unzip -p "$ANYKERNEL_ZIP" anykernel.sh | grep -F 'patch_cmdline "log_buf_len=" "log_buf_len=4M"'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target firmware: S928BXXU6ZZI4 (EUX)'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target package: AP_S928BXXU6ZZI4_S928BXXU6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin AP tar MD5: not-supplied-component-images-verified'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin AP SHA-256: not-supplied-component-images-verified'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CP package: CP_S928BXXU6EZI4_CP36200554_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CP tar MD5: ce09f6271f54f8aa1c2920d76cbb4974'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CP SHA-256: aeb17904cc7b8d037d2ae2b840853fb6b583f8e7537cf32ce3b0b9405fc642cd'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CSC package: CSC_OXM_S928BOXM6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CSC tar MD5: ba072dccbeb55149608aca301289907a'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CSC SHA-256: 262e30760c3f62015b8c725393385bbe2a71f96cc62feca55144fa48f6c4a8fe'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin HOME_CSC package: HOME_CSC_OXM_S928BOXM6ZZI4_MQB114374451_REV00_user_low_ship_MULTI_CERT.tar.md5'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin HOME_CSC tar MD5: 8a03458bfb4bff67c853b8e79d9c1239'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin HOME_CSC SHA-256: a5a94a327350095816e3b890d9c4171adcffcd4672bedbf8af5d1a5b25f22f94'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Source OTA SHA-256: not-applicable-full-odin-components'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock init_boot.img SHA-256: f61c74bab1781862e48f8abc4a8b7865f0ba661658a3807431395edc1ce069c8'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock vendor_dlkm.img SHA-256: be9def7fde78c0a97db01af9ecd13480e0d21ae8099a375a8096dc23fd83d582'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock system_dlkm.img SHA-256: 4bbb76c7ac047596254e4c6a8503276464573a93d7e3a7bafa0411b887bc1462'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock dtbo.img SHA-256: 65b35a505cb4ba6cb6965a261053a43ea6f4807abeebb81468374e6b44db7f82'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock vbmeta.img SHA-256: not-supplied-keep-oem-unlock-vbmeta-only'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock NON-HLOS.bin SHA-256: 6d69aa52669f28178e86fa15dacf77b279d9e5762ca7c2eefd640aa8702184ce'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock modem.bin SHA-256: c063c91f7314d9db4c855945454904506dae1efb2ee8cf0a579420e2d40efd28'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'KEEP_OEM_UNLOCK BL package: BL_S928BXXU6ZZI4_KEEP_OEM_UNLOCK.tar.md5'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target firmware: S928BXXU6EZIF (EUX)'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Target package: AP_S928BXXU6EZIF_S928BXXU6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin AP tar MD5: f49b397ad8d4bf5ba099f3129b0564b9'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin AP SHA-256: 09a16cb9055b8c82e02b9b67635971171ee134ca45d5356c82961defd1e7fe45'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CP package: CP_S928BXXU6EZIF_CP36479546_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CP tar MD5: 9658d05643fb736322173a3af6094d73'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CP SHA-256: a9ff4fe1c51e2693201916076157a3cf159b3b24542f0256d54d8be8b94dacb2'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CSC package: CSC_OXM_S928BOXM6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CSC tar MD5: 542fdbb61d8657edd550840f1751621c'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin CSC SHA-256: fbc808a1df6001b6e00a9fda5ba927ac1389e9c199b7fa0d511bbf476c6c45bd'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin HOME_CSC package: HOME_CSC_OXM_S928BOXM6EZIF_MQB115064488_REV00_user_low_ship_MULTI_CERT.tar.md5'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin HOME_CSC tar MD5: f1958bc068b094838ac79364046ba9fd'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Full Odin HOME_CSC SHA-256: 0fcb8af0836b08de98fc68956134b5db879d79482012851e1ae2439b5f954678'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Source OTA SHA-256: not-applicable-full-odin-archives'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock init_boot.img SHA-256: cfe9504a0688f65d284d6a341a63c941068a9a8abccb69f69aaf423e795c50c3'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock vendor_dlkm.img SHA-256: 9284bd60c83dd48e9746055a0af7d27e66a9a85aa6a8c0ad4999cba4af86c322'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock system_dlkm.img SHA-256: 81ab80e9bb814d4568d5a24ecbcc3767cd69b4c3abdeed833ff355c2902063d1'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock dtbo.img SHA-256: aab87a43462bc3ba9b7c298d5d194bc42630b143671d42c8da0f5999d1f6cb4e'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock vbmeta.img SHA-256: d7c6e23e31db471b889da53e6b46edd181d35a555b1612d579b76de22c2c0e85'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock NON-HLOS.bin SHA-256: 1a1afe55039d6ac1ea53b2cbca1f8ec73a1cb3a1c987eb756934cd448d917a48'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Stock modem.bin SHA-256: e7e0d7f93a4d2155afb8dcb79c24d76fcaa6d8dd6a61a9c2665795738a20ce55'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'KEEP_OEM_UNLOCK BL package: BL_S928BXXU6EZIF_KEEP_OEM_UNLOCK.tar.md5'
           unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'KEEP_OEM_UNLOCK vbmeta flags: 3'
           unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'KEEP_OEM_UNLOCK policy: avb-flags-3-intentional-keep-oem-unlock'
           unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Samsung source baseline: S928BXXS6DZG1 / SM-S928B_16_Opensource.zip (512c0a0b74646ddbb64ac8adea7c396c90458c2c12cf7f437e9d20282a33fa3c)'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Exact ZZI4 Samsung OSS source: not published when this build was prepared.'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Exact EZIF Samsung OSS source: not independently verified; audited source port retained.'
           unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'Source method: audited DZG1 Samsung delta ported onto AOSP common 4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c.'
           unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'All 2485 target Samsung DLKM symbols must match exactly.'
-          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'ZZI4 vendor_dlkm validation covered all 351'
+          unzip -p "$ANYKERNEL_ZIP" STRICT-KMI.txt | grep -F 'EZIF vendor_dlkm validation covered all 351'
           mkdir -p "$GITHUB_WORKSPACE/strict-flash"
           cp "$ANYKERNEL_ZIP" "$GITHUB_WORKSPACE/strict-flash/"
           sha256sum "$GITHUB_WORKSPACE/strict-flash/$(basename "$ANYKERNEL_ZIP")" \
@@ -1910,7 +1927,7 @@ jobs:
           echo "| **SUSFS Open Redirect (Test)** | $(S "$SUSFS_OPEN_REDIRECT_TEST") |"
           echo "| **ZeroMount** | $(S "$ADD_ZEROMOUNT") |"
           echo "| **Droidspaces 6_7_8** | $(S "$ADD_DROIDSPACES") |"
-          echo "| **CPU/PID limits requested** | ${{ inputs.droidspaces_resource_limits }} |"
+          echo "| **CPU bandwidth limits requested** | ${{ inputs.droidspaces_resource_limits }} |"
           echo "| **Full Samsung module/partition rebuild** | Not available in this tree; no rebuilt vendor partitions |"
           echo "| **ZRAM (LZ4K/LZ4KD)** | $(S "$ADD_ZRAM") |"
           echo "| **LZ4 v1.10.0** | $(S "$ADD_ZRAM") |"

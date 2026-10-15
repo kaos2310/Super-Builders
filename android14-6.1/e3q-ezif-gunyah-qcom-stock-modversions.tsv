@@ -1,0 +1,12 @@
+# EZIF stock gunyah_qcom imports.
+__arm_smccc_sve_check	0x3d93c7c2
+__kmalloc	0xeb233a45
+__stack_chk_fail	0xc2c193d2
+alt_cb_patch_nops	0x1348649e
+arm_smccc_1_1_get_conduit	0x6d467b08
+gh_rm_register_platform_ops	0xfd11885c
+gh_rm_unregister_platform_ops	0x057f483b
+kfree	0x037a0cba
+memstart_addr	0x9688de8b
+module_layout	0xea759d7f
+qcom_scm_assign_mem	0xcdaced8a
