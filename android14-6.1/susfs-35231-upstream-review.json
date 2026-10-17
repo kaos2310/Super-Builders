@@ -1,0 +1,52 @@
+{
+  "old_pin": "24743360ea08d98f6ad72b856851abed8de5854f",
+  "new_pin": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
+  "version": "v2.3.0",
+  "changed_kernel_patch_sections": [
+    {
+      "path": "fs/exec.c",
+      "old_sha256": "7460bb011063514828bf9a7500dfe1a30e24eb3ff2dc137c93d599f4a77fb531",
+      "new_sha256": "804ffe242376ce00a33193dec698297409285301cba1510094cf7d545aaaee2a",
+      "delta_lines": 43
+    },
+    {
+      "path": "security/selinux/hooks.c",
+      "old_sha256": "43a925616660e64a225d303a8ac48db0f1234b729602a7f01db5c85aa90a51d8",
+      "new_sha256": "0235ffad90a175c7d73e3caafc043b85f2629630f22aba1ee444aa9eb0aae2bd",
+      "delta_lines": 92
+    },
+    {
+      "path": "security/selinux/selinuxfs.c",
+      "old_sha256": "98b754c66298a70ce31715ceb2a68161ba04ed00110188f2233f76bc6751dc91",
+      "new_sha256": "032cff9f285cf14a670a706566fd6fb4614aff04418bf2f7ddad2ac4dca9d615",
+      "delta_lines": 300
+    }
+  ],
+  "changed_repository_files": [
+    "kernel_patches/50_add_susfs_in_gki-android14-6.1.patch",
+    "kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
+  ],
+  "history": [
+    "5369359dbd10f6dd8cbdd59d1df7b788b29b168c 2026-10-15T01:07:52+08:00 KernelSU: Remove unused upstream functions in selinux_hide.c",
+    "92aab7f579e9fb440a43e387c13bff519af13462 2026-10-14T23:39:38+08:00 kernel: Fix another selinux leak in sel_open_handle_status()",
+    "5192aa2d33b381b58c1051532f9e1dfa5de6e8d3 2026-10-12T14:09:51+08:00 kernel & KernelSU: Sync with the official KernelSU main repo",
+    "17dc6b683b26e036242bfcfe86b33c5982590237 2026-10-12T00:37:32+08:00 kernel & KernelSU: Sync with the official KernelSU main repo"
+  ],
+  "baseline_run": 38824525197,
+  "bakasu_pin": "2489b38582a08fee7b586d05185da5e5d12c6a5c",
+  "bakasu_version": 35231,
+  "kernel_and_uapi_unchanged_from_35229": true,
+  "userspace_sources_unchanged_from_35229": true,
+  "integration": "Retain BakaSU native SELinux path; reverse only obsolete manual SUSFS hooks. Update explicit session adapter for removed unused declaration.",
+  "device_runtime_tested": false,
+  "baseline_commit": "7d0eeffaf94e64a54eef4249fc25fdc212052ba3",
+  "native_selinux_objects_compiled": true,
+  "bakasu_session_objects_compiled": true,
+  "scoped_session_fault_tests_passed": true,
+  "uapi_services_tests_passed": true,
+  "missing_and_invalid_preflight_evidence_rejected": true,
+  "new_pin_uid_pair_accepted_old_pair_rejected": true,
+  "upstream_native_selinux_implementation_unchanged": true,
+  "manual_selinux_hooks_installed": false,
+  "full_kernel_build_deferred_to_ci": true
+}

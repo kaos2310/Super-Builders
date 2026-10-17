@@ -1,18 +1,18 @@
-name: S928B EZIF BakaSU 35229 DroidSpaces strict KMI SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
-run-name: "S928BXXU6EZIF EUX One UI 9 — BakaSU 35229 / CPU-PID limits omitted / SUSFS native SELinux port / strict KMI"
+name: S928B EZIF BakaSU 35231 DroidSpaces strict KMI SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
+run-name: "S928BXXU6EZIF EUX One UI 9 — BakaSU 35231 / CPU-PID limits omitted / SUSFS native SELinux port / strict KMI"
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - codex/bakasu-35229-ezif-oneui9
+      - codex/bakasu-35231-ezif-oneui9
 
 permissions:
   contents: write
   actions: write
 
 concurrency:
-  group: s928b-resukisu-35229-ezif-uidgate-v1-${{ github.ref_name }}
+  group: s928b-resukisu-35231-ezif-uidgate-v1-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
       - name: Validate transformation, budget bounds and exact C function
         run: |
           set -euo pipefail
-          python3 android14-6.1/build-helpers/test-bakasu-35229-bindings.py
+          python3 android14-6.1/build-helpers/test-bakasu-35231-bindings.py
           python3 android14-6.1/build-helpers/droidspaces-gki/test.py
           python3 - <<'PY'
           import json
@@ -53,8 +53,8 @@ jobs:
     needs: gunyah-preflight
     uses: ./.github/workflows/build-resukisu-userspace.yml
     with:
-      resukisu_commit: d7260ca1e5c128061122924d0d48754e361e135c
-      resukisu_version_code: "35229"
+      resukisu_commit: 2489b38582a08fee7b586d05185da5e5d12c6a5c
+      resukisu_version_code: "35231"
 
   dependencies:
     needs: gunyah-preflight
@@ -65,7 +65,7 @@ jobs:
     uses: ./.github/workflows/build-zeromount-bakasu.yml
 
   strict-gate:
-    name: Strict KMI / BakaSU 35229 UAPI5 / DroidSpaces / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
+    name: Strict KMI / BakaSU 35231 UAPI5 / DroidSpaces / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
     needs: [dependencies, userspace, zeromount-compat]
     uses: ./.github/workflows/build-resukisu.yml
     permissions:
@@ -86,23 +86,23 @@ jobs:
       add_overlayfs_support: true
       add_kpm: false
       susfs_open_redirect: true
-      # Adapt the SUSFS 24743360 callback to native UAPI5, retaining the explicit
+      # Adapt the SUSFS 5369359d callback to native UAPI5, retaining the explicit
       # session decision and success guard from reference run 34262304602.
       # The legacy 35119/UAPI2 backport is not applicable to native UAPI5.
       susfs_su_session: false
       add_ptrace_fix: true
       add_perf_patches: true
-      sukisu_commit: d7260ca1e5c128061122924d0d48754e361e135c
+      sukisu_commit: 2489b38582a08fee7b586d05185da5e5d12c6a5c
       resukisu_source_branch: main
-      resukisu_version_code: "35229"
+      resukisu_version_code: "35231"
       device_codename: e3q
       kmi_mode: strict
       kmi_profile: full-strict
       kmi_minimal_config: false
       package_strict_anykernel: true
 
-# Baseline: successful run 38052119990 @ 39a0f50491823634b15358e527dea9411fe46974.
-# Exact BakaSU pin d7260ca1: 30700 + 4529 = 35229; kernel and userspace rebuilt together.
+# Baseline: successful run 38824525197 @ 7d0eeffaf94e64a54eef4249fc25fdc212052ba3.
+# Exact BakaSU pin 2489b385: 30700 + 4531 = 35231; kernel and userspace rebuilt together.
 # Latest user instruction omits CPU/PID limits: CGROUP_PIDS=n, CFS_BANDWIDTH=n. No module CRC bypass.
 # SUSFS upstream block is lifted only by the independently tested native SELinux port.
 # Flash packaging depends on all strict stock module ABI and embedded configuration gates.

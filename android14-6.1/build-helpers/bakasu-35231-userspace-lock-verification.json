@@ -1,0 +1,21 @@
+{
+  "source_pin": "2489b38582a08fee7b586d05185da5e5d12c6a5c",
+  "lock_regression_tests": 7,
+  "android_locked_graphs": {
+    "ksuinit": {
+      "packages": 18,
+      "resolved_nodes": 18
+    },
+    "ksud": {
+      "packages": 205,
+      "resolved_nodes": 205
+    }
+  },
+  "locked_hashes_unchanged_after_metadata": {
+    "ksuinit": "fc443944307b96aaf317428b27c72d3c5995ef1f694846aa8f6724f6baf721f6",
+    "ksud": "93fffe0e047d0cc18c2bd23822e519761e4b5ae314115883320a091c8309442b"
+  },
+  "ksud_lock_byte_identical_to_upstream": true,
+  "rust_toolchain": "cargo 1.101.0-nightly (3960fa69b 2026-10-12)",
+  "full_arm64_userspace_build_tested": false
+}

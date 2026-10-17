@@ -1,0 +1,26 @@
+{
+  "bakasu_pin": "2489b38582a08fee7b586d05185da5e5d12c6a5c",
+  "bakasu_version": 35231,
+  "patch_sha256": "57e97f34055608a133594ff723ae5fa436b4559b1473d6e3284093c3ccb22156",
+  "port_sha256": "e43c5e356aa03827ac803feca0d74f81e5667dd5e1326e06091e470dfaa45668",
+  "arm64_selinux_objects_compiled": true,
+  "arm64_bakasu_objects_compiled": true,
+  "session_fault_injection_passed": true,
+  "uapi_services_passed": true,
+  "config_sha256": "35d6eb237d99f1f7a0370378a4ef53d73f2cd6a34b8459820b0390f7305ba193",
+  "cpu_bandwidth": "n",
+  "cgroup_pids": "n",
+  "compiled_objects": {
+    "security/selinux/avc.o": "9b74d4f70cdc3b648a5e9ff6bfd72b90ecc3b68480fc80268368788babe34342",
+    "security/selinux/hooks.o": "42c65fced1fd49b7fb402f7802c8f5f87b2d1905cbdb28ead075712c13d98748",
+    "security/selinux/selinuxfs.o": "54d2c698ca0e070048d77d44b361a6c6fc235950c819f51cc08a7288ceb5bc85",
+    "security/selinux/ss/services.o": "ef45aa7ba2d07e63eccd7edd5a72bc673adabf332c4546603829b5084547372d",
+    "drivers/kernelsu/feature/selinux_hide.o": "4eb5c6914b0d045846e118fb8f4203449fbf3564d3d85a91dac627e6426787f2",
+    "drivers/kernelsu/selinux/sepolicy.o": "14cf31935c964dbb574e21e7a386737be3fe7b27e72a298ef5e48079dba5f052",
+    "drivers/kernelsu/feature/sucompat.o": "062c09c7026877d240c130dcc4a8452bf65c06bceb744089cf2c1b6d84baa941",
+    "fs/exec.o": "41ead19922e45dd2eb8816e8878b7cba21a4cd9bed42a8c5e6c581f1fc32f4f0"
+  },
+  "full_kernel_link_tested": false,
+  "stock_module_crc_compatibility_tested": false,
+  "device_runtime_tested": false
+}

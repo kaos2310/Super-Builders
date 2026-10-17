@@ -17,7 +17,7 @@ import sys
 
 source = Path(sys.argv[1])
 text = source.read_text(encoding="utf-8")
-latched_mounts = sys.argv[2] == "24743360ea08d98f6ad72b856851abed8de5854f"
+latched_mounts = sys.argv[2] in ("24743360ea08d98f6ad72b856851abed8de5854f", "5369359dbd10f6dd8cbdd59d1df7b788b29b168c")
 refactored_mounts = latched_mounts or sys.argv[2] == "887928223bf685113f32837d5282117c9e4a04ca"
 
 marker_re = re.compile(
