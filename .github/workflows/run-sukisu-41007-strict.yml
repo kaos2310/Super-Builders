@@ -1,0 +1,108 @@
+name: S928B EZIF SukiSU 41007 DroidSpaces strict KMI SUSFS v2.3.0 UIDGate v1 BootconfigStaticKey v1
+run-name: "S928BXXU6EZIF EUX One UI 9 — SukiSU 41007 / CPU-PID limits omitted / SUSFS native SELinux port / strict KMI"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/sukisu-41007-ezif-oneui9
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: s928b-resukisu-41007-ezif-uidgate-v1-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  gunyah-preflight:
+    name: UID gate and Gunyah exact-C preflight tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate transformation, budget bounds and exact C function
+        run: |
+          set -euo pipefail
+          python3 android14-6.1/build-helpers/test-sukisu-41007-bindings.py
+          python3 android14-6.1/build-helpers/droidspaces-gki/test.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          evidence = json.loads(Path('android14-6.1/s928b-ezif-firmware-evidence.json').read_text())
+          assert evidence['baseline_run'] == 38052119990
+          assert evidence['all_5470_module_import_crcs_identical_to_zzi4']
+          assert evidence['strict_baseline_symbols_verified'] == 2485
+          assert all(a['md5_verified'] for a in evidence['archives'].values())
+          PY
+          python3 android14-6.1/build-helpers/test-e3q-gunyah-adaptive-backing.py
+          python3 android14-6.1/build-helpers/test-e3q-gunyah-reclaim.py
+          python3 android14-6.1/build-helpers/susfs-uid-gated/test.py --cc gcc --work-dir "$RUNNER_TEMP/uid-gate-tests"
+      - name: Upload verified Samsung source readiness report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: EZIF-firmware-evidence-${{ github.run_id }}
+          path: android14-6.1/s928b-ezif-firmware-evidence.json
+          if-no-files-found: error
+          retention-days: 7
+
+  userspace:
+    needs: gunyah-preflight
+    uses: ./.github/workflows/build-sukisu-41007-userspace.yml
+    with:
+      resukisu_commit: f6731caa0e0bee7787653334b2930ed041938ef6
+      resukisu_version_code: "41007"
+
+  dependencies:
+    needs: gunyah-preflight
+    uses: ./.github/workflows/cache-dependencies.yml
+
+  zeromount-compat:
+    needs: gunyah-preflight
+    uses: ./.github/workflows/build-zeromount-sukisu-41007.yml
+
+  strict-gate:
+    name: Strict KMI / SukiSU 41007 UAPI6 / DroidSpaces / OPEN_REDIRECT / UID-gated hiding v1 / Gunyah
+    needs: [dependencies, userspace, zeromount-compat]
+    uses: ./.github/workflows/build-sukisu-41007-strict.yml
+    permissions:
+      contents: write
+      actions: write
+    with:
+      android_version: android14
+      kernel_version: "6.1"
+      sub_level: "162"
+      os_patch_level: "2026-03"
+      add_susfs: true
+      susfs_uid_gated_hiding: true
+      add_zeromount: true
+      add_droidspaces: true
+      droidspaces_resource_limits: false
+      add_zram: true
+      add_bbg: true
+      add_overlayfs_support: true
+      add_kpm: false
+      susfs_open_redirect: true
+      # Adapt the SUSFS 5369359d callback to native UAPI6, retaining the explicit
+      # session decision and success guard from reference run 34262304602.
+      # The legacy 35119/UAPI2 backport is not applicable to native UAPI6.
+      susfs_su_session: false
+      add_ptrace_fix: true
+      add_perf_patches: true
+      sukisu_commit: f6731caa0e0bee7787653334b2930ed041938ef6
+      resukisu_source_branch: main
+      resukisu_version_code: "41007"
+      device_codename: e3q
+      kmi_mode: strict
+      kmi_profile: full-strict
+      kmi_minimal_config: false
+      package_strict_anykernel: true
+
+# Baseline: successful run 39047475246 @ 8ba69d1340eed4e210849719ec00fe1f47e2062d.
+# Exact SukiSU pin f6731caa: 40000 + 3822 - 2815 = 41007; kernel and userspace rebuilt together.
+# Latest user instruction omits CPU/PID limits: CGROUP_PIDS=n, CFS_BANDWIDTH=n. No module CRC bypass.
+# The SukiSU41007 SUSFS port requires matched independent ARM64 and fault-test evidence.
+# Flash packaging depends on all strict stock module ABI and embedded configuration gates.

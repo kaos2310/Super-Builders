@@ -1,0 +1,53 @@
+{
+  "baseline_run": 39047475246,
+  "baseline_commit": "8ba69d1340eed4e210849719ec00fe1f47e2062d",
+  "baseline_jobs_all_success": true,
+  "sukisu_pin": "f6731caa0e0bee7787653334b2930ed041938ef6",
+  "version": 41007,
+  "version_formula": "40000 + 3822 - 2815",
+  "susfs_pin": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
+  "susfs_version": "v2.3.0",
+  "cpu_pid_limits": false,
+  "kpm": false,
+  "preinit": false,
+  "native_uapi_version": 6,
+  "native_manager_package": "com.sukisu.ultra",
+  "source_replay": "28 effective source hashes match compiled candidate",
+  "arm64_objects": 40,
+  "combined_relocatable_object_internal_ksu_symbols_resolved": true,
+  "kernel_ci_end_state": "not observed; this record describes local preflight evidence",
+  "full_kernel_link_tested_locally": false,
+  "device_runtime_tested": false,
+  "workflow_validation": {
+    "yaml_files_parsed": 42,
+    "changed_workflows_checked": 4,
+    "inputs_and_dependencies": "PASS",
+    "strict_stock_crc_gates_retained": true,
+    "cpu_and_pid_limits": false
+  },
+  "config_step": {
+    "exact_ci_config_step_passed": true,
+    "legacy_sukisu_reconciliation_not_replayed": true,
+    "susfs_functional_audit_passed": true,
+    "kleaf_savedefconfig_fixed_point_passed": true,
+    "cpu_pid_and_kpm_disabled": true,
+    "native_sukisu_symbols_used": true
+  },
+  "gate_tests": [
+    {
+      "case": "missing",
+      "rejected_without_writes": true
+    },
+    {
+      "case": "invalid",
+      "rejected_without_writes": true
+    },
+    {
+      "case": "matched",
+      "exact_patch_accepted": true,
+      "native_selinux_preserved": true
+    }
+  ],
+  "native_manager_certificate": "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef",
+  "local_compile_mode": "LTO_NONE; full CI LTO/CFI and strict stock CRC gates remain mandatory"
+}
