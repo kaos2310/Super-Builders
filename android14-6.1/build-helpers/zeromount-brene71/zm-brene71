@@ -1,0 +1,180 @@
+#!/system/bin/sh
+# Integrated BRENE 0.0.71 adapter. No standalone BRENE boot scripts are sourced.
+BINDIR=${ZM71_BINDIR:-${0%/*}}
+NATIVE=${ZM71_NATIVE:-$BINDIR/arm64-v8a/zeromount}
+RP=${ZM71_RESETPROP:-$BINDIR/arm64-v8a/resetprop-rs}
+KSUD=${ZM71_KSUD:-/data/adb/ksud}
+STATE=${ZM71_STATE:-/data/adb/zeromount/brene71}
+CONFIG=$STATE/options
+key_valid() {
+    case "$1" in shrink_buffer_size|spoof_hosts|spoof_libstagefright|hide_lineage_strings|disable_child_process_restrictions) return 0;; *) return 1;; esac
+}
+get_option() {
+    key_valid "$1" || return 64
+    local value
+    value=$(sed -n "s/^$1=//p" "$CONFIG" 2>/dev/null)
+    case "$value" in true|false) printf '%s\n' "$value";; '')
+        if [ "$1" = shrink_buffer_size ]; then echo true; else echo false; fi;; *) return 65;; esac
+}
+set_option() {
+    key_valid "$1" || return 64
+    case "$2" in true|false) ;; *) return 64;; esac
+    umask 077
+    mkdir -p "$STATE" || return 1
+    mkdir "$STATE/config.lock" 2>/dev/null || return 75
+    local key value tmp
+    tmp=$STATE/options.tmp.$$
+    for key in shrink_buffer_size spoof_hosts spoof_libstagefright hide_lineage_strings disable_child_process_restrictions; do
+        if [ "$key" = "$1" ]; then value=$2; else value=$(get_option "$key") || { rmdir "$STATE/config.lock"; return 65; }; fi
+        printf '%s=%s\n' "$key" "$value"
+    done > "$tmp"
+    chmod 0600 "$tmp" && mv -f "$tmp" "$CONFIG"
+    local rc=$?
+    rm -f "$tmp"; rmdir "$STATE/config.lock"
+    return "$rc"
+}
+native_enabled() { [ "$("$NATIVE" config get "brene.$1" 2>/dev/null)" = true ]; }
+boot_complete() { [ "$(getprop sys.boot_completed 2>/dev/null)" = 1 ]; }
+patch_month() {
+    # Decimal conversion avoids shell octal parsing of August/September.
+    local year month day extra
+    read -r year month day extra <<EOF
+$(date '+%Y %m %d')
+EOF
+    case "$year:$month:$day:$extra" in ????:??:??:) ;; *) return 65;; esac
+    case "$year$month$day" in *[!0-9]*) return 65;; esac
+    month=${month#0}; day=${day#0}
+    [ "$year" -ge 2024 ] && [ "$year" -le 2100 ] && [ "$month" -ge 1 ] && [ "$month" -le 12 ] && [ "$day" -ge 1 ] && [ "$day" -le 31 ] || return 65
+    if [ "$day" -lt 5 ]; then
+        month=$((month - 1))
+        if [ "$month" -eq 0 ]; then month=12; year=$((year - 1)); fi
+    fi
+    printf '%04d-%02d\n' "$year" "$month"
+}
+existing_prop() {
+    local old
+    old=$("$RP" "$1") || return 1
+    [ -z "$old" ] || [ "$old" = "$2" ] || "$RP" -n "$1" "$2"
+}
+property_pass() {
+    # Defer the whole inherited writer until vold/init completed. This prevents
+    # the native GENERAL table from setting ro.crypto.state prematurely.
+    boot_complete || return 0
+    # Give both inherited date options the same clock source. Reject an invalid
+    # clock before the native writer can use its older current-month policy.
+    local month=''
+    if native_enabled spoof_os_security_patch_level_property || native_enabled spoof_vendor_security_patch_level_property; then
+        month=$(patch_month) || { echo 'BRENE71: invalid clock; property pass skipped' >&2; return 65; }
+    fi
+    "$NATIVE" prop-watch || return $?
+    # Match native ownership and group opt-outs. An external SUSFS module owns
+    # its own properties; this adapter must not follow a deferred native writer.
+    local external
+    external=$(cat "${ZM71_EXTERNAL_FLAG:-/data/adb/zeromount/flags/external_susfs}" 2>/dev/null)
+    case "$external" in ''|none) ;; *) return 0;; esac
+    native_enabled prop_spoofing || return 0
+    native_enabled spoof_os_security_patch_level_property && existing_prop ro.build.version.security_patch "$month-01"
+    native_enabled spoof_vendor_security_patch_level_property && existing_prop ro.vendor.build.security_patch "$month-05"
+    # Native property handling is complete before this late correction.
+    existing_prop ro.crypto.state encrypted
+}
+require_open_redirect() {
+    [ "$("$KSUD" susfs show version 2>/dev/null)" = v2.3.0 ] || return 65
+    "$KSUD" susfs show enabled_features 2>/dev/null | grep -qxF CONFIG_KSU_SUSFS_OPEN_REDIRECT
+}
+redirect_file() {
+    local target=$1 replacement=$2
+    [ -f "$target" ] && [ -f "$replacement" ] || return 66
+    # Existing persistent user redirects keep ownership of their target.
+    if grep -Fq "$target|" "${ZM71_RULES:-/data/adb/zeromount/open_redirect.conf}" 2>/dev/null; then
+        echo "BRENE71: target already owned by persistent OPEN_REDIRECT rules: $target" >&2
+        return 65
+    fi
+    # Keep per-path files distinct: same basenames across partitions must not
+    # alias each other. Preserve the target's ownership, mode and SELinux label.
+    chmod "$(stat -c %a "$target")" "$replacement" || return 1
+    chown "$(stat -c %u:%g "$target")" "$replacement" || return 1
+    chcon --reference="$target" "$replacement" || return 1
+    "$KSUD" susfs add_open_redirect "$target" "$replacement" 3
+}
+apply_redirects() {
+    local hosts lib lineage
+    hosts=$(get_option spoof_hosts) || return $?
+    lib=$(get_option spoof_libstagefright) || return $?
+    lineage=$(get_option hide_lineage_strings) || return $?
+    [ "$hosts:$lib:$lineage" = false:false:false ] && return 0
+    require_open_redirect || { echo 'BRENE71: exact SUSFS OPEN_REDIRECT unavailable' >&2; return 65; }
+    local bid ledger intent
+    bid=$(cat /proc/sys/kernel/random/boot_id) || return 1
+    ledger=$STATE/redirects.applied
+    intent=$STATE/redirects.intent
+    if [ -f "$ledger" ]; then
+        [ "$(cat "$ledger")" = "$bid" ] && return 0
+    fi
+    if [ -f "$intent" ] && [ "$(cat "$intent")" = "$bid" ]; then
+        echo 'BRENE71: redirect state uncertain; reboot before another attempt' >&2
+        return 75
+    fi
+    mkdir -p "$STATE/fake-files" || return 1
+    printf '%s\n' "$bid" > "$intent" || return 1
+    if [ "$hosts" = true ]; then
+        printf '127.0.0.1       localhost\n::1             ip6-localhost\n\n' > "$STATE/fake-files/hosts" || return 1
+        redirect_file /system/etc/hosts "$STATE/fake-files/hosts" || return $?
+    fi
+    if [ "$lib" = true ]; then
+        : > "$STATE/fake-files/libstagefright.so"
+        redirect_file /system/lib64/libstagefright.so "$STATE/fake-files/libstagefright.so" || return $?
+    fi
+    if [ "$lineage" = true ]; then
+        # Opt-in stock-ROM adaptation, equivalent to BRENE71's empty views for
+        # unmounted app UIDs. Paths are read literally; no shell evaluation.
+        find /system /system_ext /vendor /product -type f \( -iname '*sepolicy.cil' -o -iname '*file_contexts' -o -iname '*.rc' \) > "$STATE/lineage-paths" || return 1
+        local path file
+        while IFS= read -r path; do
+            case "$path" in *.rc) grep -iq lineage "$path" || continue;; esac
+            file=$(printf '%s' "$path" | sha256sum); file=${file%% *}
+            : > "$STATE/fake-files/$file"
+            redirect_file "$path" "$STATE/fake-files/$file" || return $?
+        done < "$STATE/lineage-paths"
+        if [ -f /system_ext/etc/permissions/Updater.xml ]; then
+            : > "$STATE/fake-files/updater"
+            redirect_file /system_ext/etc/permissions/Updater.xml "$STATE/fake-files/updater" || return $?
+        fi
+    fi
+    printf '%s\n' "$bid" > "$ledger"
+}
+late_features() {
+    boot_complete || { echo 'BRENE71: boot not completed' >&2; return 75; }
+    umask 077
+    mkdir -p "$STATE" || return 1
+    mkdir "$STATE/apply.lock" 2>/dev/null || return 75
+    trap 'rmdir "$STATE/apply.lock"' EXIT
+    if [ "$(get_option shrink_buffer_size)" = true ]; then
+        logcat -G 64K || return $?
+        "$RP" -n -p persist.logd.size 65536 || return $?
+    fi
+    if [ "$(get_option disable_child_process_restrictions)" = true ]; then
+        "$RP" -n persist.sys.fflag.override.settings_enable_monitor_phantom_procs false || return $?
+    fi
+    apply_redirects
+}
+status() {
+    # Status performs no writes and uses a fixed schema without shell-sourced data.
+    local key value sep=''
+    printf '{"version":"0.0.71","settings":{"values":{'
+    for key in shrink_buffer_size spoof_hosts spoof_libstagefright hide_lineage_strings disable_child_process_restrictions; do
+        value=$(get_option "$key") || return $?
+        printf '%s"%s":"%s"' "$sep" "$key" "$value"; sep=,
+    done
+    printf '}},"device_tested":false}\n'
+}
+case "${1:-status}" in
+    status) [ "$#" -le 1 ] || exit 64; status;;
+    get) [ "$#" -eq 2 ] || exit 64; get_option "$2";;
+    set) [ "$#" -eq 3 ] || exit 64; set_option "$2" "$3";;
+    patch-month) [ "$#" -eq 1 ] || exit 64; patch_month;;
+    prop-watch)
+        case "$#:${2:-}" in 1:) property_pass;; 2:--repeat) while :; do property_pass || exit $?; sleep 60; done;; *) exit 64;; esac;;
+    late) [ "$#" -eq 1 ] || exit 64; late_features;;
+    *) echo 'usage: zm brene71 status|get KEY|set KEY true|false|late' >&2; exit 64;;
+esac

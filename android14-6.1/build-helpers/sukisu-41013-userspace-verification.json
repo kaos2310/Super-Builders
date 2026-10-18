@@ -1,0 +1,18 @@
+{
+  "pin": "ffa00c0700604216de8a86ad9c74226af1add0d5",
+  "version": 41013,
+  "shared_workspace_lock_sha256": "60c56d011de375bbd94e7f32e2accc59d2d33b1d2bc7a2a9888f356aebda2b70",
+  "both_android_locked_graphs_passed": true,
+  "graphs": {
+    "ksuinit": {
+      "packages": 222,
+      "nodes": 222
+    },
+    "ksud": {
+      "packages": 222,
+      "nodes": 222
+    }
+  },
+  "package_versions_changed": false,
+  "full_arm64_userspace_build_tested": false
+}

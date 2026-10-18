@@ -1,0 +1,67 @@
+{
+  "baseline_run": 39061619013,
+  "baseline_commit": "9b9f7853cc167f3f0bf4528824fe4ecd1bc7d704",
+  "baseline_all_five_jobs_success": true,
+  "sukisu_pin": "ffa00c0700604216de8a86ad9c74226af1add0d5",
+  "version": 41013,
+  "source_commit_count": 3828,
+  "source_version_formula": "40000 + 3828 - 2815",
+  "susfs_pin": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
+  "susfs_branch_tip_verified": "2026-10-18",
+  "native_uapi": 6,
+  "native_manager": "com.sukisu.ultra",
+  "preinit_enabled": false,
+  "arm64_compiled_objects": 42,
+  "full_kernel_link_tested_locally": false,
+  "mount_hide_susfs_callback_adapter_tested": true,
+  "kernel_and_uapi_sources_hashed": 177,
+  "session_negative_controls": 18,
+  "service_negative_controls": 6,
+  "mount_hide_negative_controls": 3,
+  "cargo_locked_graphs": {
+    "ksuinit": {
+      "packages": 222,
+      "nodes": 222
+    },
+    "ksud": {
+      "packages": 222,
+      "nodes": 222
+    }
+  },
+  "effective_config": {
+    "exact_ci_config_step_passed": true,
+    "legacy_sukisu_reconciliation_not_replayed": true,
+    "susfs_functional_audit_passed": true,
+    "kleaf_savedefconfig_fixed_point_passed": true,
+    "cpu_pid_and_kpm_disabled": true,
+    "native_sukisu_symbols_used": true
+  },
+  "module_package": {
+    "inputs": [
+      {
+        "file": "BRENE-v0.0.71.zip",
+        "sha256": "182a03f9d0b76062ed303c2d0cdfcc6eac275c8f0aafad8ae1287a92e939f97d",
+        "bytes": 120098
+      },
+      {
+        "file": "ZeroMount-v2.0.216-dev.guard6.13.brene69.susfs230-r3.3.uidgate2.bootguard2-BakaSU-35215-arm64.zip",
+        "sha256": "5eb8e7fc65eeebd25525a4de1d1cdada9c27a0667401d99ab37435470a2f0895",
+        "bytes": 43940300
+      }
+    ],
+    "package_sha256": "93e41c4419e3d808ea89314e61f7819dc3b2c1604b21fdb74ca8687968d62309",
+    "package_bytes": 43953755,
+    "preserved_files": 108,
+    "native_core_byte_identical": true,
+    "adapter_tests_passed": 18,
+    "bootguard_scenarios_passed": 4,
+    "webui_tests_passed": true,
+    "shell_syntax_passed": true,
+    "device_tested": false,
+    "download_originals_modified": false,
+    "ci_detector_zip_contains_custom_guard6_payload": false
+  },
+  "strict_kmi_and_samsung_crc_gates_retained": true,
+  "new_ci_result": "not launched at record creation",
+  "device_tested": false
+}
