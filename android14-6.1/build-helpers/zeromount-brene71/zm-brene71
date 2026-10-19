@@ -4,6 +4,7 @@ BINDIR=${ZM71_BINDIR:-${0%/*}}
 NATIVE=${ZM71_NATIVE:-$BINDIR/arm64-v8a/zeromount}
 RP=${ZM71_RESETPROP:-$BINDIR/arm64-v8a/resetprop-rs}
 KSUD=${ZM71_KSUD:-/data/adb/ksud}
+[ -x "$KSUD" ] || KSUD=/data/adb/ksu/bin/ksud
 STATE=${ZM71_STATE:-/data/adb/zeromount/brene71}
 CONFIG=$STATE/options
 key_valid() {
@@ -79,8 +80,11 @@ property_pass() {
     existing_prop ro.crypto.state encrypted
 }
 require_open_redirect() {
-    [ "$("$KSUD" susfs show version 2>/dev/null)" = v2.3.0 ] || return 65
-    "$KSUD" susfs show enabled_features 2>/dev/null | grep -qxF CONFIG_KSU_SUSFS_OPEN_REDIRECT
+    local version features
+    version=$("$KSUD" susfs version 2>/dev/null) || return 65
+    [ "$version" = v2.3.0 ] || return 65
+    features=$("$KSUD" susfs features 2>/dev/null) || return 65
+    printf '%s\n' "$features" | tr ',\r' '\n\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -qxF CONFIG_KSU_SUSFS_OPEN_REDIRECT
 }
 redirect_file() {
     local target=$1 replacement=$2
@@ -95,7 +99,7 @@ redirect_file() {
     chmod "$(stat -c %a "$target")" "$replacement" || return 1
     chown "$(stat -c %u:%g "$target")" "$replacement" || return 1
     chcon --reference="$target" "$replacement" || return 1
-    "$KSUD" susfs add_open_redirect "$target" "$replacement" 3
+    "$KSUD" susfs add-open-redirect "$target" "$replacement" 3
 }
 apply_redirects() {
     local hosts lib lineage

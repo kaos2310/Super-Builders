@@ -35,12 +35,12 @@ def main():
     def put(name,data,executable=False):
         if isinstance(data,str):data=data.encode('utf-8')
         result[name]=(data,(0o100755 if executable else 0o100644)<<16);changed[name]=sha(data)
-    version='v2.0.216-dev.guard6.13.brene71.susfs230-r3.3.uidgate2.bootguard2.sukisu41013'
+    version='v2.0.216-dev.guard6.13.brene71.susfs230-r3.3.uidgate2.bootguard2.sukisu41013.installfix1'
     prop=base['module.prop'][0].decode()
     lines=[]
     for line in prop.splitlines():
         if line.startswith('version='):line='version='+version
-        elif line.startswith('versionCode='):line='versionCode=2021625'
+        elif line.startswith('versionCode='):line='versionCode=2021626'
         elif line.startswith('description='):line='description=Guard6.13 + BRENE 0.0.71 adapter, UIDGate2, BootGuard2, DroidSpaces VFS, OPEN_REDIRECT; SukiSU 41013 / SUSFS 2.3.0 / S928B EZIF. Device test pending.'
         lines.append(line)
     put('module.prop','\n'.join(lines)+'\n')
@@ -56,6 +56,10 @@ def main():
         shift; exec "$BINDIR/zm-brene71" prop-watch "$@"
         ;;
     mount)''')
+    old_features='    _features=$("$_ksud" susfs show enabled_features 2>/dev/null) || return 1'
+    assert wrapper.count(old_features)==1
+    wrapper=wrapper.replace(old_features,'''    _features=$("$_ksud" susfs features 2>/dev/null) || return 1
+    _features=$(printf '%s\\n' "$_features" | tr ',\\r' '\\n\\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')''')
     put('bin/zm',wrapper,True)
     for name in ('service.sh','boot-completed.sh'):
         text=base[name][0].decode();assert '"$BIN" prop-watch' in text
@@ -69,12 +73,17 @@ def main():
 [ "$KSU" = true ] && [ "$KSU_SUKISU" = true ] || abort "SukiSU manager required for this package"
 _zm71_ksud=/data/adb/ksud
 [ -x "$_zm71_ksud" ] || _zm71_ksud=/data/adb/ksu/bin/ksud
-[ "$("$_zm71_ksud" susfs show version 2>/dev/null)" = v2.3.0 ] || abort "Exact SUSFS v2.3.0 required"
-unset _zm71_ksud
+_zm71_version=$("$_zm71_ksud" susfs version 2>&1) || abort "SukiSU SUSFS version query failed: $_zm71_version"
+[ "$_zm71_version" = v2.3.0 ] || abort "SUSFS v2.3.0 required; reported: ${_zm71_version:-empty}"
+unset _zm71_ksud _zm71_version
 '''
     # KSU env values are supplied by the manager before customize.sh starts.
     at=install.find('\n',install.index('#!'))+1
     put('customize.sh',install[:at]+guard+install[at:],True)
+    # The inherited manager hand-off script used CRLF and failed shell parsing.
+    # Keep its behavior and permissions, normalizing only its line endings.
+    entry='META-INF/com/google/android/update-binary'
+    put(entry,base[entry][0].replace(b'\r\n',b'\n'),True)
     html=base['webroot/brene69.html'][0].decode()
     html=html.replace('BRENE 68/69','BRENE 0.0.71').replace('BRENE 0.0.68 + 0.0.69','BRENE 0.0.71').replace('brene69.mjs','brene71.mjs')
     html=html.replace('Optionale Property-Anpassungen','Neue BRENE-71-Optionen')
@@ -109,7 +118,7 @@ const LABELS = [
     put('webroot/brene69.html',html)
     for name in ('webroot/index.html','webroot/susfs-rules.html'):
         text=base[name][0].decode().replace('brene69.html','brene71.html').replace('BRENE 68/69','BRENE 0.0.71');put(name,text)
-    manifest={'schema':3,'version':version,'baseline_kernel_run':39061619013,'sukisu_version':41013,'sukisu_commit':PIN,'uapi_version':6,'susfs_version':'v2.3.0','susfs_commit':'5369359dbd10f6dd8cbdd59d1df7b788b29b168c','target':'SM-S928B / S928BXXU6EZIF / EUX / 6.1.162','inputs':{path.name:sha(path.read_bytes()) for path in (a.base_zip,a.brene_zip)},'native_core_sha256':sha(core),'native_core_modified':False,'historical_manifest':'build-manifest-before-brene71.json','changed_files_sha256':changed,'device_tested':False,'ci_result_at_packaging':'not observed','automatic_updates':False,'standalone_brene_boot_scripts_executed':False}
+    manifest={'schema':3,'version':version,'revision':'installfix1','baseline_kernel_run':39061619013,'companion_kernel_run':39154358298,'sukisu_version':41013,'sukisu_commit':PIN,'uapi_version':6,'susfs_version':'v2.3.0','susfs_commit':'5369359dbd10f6dd8cbdd59d1df7b788b29b168c','target':'SM-S928B / S928BXXU6EZIF / EUX / 6.1.162','inputs':{path.name:sha(path.read_bytes()) for path in (a.base_zip,a.brene_zip)},'native_core_sha256':sha(core),'native_core_modified':False,'historical_manifest':'build-manifest-before-brene71.json','changed_files_sha256':changed,'device_tested':False,'ci_result_at_packaging':'not inspected for this module-only correction','automatic_updates':False,'standalone_brene_boot_scripts_executed':False,'fix':'SukiSU clap subcommands version, features and add-open-redirect; native SUSFS compatibility gate retained'}
     put('build-manifest-before-brene71.json',base['build-manifest.json'][0])
     put('BRENE71-UPSTREAM-INPUT.json',json.dumps({'version':'0.0.71','sha256':sha(a.brene_zip.read_bytes()),'files_sha256':{name:sha(data) for name,(data,_) in brene.items()}},indent=2)+'\n')
     put('README-BRENE71-SukiSU41013.md',(HERE/'README.md').read_bytes())
@@ -122,10 +131,10 @@ const LABELS = [
         sums=''.join(sha(data)+'  '+key+'\n' for key,(data,_) in sorted(result.items()) if key not in ('SHA256SUMS','COMPAT-SHA256SUMS') and (name=='SHA256SUMS' or key not in runtime))
         put(name,sums)
     a.output_dir.mkdir(parents=True,exist_ok=True)
-    output=a.output_dir/'ZeroMount-Guard6.13-BRENE-0.0.71-SukiSU-41013-arm64.zip'
+    output=a.output_dir/'ZeroMount-Guard6.13-BRENE-0.0.71-SukiSU-41013-installfix1-arm64.zip'
     with zipfile.ZipFile(output,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
         for name,(data,mode) in sorted(result.items()):
-            item=zipfile.ZipInfo(name,(2026,10,18,0,0,0));item.create_system=3;item.external_attr=mode;item.compress_type=zipfile.ZIP_DEFLATED;z.writestr(item,data)
+            item=zipfile.ZipInfo(name,(2026,10,19,0,0,0));item.create_system=3;item.external_attr=mode;item.compress_type=zipfile.ZIP_DEFLATED;z.writestr(item,data)
     with zipfile.ZipFile(output) as z:
         assert z.testzip() is None and z.read('bin/arm64-v8a/zeromount')==core
         for line in z.read('SHA256SUMS').decode().splitlines():

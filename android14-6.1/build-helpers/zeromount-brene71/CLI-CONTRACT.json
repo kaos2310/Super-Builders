@@ -1,0 +1,78 @@
+{
+  "source_pin": "ffa00c0700604216de8a86ad9c74226af1add0d5",
+  "cli_source_sha256": "aef916690fff90c51ae86bd0599062ad9abc3a8b92b788d471f935b121d1cff8",
+  "clap_version": "4.6.7",
+  "native_susfs_enums_extracted_unchanged_except_host_cfg": true,
+  "parser_cases": [
+    {
+      "args": [
+        "susfs",
+        "version"
+      ],
+      "expected_valid": true,
+      "exit": 0
+    },
+    {
+      "args": [
+        "susfs",
+        "features"
+      ],
+      "expected_valid": true,
+      "exit": 0
+    },
+    {
+      "args": [
+        "susfs",
+        "add-open-redirect",
+        "/system/etc/hosts",
+        "/data/adb/fake-hosts",
+        "3"
+      ],
+      "expected_valid": true,
+      "exit": 0
+    },
+    {
+      "args": [
+        "susfs",
+        "show",
+        "version"
+      ],
+      "expected_valid": false,
+      "exit": 2
+    },
+    {
+      "args": [
+        "susfs",
+        "show",
+        "enabled_features"
+      ],
+      "expected_valid": false,
+      "exit": 2
+    },
+    {
+      "args": [
+        "susfs",
+        "add_open_redirect",
+        "/system/etc/hosts",
+        "/data/adb/fake-hosts",
+        "3"
+      ],
+      "expected_valid": false,
+      "exit": 2
+    },
+    {
+      "args": [
+        "susfs",
+        "add-open-redirect",
+        "/a",
+        "/b",
+        "bad"
+      ],
+      "expected_valid": false,
+      "exit": 2
+    }
+  ],
+  "adapter_tests_with_real_parser": true,
+  "kernel_locks_modified": false,
+  "device_tested": false
+}

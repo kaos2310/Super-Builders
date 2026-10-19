@@ -1,5 +1,12 @@
 # ZeroMount Guard6.13 mit BRENE 0.0.71 und SukiSU 41013
 
+Revision installfix1 (19.10.2026) korrigiert die SukiSU-CLI-Aufrufe:
+`ksud susfs version`, `ksud susfs features` und `ksud susfs add-open-redirect`.
+Die Standalone-SUSFS-Syntax `susfs show ...` gilt nicht für die SukiSU-CLI.
+Der Installer zeigt Abfragefehler und abweichende Versionswerte an. Sowohl die
+Versionsprüfung als auch der vorhandene native `susfs-compat --check` bleiben
+erhalten. UIDGate2 liest Features über den passenden SukiSU-Befehl.
+
 Grundlage ist das vom Benutzer gelieferte Guard6.13/BRENE69/UIDGate2/BootGuard2-ZIP.
 Der native ARM64-Kern bleibt byteidentisch (`1a0b2524...`); UIDGate2, BootGuard2,
 DroidSpaces VFS, Writer-Adapter, Emoji, LKMs und die bisherigen Regelverwaltungen

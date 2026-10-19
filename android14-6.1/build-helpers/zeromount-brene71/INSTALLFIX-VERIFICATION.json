@@ -1,0 +1,51 @@
+{
+  "old_installer_failure_reproduced": true,
+  "corrected_packaged_installer_passed": true,
+  "native_susfs_abi_gate_preserved": true,
+  "uidgate_cases": [
+    {
+      "case": "line-features",
+      "passed": true
+    },
+    {
+      "case": "comma-features",
+      "passed": true
+    },
+    {
+      "case": "missing-feature",
+      "passed": true
+    },
+    {
+      "case": "wrong-property",
+      "passed": true
+    },
+    {
+      "case": "different-error",
+      "passed": true
+    },
+    {
+      "case": "native-success",
+      "passed": true
+    }
+  ],
+  "changed_files": [
+    "COMPAT-SHA256SUMS",
+    "META-INF/com/google/android/update-binary",
+    "README-BRENE71-SukiSU41013.md",
+    "SHA256SUMS",
+    "bin/zm",
+    "bin/zm-brene71",
+    "build-manifest.json",
+    "customize.sh",
+    "module.prop"
+  ],
+  "native_binaries_byte_identical": true,
+  "bootguard_byte_identical": true,
+  "archive_crc_passed": true,
+  "all_checksum_lists_passed": true,
+  "shell_syntax_passed": true,
+  "module_sha256": "c4a9b679f14819ff103b05364bdbba8ecd48e0a61d36dbf7498bbbe09483c9b9",
+  "device_installation_tested": false,
+  "kernel_changed": false,
+  "kernel_ci_started": false
+}

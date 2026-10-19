@@ -11,15 +11,25 @@
       "bytes": 43940300
     }
   ],
-  "package_sha256": "93e41c4419e3d808ea89314e61f7819dc3b2c1604b21fdb74ca8687968d62309",
-  "package_bytes": 43953755,
-  "preserved_files": 108,
+  "package_sha256": "c4a9b679f14819ff103b05364bdbba8ecd48e0a61d36dbf7498bbbe09483c9b9",
+  "package_bytes": 43954320,
+  "preserved_files": 107,
   "native_core_byte_identical": true,
-  "adapter_tests_passed": 18,
+  "adapter_tests_passed": 28,
   "bootguard_scenarios_passed": 4,
   "webui_tests_passed": true,
   "shell_syntax_passed": true,
   "device_tested": false,
   "download_originals_modified": false,
-  "ci_detector_zip_contains_custom_guard6_payload": false
+  "ci_detector_zip_contains_custom_guard6_payload": false,
+  "revision": "installfix1",
+  "previous_package_sha256": "93e41c4419e3d808ea89314e61f7819dc3b2c1604b21fdb74ca8687968d62309",
+  "sukisu_native_clap_contract_cases": 7,
+  "uidgate_regression_cases": 6,
+  "old_installer_failure_reproduced": true,
+  "corrected_packaged_installer_passed": true,
+  "sukisu_version_and_native_abi_gates_retained": true,
+  "inherited_manager_script_crlf_normalized": true,
+  "kernel_changed": false,
+  "kernel_ci_started": false
 }

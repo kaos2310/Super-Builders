@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the delivered adapter with mocked Android commands, never the phone."""
 from pathlib import Path
-import subprocess, tempfile, os, json, unittest, sys
+import subprocess, tempfile, os, json, unittest, sys, ast
 HERE=Path(__file__).resolve().parent
 class AdapterTests(unittest.TestCase):
     def setUp(self):
@@ -15,8 +15,17 @@ class AdapterTests(unittest.TestCase):
 case "$3" in brene.prop_spoofing) echo "$TEST_MASTER";; brene.spoof_os_security_patch_level_property) echo "$TEST_OS";; brene.spoof_vendor_security_patch_level_property) echo "$TEST_VENDOR";; *) exit 64;; esac
 else printf 'native:%s\\n' "$*" >> "$TEST_LOG"; exit "$TEST_NATIVE_RC"; fi''',
          'rp':'''if [ "$#" -eq 1 ]; then echo old; else printf 'rp:%s\\n' "$*" >> "$TEST_LOG"; fi''',
-         'ksud':'''printf 'ksud:%s\\n' "$*" >> "$TEST_LOG"; if [ "$3" = version ]; then echo "${TEST_SUSFS_VERSION:-v2.3.0}"; elif [ "$3" = enabled_features ]; then echo "${TEST_FEATURES:-CONFIG_KSU_SUSFS_OPEN_REDIRECT}"; fi''',
+         'ksud':'''[ -z "${SUKISU_CLI_PARSER:-}" ] || "$SUKISU_CLI_PARSER" "$@" || exit $?
+printf 'ksud:%s\\n' "$*" >> "$TEST_LOG"
+case "$1:$2:$#" in
+susfs:version:2) printf '%s\\n' "${TEST_SUSFS_VERSION-v2.3.0}"; exit "${TEST_VERSION_RC:-0}";;
+susfs:features:2) printf '%s\\n' "${TEST_FEATURES-CONFIG_KSU_SUSFS_OPEN_REDIRECT}"; exit "${TEST_FEATURES_RC:-0}";;
+susfs:add-open-redirect:5) exit 0;;
+*) echo 'unrecognized SukiSU command' >&2; exit 2;;
+esac''',
          'logcat':'printf "logcat:%s\\n" "$*" >> "$TEST_LOG"',
+         'chcon':'exit 0',
+         'chown':'exit 0',
         }
         for name,body in scripts.items():
             p=self.bin/name;p.write_text('#!/bin/sh\n'+body+'\n');p.chmod(0o755)
@@ -84,4 +93,55 @@ else printf 'native:%s\\n' "$*" >> "$TEST_LOG"; exit "$TEST_NATIVE_RC"; fi''',
     def test_cli_rejects_extra_arguments(self):
         for args in (('status','x'),('get','spoof_hosts','x'),('set','spoof_hosts','true','x'),('prop-watch','--unknown'),('late','x')):
             self.run_adapter(*args,ok=False)
+    def installer_guard(self,**env):
+        tree=ast.parse((HERE/'package.py').read_text())
+        guards=[node.value for node in ast.walk(tree) if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='guard' for t in node.targets)]
+        self.assertEqual(len(guards),1)
+        guard=ast.literal_eval(guards[0]).replace('/data/adb/ksud',str(self.bin/'ksud')).replace('/data/adb/ksu/bin/ksud',str(self.bin/'fallback-ksud'))
+        code='abort() { printf "%s\\n" "$*" >&2; exit 71; }\n'+guard
+        return subprocess.run(['sh','-c',code],env={**self.env,'KSU':'true','KSU_SUKISU':'true',**env},text=True,capture_output=True)
+    def test_installer_accepts_supported_sukisu(self):
+        result=self.installer_guard();self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('ksud:susfs version',self.calls());self.assertNotIn('show',self.calls())
+    def test_installer_rejects_wrong_missing_and_empty_version(self):
+        for value in ('v2.2.0','v2.3.1','unsupport',''):
+            result=self.installer_guard(TEST_SUSFS_VERSION=value)
+            self.assertEqual(result.returncode,71);self.assertIn('reported:',result.stderr)
+    def test_installer_preserves_query_error(self):
+        result=self.installer_guard(TEST_VERSION_RC='42',TEST_SUSFS_VERSION='query-failed')
+        self.assertEqual(result.returncode,71);self.assertIn('query failed: query-failed',result.stderr)
+    def test_installer_rejects_non_sukisu(self):
+        for env in ({'KSU':'false'},{'KSU_SUKISU':'false'}):
+            result=self.installer_guard(**env);self.assertEqual(result.returncode,71);self.assertIn('SukiSU manager required',result.stderr)
+        self.assertEqual(self.calls(),'')
+    def test_installer_falls_back_when_primary_missing(self):
+        (self.bin/'ksud').rename(self.bin/'fallback-ksud')
+        result=self.installer_guard();self.assertEqual(result.returncode,0,result.stderr)
+    def test_feature_query_error_cannot_enable_redirects(self):
+        self.run_adapter('set','spoof_hosts','true')
+        for env in ({'TEST_VERSION_RC':'42'},{'TEST_FEATURES_RC':'42'}):
+            self.run_adapter('late',ok=False,**env)
+        self.assertNotIn('add-open-redirect',self.calls())
+    def test_feature_lines_are_normalized_without_substring_acceptance(self):
+        self.run_adapter('set','spoof_hosts','true')
+        self.run_adapter('late',ok=False,TEST_FEATURES='CONFIG_KSU_SUSFS_OPEN_REDIRECT_FAKE')
+        self.assertFalse((self.root/'state/fake-files').exists())
+    def run_function(self,code,args=(),**env):
+        source=(HERE/'zm-brene71').read_text().split('case "${1:-status}" in')[0]
+        return subprocess.run(['sh','-c',source+'\n'+code,'adapter-test',*map(str,args)],env={**self.env,**env},capture_output=True,text=True)
+    def test_real_feature_formats_accepted(self):
+        for features in ('CONFIG_KSU_SUSFS_SUS_PATH\nCONFIG_KSU_SUSFS_OPEN_REDIRECT\n','CONFIG_KSU_SUSFS_SUS_PATH,CONFIG_KSU_SUSFS_OPEN_REDIRECT',' CONFIG_KSU_SUSFS_SUS_PATH, CONFIG_KSU_SUSFS_OPEN_REDIRECT\r\n'):
+            result=self.run_function('require_open_redirect',TEST_FEATURES=features)
+            self.assertEqual(result.returncode,0,result.stderr)
+    def test_redirect_calls_actual_sukisu_spelling(self):
+        target=self.root/'target file';replacement=self.root/'replacement file'
+        target.write_text('original');replacement.write_text('replacement')
+        result=self.run_function('redirect_file "$1" "$2"',(target,replacement))
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('ksud:susfs add-open-redirect',self.calls())
+        self.assertNotIn('add_open_redirect',self.calls())
+    def test_installer_missing_ksud_fails_with_query_error(self):
+        (self.bin/'ksud').unlink()
+        result=self.installer_guard();self.assertEqual(result.returncode,71)
+        self.assertIn('SUSFS version query failed',result.stderr)
 if __name__=='__main__':unittest.main()
