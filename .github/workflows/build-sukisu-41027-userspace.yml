@@ -1,0 +1,99 @@
+name: Build pinned SukiSU41027 ARM64 userspace
+on:
+  workflow_call:
+    inputs:
+      resukisu_commit:
+        type: string
+        required: true
+      resukisu_version_code:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  build:
+    name: SukiSU41027 ksud + ksuinit / native UAPI6 / ARM64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: builder
+      - name: Require the exact 41027 source pair
+        run: |
+          set -euo pipefail
+          test '${{ inputs.resukisu_commit }}' = 31255c460caefef75e98b3406dd40efcc00fad38
+          test '${{ inputs.resukisu_version_code }}' = 41027
+      - uses: actions/checkout@v6
+        with:
+          repository: SukiSU-Ultra/SukiSU-Ultra
+          ref: 31255c460caefef75e98b3406dd40efcc00fad38
+          fetch-depth: 0
+          path: sukisu
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          targets: aarch64-linux-android
+          components: rust-src
+      - name: Install Clang and bindgen prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 libclang-18-dev llvm-18
+      - uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r29
+      - name: Verify immutable official workspace lock
+        run: |
+          set -euo pipefail
+          mkdir -p userspace-artifacts
+          test ! -e sukisu/target
+          python3 builder/android14-6.1/build-helpers/sukisu_41027_lock.py sukisu
+          python3 builder/android14-6.1/build-helpers/test-sukisu-41027-bindings.py
+          python3 builder/android14-6.1/build-helpers/verify-sukisu-41027-userspace.py sukisu --receipt userspace-artifacts/BUILD-IDENTITY.json
+      - name: Validate both real Android dependency graphs with --locked
+        working-directory: sukisu
+        run: |
+          set -euo pipefail
+          cargo +nightly metadata --locked --format-version 1 --filter-platform aarch64-linux-android --manifest-path userspace/ksuinit/Cargo.toml > ../userspace-artifacts/ksuinit-metadata.json
+          cargo +nightly metadata --locked --format-version 1 --filter-platform aarch64-linux-android --manifest-path userspace/ksud/Cargo.toml > ../userspace-artifacts/ksud-metadata.json
+      - name: Build native workspace ksuinit for Android ARM64
+        working-directory: sukisu
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -euo pipefail
+          source .github/scripts/setup-rust-build.sh aarch64-linux-android 26
+          BUILTINS="$($CLANG_PATH --print-resource-dir)/lib/linux/libclang_rt.builtins-aarch64-android.a"
+          test -s "$BUILTINS"
+          export RUSTFLAGS="-C target-feature=+crt-static -C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=$BUILTINS"
+          cargo +nightly build --locked --package ksuinit --target aarch64-linux-android --release
+      - name: Build native SukiSU ksud and capture its actual OUT_DIR
+        working-directory: sukisu
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -euo pipefail
+          source .github/scripts/setup-rust-build.sh aarch64-linux-android 26
+          cp target/aarch64-linux-android/release/ksuinit userspace/ksud/bin/aarch64/
+          "$LLVM_BIN/clang" --target=aarch64-linux-android26 -c -nostdlib -o userspace/ksud/.lkm_image_bootstrap.o userspace/ksud/src/lkm_image_bootstrap.S
+          cargo +nightly build --locked --package ksud --target aarch64-linux-android --release --message-format=json-render-diagnostics | tee ../userspace-artifacts/ksud-build-messages.jsonl
+      - name: Verify immutable locks, real generated UAPI6 and ARM64 binaries
+        run: |
+          set -euo pipefail
+          python3 builder/android14-6.1/build-helpers/verify-sukisu-41027-userspace.py sukisu --receipt userspace-artifacts/BUILD-IDENTITY.json --verify-build --build-messages userspace-artifacts/ksud-build-messages.jsonl
+          cp sukisu/target/aarch64-linux-android/release/ksud sukisu/target/aarch64-linux-android/release/ksuinit userspace-artifacts/
+          cp sukisu/Cargo.lock userspace-artifacts/Cargo.effective.lock
+          git -C sukisu show HEAD:Cargo.lock > userspace-artifacts/Cargo.upstream.lock
+          cd userspace-artifacts
+          sha256sum ksud ksuinit *.lock *-metadata.json ksud-build-messages.jsonl BUILD-IDENTITY.json > SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: SukiSU-41027-ARM64-ksud-ksuinit
+          path: userspace-artifacts/
+          if-no-files-found: error
+          retention-days: 30

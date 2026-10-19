@@ -1,0 +1,49 @@
+{
+  "baseline_run": 39154358298,
+  "baseline_commit": "0fe8b77c439d9137274986b42d6946075cb0edb6",
+  "baseline_all_five_jobs_success": true,
+  "builder_parent_with_zeromount_cli_fix": "dceecf4421fb4dff323633477f0311d919be6448",
+  "sukisu_pin": "31255c460caefef75e98b3406dd40efcc00fad38",
+  "version": 41027,
+  "source_commit_count": 3842,
+  "source_version_formula": "40000 + 3842 - 2815",
+  "sukisu_main_verified_on": "2026-10-19",
+  "susfs_pin": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
+  "susfs_policy": "Retain tested baseline v2.3.0 pin; this update targets SukiSU only",
+  "native_uapi": 6,
+  "native_manager": "com.sukisu.ultra",
+  "preinit_enabled": false,
+  "arm64_compiled_objects": 46,
+  "full_kernel_link_tested_locally": false,
+  "full_arm64_userspace_build_tested_locally": false,
+  "kernel_and_uapi_sources_hashed": 187,
+  "session_negative_controls": 18,
+  "service_negative_controls": 6,
+  "mount_hide_negative_controls": 3,
+  "extension_negative_controls": 4,
+  "native_extension_lifecycle_and_abi_tested": true,
+  "cargo_locked_graphs": {
+    "ksuinit": {
+      "packages": 222,
+      "nodes": 222
+    },
+    "ksud": {
+      "packages": 222,
+      "nodes": 222
+    }
+  },
+  "cargo_lock_byte_identical_to_upstream": true,
+  "cargo_package_versions_changed": false,
+  "effective_config": {
+    "exact_ci_config_step_passed": true,
+    "legacy_sukisu_reconciliation_not_replayed": true,
+    "susfs_functional_audit_passed": true,
+    "kleaf_savedefconfig_fixed_point_passed": true,
+    "cpu_pid_and_kpm_disabled": true,
+    "native_sukisu_symbols_used": true
+  },
+  "zeromount_brene71_existing_installer_fix_tests_passed": 28,
+  "strict_kmi_and_samsung_crc_gates_retained": true,
+  "new_ci_result": "Not launched at record creation; full strict CI gates remain required",
+  "device_tested": false
+}
