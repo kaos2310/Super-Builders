@@ -1,0 +1,19 @@
+{
+  "apk": "SukiSU_v4.2.1-r2_41093-arm64-v8a-release.apk",
+  "sha256": "be82916943e04e29a1bff6f371837e51f7ca4d23539eb6bd1c943814be5c382e",
+  "bytes": 9735988,
+  "official_asset_id": 678694447,
+  "official_release_declared_manager_source": "dc0b946cb9cde4ce009f1ac9d438bb1cec851fdc",
+  "kernel_source": "2ec445ffcb803614ee41ce111b6bad28c67f3347",
+  "manager_version_code": 41093,
+  "kernel_version_code": 41094,
+  "package_name": "com.sukisu.ultra",
+  "abi": "arm64-v8a",
+  "apk_v2_signature_verified": true,
+  "certificate_sha256": "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef",
+  "certificate_bytes": 860,
+  "kernel_expected_certificate_matches": true,
+  "manager_native_code_uapi_and_userspace_unchanged_between_sources": true,
+  "source_changes_outside_abi": "CI upload script only",
+  "device_tested": false
+}

@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - codex/sukisu-41094-ezif-kpm
+      - codex/sukisu-41094-kpm-susfs-retry
 
 permissions:
   contents: write
@@ -26,6 +26,7 @@ jobs:
       - name: Validate transformation, budget bounds and exact C function
         run: |
           set -euo pipefail
+          python3 -B android14-6.1/build-helpers/test-fetch-pinned-git.py
           python3 android14-6.1/build-helpers/test-sukisu-41094-bindings.py
           python3 android14-6.1/build-helpers/droidspaces-gki/test.py
           python3 - <<'PY'

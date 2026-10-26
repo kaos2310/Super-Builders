@@ -46,7 +46,7 @@ runs:
 
         git init --quiet "$SUSFS_DIR"
         git -C "$SUSFS_DIR" remote add origin https://gitlab.com/simonpunk/susfs4ksu.git
-        git -C "$SUSFS_DIR" fetch --depth=1 --no-tags origin "$SUSFS_COMMIT"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/fetch-pinned-git.py" --repo "$SUSFS_DIR" --commit "$SUSFS_COMMIT"
         git -C "$SUSFS_DIR" checkout --detach FETCH_HEAD
         git -C "$SUSFS_DIR" config user.name "github-actions[bot]"
         git -C "$SUSFS_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"

@@ -1,0 +1,23 @@
+{
+  "failed_run": 40367656492,
+  "failed_job": 121738262056,
+  "failure_phase": "Apply pinned SUSFS; before kernel compilation",
+  "failure_reason": "GitLab remote overload; fetch exited 128",
+  "parent_commit": "7da665e73bed6c3e9f12019bb44635a5097bcb63",
+  "susfs_pin": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
+  "susfs_version": "v2.3.0",
+  "fetch_attempts": 4,
+  "timeout_seconds_per_attempt": 90,
+  "backoff_seconds": [
+    10,
+    20,
+    30
+  ],
+  "floating_ref_fallback": false,
+  "fetch_unit_tests_passed": 5,
+  "live_exact_pin_fetch_passed": true,
+  "manager_compatibility_receipt": "MANAGER-COMPATIBILITY.json",
+  "kpm_enabled": true,
+  "new_ci_result": "Not launched at record creation",
+  "device_tested": false
+}
