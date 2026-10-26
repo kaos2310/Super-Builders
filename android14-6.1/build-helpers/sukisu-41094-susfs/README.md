@@ -37,7 +37,8 @@ is not asserted for this different implementation.
 SukiSU's new optional preinit runner requires its native syscall dispatcher.
 This manual-hook profile compiles it out using the existing KSU_NO_PREINIT
 contract, so it advertises PREINIT=false. UAPI6 and LOOKUP_SYMBOLS remain
-unchanged. KPM and CPU/PID resource limits remain off in this baseline profile.
+unchanged. This KPM branch enables KPM with a paired, source-built KernelPatch
+engine; CPU/PID resource limits remain off. See ../sukisu-kpm/README.md.
 Native SELinux symbol resolution requires KALLSYMS_ALL=y.
 
 The apply.py gate requires a matching source pin, kernel-patch hash,
@@ -45,7 +46,7 @@ compatibility-patch hash, port/session-helper hashes and independent test
 results before making any writes. check.py compares all effective kernel and UAPI sources with the locally compiled/replayed source hashes
 after downstream transforms and before packaging.
 
-Independent local verification covers 49 ARM64 objects, a combined
+Independent local verification for this KPM profile covers 52 ARM64 objects, a combined
 relocatable SukiSU object with no unresolved internal ksu_ symbols, native
 SELinux/exec compilation, fresh patch replay, eighteen session negative
 controls, six service-event negative controls, four extension ABI/dispatch

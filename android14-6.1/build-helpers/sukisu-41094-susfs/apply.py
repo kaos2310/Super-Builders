@@ -24,6 +24,9 @@ def main():
     required={'pin':PIN,'kernel_patch_sha256':sha(patch),'compat_patch_sha256':sha(compat),'apply_sha256':sha(Path(__file__).read_bytes()),'session_helper_sha256':sha((HERE.parent/'su-session-41094/apply.py').read_bytes()),'mount_hide_test_sha256':sha((HERE.parent/'test-sukisu-41094-mount-hide.py').read_bytes()),'extension_test_sha256':sha((HERE.parent/'test-sukisu-41094-extension.py').read_bytes())}
     for key,value in required.items():
         if proof.get(key)!=value:raise RuntimeError('Independent preflight mismatch: '+key)
+    if proof.get('kpm_enabled') is not True or proof.get('kpm_bridge_tests_passed') is not True:raise RuntimeError('KPM profile requires its independent compiled bridge proof')
+    for path,key in [('sukisu-kpm/build_and_patch.py','kpm_helper_sha256'),('sukisu-kpm/test_bridge.py','kpm_test_sha256')]:
+        if proof.get(key)!=sha((HERE.parent/path).read_bytes()):raise RuntimeError('KPM helper evidence drift: '+path)
     for key in ('arm64_sukisu_subtree_compiled','arm64_selinux_objects_compiled','session_fault_tests_passed','uapi6_service_tests_passed','fresh_replay_matches_compiled_sources','mount_hide_susfs_callback_tests_passed','native_extension_tests_passed'):
         if proof.get(key) is not True:raise RuntimeError('Missing independent evidence: '+key)
     parts=re.split(r'(?=^diff --git )',patch.decode(),flags=re.M)

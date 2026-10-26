@@ -1,0 +1,33 @@
+{
+  "parent_commit": "6b27a5e726dbf054f9b51a062b297f1e9f874338",
+  "parent_run": 40367656492,
+  "parent_run_state_at_preparation": "in_progress; final result not inspected",
+  "last_verified_successful_full_strict_run": 39293074011,
+  "sukisu_pin": "2ec445ffcb803614ee41ce111b6bad28c67f3347",
+  "version": 41094,
+  "kernelpatch_pin": "40ce8bea970e25fac9926a220730cf5a2331e3d9",
+  "config_kpm": "y",
+  "cpu_pid_limits": false,
+  "preinit_enabled": false,
+  "arm64_compiled_objects": 52,
+  "kernel_and_uapi_sources_hashed": 194,
+  "native_bridge_negative_controls": 4,
+  "unexpected_transform_controls": 2,
+  "final_package_tests": 3,
+  "effective_config": {
+    "exact_ci_config_step_passed": true,
+    "legacy_sukisu_reconciliation_not_replayed": true,
+    "susfs_functional_audit_passed": true,
+    "kleaf_savedefconfig_fixed_point_passed": true,
+    "cpu_pid_disabled_kpm_enabled": true,
+    "native_sukisu_symbols_used": true
+  },
+  "local_image_fixture": "DZDP Linux 6.1.162; final EZIF Image transformation required in CI",
+  "fixture_pac_nop_instructions": 20,
+  "exact_original_retained": true,
+  "native_unpatch_is_byte_exact": false,
+  "compiled_kernel_kmi_crc_checks_preserved": true,
+  "full_kernel_link_tested_locally": false,
+  "device_tested": false,
+  "new_ci_result": "Not launched at record creation"
+}

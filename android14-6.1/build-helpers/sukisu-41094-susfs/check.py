@@ -15,8 +15,8 @@ for name,digest in proof['effective_kernel_sources_sha256'].items():
 subprocess.run(['python3',str(port.HERE.parent/'configure-sukisu-41094.py'),str(a.ksu),'--verify-only'],check=True)
 if a.config:
     lines=a.config.read_text().splitlines()
-    for required in ('CONFIG_KSU=y','CONFIG_KSU_SUSFS=y','CONFIG_KALLSYMS_ALL=y'):
+    for required in ('CONFIG_KSU=y','CONFIG_KSU_SUSFS=y','CONFIG_KALLSYMS_ALL=y','CONFIG_KPM=y'):
         if required not in lines:raise RuntimeError('Missing '+required)
-    for forbidden in ('CONFIG_KSU=m','CONFIG_KPM=y','CONFIG_CGROUP_PIDS=y','CONFIG_CFS_BANDWIDTH=y'):
+    for forbidden in ('CONFIG_KSU=m','CONFIG_CGROUP_PIDS=y','CONFIG_CFS_BANDWIDTH=y'):
         if forbidden in lines:raise RuntimeError('Wrong target profile: '+forbidden)
 print('PASS: audited SukiSU41094 compiled sources, native SELinux and exact target profile')

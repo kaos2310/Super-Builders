@@ -40,7 +40,8 @@ Those checks remain required before a flash ZIP exists.
 SukiSU41094's optional native preinit runner is disabled in this bounded
 SUSFS manual-hook profile because it requires the native syscall dispatcher.
 The UAPI6 header remains unchanged; the compiled PREINIT feature flag is false.
-CPU/PID limits and KPM are disabled, preserving the chosen baseline profile.
+CPU/PID limits remain disabled. This branch enables native KPM with the paired
+source-built KernelPatch engine; see ../sukisu-kpm/README.md and its Image audit.
 Physical-device installation, boot, Manager pairing and runtime are untested.
 
 SukiSU41094 mount_hide keeps its native UID/feature behavior. The bounded port
