@@ -23,7 +23,7 @@ on:
         type: boolean
         default: true
       susfs_uid_gated_hiding:
-        description: 'Local UIDGate-v1 extension for pinned BakaSU 35231 / SUSFS 5369359d'
+        description: 'Local UIDGate-v1 extension for pinned BakaSU 35252 / SUSFS 5369359d'
         type: boolean
         default: false
       add_zeromount:
@@ -69,7 +69,7 @@ on:
         default: "main"
       resukisu_version_code:
         type: string
-        default: "35231"
+        default: "35252"
       resukisu_expected_size:
         type: string
         default: ""
@@ -123,7 +123,7 @@ jobs:
       run: |
         set -euo pipefail
         [[ "$ANDROID" == android14 && "$KERNEL" == 6.1 && "$ADD_SUSFS" == true && "$MINIMAL" == false ]]
-        [[ "$KSU_PIN" == 2489b38582a08fee7b586d05185da5e5d12c6a5c ]]
+        [[ "$KSU_PIN" == d5e9e025b8b49155f8014684d64c91742b465f65 ]]
 
     - name: Validate experimental DroidSpaces resource-limit request
       if: inputs.droidspaces_resource_limits
@@ -579,14 +579,14 @@ jobs:
         sub_level: ${{ env.SUBLEVEL }}
         os_patch_level: ${{ inputs.os_patch_level }}
 
-    - name: Apply independently audited BakaSU 35231 native SELinux SUSFS port
-      if: inputs.add_susfs && inputs.resukisu_version_code == '35231'
+    - name: Apply independently audited BakaSU 35252 native SELinux SUSFS port
+      if: inputs.add_susfs && inputs.resukisu_version_code == '35252'
       run: |
         set -euo pipefail
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35231-susfs/apply.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35252-susfs/apply.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --patch "$SUSFS_FOLDER/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch" \
-          --evidence "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35231-susfs/PREFLIGHT.json"
+          --evidence "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35252-susfs/PREFLIGHT.json"
 
     - name: Apply and test native BakaSU SUSFS v2 backport
       if: inputs.susfs_su_session
@@ -933,22 +933,22 @@ jobs:
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
 
-    - name: Test BakaSU 35231 and latest SUSFS with exact C fault injection
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35231'
+    - name: Test BakaSU 35252 and latest SUSFS with exact C fault injection
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35252'
       run: |
         set -euo pipefail
-        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35231"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35231-susfs/check.py" \
+        PORT="$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35252"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35252-susfs/check.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
         python3 "$PORT/apply.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only
         python3 "$PORT/test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/session-tests" --cc gcc
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35231_uapi.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35252_uapi.py" \
           "$KERNEL_ROOT/$KSU_DIR" --cc gcc \
           --work-dir "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/service-tests" \
-          --receipt "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI5-SERVICES.json"
-        echo "RESUKISU_SU_SESSION_PORT=BakaSU-35231-SUSFS-5369359d-UAPI5" >> "$GITHUB_ENV"
+          --receipt "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI6-SERVICES.json"
+        echo "RESUKISU_SU_SESSION_PORT=BakaSU-35252-SUSFS-5369359d-UAPI6" >> "$GITHUB_ENV"
 
     - name: Reverify UID gate after downstream patches and test exact policy C
       if: inputs.susfs_uid_gated_hiding
@@ -1243,7 +1243,7 @@ jobs:
         cp "$DEFCONFIG" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/gki_defconfig"
         cp "$DEFCONFIG_FRAGMENT" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/sukisu_gki.fragment"
         cp "$GITHUB_WORKSPACE/android14-6.1/s928b-ezif-firmware-evidence.json" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/EZIF-FIRMWARE-EVIDENCE.json"
-        cp "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35231-susfs/PREFLIGHT.json" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/SUSFS-NATIVE-PREFLIGHT.json"
+        cp "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35252-susfs/PREFLIGHT.json" "$GITHUB_WORKSPACE/droidspaces-build-diagnostics/SUSFS-NATIVE-PREFLIGHT.json"
 
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
@@ -1580,29 +1580,29 @@ jobs:
           --receipt "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
         test -s "$ANYKERNEL3/RESUKISU-SU-SESSION.json"
 
-    - name: Verify BakaSU 35231 compiled integration and attest package
-      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35231' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
+    - name: Verify BakaSU 35252 compiled integration and attest package
+      if: inputs.add_susfs && inputs.add_zeromount && inputs.resukisu_version_code == '35252' && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)
       run: |
         set -euo pipefail
         VMLINUX="$KERNEL_ROOT/bazel-bin/common/kernel_aarch64/vmlinux"
         [[ -s "$VMLINUX" ]] || VMLINUX="$KERNEL_ROOT/out/${ANDROID_VER}-${KERNEL_VER}/dist/vmlinux"
         test -s "$VMLINUX"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35231-susfs/check.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35252-susfs/check.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" --config "$FINAL_CONFIG_FILE"
-        cp "$KERNEL_ROOT/common/.bakasu-35231-susfs-port.json" "$ANYKERNEL3/BAKASU-SUSFS-NATIVE-PORT.json"
-        cp "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35231-susfs/PREFLIGHT.json" "$ANYKERNEL3/BAKASU-SUSFS-PREFLIGHT.json"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35231/apply.py" \
+        cp "$KERNEL_ROOT/common/.bakasu-35252-susfs-port.json" "$ANYKERNEL3/BAKASU-SUSFS-NATIVE-PORT.json"
+        cp "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu-35252-susfs/PREFLIGHT.json" "$ANYKERNEL3/BAKASU-SUSFS-PREFLIGHT.json"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/su-session-35252/apply.py" \
           --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" \
           --susfs-commit "$SUSFS_PINNED_COMMIT" --verify-only \
           --config "$FINAL_CONFIG_FILE" --image "$ANYKERNEL3/Image" --vmlinux "$VMLINUX" \
           --receipt "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
         cp "$FINAL_CONFIG_FILE" "$ANYKERNEL3/BUILD-CONFIG.txt"
-        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35231-*/result.json \
+        cp "$GITHUB_WORKSPACE"/samsung-dlkm-crc-audit/session-tests/session35252-*/result.json \
           "$ANYKERNEL3/RESUKISU-SUSFS-TESTS.json"
         test -s "$ANYKERNEL3/RESUKISU-SUSFS-INTEGRATION.json"
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35231_uapi.py" \
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/bakasu_35252_uapi.py" \
           "$KERNEL_ROOT/$KSU_DIR"
-        cp "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI5-SERVICES.json" "$ANYKERNEL3/"
+        cp "$GITHUB_WORKSPACE/samsung-dlkm-crc-audit/RESUKISU-UAPI6-SERVICES.json" "$ANYKERNEL3/"
 
     - name: Attest UID gate in packaged Image and embedded config
       if: inputs.susfs_uid_gated_hiding && (inputs.kmi_mode == 'runtime-compat' || inputs.package_strict_anykernel)

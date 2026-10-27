@@ -1,0 +1,24 @@
+{
+  "pin": "d5e9e025b8b49155f8014684d64c91742b465f65",
+  "version": 35252,
+  "uapi_version": 6,
+  "original_locks_byte_identical": true,
+  "lock_repair_needed": false,
+  "both_android_locked_graphs_passed": true,
+  "graphs": {
+    "ksuinit": {
+      "packages": 18,
+      "nodes": 18
+    },
+    "ksud": {
+      "packages": 207,
+      "nodes": 207
+    }
+  },
+  "original_lock_sha256": {
+    "ksuinit": "d20bd394747b0ff06902a690e0021cf0aef62ccb851a9380e04e449b56933766",
+    "ksud": "b5988bb5466f6e1cc06eceef509f917956d0cf6438773cb80218147363c76737"
+  },
+  "rust_toolchain": "cargo 1.101.0-nightly (3960fa69b 2026-10-12)",
+  "full_arm64_userspace_build_tested": false
+}

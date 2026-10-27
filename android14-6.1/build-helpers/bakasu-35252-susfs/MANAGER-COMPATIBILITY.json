@@ -1,0 +1,14 @@
+{
+  "version": 35252,
+  "bakasu_pin": "d5e9e025b8b49155f8014684d64c91742b465f65",
+  "required_uapi": 6,
+  "official_build_run": 40109566037,
+  "official_build_conclusion": "success",
+  "official_build_head_sha": "d5e9e025b8b49155f8014684d64c91742b465f65",
+  "artifact_id": 12566655553,
+  "artifact_name": "Manager-release",
+  "artifact_url": "https://github.com/Baka-SU/BakaSU/actions/runs/40109566037/artifacts/12566655553",
+  "apk_downloaded": false,
+  "signature_update_compatibility_verified": false,
+  "device_pairing_tested": false
+}

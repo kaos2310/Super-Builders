@@ -33,8 +33,8 @@ def main():
     tests = json.loads(args.tests.read_text())
     if tests["shell_flag_cases"] != 16 or tests["rust_susfs_mode_cases"] != 128 or not tests["legacy_only_mutation_rejected"]:
         raise RuntimeError("Required BakaSU detector matrix was not completed")
-    if args.bakasu_version != 35231 or args.bakasu_commit != "2489b38582a08fee7b586d05185da5e5d12c6a5c":
-        raise RuntimeError("ZeroMount package requires exact BakaSU 35231 pin")
+    if args.bakasu_version != 35252 or args.bakasu_commit != "d5e9e025b8b49155f8014684d64c91742b465f65":
+        raise RuntimeError("ZeroMount package requires exact BakaSU 35252 pin")
     receipt.update(official_base_zip_sha256=BASE_SHA256, arm64_binary_sha256=sha(binary),
                    architecture="arm64-v8a", detection_tests=tests,
                    bakasu_version=args.bakasu_version, bakasu_commit=args.bakasu_commit,

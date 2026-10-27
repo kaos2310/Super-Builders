@@ -173,6 +173,8 @@ jobs:
             python3 builder/android14-6.1/build-helpers/bakasu_35229_uapi.py resukisu
           elif [[ "$EXPECTED_PIN" == '2489b38582a08fee7b586d05185da5e5d12c6a5c' ]]; then
             python3 builder/android14-6.1/build-helpers/bakasu_35231_uapi.py resukisu
+          elif [[ "$EXPECTED_PIN" == 'd5e9e025b8b49155f8014684d64c91742b465f65' ]]; then
+            python3 builder/android14-6.1/build-helpers/bakasu_35252_uapi.py resukisu
           fi
 
       - name: Verify source, toolchain, locked dependencies and Libclang
@@ -203,7 +205,7 @@ jobs:
           set -euo pipefail
           export RESUKISU_TEST_CARGO_NDK="$(command -v cargo-ndk)"
           export RESUKISU_TEST_REAL_CARGO="$(rustup which --toolchain nightly cargo)"
-          python3 builder/android14-6.1/build-helpers/test-bakasu-35231-bindings.py \
+          python3 builder/android14-6.1/build-helpers/test-bakasu-35252-bindings.py \
             CaptureTests.test_pinned_cargo_ndk_exposes_internal_build_messages
 
       - name: Build ksuinit with the audited lockfile and --locked
