@@ -2,8 +2,8 @@
 """Build a pinned native KPM engine and audit its transformation of an ARM64 Image."""
 from pathlib import Path
 import argparse,hashlib,json,os,re,secrets,shutil,subprocess,tarfile,urllib.request
-ENGINE_PIN='40ce8bea970e25fac9926a220730cf5a2331e3d9'
-SUKISU_PIN='2ec445ffcb803614ee41ce111b6bad28c67f3347'
+ENGINE_PIN='1c5b608916357ac86a94cc736e235db1fac4a29d'
+SUKISU_PIN='ad73573dd9ee66da86b2741e18d7e591999ade24'
 GNU_NAME='arm-gnu-toolchain-12.2.rel1-x86_64-aarch64-none-elf'
 GNU_SHA='62d66e0ad7bd7f2a183d236ee301a5c73c737c886c7944aa4f39415aab528daf'
 HERE=Path(__file__).resolve().parent

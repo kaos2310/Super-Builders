@@ -92,7 +92,9 @@ def main():
     for name,old,new in changes:
         if production.count(old)!=1:raise RuntimeError('Mutation anchor changed: '+name)
         variants[name]=production.replace(old,new)
+    from test_event import test_event
     with tempfile.TemporaryDirectory(prefix='kpm-bridge-') as tmp:
+        event_tests=test_event(kp.read_text(),defines,function,Path(tmp))
         for name,src in variants.items():
             path=Path(tmp)/name;path.with_suffix('.c').write_text(src)
             subprocess.run(['gcc','-std=gnu11','-Werror=implicit-function-declaration',str(path.with_suffix('.c')),'-o',str(path)],check=True)
@@ -106,6 +108,6 @@ def main():
         try:integration.audit_restore(original,wrong,4,4)
         except RuntimeError:pass
         else:raise RuntimeError('Unexpected image transform was accepted')
-    result={'sukisu_pin':integration.SUKISU_PIN,'engine_pin':integration.ENGINE_PIN,'abi_constants_match':True,'native_functions_tested':True,'negative_controls_rejected':4,'unexpected_image_changes_rejected':2,'source_sha256':hashes,'device_tested':False}
+    result={'event_tests':event_tests,'sukisu_pin':integration.SUKISU_PIN,'engine_pin':integration.ENGINE_PIN,'abi_constants_match':True,'native_functions_tested':True,'negative_controls_rejected':4,'unexpected_image_changes_rejected':2,'source_sha256':hashes,'device_tested':False}
     a.receipt.parent.mkdir(parents=True,exist_ok=True);a.receipt.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result,indent=2))
 if __name__=='__main__':main()

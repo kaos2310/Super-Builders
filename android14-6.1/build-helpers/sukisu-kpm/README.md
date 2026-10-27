@@ -1,15 +1,15 @@
-# S928B EZIF / SukiSU 41094 native KPM profile
+# S928B EZIF / SukiSU 41096 native KPM profile
 
-This profile enables CONFIG_KPM=y and retains the exact SukiSU 41094 source
-2ec445ffcb803614ee41ce111b6bad28c67f3347. It adds the official KernelPatch
-engine 40ce8bea970e25fac9926a220730cf5a2331e3d9, built from source using
+This profile enables CONFIG_KPM=y and pins the exact SukiSU 41096 source
+ad73573dd9ee66da86b2741e18d7e591999ade24. It adds the official KernelPatch
+0.14.0 engine 1c5b608916357ac86a94cc736e235db1fac4a29d, built from source using
 Arm GNU 12.2.rel1. The compiler archive is pinned to the official SHA-256.
 The existing native extension ioctl, manager/root authorization and userspace
 remain paired. CPU/PID limits and native preinit remain disabled.
 
-The standard 41094 source was prepared in run 40367656492; that run was still
-in progress when KPM preparation began. Its complete result is not claimed here.
-The last separately verified successful full strict baseline was 39293074011.
+The verified successful baseline is run 40375416547, commit
+302cd2a53f8145d11b74e58ab9db40591327f469 (SukiSU 41094 with KPM).
+Its exact-pin SUSFS fetch retry and ZeroMount installer fix are retained.
 The KPM run repeats all userspace, configuration, strict KMI, Samsung stock
 module CRC, source, Image and packaging gates. None is bypassed for KPM.
 
@@ -20,6 +20,10 @@ Native SukiSU and KernelPatch bridge functions are exercised with kernel mocks:
 matching framing constants, missing engine, probe rejection, EL0 fall-through,
 malformed kernel frames, reserved registers and full-width arguments. Four
 fault mutations and two unexpected Image transformations are rejected.
+The new bridge pair uses KPM ABI 2 and native event-aware load operation 8.
+Two further negative controls check op 8 presence and post-fs-data event forwarding.
+The native extension ABI probe and capabilities are checked separately, including
+three negative controls for legacy callers, capability loss and handler validation.
 These are host/static tests, not device, module loading or concurrency tests.
 
 The engine and Linux patch tool were built and tested on a separate local
