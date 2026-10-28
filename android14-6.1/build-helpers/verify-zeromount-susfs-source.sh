@@ -298,6 +298,12 @@ if [[ "${RESUKISU_VERSION_CODE:-}" == "41096" ]]; then
     --susfs-commit "${SUSFS_PINNED_COMMIT:?}"
 fi
 
+if [[ "${RESUKISU_VERSION_CODE:-}" == "41098" ]]; then
+  python3 "$(dirname "$0")/su-session-41098/apply.py" \
+    --common "$COMMON_TREE" --ksu "$KSU_TREE" \
+    --susfs-commit "${SUSFS_PINNED_COMMIT:?}"
+fi
+
 BOOTCONFIG_FIX="$(dirname "$0")/apply-susfs-bootconfig-static-key-fix.sh"
 [[ -s "$BOOTCONFIG_FIX" ]] || {
   echo "::error::SUSFS bootconfig static-key fix helper is missing: $BOOTCONFIG_FIX"

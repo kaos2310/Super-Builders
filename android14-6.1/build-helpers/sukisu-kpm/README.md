@@ -1,19 +1,19 @@
-# S928B EZIF / SukiSU 41096 native KPM profile
+# S928B EZIF / SukiSU 41098 native KPM profile
 
-This profile enables CONFIG_KPM=y and pins the exact SukiSU 41096 source
-ad73573dd9ee66da86b2741e18d7e591999ade24. It adds the official KernelPatch
+This profile enables CONFIG_KPM=y and pins the exact SukiSU 41098 source
+29f8b18d08dae3be66c0c3cd364536827df0a378. It adds the official KernelPatch
 0.14.0 engine 1c5b608916357ac86a94cc736e235db1fac4a29d, built from source using
 Arm GNU 12.2.rel1. The compiler archive is pinned to the official SHA-256.
 The existing native extension ioctl, manager/root authorization and userspace
 remain paired. CPU/PID limits and native preinit remain disabled.
 
-The verified successful baseline is run 40375416547, commit
-302cd2a53f8145d11b74e58ab9db40591327f469 (SukiSU 41094 with KPM).
+The verified successful baseline is run 40577344297, commit
+2b4858bd318aaa340d54973b45f6a02941b63bb5 (SukiSU 41096 with KPM).
 Its exact-pin SUSFS fetch retry and ZeroMount installer fix are retained.
 The KPM run repeats all userspace, configuration, strict KMI, Samsung stock
 module CRC, source, Image and packaging gates. None is bypassed for KPM.
 
-Independent local checks compile 52 AArch64 kernel/SELinux objects, replay
+Independent local checks compile 55 AArch64 kernel/SELinux objects, replay
 194 kernel/UAPI sources and link the SukiSU subtree without unresolved ksu_
 symbols. The effective configuration audit checks 54 settings, including KPM.
 Native SukiSU and KernelPatch bridge functions are exercised with kernel mocks:
@@ -23,7 +23,7 @@ fault mutations and two unexpected Image transformations are rejected.
 The new bridge pair uses KPM ABI 2 and native event-aware load operation 8.
 Two further negative controls check op 8 presence and post-fs-data event forwarding.
 The native extension ABI probe and capabilities are checked separately, including
-three negative controls for legacy callers, capability loss and handler validation.
+four negative controls for legacy callers, capability loss, handler validation and sparse enumeration.
 These are host/static tests, not device, module loading or concurrency tests.
 
 The engine and Linux patch tool were built and tested on a separate local
@@ -42,3 +42,7 @@ KPM-IMAGE.json binds original and final Image hashes, the exact engine build and
 the transformation evidence. The final ZIP is created only after verifying this
 receipt again. A generated per-image internal key is passed by pipe; it is not
 written to arguments, logs or reports. No device has been flashed or tested.
+
+The native extension ABI is 2, including kernel-driven handler enumeration.
+The official priority UID filter and RCU/worker fixes are included; see
+../susfs-priority-uid/README.md for source provenance and verification limits.

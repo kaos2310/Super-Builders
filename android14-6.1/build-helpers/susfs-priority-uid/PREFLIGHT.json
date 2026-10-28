@@ -1,0 +1,19 @@
+{
+  "priority_filter_semantics_passed": true,
+  "negative_controls_rejected": 4,
+  "tests": {
+    "production": 0,
+    "multiuser-normalization": 1,
+    "rcu-grace-period": 1,
+    "transaction-on-error": 1,
+    "missing-reentrancy-guard": 1
+  },
+  "upstream_commit": "8b25990241174fe88d2131a9929e36b5e5ffb1d0",
+  "all_four_syscall_hooks_verified": true,
+  "package_refresh_after_throne_verified": true,
+  "replacement_and_failed_transaction_tested": true,
+  "reinstall_uninstall_refresh_tested": true,
+  "allocation_copy_domain_faults_tested": true,
+  "concurrency_tested": false,
+  "device_tested": false
+}

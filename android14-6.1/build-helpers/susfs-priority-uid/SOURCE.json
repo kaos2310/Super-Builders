@@ -1,0 +1,17 @@
+{
+  "upstream_repo": "https://gitlab.com/simonpunk/susfs4ksu",
+  "upstream_commit": "8b25990241174fe88d2131a9929e36b5e5ffb1d0",
+  "feature_commit": "08066faea18f809bc3260b00291a32d098b08c92",
+  "baseline_susfs_pin": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
+  "common_patch_sha256": "3eeab4f49955bffce7eb44dc6dff94f9d6662d2e8460fa40b6f5f7c75a595408",
+  "includes_rcu_and_worker_fixes": true,
+  "command": "0x60030",
+  "syscalls": [
+    "getpriority",
+    "setpriority",
+    "ioprio_get",
+    "ioprio_set"
+  ],
+  "config_dependency": "CONFIG_KSU_SUSFS=y",
+  "device_tested": false
+}
