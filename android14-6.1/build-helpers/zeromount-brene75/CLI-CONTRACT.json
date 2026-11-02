@@ -1,0 +1,96 @@
+{
+  "source_pin": "48b5e405271caf2d6a0fe9cf5c787090c4f9d67e",
+  "cli_source_sha256": "549034ff81933c934dd8fcb465fef042d4979e5f04146aa4f6f7e881c770185e",
+  "clap_version": "4.6.7",
+  "native_susfs_enums_extracted_unchanged_except_host_cfg": true,
+  "parser_cases": [
+    {
+      "args": [
+        "susfs",
+        "add-sus-path-loop",
+        "/storage/emulated/0/Android/data/com.termux"
+      ],
+      "expected_valid": true,
+      "exit": 0
+    },
+    {
+      "args": [
+        "susfs",
+        "set-priority-uid-filter",
+        "com.one,com.two"
+      ],
+      "expected_valid": true,
+      "exit": 0
+    },
+    {
+      "args": [
+        "susfs",
+        "version"
+      ],
+      "expected_valid": true,
+      "exit": 0
+    },
+    {
+      "args": [
+        "susfs",
+        "features"
+      ],
+      "expected_valid": true,
+      "exit": 0
+    },
+    {
+      "args": [
+        "susfs",
+        "add-open-redirect",
+        "/system/etc/hosts",
+        "/data/adb/fake-hosts",
+        "3"
+      ],
+      "expected_valid": true,
+      "exit": 0
+    },
+    {
+      "args": [
+        "susfs",
+        "show",
+        "version"
+      ],
+      "expected_valid": false,
+      "exit": 2
+    },
+    {
+      "args": [
+        "susfs",
+        "show",
+        "enabled_features"
+      ],
+      "expected_valid": false,
+      "exit": 2
+    },
+    {
+      "args": [
+        "susfs",
+        "add_open_redirect",
+        "/system/etc/hosts",
+        "/data/adb/fake-hosts",
+        "3"
+      ],
+      "expected_valid": false,
+      "exit": 2
+    },
+    {
+      "args": [
+        "susfs",
+        "add-open-redirect",
+        "/a",
+        "/b",
+        "bad"
+      ],
+      "expected_valid": false,
+      "exit": 2
+    }
+  ],
+  "adapter_tests_with_real_parser": true,
+  "kernel_locks_modified": false,
+  "device_tested": false
+}
