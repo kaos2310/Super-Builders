@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none';">
+  <title>ZeroMount · BRENE 0.0.75</title>
+  <style>
+    :root { color-scheme: dark light; font: 16px system-ui, sans-serif; }
+    body { margin: 0 auto; max-width: 760px; padding: max(22px, env(safe-area-inset-top)) 18px 40px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    h1 { font-size: 1.5rem; } h2 { font-size: 1.1rem; }
+    section { border: 1px solid #80808070; border-radius: 16px; padding: 16px; margin: 16px 0; }
+    p { line-height: 1.5; } pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.6 ui-monospace, monospace; }
+    button, a { color: inherit; } button { padding: 10px 15px; border-radius: 12px; border: 1px solid #808080; cursor: pointer; }
+    label { display: flex; align-items: center; gap: 12px; padding: 14px 0; }
+    input { width: 22px; height: 22px; flex-shrink: 0; } small { display: block; line-height: 1.5; opacity: .8; }
+    #message { min-height: 1.5em; } .warning { border-left: 3px solid #db9e39; padding-left: 12px; }
+  </style>
+  <script type="module" src="./assets/brene75.mjs"></script>
+</head>
+<body>
+  <header><a href="./index.html">← ZeroMount</a><span>Guard6.13</span></header>
+  <p><a href="./susfs-rules.html">SUSFS-Regeln bearbeiten →</a></p>
+  <h1>BRENE 0.0.75</h1>
+  <p><a href="./brene69.html">Bestehende Patchdatum- und Lock-Schalter</a> · <a href="https://github.com/longze777/UID-" target="_blank" rel="noopener noreferrer">UID Filter (BRENE-Empfehlung)</a></p><p>Ergänzungen zur bestehenden ZeroMount-Oberfläche. Das Öffnen und Aktualisieren dieser Seite liest nur den Status.</p>
+  <section aria-labelledby="settings-heading">
+    <h2 id="settings-heading">Neue BRENE-75-Optionen</h2>
+    <p class="warning">Patchdatum-Spoofing installiert keine Sicherheitsupdates. Die Lock-Properties ändern weder den echten Bootloader-Zustand noch die Hardware-Attestierung.</p>
+    <div id="settings"></div>
+    <small>Der 64-KiB-Logpuffer ist wie in BRENE 75 standardmäßig aktiv; weitere neue Schalter sind aus. KernelSU-Verzeichnisse werden nur über SuSFS verborgen und nicht gelöscht. Speichern ändert nur die Konfiguration; Anwendung beim nächsten Boot. Ausschalten stellt bereits geänderte Properties im aktuellen Boot nicht zurück. Es wird kein Neustart ausgelöst.</small>
+  </section>
+  <button id="refresh" type="button">Status neu lesen</button>
+  <p id="message" role="status" aria-live="polite"></p>
+  <section><h2>BRENE-Adapter</h2><pre id="kernel">Noch nicht abgefragt.</pre></section>
+  <section><h2>Integration</h2><pre id="peers">Noch nicht abgefragt.</pre><small>Nur Diagnose. Kein Modul wird deaktiviert oder gelöscht.</small></section>
+  <section><h2>OPEN_REDIRECT</h2><pre id="mounts">Noch nicht abgefragt.</pre><small>BRENE-Heuristik, kein Beweis für einen Fehler. Escapete Mountpfade bleiben unverändert. Kein automatisches Unmount.</small></section>
+</body>
+</html>

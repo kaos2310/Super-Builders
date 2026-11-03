@@ -1,0 +1,21 @@
+{
+  "upstream_repo": "https://gitlab.com/simonpunk/susfs4ksu",
+  "upstream_commit": "a0ac906915c8a8d50d474dfb3cae478ef32edc1a",
+  "baseline_susfs_pin": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
+  "susfs_version": "v2.3.0",
+  "common_patch_sha256": "9668fc925e7c25adde16ef9aaac303316602c6c50cbcc06fa4d3b95bc59fb4f5",
+  "includes_rcu_and_worker_fixes": true,
+  "uid_parser": "/data/system/packages.list, O_NOATIME, 4 MiB bound",
+  "unresolved_packages": "skipped by current upstream parser",
+  "command": "0x60030",
+  "syscalls": [
+    "getpriority",
+    "setpriority",
+    "ioprio_get",
+    "ioprio_set"
+  ],
+  "config_dependency": "CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER=y",
+  "native_sukisu_selinux_retained": true,
+  "scope": "Latest official priority filter/config/advertisement; native SukiSU SELinux retained instead of parallel manual upstream hooks",
+  "device_tested": false
+}
