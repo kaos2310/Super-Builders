@@ -1,0 +1,29 @@
+{
+  "settings": {
+    "CONFIG_KSU_SUSFS": "y",
+    "CONFIG_KSU_SUSFS_ENABLE_LOG": "y",
+    "CONFIG_KSU_SUSFS_HIDDEN_NAME": "y",
+    "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS": "y",
+    "CONFIG_KSU_SUSFS_OPEN_REDIRECT": "y",
+    "CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER": "y",
+    "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG": "y",
+    "CONFIG_KSU_SUSFS_SPOOF_UNAME": "y",
+    "CONFIG_KSU_SUSFS_SUS_KSTAT": "y",
+    "CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT": "y",
+    "CONFIG_KSU_SUSFS_SUS_MAP": "y",
+    "CONFIG_KSU_SUSFS_SUS_MOUNT": "y",
+    "CONFIG_KSU_SUSFS_SUS_PATH": "y",
+    "CONFIG_KSU_SUSFS_UID_GATED_HIDING": "y",
+    "CONFIG_KSU_SUSFS_UNICODE_FILTER": "y"
+  },
+  "enabled_options": 15,
+  "advertised_features": 14,
+  "hidden_name_advertised": true,
+  "inert_hardened_toggle_removed": true,
+  "device_tested": false,
+  "regression_controls_rejected": [
+    "missing-hidden-name",
+    "disabled-required-option",
+    "unknown-enabled-option"
+  ]
+}

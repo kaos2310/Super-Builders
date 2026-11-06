@@ -1,0 +1,22 @@
+{
+  "apk": "SukiSU_v4.3.0-r2_41155-arm64-v8a-release.apk",
+  "sha256": "352ff6eba1c641f09a33440ac2ecf8d2db20a063b5d2ccb812f2c5ab19cc893e",
+  "bytes": 11135754,
+  "official_asset_id": 717760578,
+  "official_release_declared_manager_source": "c6ba650b034b09688923e406120e368c300052ea",
+  "kernel_source": "c6ba650b034b09688923e406120e368c300052ea",
+  "manager_version_code": 41155,
+  "kernel_version_code": 41155,
+  "package_name": "com.sukisu.ultra",
+  "abis": [
+    "arm64-v8a"
+  ],
+  "arm64_included": true,
+  "apk_v2_signature_verified": true,
+  "certificate_sha256": "947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef",
+  "certificate_bytes": 860,
+  "kernel_expected_certificate_matches": true,
+  "manager_native_code_uapi_and_userspace_unchanged_between_sources": true,
+  "source_changes_outside_abi": "Manager and kernel use the same official source commit",
+  "device_tested": false
+}

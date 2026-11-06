@@ -1,0 +1,22 @@
+{
+  "verified_on": "2026-11-03",
+  "sukisu_pin": "c6ba650b034b09688923e406120e368c300052ea",
+  "previous_sukisu_pin": "645ef9860b9b7f900bb5d1b27e224f2c311d39c0",
+  "source_commit_count": 3970,
+  "version_formula": 41155,
+  "release_family": "v4.3.0-r2",
+  "manager_channel": "manager-ci",
+  "kernel_changes": [
+    "kernel/feature/selinux_hide.c",
+    "kernel/selinux/rules.c",
+    "kernel/selinux/sepolicy.c",
+    "kernel/selinux/sepolicy.h"
+  ],
+  "uapi_userspace_lock_unchanged": true,
+  "susfs_pin": "5f85e6e7838a54ad363de5749d33361a5da2316b",
+  "susfs_version": "v2.3.0",
+  "susfs_branch": "gki-android14-6.1",
+  "priority_functions_match_current_upstream": true,
+  "integration_scope": "Existing audited SUSFS 5369359d base plus latest a0ac9069 priority/parser/Kconfig/feature overlay. Native SukiSU SELinux retained; this is not a byte-identical full upstream manual SELinux stack.",
+  "official_susfs_repo": "https://gitlab.com/simonpunk/susfs4ksu"
+}

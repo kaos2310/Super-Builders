@@ -1,0 +1,12 @@
+{
+  "module_sha256": "c04ce20a2836505f97bd7c3a217a7f7855611103bd8bb6b66c8c98cffeaf32e6",
+  "actual_packaged_adapter_tests": 35,
+  "real_sukisu_cli_parser_used": true,
+  "native_elf_files_byte_identical": 11,
+  "bootguard_byte_identical": true,
+  "all_base_entries_retained": true,
+  "crc_and_both_checksum_lists_passed": true,
+  "all_packaged_shebang_syntax_passed": true,
+  "destructive_brene_directory_script_absent": true,
+  "device_installation_tested": false
+}
