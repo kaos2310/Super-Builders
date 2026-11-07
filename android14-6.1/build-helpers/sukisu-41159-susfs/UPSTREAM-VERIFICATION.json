@@ -1,0 +1,15 @@
+{
+  "verified_on": "2026-11-07",
+  "sukisu_pin": "fae5788d2984e0c5844e8af96a18c569225d9774",
+  "source_commit_count": 3974,
+  "version_formula": "40000 + 3974 - 2815 = 41159",
+  "source_reference": "https://github.com/SukiSU-Ultra/SukiSU-Ultra/commit/fae5788d2984e0c5844e8af96a18c569225d9774",
+  "manager_asset_id": 720773463,
+  "manager_asset_sha256": "e0ffe126b4612aaa16360c32b9ffc974c56295f6293a0410d97720877e2ad6c7",
+  "manager_binary_verified": false,
+  "compared_to": "c6ba650b034b09688923e406120e368c300052ea",
+  "kernel_uapi_userspace_cargo_diff_empty": true,
+  "intervening_commits": 4,
+  "only_manager_files_changed": true,
+  "device_runtime_tested": false
+}

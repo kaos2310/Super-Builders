@@ -6,6 +6,7 @@ idempotent and detects later changes to the gated functions or protected hooks.
 This is a Super-Builders extension, not a claimed upstream SUSFS feature.
 """
 import argparse
+import importlib.util
 import gzip
 import hashlib
 import json
@@ -15,7 +16,7 @@ import subprocess
 
 HERE = Path(__file__).resolve().parent
 SUSFS_PIN = "24743360ea08d98f6ad72b856851abed8de5854f"
-KSU_PINS = {"8770c7e324a22895703c4916b8a16520e0b81c79", "97c102ba05ee2915390cacae6d11e1727d6ca350", "9dbce02e511ea6b6305a238b84e456f6a92e1d0b", "e5423590bec3e24daffa4e9555c9592071319c68", "1bfed00f597e65700d70fee0feb1d424fc21a2e5", "8450dd287ef6ee25ca2b6b858b43c9354c73060c", "5b76b884c75f729a220bb317aa4a4fc78f0e0e9c", "d7260ca1e5c128061122924d0d48754e361e135c", "2489b38582a08fee7b586d05185da5e5d12c6a5c", "f6731caa0e0bee7787653334b2930ed041938ef6", "ffa00c0700604216de8a86ad9c74226af1add0d5", "31255c460caefef75e98b3406dd40efcc00fad38", "2ec445ffcb803614ee41ce111b6bad28c67f3347", "ad73573dd9ee66da86b2741e18d7e591999ade24", "29f8b18d08dae3be66c0c3cd364536827df0a378", "48b5e405271caf2d6a0fe9cf5c787090c4f9d67e", "0a4c313287b0fc0b4cf95fced30a8dccc2eb913b", "b9fcdc05f94c8fdab1a5657db68e67bac3942020", "645ef9860b9b7f900bb5d1b27e224f2c311d39c0"}
+KSU_PINS = {"8770c7e324a22895703c4916b8a16520e0b81c79", "97c102ba05ee2915390cacae6d11e1727d6ca350", "9dbce02e511ea6b6305a238b84e456f6a92e1d0b", "e5423590bec3e24daffa4e9555c9592071319c68", "1bfed00f597e65700d70fee0feb1d424fc21a2e5", "8450dd287ef6ee25ca2b6b858b43c9354c73060c", "5b76b884c75f729a220bb317aa4a4fc78f0e0e9c", "d7260ca1e5c128061122924d0d48754e361e135c", "2489b38582a08fee7b586d05185da5e5d12c6a5c", "f6731caa0e0bee7787653334b2930ed041938ef6", "ffa00c0700604216de8a86ad9c74226af1add0d5", "31255c460caefef75e98b3406dd40efcc00fad38", "2ec445ffcb803614ee41ce111b6bad28c67f3347", "ad73573dd9ee66da86b2741e18d7e591999ade24", "29f8b18d08dae3be66c0c3cd364536827df0a378", "48b5e405271caf2d6a0fe9cf5c787090c4f9d67e", "0a4c313287b0fc0b4cf95fced30a8dccc2eb913b", "b9fcdc05f94c8fdab1a5657db68e67bac3942020", "645ef9860b9b7f900bb5d1b27e224f2c311d39c0", "c6ba650b034b09688923e406120e368c300052ea", "fae5788d2984e0c5844e8af96a18c569225d9774"}
 SYMBOL = "CONFIG_KSU_SUSFS_UID_GATED_HIDING"
 STATE = ".susfs-uid-gate-v1.json"
 HEADER = "include/linux/susfs_uid_gate.h"
@@ -164,7 +165,7 @@ def source_pin(ksu):
 
 
 def susfs_pin(ksu):
-    return "5369359dbd10f6dd8cbdd59d1df7b788b29b168c" if source_pin(ksu) in ("2489b38582a08fee7b586d05185da5e5d12c6a5c", "f6731caa0e0bee7787653334b2930ed041938ef6", "ffa00c0700604216de8a86ad9c74226af1add0d5", "31255c460caefef75e98b3406dd40efcc00fad38", "2ec445ffcb803614ee41ce111b6bad28c67f3347", "ad73573dd9ee66da86b2741e18d7e591999ade24", "29f8b18d08dae3be66c0c3cd364536827df0a378", "48b5e405271caf2d6a0fe9cf5c787090c4f9d67e", "0a4c313287b0fc0b4cf95fced30a8dccc2eb913b", "b9fcdc05f94c8fdab1a5657db68e67bac3942020", "645ef9860b9b7f900bb5d1b27e224f2c311d39c0") else SUSFS_PIN
+    return "5369359dbd10f6dd8cbdd59d1df7b788b29b168c" if source_pin(ksu) in ("2489b38582a08fee7b586d05185da5e5d12c6a5c", "f6731caa0e0bee7787653334b2930ed041938ef6", "ffa00c0700604216de8a86ad9c74226af1add0d5", "31255c460caefef75e98b3406dd40efcc00fad38", "2ec445ffcb803614ee41ce111b6bad28c67f3347", "ad73573dd9ee66da86b2741e18d7e591999ade24", "29f8b18d08dae3be66c0c3cd364536827df0a378", "48b5e405271caf2d6a0fe9cf5c787090c4f9d67e", "0a4c313287b0fc0b4cf95fced30a8dccc2eb913b", "b9fcdc05f94c8fdab1a5657db68e67bac3942020", "645ef9860b9b7f900bb5d1b27e224f2c311d39c0", "c6ba650b034b09688923e406120e368c300052ea", "fae5788d2984e0c5844e8af96a18c569225d9774") else SUSFS_PIN
 
 
 def identity(common, ksu, pin):
@@ -191,7 +192,16 @@ def verify(common, ksu):
     if state["susfs_commit"] != susfs_pin(ksu) or state["resukisu_commit"] not in KSU_PINS or state["resukisu_commit"] != source_pin(ksu):
         raise RuntimeError("Invalid UIDGate receipt identity")
     files = read_tree(common, ksu)
-    if (common / HEADER).read_bytes() != (HERE / "susfs_uid_gate.h").read_bytes():
+    header = (common / HEADER).read_bytes()
+    if (common / ".susfs-runtime-v1.json").exists():
+        spec = importlib.util.spec_from_file_location("runtime_overlay", HERE.parent / "susfs-runtime-v1/apply.py")
+        overlay = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(overlay)
+        baseline = overlay.verify(common, ksu)
+        # Only exact, independently verified runtime additions are normalized.
+        files["fs/susfs.c"] = baseline["common/fs/susfs.c"]
+        header = baseline["common/include/linux/susfs_uid_gate.h"].encode()
+    if header != (HERE / "susfs_uid_gate.h").read_bytes():
         raise RuntimeError("UID gate header drift")
     if files["kernel/Kconfig"].count(KCONFIG) != 1:
         raise RuntimeError("UID gate Kconfig drift")
