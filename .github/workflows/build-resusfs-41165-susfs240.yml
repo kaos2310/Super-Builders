@@ -1,4 +1,4 @@
-name: ReSuSFS SUSFS2.4.0 Runtime1 SukiSU41165
+name: ReSuSFS SUSFS2.4.0 Runtime1 r2 SukiSU41165
 on:
   workflow_dispatch:
   workflow_call:
@@ -34,10 +34,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B android14-6.1/build-helpers/resusfs-41165-240/package.py --runtime-helper module-output/susfs-runtime --susfs-tool module-output/ksu_susfs --output module-output
-          python3 -B android14-6.1/build-helpers/resusfs-41165-240/test_package.py module-output/ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-SukiSU41165-arm64.zip
+          python3 -B android14-6.1/build-helpers/resusfs-41165-240/test_package.py module-output/ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-r2-SukiSU41165-arm64.zip
       - uses: actions/upload-artifact@v7
         with:
-          name: ReSuSFS-SUSFS2.4.0-Runtime1-SukiSU41165-ARM64
+          name: ReSuSFS-SUSFS2.4.0-Runtime1-r2-SukiSU41165-ARM64
           path: module-output/
           if-no-files-found: error
           retention-days: 30

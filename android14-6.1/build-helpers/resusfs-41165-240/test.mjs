@@ -5,6 +5,8 @@ const state={schema:1,owner:'ReSuSFS',owner_active:true,write_allowed:true,kerne
 let assertions=0;
 const check=fn=>{fn();assertions++;};
 check(()=>assert.equal(FEATURES.length,4));check(()=>assert.equal(mayWrite(state),true));
+check(()=>assert.equal(runtimeState({...runtime,enabled:0,generation:5}).enabled,0));
+check(()=>assert.equal(runtimeCommand({...state,runtime:{...runtime,enabled:0,generation:5}},'uid-gating',true),`${CONTROL} runtime-set uid-gating 1 5`));
 for(const feature of FEATURES){check(()=>assert.equal(runtimeCommand(state,feature.key,false),`${CONTROL} runtime-set ${feature.key} 0 22`));check(()=>assert.throws(()=>runtimeCommand({...state,runtime:{...runtime,supported:0,enabled:0}},feature.key,true)));}
 for(const change of [{owner_active:false},{write_allowed:false},{owner:'ZeroMount'},{kernel_version:'v2.5.0'},{kernel_version:'v2.4.0-dev'}])check(()=>assert.throws(()=>runtimeCommand({...state,...change},'uid-gating',false)));
 for(const change of [{version:2},{size:44},{supported:16},{enabled:16},{generation:0},{generation:1.5},{protocol:'other'}])check(()=>assert.throws(()=>runtimeState({...runtime,...change})));
@@ -15,6 +17,10 @@ check(()=>assert.throws(()=>priorityCommand({...state,priority_supported:false},
 check(()=>assert.throws(()=>priorityCommand({...state,priority_revision:'1;id'},'com.example.app')));
 const commands=[];const read=await readStatus(async command=>{commands.push(command);return JSON.stringify(state);});
 check(()=>assert.deepEqual(commands,[`${CONTROL} status`]));check(()=>assert.equal(read.runtime.generation,22));
+const unavailable=await readStatus(async()=>JSON.stringify({...state,runtime:null}));
+check(()=>assert.equal(unavailable.runtime,null));
+check(()=>assert.equal(mayWrite(unavailable),true));
+check(()=>assert.equal(priorityCommand(unavailable,'com.example.app'),`${CONTROL} priority-set 'com.example.app' 'none'`));
 const scope={ksu:{exec(command,options,callback){check(()=>assert.equal(command,'read-only'));queueMicrotask(()=>scope[callback](0,'ok',''));}}};
 const bridged=await bridge('read-only',scope);check(()=>assert.equal(bridged,'ok'));
 check(()=>assert.equal(Object.keys(scope).length,1));

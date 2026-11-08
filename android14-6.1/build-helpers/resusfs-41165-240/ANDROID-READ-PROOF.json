@@ -1,0 +1,48 @@
+{
+  "android_shell_boundary_cases": 14,
+  "boundaries": {
+    "0": "true",
+    "1": "true",
+    "15": "true",
+    "16": "true",
+    "2147483647": "true",
+    "2147483648": "true",
+    "3999999999": "true",
+    "4000000000": "true",
+    "4294967295": "true",
+    "4294967296": "false",
+    "9999999999": "false",
+    "-1": "false",
+    "01": "false",
+    "1x": "false"
+  },
+  "status": {
+    "schema": 1,
+    "owner": "ReSuSFS",
+    "owner_active": true,
+    "write_allowed": true,
+    "kernel_version": "v2.4.0",
+    "runtime": {
+      "protocol": "kaoslab-susfs-runtime",
+      "version": 1,
+      "size": 48,
+      "supported": 15,
+      "enabled": 0,
+      "generation": 5
+    },
+    "priority_supported": true,
+    "priority_packages": "",
+    "priority_revision": "3515105045-1",
+    "priority_kernel_readback_available": false,
+    "new_settings_default_enabled": false
+  },
+  "native_runtime": {
+    "protocol": "kaoslab-susfs-runtime",
+    "version": 1,
+    "size": 48,
+    "supported": 15,
+    "enabled": 0,
+    "generation": 5
+  },
+  "setter_calls": 0
+}

@@ -65,6 +65,26 @@ class BoundaryTests(unittest.TestCase):
   self.assertEqual((out['enabled'],out['generation']),(13,13))
   self.assertEqual((self.persistent/'runtime-options').read_text(),'hidden-name=0\n')
   self.assertEqual((self.persistent/'config.txt').read_text(),'CUSTOM_KEY=keep\nENABLE_LOG=0\n')
+ def test_zero_enabled_mask_is_available_and_can_be_enabled(self):
+  state=json.loads(self.state.read_text());state.update(enabled=0,generation=5);self.state.write_text(json.dumps(state))
+  status=json.loads(self.run_control('status',ok=True).stdout)
+  self.assertEqual(status['runtime'],state)
+  out=json.loads(self.run_control('runtime-set','uid-gating','1','5',ok=True).stdout)
+  self.assertEqual((out['enabled'],out['generation']),(1,6))
+ def test_full_unsigned_generation_range_is_supported(self):
+  for generation in (2147483647,2147483648,3999999999,4000000000,4294967294):
+   state=json.loads(self.state.read_text());state.update(enabled=0,generation=generation);self.state.write_text(json.dumps(state))
+   status=json.loads(self.run_control('status',ok=True).stdout)
+   self.assertEqual(status['runtime']['generation'],generation)
+   out=json.loads(self.run_control('runtime-set','unicode-filter','1',str(generation),ok=True).stdout)
+   self.assertEqual((out['enabled'],out['generation']),(4,generation+1))
+ def test_invalid_masks_and_unsigned_generations_are_unavailable(self):
+  baseline=json.loads(self.state.read_text())
+  for field,value in [('supported',16),('supported',4294967295),('enabled',4294967295),('generation',0),('generation',4294967296)]:
+   state=dict(baseline);state[field]=value;self.state.write_text(json.dumps(state))
+   self.assertIsNone(json.loads(self.run_control('status',ok=True).stdout)['runtime'])
+   self.run_control('runtime-set','uid-gating','1','12',ok=False)
+  self.assertEqual(self.writes(),[])
  def test_stale_generation_rejected_before_set(self):
   self.run_control('runtime-set','uid-gating','0','11',ok=False);self.assertEqual(self.writes(),[])
  def test_unsupported_bit_rejected(self):

@@ -48,7 +48,7 @@ export async function readStatus(run=bridge,scope=globalThis) {
 }
 export function mountPanel(container,doc=document,scope=globalThis,run=bridge) {
  const panel=doc.createElement('section');panel.id='resusfs-runtime-panel';panel.className='rs-runtime-card';
- panel.innerHTML=`<div class="rs-heading"><div><h2>SUSFS 2.4 &amp; Runtime</h2><p id="rs-version">Status wird gelesen …</p></div><button type="button" id="rs-refresh">Aktualisieren</button></div><p id="rs-owner"></p><div id="rs-controls"></div><p class="rs-note">Änderungen wirken sofort und werden für diesen Verwalter gespeichert. Ohne eigene Auswahl bleiben die Kernel-Vorgaben erhalten. Beim Öffnen wird nur gelesen.</p><div class="rs-priority"><h3>Priority-UID-Filter</h3><label for="rs-packages">Paketnamen, durch Kommas getrennt</label><textarea id="rs-packages" rows="2" spellcheck="false" autocapitalize="off" placeholder="com.example.app,com.example.other"></textarea><button type="button" id="rs-priority-apply">Liste anwenden &amp; speichern</button><p class="rs-note">Eine leere Liste löscht den Filter. Der Kernel bietet für diese Liste keine eigene Leseabfrage; angezeigt wird die gespeicherte Auswahl.</p></div><p id="rs-message" role="status" aria-live="polite"></p>`;
+ panel.innerHTML=`<div class="rs-heading"><div><h2 id="rs-supplement-title">Runtime &amp; Priority UID</h2><p id="rs-version">Status wird gelesen …</p></div><button type="button" id="rs-refresh">Aktualisieren</button></div><p class="rs-note">Zusätzliche Kernel-Funktionen. Die ursprünglichen SUSFS-Regeln und Bedienelemente bleiben auf der SUSFS-Seite verfügbar.</p><p id="rs-owner"></p><div id="rs-controls"></div><p class="rs-note">Änderungen wirken sofort und werden für diesen Verwalter gespeichert. Ohne eigene Auswahl bleiben die Kernel-Vorgaben erhalten. Beim Öffnen wird nur gelesen.</p><div class="rs-priority"><h3>Priority-UID-Filter</h3><label for="rs-packages">Paketnamen, durch Kommas getrennt</label><textarea id="rs-packages" rows="2" spellcheck="false" autocapitalize="off" placeholder="com.example.app,com.example.other"></textarea><button type="button" id="rs-priority-apply">Liste anwenden &amp; speichern</button><p class="rs-note">Eine leere Liste löscht den Filter. Der Kernel bietet für diese Liste keine eigene Leseabfrage; angezeigt wird die gespeicherte Auswahl.</p></div><p id="rs-message" role="status" aria-live="polite"></p>`;
  container.prepend(panel);
  const $=id=>panel.querySelector(`#${id}`),inputs=new Map();let state=null,busy=false;
  const message=text=>{$('rs-message').textContent=text;};
@@ -90,15 +90,30 @@ export function mountPanel(container,doc=document,scope=globalThis,run=bridge) {
  });
  $('rs-refresh').addEventListener('click',refresh);render();refresh();return{panel,refresh};
 }
-export function integrate(doc=document,scope=globalThis) {
+export function integrate(doc=document,scope=globalThis,run=bridge) {
  const container=doc.getElementById('content-container');if(!container)return;
+ let supplement=null,opener=null,panel=null;
+ const openSupplement=()=>{
+  if(!supplement){
+   supplement=doc.createElement('dialog');supplement.id='resusfs-runtime-dialog';supplement.className='rs-supplement-dialog';
+   supplement.setAttribute('aria-labelledby','rs-supplement-title');
+   const back=doc.createElement('button');back.type='button';back.id='resusfs-runtime-back';back.className='rs-runtime-back';back.textContent='← Zurück zu SUSFS';
+   back.addEventListener('click',()=>supplement.close());
+   const content=doc.createElement('div');content.className='rs-supplement-content';
+   supplement.append(back,content);doc.body.append(supplement);
+   supplement.addEventListener('close',()=>opener?.focus({preventScroll:true}));
+   // Query only after explicitly opening the addition. Its errors are isolated.
+   supplement.showModal();panel=mountPanel(content,doc,scope,run);
+  }else{supplement.showModal();panel.refresh();}
+ };
  const ensure=()=>{
   const selected=doc.querySelector('.bottom-bar-item[page="susfs"][selected]')||doc.body.classList.contains('page-susfs');
-  const panel=doc.getElementById('resusfs-runtime-panel'),page=doc.getElementById('page-susfs');
-  // The native SPA page is the scrolling surface; its outer container clips.
-  if(selected&&page&&!panel)mountPanel(page,doc,scope);
-  else if(selected&&page&&panel?.parentElement!==page&&panel)page.prepend(panel);
-  else if(panel)panel.hidden=!selected;
+  const host=doc.getElementById('susfs-boxes');
+  if(selected&&host&&!doc.getElementById('resusfs-runtime-open')){
+   opener=doc.createElement('button');opener.type='button';opener.id='resusfs-runtime-open';opener.className='rs-runtime-open';
+   opener.textContent='Runtime & Priority UID →';opener.setAttribute('aria-haspopup','dialog');
+   opener.addEventListener('click',openSupplement);host.prepend(opener);
+  }
  };
  new MutationObserver(ensure).observe(doc.body,{childList:true,subtree:true,attributes:true,attributeFilter:['selected','class']});
  doc.getElementById('susfs')?.addEventListener('click',()=>setTimeout(ensure,0));ensure();

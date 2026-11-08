@@ -1,14 +1,16 @@
-# ReSuSFS for SukiSU 41165 / SUSFS 2.4.0
+# ReSuSFS r2 for SukiSU 41165 / SUSFS 2.4.0
 
 Based on the official ReSuSFS v26.10.23 release by Ahmed Al-Nassif. Its existing
 WebUI, rule editors, user scripts, cron settings, early/late phases, profiles and
-translations are retained. A native-looking card in the SUSFS tab adds:
+translations are retained. All eight original SUSFS cards and both original
+action buttons remain visible. A compact entry opens a separate supplementary
+view with a back button and adds:
 
 - UID-Gated Hiding, Hidden Name, Unicode and symbol-hiding Runtime-v1 controls.
 - A Priority-UID package list, with explicit apply/save and clear operations.
 - Read-only kernel, owner, capability and generation status.
 
-New selections are optional. Opening the card reads status without creating
+New selections are optional. Opening the addition reads status without creating
 settings or changing the kernel. Runtime writes require the exact ABI, supported
 feature bit, matching generation and readback. Selections are saved only after a
 confirmed write and restored only while ReSuSFS remains the active owner.
@@ -30,9 +32,21 @@ The flash installer preserves an existing `/data/adb/ReSuSFS` directory exactly.
 Only a fresh installation receives upstream default files. New Runtime and
 Priority preferences are created only by explicit user action. The module's
 module-manager action button reads status. The WebUI's existing apply-profile
-button remains available; its obsolete force-update control is hidden only in
-the SUSFS tab (the UserHub import button is retained). CLI updates use this package instead
-of replacing a global binary from an unpinned download.
+button and original refresh/force-update button remain available. Refresh reads
+the installed private tool's status. CLI updates use this package instead of
+replacing a global binary from an unpinned download.
+
+Revision r2 fixes Android mksh's signed 32-bit numeric comparisons. The original
+controller compared valid values against UINT32_MAX with shell `test`, causing
+supported Runtime-v1 kernels to be reported as unavailable. The corrected
+parser handles canonical unsigned decimal values without overflowing Android's
+comparison operator. Four on/off/readback/persistence round trips passed on the
+user's SM-S928B running SUSFS v2.4.0; initial Runtime flags and saved option bytes
+were restored after the test. The exact tested controller hash is packaged with
+the evidence. The original UI was compared in a mobile browser with the official
+baseline: all eight cards and ten action sequences match, including when the
+Runtime addition reports unavailable. This browser uses a bridge fixture;
+the Android setter proof separately exercises the real kernel.
 
 Build and package:
 
@@ -43,8 +57,9 @@ python test.py
 node test.mjs
 ```
 
-Flash the resulting ZIP through SukiSU's module installer. No device installation
-or reboot is performed by these build tools. Runtime state changes are global;
+Flash the resulting ZIP through SukiSU's module installer, preserving the existing
+module ID and persistent profiles. Close and reopen its WebUI after updating.
+No device installation or reboot is performed by these build tools. Runtime state changes are global;
 the UI asks for confirmation and uses the kernel's generation check to reject
-stale requests. A new kernel boot and full module lifecycle remain separate
-device validation steps.
+stale requests. A full installer/reboot lifecycle for this revision remains a
+separate device validation step.

@@ -1,0 +1,58 @@
+{
+  "controller_sha256": "0c5f9d728ed2a7a8c97c463696e9bb0c6d089850c71555b41edf4bb8455dfb03",
+  "device_kernel_version": "v2.4.0",
+  "initial": {
+    "protocol": "kaoslab-susfs-runtime",
+    "version": 1,
+    "size": 48,
+    "supported": 15,
+    "enabled": 0,
+    "generation": 5
+  },
+  "final": {
+    "protocol": "kaoslab-susfs-runtime",
+    "version": 1,
+    "size": 48,
+    "supported": 15,
+    "enabled": 0,
+    "generation": 13
+  },
+  "cases": [
+    {
+      "key": "uid-gating",
+      "flipped_and_read_back": true,
+      "persisted_choice_verified": true,
+      "restored_original_bit": true,
+      "generation_before": 5,
+      "generation_after": 7
+    },
+    {
+      "key": "hidden-name",
+      "flipped_and_read_back": true,
+      "persisted_choice_verified": true,
+      "restored_original_bit": true,
+      "generation_before": 7,
+      "generation_after": 9
+    },
+    {
+      "key": "unicode-filter",
+      "flipped_and_read_back": true,
+      "persisted_choice_verified": true,
+      "restored_original_bit": true,
+      "generation_before": 9,
+      "generation_after": 11
+    },
+    {
+      "key": "symbol-hiding",
+      "flipped_and_read_back": true,
+      "persisted_choice_verified": true,
+      "restored_original_bit": true,
+      "generation_before": 11,
+      "generation_after": 13
+    }
+  ],
+  "saved_options_byte_identical_restored": true,
+  "kernel_flashed": false,
+  "module_installed": false,
+  "rebooted": false
+}

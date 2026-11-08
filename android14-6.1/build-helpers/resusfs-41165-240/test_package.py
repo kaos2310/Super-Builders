@@ -38,6 +38,21 @@ getprop() { echo arm64-v8a; }
  def test_all_zip_checksums(self):
   for line in self.members['SHA256SUMS'].decode().splitlines():
    digest,name=line.split('  ',1);self.assertEqual(hashlib.sha256(self.members[name]).hexdigest(),digest,name)
+ def test_r2_version_and_android_proof_match_packaged_controller(self):
+  self.assertIn(b'versionCode=2026110901\n',self.members['module.prop'])
+  self.assertIn(b'runtime1.r2.',self.members['module.prop'])
+  proof=json.loads(self.members['verification/ANDROID-SETTER-PROOF.json'])
+  self.assertEqual(proof['controller_sha256'],hashlib.sha256(self.members['bin/resusfs-control']).hexdigest())
+  self.assertEqual({case['key'] for case in proof['cases']},{'uid-gating','hidden-name','unicode-filter','symbol-hiding'})
+  self.assertTrue(all(case['flipped_and_read_back'] and case['persisted_choice_verified'] and case['restored_original_bit'] for case in proof['cases']))
+ def test_addition_is_separate_and_both_original_action_buttons_remain(self):
+  module=self.members['webroot/assets/resusfs-runtime.mjs'].decode()
+  self.assertIn("doc.createElement('dialog')",module)
+  self.assertIn("opener.textContent='Runtime & Priority UID",module)
+  css=self.members['webroot/assets/resusfs-runtime.css'].decode()
+  self.assertNotIn('force-update',css)
+  self.assertNotIn('.command',css)
+  self.assertIn(b'resusfs-runtime.mjs?r=2',self.members['webroot/index.html'])
  def test_old_config_scripts_styles_cron_and_missing_choices_preserved(self):
   files={'config.txt':b'CUSTOM_USER_VALUE=keep\n','sus_paths.txt':b'/my/custom/path\n','scripts/my-script.sh':b'echo untouched\n','scripts_cron.txt':b'1 * * * * my-script.sh\n','.webui_config/custom.css':b':root{--custom:keep}\n','crontabs/root':b'user crontab\n'}
   for name,data in files.items():p=self.persistent/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)

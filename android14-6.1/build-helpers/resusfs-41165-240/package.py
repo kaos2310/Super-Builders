@@ -3,7 +3,7 @@
 from pathlib import Path,PurePosixPath
 import argparse,hashlib,json,struct,zipfile
 HERE=Path(__file__).resolve().parent
-NAME='ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-SukiSU41165-arm64.zip'
+NAME='ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-r2-SukiSU41165-arm64.zip'
 def sha(data):return hashlib.sha256(data).hexdigest()
 def arm64(data):return data[:6]==b'\x7fELF\x02\x01' and struct.unpack_from('<H',data,18)[0]==183
 def once(text,old,new):
@@ -29,7 +29,7 @@ def package(runtime_helper,susfs_tool,output):
    files[item.filename]=data
  original=dict(files)
  def put(name,data):files[name]=data.encode() if isinstance(data,str) else data
- put('module.prop','id=ReSuSFS\nname=ReSuSFS\nversion=v26.10.23.kaoslab.susfs240.runtime1.sukisu41165\nversionCode=2026110802\nauthor=ahmed-alnassif; KAOSLAB integration\ndescription=ReSuSFS + SUSFS 2.4.0 + four Runtime v1 controls + Priority UID; existing profiles retained.\n')
+ put('module.prop','id=ReSuSFS\nname=ReSuSFS\nversion=v26.10.23.kaoslab.susfs240.runtime1.r2.sukisu41165\nversionCode=2026110901\nauthor=ahmed-alnassif; KAOSLAB integration\ndescription=Original ReSuSFS features + optional Runtime and Priority UID; Android runtime detection fixed.\n')
  put('bin/ksu_susfs',tool);put('bin/susfs-runtime',runtime)
  for name in ('resusfs-control','resusfs-susfs'):put('bin/'+name,(HERE/name).read_bytes())
  put('bin/ReSuSFS','#!/system/bin/sh\nexec sh /data/adb/modules/ReSuSFS/ReSuSFS.sh "$@"\n')
@@ -76,15 +76,19 @@ supported_susfs_version() { case "$1" in v2.3.0|v2.4.0) return 0;; *) return 1;;
 ''' +text[end:];put('utils.sh',text)
  put('action.sh','#!/system/bin/sh\nexec /data/adb/modules/ReSuSFS/bin/resusfs-control status\n')
  put('uninstall.sh','#!/system/bin/sh\n# Global CLI, shared adapters and persistent profiles belong to their owners.\n# KernelSU removes this module directory; no external files are deleted.\nexit 0\n')
- html=files['webroot/index.html'].decode();html=once(html,'</head>','  <link rel="stylesheet" href="./assets/resusfs-runtime.css">\n  <script type="module" src="./assets/resusfs-runtime.mjs"></script>\n</head>');put('webroot/index.html',html)
+ html=files['webroot/index.html'].decode();html=once(html,'</head>','  <link rel="stylesheet" href="./assets/resusfs-runtime.css?r=2">\n  <script type="module" src="./assets/resusfs-runtime.mjs?r=2"></script>\n</head>');put('webroot/index.html',html)
  for name in ('resusfs-runtime.mjs','resusfs-runtime.css'):put('webroot/assets/'+name,(HERE/name).read_bytes())
  put('README-KAOSLAB-SUSFS240.md',(HERE/'README.md').read_bytes())
  put('SUSFS-TOOL-BUILD.json',json.dumps(build,indent=2)+'\n')
  if (HERE/'DEVICE-READ-VERIFICATION.json').exists():put('LOCAL-DEVICE-READ-VERIFICATION.json',(HERE/'DEVICE-READ-VERIFICATION.json').read_bytes())
+ for name in ('ANDROID-READ-PROOF.json','ANDROID-SETTER-PROOF.json','VERIFICATION.json'):
+  put('verification/'+name,(HERE/name).read_bytes())
+ proof=json.loads((HERE/'ANDROID-SETTER-PROOF.json').read_text())
+ if proof['controller_sha256']!=sha(files['bin/resusfs-control']):raise RuntimeError('Android setter proof is for a different controller')
  for name in source['source_files_sha256']:put('source/ksu_susfs/'+name,(HERE/'upstream'/name).read_bytes())
  unchanged={name:sha(data) for name,data in original.items() if files.get(name)==data}
  changed={name:sha(data) for name,data in files.items() if original.get(name)!=data}
- manifest={'schema':1,'module_id':'ReSuSFS','baseline_sha256':base['sha256'],'official_release':base['official_release'],'susfs_version':'v2.4.0','supported_kernel_versions':['v2.3.0','v2.4.0'],'susfs_source_pin':source['pin'],'susfs_tool_sha256':sha(tool),'runtime_helper_sha256':sha(runtime),'new_settings_default_enabled':False,'existing_config_overwritten':False,'owner_transferred':False,'global_cli_replaced':False,'unchanged_files_sha256':unchanged,'changed_files_sha256':changed,'device_installation_tested':False}
+ manifest={'schema':1,'module_id':'ReSuSFS','revision':'r2','baseline_sha256':base['sha256'],'official_release':base['official_release'],'susfs_version':'v2.4.0','supported_kernel_versions':['v2.3.0','v2.4.0'],'susfs_source_pin':source['pin'],'susfs_tool_sha256':sha(tool),'runtime_helper_sha256':sha(runtime),'new_settings_default_enabled':False,'existing_config_overwritten':False,'owner_transferred':False,'global_cli_replaced':False,'unchanged_files_sha256':unchanged,'changed_files_sha256':changed,'device_installation_tested':False,'android_controller_setter_roundtrips_tested':4,'original_ui_preserved':True,'runtime_ui_is_separate_addition':True}
  put('build-manifest.json',json.dumps(manifest,indent=2)+'\n')
  put('SHA256SUMS',''.join(sha(data)+'  '+name+'\n' for name,data in sorted(files.items())))
  output.mkdir(parents=True,exist_ok=True);target=output/NAME

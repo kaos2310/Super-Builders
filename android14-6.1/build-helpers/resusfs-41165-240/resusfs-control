@@ -31,7 +31,19 @@ write_allowed() {
     owner_allowed || { echo 'ReSuSFS ist nicht der alleinige aktive SUSFS-Verwalter.' >&2; return 65; }
     known_version "$(kernel_version)" || { echo 'Unbekannte SUSFS-Version: Schreibzugriff gesperrt.' >&2; return 65; }
 }
-uint() { case "$1" in ''|*[!0-9]*) return 1;; esac; [ "${#1}" -le 10 ] && [ "$1" -le 4294967295 ]; }
+uint() {
+    # Android mksh/test uses signed 32-bit comparisons. Never pass UINT32_MAX
+    # or a ten-digit unsigned value to its numeric operators.
+    case "$1" in ''|*[!0-9]*|0[0-9]*) return 1;; esac
+    [ "${#1}" -le 10 ] || return 1
+    [ "${#1}" -lt 10 ] && return 0
+    case "$1" in
+        [1-3]?????????) return 0;;
+        4?????????) [ "${1#?}" -le 294967295 ];;
+        *) return 1;;
+    esac
+}
+mask() { case "$1" in [0-9]|1[0-5]) return 0;; *) return 1;; esac; }
 number() { printf '%s' "$1" | sed -n "s/.*\"$2\":[[:space:]]*\([0-9][0-9]*\).*/\1/p"; }
 read_runtime() {
     local state supported enabled generation
@@ -40,7 +52,7 @@ read_runtime() {
     [ "$(number "$state" version)" = 1 ] && [ "$(number "$state" size)" = 48 ] || return 95
     supported=$(number "$state" supported);enabled=$(number "$state" enabled);generation=$(number "$state" generation)
     uint "$supported" && uint "$enabled" && uint "$generation" || return 95
-    [ "$supported" -le 15 ] && [ "$enabled" -le 15 ] && [ "$generation" -gt 0 ] || return 95
+    mask "$supported" && mask "$enabled" && [ "$generation" != 0 ] || return 95
     [ $((enabled & ~supported)) -eq 0 ] || return 95
     printf '%s\n' "$state"
 }
@@ -81,7 +93,7 @@ runtime_set() (
     key=$1;value=$2;expected=$3
     bit=$(feature_bit "$key") || exit 64
     case "$value" in 0|1) ;; *) exit 64;; esac
-    uint "$expected" && [ "$expected" -gt 0 ] || exit 64
+    uint "$expected" && [ "$expected" != 0 ] || exit 64
     write_allowed || exit $?
     before=$(read_runtime) || exit 95
     [ "$(number "$before" generation)" = "$expected" ] || { echo 'Generation veraltet; zuerst neu laden.' >&2; exit 75; }
