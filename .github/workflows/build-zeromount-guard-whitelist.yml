@@ -15,6 +15,8 @@ jobs:
           python3 -B android14-6.1/build-helpers/zeromount-susfs240/test.py
           python3 -B android14-6.1/build-helpers/zeromount-package-41165/test_install.py
           node android14-6.1/build-helpers/zeromount-ui-41165/test.mjs
+          unzip -q android14-6.1/build-helpers/zeromount-package-41165/module-base.zip -d "$RUNNER_TEMP/ui-baseline"
+          python3 -B android14-6.1/build-helpers/zeromount-ui-41165/test.py "$RUNNER_TEMP/ui-baseline"
           bash -n android14-6.1/build-helpers/zeromount-package-41165/customize.sh
       - uses: nttld/setup-ndk@v1
         id: ndk

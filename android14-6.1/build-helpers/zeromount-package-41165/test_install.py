@@ -4,10 +4,11 @@ import os,subprocess,tempfile,unittest
 HERE=Path(__file__).resolve().parent
 
 class InstallerTests(unittest.TestCase):
-    def run_install(self,version='v2.4.0',existing=True):
+    def run_install(self,version='v2.4.0',existing=True,stashed=False):
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);root=Path(temp.name)
         state=root/'data/adb/zeromount';state.mkdir(parents=True)
         staged=root/'staged';(staged/'bin/arm64-v8a').mkdir(parents=True)
+        (staged/'emoji').mkdir();(staged/'emoji/NotoColorEmoji.ttf').write_bytes(b'bundled-font')
         tools=root/'tools';tools.mkdir()
         for name,script in {
             'uname':'echo aarch64', 'unzip':':',
@@ -25,6 +26,10 @@ class InstallerTests(unittest.TestCase):
         if existing:
             for name,data in original.items():
                 path=state/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(data)
+            (state/'emoji').mkdir();(state/'emoji/NotoColorEmoji.ttf').write_bytes(b'user-font')
+        if stashed:
+            (state/'.stash').mkdir();(state/'.stash/config.toml').write_text(original['config.toml'])
+            (state/'.stash/config.toml.bak').write_bytes(b'old-backup')
         text=(HERE/'customize.sh').read_text().replace('KSUD=/data/adb/ksud','KSUD='+str(ksud)).replace('STATE=/data/adb/zeromount','STATE='+str(state))
         prefix='''abort() { echo "$1" >&2; exit 72; }
 set_perm_recursive() { :; }
@@ -39,6 +44,7 @@ ui_print() { :; }
     def test_upgrade_preserves_all_existing_user_state(self):
         result,state,original=self.run_install();self.assertEqual(result.returncode,0,result.stderr)
         for name,data in original.items():self.assertEqual((state/name).read_text(),data)
+        self.assertEqual((state/'emoji/NotoColorEmoji.ttf').read_bytes(),b'user-font')
 
     def test_wrong_kernel_rejected_before_state_changes(self):
         result,state,original=self.run_install('v2.3.0');self.assertEqual(result.returncode,72)
@@ -47,5 +53,11 @@ ui_print() { :; }
     def test_fresh_masters_start_disabled(self):
         result,state,_=self.run_install(existing=False);self.assertEqual(result.returncode,0,result.stderr)
         for name in ('susfs','brene'):self.assertEqual((state/f'switches/{name}.enabled').read_text(),'false\n')
+        self.assertEqual((state/'emoji/NotoColorEmoji.ttf').read_bytes(),b'bundled-font')
+
+    def test_reinstall_restores_stashed_configuration(self):
+        result,state,original=self.run_install(existing=False,stashed=True);self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual((state/'config.toml').read_text(),original['config.toml'])
+        self.assertEqual((state/'config.toml.bak').read_bytes(),b'old-backup')
 
 if __name__=='__main__':unittest.main()

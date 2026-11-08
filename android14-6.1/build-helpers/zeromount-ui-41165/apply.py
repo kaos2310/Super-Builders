@@ -117,6 +117,7 @@ def apply(module):
         path = web / 'assets' / name
         text = path.read_text(encoding='utf-8')
         text = text.replace('Gerätetest noch nicht durchgeführt.', 'Status des installierten BRENE-Adapters gelesen.')
+        text = text.replace('prüfen SUSFS v2.3.0 sowie OPEN_REDIRECT', 'prüfen SUSFS v2.4.0 sowie OPEN_REDIRECT')
         text = text.replace('Zusätzliche BRENE-69-Lock-Properties', 'Zusätzliche Lock-Properties')
         text = text.replace('Kernel-Buildoption, kein bestätigter Laufzeit-Schalter.', 'Laufzeit-Schalter werden in SUSFS & BRENE → Kernel-Laufzeit separat auf ABI v1 geprüft.')
         put(path, text)

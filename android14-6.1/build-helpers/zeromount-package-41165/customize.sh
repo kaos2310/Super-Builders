@@ -20,6 +20,18 @@ done
 STATE=/data/adb/zeromount
 umask 077
 mkdir -p "$STATE/switches" "$STATE/logs" || abort "ZeroMount-Datenordner konnte nicht angelegt werden"
+if [ ! -f "$STATE/config.toml" ] && [ -f "$STATE/.stash/config.toml" ]; then
+    cp "$STATE/.stash/config.toml" "$STATE/config.toml" || abort "Gesicherte Konfiguration konnte nicht wiederhergestellt werden"
+    if [ ! -f "$STATE/config.toml.bak" ] && [ -f "$STATE/.stash/config.toml.bak" ]; then
+        cp "$STATE/.stash/config.toml.bak" "$STATE/config.toml.bak" || abort "Konfigurations-Backup konnte nicht wiederhergestellt werden"
+    fi
+fi
+if [ ! -f "$STATE/emoji/NotoColorEmoji.ttf" ]; then
+    mkdir -p "$STATE/emoji" || abort "Emoji-Datenordner konnte nicht angelegt werden"
+    cp "$MODPATH/emoji/NotoColorEmoji.ttf" "$STATE/emoji/NotoColorEmoji.ttf" || abort "Emoji-Schrift konnte nicht bereitgestellt werden"
+    set_perm "$STATE/emoji/NotoColorEmoji.ttf" 0 0 0644
+    command -v chcon >/dev/null 2>&1 && chcon u:object_r:system_file:s0 "$STATE/emoji/NotoColorEmoji.ttf" 2>/dev/null || true
+fi
 for MASTER in susfs brene; do
     [ -e "$STATE/switches/$MASTER.enabled" ] || printf 'false\n' > "$STATE/switches/$MASTER.enabled"
 done
