@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import {FEATURES,CONTROL,mayWrite,runtimeState,runtimeCommand,priorityCommand,normalizePackages,readStatus,bridge} from './resusfs-runtime.mjs';
+const runtime={protocol:'kaoslab-susfs-runtime',version:1,size:48,supported:15,enabled:15,generation:22};
+const state={schema:1,owner:'ReSuSFS',owner_active:true,write_allowed:true,kernel_version:'v2.4.0',runtime,priority_supported:true,priority_packages:'',priority_revision:'none'};
+let assertions=0;
+const check=fn=>{fn();assertions++;};
+check(()=>assert.equal(FEATURES.length,4));check(()=>assert.equal(mayWrite(state),true));
+for(const feature of FEATURES){check(()=>assert.equal(runtimeCommand(state,feature.key,false),`${CONTROL} runtime-set ${feature.key} 0 22`));check(()=>assert.throws(()=>runtimeCommand({...state,runtime:{...runtime,supported:0,enabled:0}},feature.key,true)));}
+for(const change of [{owner_active:false},{write_allowed:false},{owner:'ZeroMount'},{kernel_version:'v2.5.0'},{kernel_version:'v2.4.0-dev'}])check(()=>assert.throws(()=>runtimeCommand({...state,...change},'uid-gating',false)));
+for(const change of [{version:2},{size:44},{supported:16},{enabled:16},{generation:0},{generation:1.5},{protocol:'other'}])check(()=>assert.throws(()=>runtimeState({...runtime,...change})));
+check(()=>assert.equal(priorityCommand(state,' com.example.app, org.example.tool '),`${CONTROL} priority-set 'com.example.app,org.example.tool' 'none'`));
+check(()=>assert.equal(priorityCommand(state,''),`${CONTROL} priority-set '' 'none'`));
+for(const text of ['com.good;id','com.good\ncom.other','com.good,,com.other','a'.repeat(4097),'com.example.','com.$(id)'])check(()=>assert.throws(()=>normalizePackages(text)));
+check(()=>assert.throws(()=>priorityCommand({...state,priority_supported:false},'com.example.app')));
+check(()=>assert.throws(()=>priorityCommand({...state,priority_revision:'1;id'},'com.example.app')));
+const commands=[];const read=await readStatus(async command=>{commands.push(command);return JSON.stringify(state);});
+check(()=>assert.deepEqual(commands,[`${CONTROL} status`]));check(()=>assert.equal(read.runtime.generation,22));
+const scope={ksu:{exec(command,options,callback){check(()=>assert.equal(command,'read-only'));queueMicrotask(()=>scope[callback](0,'ok',''));}}};
+const bridged=await bridge('read-only',scope);check(()=>assert.equal(bridged,'ok'));
+check(()=>assert.equal(Object.keys(scope).length,1));
+console.log(`PASS: ReSuSFS UI ${assertions} boundary assertions; opening issues one read-only status command`);

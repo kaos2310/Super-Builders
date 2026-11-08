@@ -1,0 +1,145 @@
+#!/system/bin/sh
+# ReSuSFS owns its choices; this tool never transfers ownership or edits ZeroMount.
+ROOT=${RESUSFS_ROOT:-}
+BINDIR=${0%/*}
+MODDIR=${RESUSFS_MODDIR:-${BINDIR%/*}}
+PERSISTENT="$ROOT/data/adb/ReSuSFS"
+TOOL=${RESUSFS_SUSFS_TOOL:-$MODDIR/bin/ksu_susfs}
+RUNTIME=${RESUSFS_RUNTIME_TOOL:-$MODDIR/bin/susfs-runtime}
+OPTIONS="$PERSISTENT/runtime-options"
+PRIORITY="$PERSISTENT/priority-packages"
+
+active() { [ -d "$ROOT/data/adb/modules/$1" ] && [ ! -e "$ROOT/data/adb/modules/$1/disable" ] && [ ! -e "$ROOT/data/adb/modules/$1/remove" ]; }
+owner_allowed() {
+    active ReSuSFS || return 1
+    for other in susfs4ksu brene; do active "$other" && return 1; done
+    local owner master configured
+    owner=$(cat "$ROOT/data/adb/zeromount/susfs-owner" 2>/dev/null)
+    if [ -n "$owner" ]; then [ "$owner" = ReSuSFS ] || return 1
+    elif active meta-zeromount; then return 1; fi
+    if active meta-zeromount; then
+        master=$(cat "$ROOT/data/adb/zeromount/switches/susfs.enabled" 2>/dev/null)
+        [ "$master" = false ] || return 1
+        configured=$(awk '/^\[/{inside=($0=="[susfs]");if(inside)sections++} inside && /^[[:space:]]*enabled[[:space:]]*=/{sub(/#.*/,"");gsub(/[[:space:]]/,"",$0);sub(/^enabled=/,"");value=$0;count++} END{if(sections==1 && count==1)print value}' "$ROOT/data/adb/zeromount/config.toml" 2>/dev/null)
+        [ "$configured" = false ] || return 1
+    fi
+    return 0
+}
+kernel_version() { "$TOOL" show version 2>/dev/null; }
+known_version() { case "$1" in v2.3.0|v2.4.0) return 0;; *) return 1;; esac; }
+write_allowed() {
+    owner_allowed || { echo 'ReSuSFS ist nicht der alleinige aktive SUSFS-Verwalter.' >&2; return 65; }
+    known_version "$(kernel_version)" || { echo 'Unbekannte SUSFS-Version: Schreibzugriff gesperrt.' >&2; return 65; }
+}
+uint() { case "$1" in ''|*[!0-9]*) return 1;; esac; [ "${#1}" -le 10 ] && [ "$1" -le 4294967295 ]; }
+number() { printf '%s' "$1" | sed -n "s/.*\"$2\":[[:space:]]*\([0-9][0-9]*\).*/\1/p"; }
+read_runtime() {
+    local state supported enabled generation
+    state=$("$RUNTIME" status 2>/dev/null) || return 95
+    printf '%s' "$state" | grep -q '"protocol":"kaoslab-susfs-runtime"' || return 95
+    [ "$(number "$state" version)" = 1 ] && [ "$(number "$state" size)" = 48 ] || return 95
+    supported=$(number "$state" supported);enabled=$(number "$state" enabled);generation=$(number "$state" generation)
+    uint "$supported" && uint "$enabled" && uint "$generation" || return 95
+    [ "$supported" -le 15 ] && [ "$enabled" -le 15 ] && [ "$generation" -gt 0 ] || return 95
+    [ $((enabled & ~supported)) -eq 0 ] || return 95
+    printf '%s\n' "$state"
+}
+feature_bit() { case "$1" in uid-gating) echo 1;; hidden-name) echo 2;; unicode-filter) echo 4;; symbol-hiding) echo 8;; *) return 64;; esac; }
+priority_supported() { "$TOOL" show enabled_features 2>/dev/null | grep -qx CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER; }
+valid_priority() {
+    [ "${#1}" -le 4096 ] || return 64
+    case "$1" in *[!A-Za-z0-9_.,]*) return 64;; esac
+    [ -z "$1" ] && return 0
+    printf '%s\n' "$1" | awk -F, '{for(i=1;i<=NF;i++) if(length($i)>255 || $i !~ /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$/) exit 1}'
+}
+priority_value() {
+    local value
+    value=$(cat "$PRIORITY" 2>/dev/null)
+    valid_priority "$value" || return 65
+    printf '%s' "$value"
+}
+revision() { if [ -f "$PRIORITY" ]; then cksum "$PRIORITY" | awk '{print $1 "-" $2}'; else echo none; fi; }
+status() {
+    local owner=false writable=false priority=false version runtime=null value revision
+    owner_allowed && owner=true
+    version=$(kernel_version);known_version "$version" || version=unavailable
+    [ "$owner" = true ] && known_version "$version" && writable=true
+    priority_supported && priority=true
+    runtime=$(read_runtime) || runtime=null
+    value=$(priority_value) || value=''
+    revision=$(revision)
+    printf '{"schema":1,"owner":"ReSuSFS","owner_active":%s,"write_allowed":%s,"kernel_version":"%s","runtime":%s,"priority_supported":%s,"priority_packages":"%s","priority_revision":"%s","priority_kernel_readback_available":false,"new_settings_default_enabled":false}\n' "$owner" "$writable" "$version" "$runtime" "$priority" "$value" "$revision"
+}
+save_option() {
+    local key=$1 value=$2 temp="$OPTIONS.tmp.$$"
+    umask 077
+    if [ -f "$OPTIONS" ]; then awk -v key="$key" 'index($0,key "=")!=1{print}' "$OPTIONS" > "$temp" || return 1; else : > "$temp" || return 1; fi
+    printf '%s=%s\n' "$key" "$value" >> "$temp" && mv -f "$temp" "$OPTIONS"
+}
+runtime_set() (
+    [ "$#" = 3 ] || exit 64
+    key=$1;value=$2;expected=$3
+    bit=$(feature_bit "$key") || exit 64
+    case "$value" in 0|1) ;; *) exit 64;; esac
+    uint "$expected" && [ "$expected" -gt 0 ] || exit 64
+    write_allowed || exit $?
+    before=$(read_runtime) || exit 95
+    [ "$(number "$before" generation)" = "$expected" ] || { echo 'Generation veraltet; zuerst neu laden.' >&2; exit 75; }
+    [ $(( $(number "$before" supported) & bit )) -ne 0 ] || exit 95
+    umask 077;mkdir -p "$PERSISTENT" || exit 1
+    mkdir "$PERSISTENT/runtime.lock" 2>/dev/null || exit 75
+    trap 'rmdir "$PERSISTENT/runtime.lock" 2>/dev/null' EXIT
+    write_allowed || exit $?
+    updated=$("$RUNTIME" set "$key" "$value" "$expected") || exit $?
+    verified=$(read_runtime) || { echo 'Änderung nicht zurückgelesen; Status neu laden.' >&2; exit 75; }
+    [ "$(number "$updated" generation)" = "$(number "$verified" generation)" ] && [ "$(number "$updated" enabled)" = "$(number "$verified" enabled)" ] || exit 75
+    [ $(( ( $(number "$verified" enabled) & bit ) != 0 )) = "$value" ] || exit 75
+    save_option "$key" "$value" || exit 1
+    printf '%s\n' "$verified"
+)
+priority_set() (
+    [ "$#" = 2 ] || exit 64
+    value=$1;expected=$2
+    valid_priority "$value" || exit 64
+    case "$expected" in none|*[!0-9-]*|'') [ "$expected" = none ] || exit 64;; esac
+    write_allowed && priority_supported || exit 65
+    umask 077;mkdir -p "$PERSISTENT" || exit 1
+    mkdir "$PERSISTENT/priority.lock" 2>/dev/null || exit 75
+    trap 'rmdir "$PERSISTENT/priority.lock" 2>/dev/null' EXIT
+    [ "$(revision)" = "$expected" ] || { echo 'Paketliste wurde inzwischen verändert; neu laden.' >&2; exit 75; }
+    write_allowed || exit $?
+    # The official parser tolerates empty comma items. A comma clears its bitmap
+    # while respecting the userspace CLI's rejection of an empty argument.
+    argument=$value;[ -n "$argument" ] || argument=,
+    "$TOOL" set_priority_uid_filter "$argument" >&2 || exit $?
+    printf '%s\n' "$value" > "$PRIORITY.tmp.$$" && mv -f "$PRIORITY.tmp.$$" "$PRIORITY" || exit 1
+    printf '{"applied":true,"saved":true,"kernel_readback_available":false,"priority_revision":"%s"}\n' "$(revision)"
+)
+restore() {
+    write_allowed || return $?
+    if [ "$1" = runtime ] && [ -f "$OPTIONS" ]; then
+        for key in uid-gating hidden-name unicode-filter symbol-hiding; do
+            value=$(sed -n "s/^$key=//p" "$OPTIONS" | tail -n 1)
+            case "$value" in 0|1) state=$(read_runtime) && runtime_set "$key" "$value" "$(number "$state" generation)" || return $?;; esac
+        done
+    elif [ "$1" = priority ] && [ -f "$PRIORITY" ]; then priority_set "$(priority_value)" "$(revision)"
+    fi
+}
+legacy() {
+    case "$1" in
+        show) [ "$#" = 2 ] || return 64;case "$2" in version|variant|enabled_features) exec "$TOOL" "$@";; *) return 64;; esac;;
+        add_sus_path|add_sus_path_loop|hide_sus_mnts_for_non_su_procs|add_sus_map|set_priority_uid_filter|add_open_redirect|add_sus_kstat_statically|add_sus_kstat|update_sus_kstat|update_sus_kstat_full_clone|enable_log|set_uname|set_cmdline_or_bootconfig|enable_avc_log_spoofing)
+            write_allowed || return $?;exec "$TOOL" "$@";;
+        *) return 64;;
+    esac
+}
+case "${1:-status}" in
+    status) [ "$#" -le 1 ] || exit 64;status;;
+    runtime-set) shift;runtime_set "$@";;
+    priority-set) shift;priority_set "$@";;
+    restore) [ "$#" = 2 ] || exit 64;restore "$2";;
+    allowed) write_allowed;;
+    owner-allowed) owner_allowed;;
+    legacy) shift;legacy "$@";;
+    *) exit 64;;
+esac

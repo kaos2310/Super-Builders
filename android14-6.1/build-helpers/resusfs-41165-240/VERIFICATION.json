@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "verified_on": "2026-11-08",
+  "local_package_sha256": "f83a9297ad557f16275b71dfe5fc3d43109ef0c9678cf7a736b92ad7a8c16bf8",
+  "local_package_bytes": 330651,
+  "backend_integration_tests_passed": 21,
+  "ui_boundary_assertions_passed": 37,
+  "concrete_zip_installer_tests_passed": 8,
+  "official_c_sources_vendored_and_hashed": 30,
+  "official_c_translation_units_built": 13,
+  "official_c_source_pin": "a2165b6f875b73e2f87d3c6f12814efac8de061d",
+  "new_settings_default_enabled": false,
+  "existing_profiles_scripts_styles_and_cron_preserved": true,
+  "unknown_versions_and_owner_conflicts_rejected": true,
+  "runtime_cas_feature_mask_and_readback_passed": true,
+  "priority_saved_revision_checked": true,
+  "priority_kernel_getter_available": false,
+  "native_device_read_probe": {
+    "verified_on": "2026-11-08",
+    "source_pin": "a2165b6f875b73e2f87d3c6f12814efac8de061d",
+    "tested_native_cli_sha256": "fc34d598ad28ead9b3311fbd8bed74f28d07220fcda0408bbd0c7cfede8caa1d",
+    "tested_build": "Local Android NDK r23; CI independently rebuilds the same official C inputs with r27c",
+    "read_commands": [
+      "show version",
+      "show variant",
+      "show enabled_features"
+    ],
+    "kernel_reported_version": "v2.3.0",
+    "variant": "GKI",
+    "features": [
+      "CONFIG_KSU_SUSFS_UID_GATED_HIDING",
+      "CONFIG_KSU_SUSFS_SUS_PATH",
+      "CONFIG_KSU_SUSFS_SUS_MOUNT",
+      "CONFIG_KSU_SUSFS_SUS_KSTAT",
+      "CONFIG_KSU_SUSFS_SPOOF_UNAME",
+      "CONFIG_KSU_SUSFS_ENABLE_LOG",
+      "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS",
+      "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG",
+      "CONFIG_KSU_SUSFS_OPEN_REDIRECT",
+      "CONFIG_KSU_SUSFS_SUS_MAP",
+      "CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT",
+      "CONFIG_KSU_SUSFS_HIDDEN_NAME",
+      "CONFIG_KSU_SUSFS_UNICODE_FILTER",
+      "CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER"
+    ],
+    "read_queries_passed": 3,
+    "susfs_setter_calls": 0,
+    "module_installed": false,
+    "configuration_changed": false,
+    "kernel_240_boot_tested": false,
+    "limitation": "Native query ABI verified on currently booted 2.3 kernel. New kernel boot, module installation and new device setters remain separate."
+  },
+  "mobile_browser": {
+    "viewport": {
+      "width": 393,
+      "height": 852
+    },
+    "native_scroll_host_verified": true,
+    "panel_hit_test_passed": true,
+    "four_runtime_controls_and_priority_editor_present": true,
+    "owner_conflict_disables_all_setters": true,
+    "editing_priority_draft_issues_no_setter": true,
+    "horizontal_overflow": false,
+    "console_errors": 0,
+    "ui_assets_sha256": {
+      "resusfs-runtime.mjs": "a5cbe5460ca0699b366039490dd3d0edd8de9c1c0de1b255eb73ae1699840c19",
+      "resusfs-runtime.css": "87be6a1badc570282f20c41bba717a07e05701ebc48cd216b3c5dd8bd58debbb"
+    },
+    "bridge_fixture_used": true
+  },
+  "device_module_installation_tested": false,
+  "new_kernel_boot_tested": false,
+  "limitations": [
+    "Browser uses a read-only bridge fixture.",
+    "Native device probes read the currently booted v2.3.0 kernel, not a new v2.4.0 boot.",
+    "No runtime setter or module installation was executed on the phone.",
+    "CI independently rebuilds the same pinned C inputs with its NDK; local ZIP records the r23 source build."
+  ]
+}

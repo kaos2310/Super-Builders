@@ -1,6 +1,7 @@
 name: ZeroMount Guard6.13 BRENE75 SUSFS2.4.0 SukiSU41165
 on:
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 jobs:

@@ -1,0 +1,35 @@
+{
+  "verified_on": "2026-11-08",
+  "source_pin": "a2165b6f875b73e2f87d3c6f12814efac8de061d",
+  "tested_native_cli_sha256": "fc34d598ad28ead9b3311fbd8bed74f28d07220fcda0408bbd0c7cfede8caa1d",
+  "tested_build": "Local Android NDK r23; CI independently rebuilds the same official C inputs with r27c",
+  "read_commands": [
+    "show version",
+    "show variant",
+    "show enabled_features"
+  ],
+  "kernel_reported_version": "v2.3.0",
+  "variant": "GKI",
+  "features": [
+    "CONFIG_KSU_SUSFS_UID_GATED_HIDING",
+    "CONFIG_KSU_SUSFS_SUS_PATH",
+    "CONFIG_KSU_SUSFS_SUS_MOUNT",
+    "CONFIG_KSU_SUSFS_SUS_KSTAT",
+    "CONFIG_KSU_SUSFS_SPOOF_UNAME",
+    "CONFIG_KSU_SUSFS_ENABLE_LOG",
+    "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS",
+    "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG",
+    "CONFIG_KSU_SUSFS_OPEN_REDIRECT",
+    "CONFIG_KSU_SUSFS_SUS_MAP",
+    "CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT",
+    "CONFIG_KSU_SUSFS_HIDDEN_NAME",
+    "CONFIG_KSU_SUSFS_UNICODE_FILTER",
+    "CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER"
+  ],
+  "read_queries_passed": 3,
+  "susfs_setter_calls": 0,
+  "module_installed": false,
+  "configuration_changed": false,
+  "kernel_240_boot_tested": false,
+  "limitation": "Native query ABI verified on currently booted 2.3 kernel. New kernel boot, module installation and new device setters remain separate."
+}

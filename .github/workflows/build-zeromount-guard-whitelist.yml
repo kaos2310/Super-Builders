@@ -1,45 +1,18 @@
-name: ZeroMount Guard6.13 BRENE75 SUSFS2.4.0 SukiSU41165
+name: S928B SUSFS2.4 Module-Pakete
 on:
   workflow_dispatch:
+    inputs:
+      component:
+        description: Modul zum Erstellen
+        type: choice
+        options: [zeromount, resusfs]
+        default: zeromount
 permissions:
   contents: read
 jobs:
-  package:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-      - name: Verify version patch and retained UI behavior
-        run: |
-          set -euo pipefail
-          python3 -B android14-6.1/build-helpers/zeromount-susfs240/test.py
-          python3 -B android14-6.1/build-helpers/zeromount-package-41165/test_install.py
-          node android14-6.1/build-helpers/zeromount-ui-41165/test.mjs
-          unzip -q android14-6.1/build-helpers/zeromount-package-41165/module-base.zip -d "$RUNNER_TEMP/ui-baseline"
-          python3 -B android14-6.1/build-helpers/zeromount-ui-41165/test.py "$RUNNER_TEMP/ui-baseline"
-          bash -n android14-6.1/build-helpers/zeromount-package-41165/customize.sh
-      - uses: nttld/setup-ndk@v1
-        id: ndk
-        with:
-          ndk-version: r27c
-      - name: Compile freestanding ARM64 runtime helper
-        env:
-          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
-        run: |
-          set -euo pipefail
-          mkdir -p module-output
-          CLANG="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
-          "$CLANG" --target=aarch64-linux-android26 -Os -nostdlib -static -fno-builtin -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -Wl,-e,_start -Wl,--build-id=none -Wl,-z,max-page-size=16384 android14-6.1/build-helpers/susfs-runtime-41165/susfs-runtime.c -o module-output/susfs-runtime
-          readelf -h module-output/susfs-runtime | grep -q AArch64
-      - name: Package exact preserved module and verify every ZIP member
-        run: |
-          set -euo pipefail
-          python3 -B android14-6.1/build-helpers/zeromount-package-41165/package.py --runtime-helper module-output/susfs-runtime --output module-output
-          cp android14-6.1/build-helpers/zeromount-susfs240/VERIFICATION.json module-output/NATIVE-VERSION-GATE-TESTS.json
-          cp android14-6.1/build-helpers/zeromount-package-41165/README.md module-output/README.md
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ZeroMount-Guard6.13-BRENE75-SUSFS2.4.0-SukiSU41165-ARM64
-          path: module-output/
-          if-no-files-found: error
-          retention-days: 30
+  zeromount:
+    if: inputs.component == 'zeromount'
+    uses: ./.github/workflows/build-zeromount-41165-susfs240.yml
+  resusfs:
+    if: inputs.component == 'resusfs'
+    uses: ./.github/workflows/build-resusfs-41165-susfs240.yml
