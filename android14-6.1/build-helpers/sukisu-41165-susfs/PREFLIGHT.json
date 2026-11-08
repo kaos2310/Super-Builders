@@ -8,7 +8,7 @@
   "kernel_patch_sha256": "57e97f34055608a133594ff723ae5fa436b4559b1473d6e3284093c3ccb22156",
   "compat_patch_sha256": "0b5f9f831ba0254a202d044a0ac0c058895374d918780f94c91b320b7d068968",
   "apply_sha256": "0342f60c81f33ea09a75c7b04112edda9c8699d72646d1360698a050da542356",
-  "session_helper_sha256": "fc41eb8f3d84ef62f6c6a0a539462fef6131f075e5554a54836d5d44ca3f550a",
+  "session_helper_sha256": "5757f4eb77f591e26e801e3cb1e4d442ab96c8b35077a9f5ef33d5b23c0da84f",
   "arm64_sukisu_subtree_compiled": true,
   "arm64_selinux_objects_compiled": true,
   "session_fault_tests_passed": true,
@@ -412,5 +412,6 @@
   "susfs_version": "v2.4.0",
   "susfs_release_header_sha256": "b3de6f8bba7b0c2adf63e4fb9777ccb2dc2916790b8fd085e8723e60f6dec25d",
   "susfs_240_release_tag_compiled": true,
-  "susfs_240_change": "Exact version macro update after audited 2.3.0 base/functional overlays; no functional ABI change"
+  "susfs_240_change": "Exact version macro update after audited 2.3.0 base/functional overlays; no functional ABI change",
+  "susfs_240_release_gates_retested": true
 }

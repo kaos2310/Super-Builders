@@ -34,7 +34,10 @@ def validate_identity(common, ksu, susfs_commit):
         if (ksu / name).read_text(encoding="utf-8") != git(ksu, "show", f"HEAD:{name}"):
             raise RuntimeError(f"Native UAPI6 source changed: {name}")
     if '#define SUSFS_VERSION "v2.3.0"' not in (common / "include/linux/susfs.h").read_text():
-        raise RuntimeError("SUSFS v2.3.0 header required")
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('release240',Path(__file__).resolve().parent.parent/'susfs-runtime-41165/release240.py')
+        release=importlib.util.module_from_spec(spec);spec.loader.exec_module(release)
+        release.verify(common)
 
 def transform(common, ksu):
     exec_path = common / "fs/exec.c"
@@ -465,7 +468,7 @@ def main():
     else:
         apply(common, ksu)
     receipt = {"resukisu_version":41165, "resukisu_commit":RESUKISU_PIN,
-               "susfs_version":"v2.3.0", "susfs_commit":SUSFS_PIN, "uapi":6,
+               "susfs_version":re.search(r'#define SUSFS_VERSION "([^"]+)"',(common/'include/linux/susfs.h').read_text())[1], "susfs_commit":SUSFS_PIN, "uapi":6,
                "base_run":38824525197, "reference_run":34262304602,
                "session_policy":"explicit ksud session and successful exec before FD install",
                "source_sha256":{name:sha(ksu/name) for name in SOURCE_FILES},
@@ -500,7 +503,7 @@ def main():
             raise RuntimeError("SukiSU41165 source count mismatch")
 
         image = args.image.read_bytes()
-        for marker in [b"v2.3.0", b"6.1.162-android14-11-34343818-abS928BXXU6EZIF",
+        for marker in [receipt['susfs_version'].encode(), b"6.1.162-android14-11-34343818-abS928BXXU6EZIF",
                        b"mount_hide: enabled (3/3 files hooked)", b"services triggered", b"services already started, skipping"]:
             if marker not in image:
                 raise RuntimeError(f"Image identity missing {marker!r}")

@@ -20,7 +20,7 @@ def once(text, before, after):
 
 def nav(active):
     tabs = [('susfs-brene.html', 'Übersicht'), ('susfs-rules.html', 'Regeln'),
-            ('brene75.html', 'BRENE'), ('brene69.html', 'Patchdatum & Properties')]
+            ('brene75.html', 'BRENE'), ('brene69.html', 'Properties')]
     return '<nav class="zm-tabs" aria-label="SUSFS und BRENE">' + ''.join(
         f'<a href="./{path}"' + (' aria-current="page"' if path == active else '') + f'>{label}</a>'
         for path, label in tabs) + '</nav>'

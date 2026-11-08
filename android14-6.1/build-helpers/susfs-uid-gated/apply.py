@@ -173,7 +173,11 @@ def identity(common, ksu, pin):
     if actual not in KSU_PINS or pin != susfs_pin(ksu):
         raise RuntimeError("UIDGate-v1 requires an audited BakaSU/ReSukiSU pin with its exact matching SUSFS pin")
     if not re.search(r'#define\s+SUSFS_VERSION\s+"v2\.3\.0"', (common / "include/linux/susfs.h").read_text()):
-        raise RuntimeError("Unexpected SUSFS source version")
+        if actual != "d7d042816b82b200c25b3a93dcc158ba0307cabf":
+            raise RuntimeError("Unexpected SUSFS source version")
+        spec=importlib.util.spec_from_file_location('release240',HERE.parent/'susfs-runtime-41165/release240.py')
+        release=importlib.util.module_from_spec(spec);spec.loader.exec_module(release)
+        release.verify(common)
 
 
 def scope_hashes(files, scopes):

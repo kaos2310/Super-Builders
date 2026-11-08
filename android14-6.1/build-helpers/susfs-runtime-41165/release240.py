@@ -12,6 +12,13 @@ EXPECTED = 'b3de6f8bba7b0c2adf63e4fb9777ccb2dc2916790b8fd085e8723e60f6dec25d'
 OLD = b'#define SUSFS_VERSION "v2.3.0"'
 NEW = b'#define SUSFS_VERSION "v2.4.0"'
 
+def verify(common):
+    header=common/'include/linux/susfs.h'
+    receipt=json.loads((common/'.susfs-release240.json').read_text())
+    if hashlib.sha256(header.read_bytes()).hexdigest()!=EXPECTED or receipt.get('release_header_sha256')!=EXPECTED or receipt.get('upstream_release_pin')!=UPSTREAM or receipt.get('susfs_version')!='v2.4.0':
+        raise RuntimeError('SUSFS 2.4.0 release identity drift')
+    return receipt
+
 def apply(common):
     header = common/'include/linux/susfs.h'
     original = header.read_bytes()
