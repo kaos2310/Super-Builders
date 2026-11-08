@@ -1,0 +1,28 @@
+{
+  "upstream_repo": "https://gitlab.com/simonpunk/susfs4ksu",
+  "upstream_commit": "5f85e6e7838a54ad363de5749d33361a5da2316b",
+  "baseline_susfs_pin": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
+  "susfs_version": "v2.3.0",
+  "common_patch_sha256": "7f83968d02670ad6fc4ee918bd8ac7f689609f42538319185d954cdb413957e7",
+  "includes_rcu_and_worker_fixes": true,
+  "uid_parser": "/data/system/packages.list, O_NOATIME, 4 MiB bound",
+  "unresolved_packages": "skipped by current upstream parser",
+  "command": "0x60030",
+  "syscalls": [
+    "getpriority",
+    "setpriority",
+    "ioprio_get",
+    "ioprio_set"
+  ],
+  "config_dependency": "CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER=y",
+  "native_sukisu_selinux_retained": true,
+  "scope": "Latest official priority filter/config/advertisement; native SukiSU SELinux retained instead of parallel manual upstream hooks",
+  "device_tested": false,
+  "reviewed_on": "2026-11-06",
+  "native_selinux_upstream_sync": "Native 41165 original-type metadata helpers retained. Latest upstream manual SELinux replacement is excluded from this native profile.",
+  "upstream_log_rate_limit": "Latest changes affect manual susfs_add_sus_type and susfs_add_sus_avd_allowed_by_type, absent from the native SELinux profile.",
+  "downstream_settings_fixes": [
+    "Advertise enabled HIDDEN_NAME feature to userspace",
+    "Remove unused HARDENED toggle whose fixes are unconditional"
+  ]
+}

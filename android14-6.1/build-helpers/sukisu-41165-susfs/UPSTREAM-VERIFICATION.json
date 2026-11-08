@@ -1,0 +1,23 @@
+{
+  "verified_on": "2026-11-08",
+  "baseline_builder_commit": "f9f6969b0c07ff3d4a71479064ae96d7a67191b9",
+  "baseline_sukisu_pin": "fae5788d2984e0c5844e8af96a18c569225d9774",
+  "sukisu_pin": "d7d042816b82b200c25b3a93dcc158ba0307cabf",
+  "version_code": 41165,
+  "commit_count": 3980,
+  "kernel_uapi_userspace_cargo_delta": [],
+  "susfs_latest_pin": "a2165b6f875b73e2f87d3c6f12814efac8de061d",
+  "susfs_latest_version": "v2.4.0",
+  "susfs_release_only_delta_from_functional_pin": [
+    "kernel_patches/include/linux/susfs.h",
+    "ksu_module_susfs/module.prop"
+  ],
+  "retained_functional_base": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
+  "retained_priority_upstream": "5f85e6e7838a54ad363de5749d33361a5da2316b",
+  "kernel_and_module_device_installation_performed": false,
+  "manager_asset_id": 723903735,
+  "manager_asset_sha256": "f7b91e731c61b5da523e734cf6458d272dc0c2cb75a65cd493d098e11c395b48",
+  "manager_binary_verified": true,
+  "manager_signature_verified": true,
+  "intervening_commits": 6
+}
