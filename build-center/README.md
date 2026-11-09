@@ -1,4 +1,4 @@
-# SukiSU Build Center 1.0.0
+# SukiSU Build Center 1.0.1
 
 Deutsche App für Android, Windows und den lokalen Browser. Gemeinsame Oberfläche, keine laufenden Fremdserver erforderlich. Der Kernel-Build läuft in deinem GitHub-Repository.
 
@@ -6,9 +6,9 @@ Deutsche App für Android, Windows und den lokalen Browser. Gemeinsame Oberfläc
 
 | Variante | Datei | Start |
 | --- | --- | --- |
-| Android ab Android 10 | `SukiSU-Build-Center-1.0.0.apk` | APK auf dem Telefon installieren und öffnen |
-| Windows 11, x64 | `SukiSU-Build-Center-1.0.0.exe` | Portable EXE öffnen; sie nutzt Microsoft Edge als App-Fenster |
-| Lokale Web-App | `SukiSU-Build-Center-Web-1.0.0.zip` | Entpacken und `Start-Web.cmd` öffnen; Python ist unter Windows im Paket enthalten |
+| Android ab Android 10 | `SukiSU-Build-Center-1.0.1.apk` | APK auf dem Telefon installieren und öffnen |
+| Windows 11, x64 | `SukiSU-Build-Center-1.0.1.exe` | Portable EXE öffnen; sie nutzt Microsoft Edge als App-Fenster |
+| Lokale Web-App | `SukiSU-Build-Center-Web-1.0.1.zip` | Entpacken und `Start-Web.cmd` öffnen; Python ist unter Windows im Paket enthalten |
 | Web auf Linux/macOS | Quellpaket | Python 3.11 oder neuer: `python3 desktop.py --web` |
 
 Die Windows-Anwendung und die lokale Web-App binden ausschließlich `127.0.0.1`. Nach dem Schließen der Oberfläche endet der Server nach ungefähr drei Minuten. `--stay` hält ihn ausdrücklich geöffnet. Die Web-Oberfläche kann zusätzlich als PWA installiert werden. Hintergrund-Builds werden vom GitHub-Zeitplan übernommen.
@@ -22,7 +22,7 @@ Für den Build-Start einen Fine-grained Personal Access Token für genau dieses 
 - **Actions: Read and write** für Workflow-Start, Status und Artefakte.
 - **Contents: Read** für Quellen und Releases.
 
-Der Token bleibt in Web und Windows nur im Arbeitsspeicher. Android kann ihn auf ausdrücklichen Wunsch über den Android Keystore verschlüsselt speichern. Öffentliche Quellprüfungen und öffentliche Release-Downloads funktionieren ohne Token, vorbehaltlich der API-Limits von GitHub und GitLab.
+Der Token bleibt in Web und Windows nur im Arbeitsspeicher. Android kann ihn auf ausdrücklichen Wunsch über den Android Keystore verschlüsselt speichern. Öffentliche Quellprüfungen und öffentliche Release-Downloads funktionieren ohne Token, vorbehaltlich der API-Limits von GitHub und GitLab. Ohne Token fragt die App laufende Builds höchstens alle fünf Minuten ab; mit Token ist die Statusabfrage häufiger.
 
 ## Was die App erledigt
 
@@ -39,9 +39,9 @@ Bei Actions-Artefakten wird die SHA-256-Prüfsumme der äußeren GitHub-ZIP gepr
 
 ## Einmalige GitHub-Integration
 
-Die Dateien unter `integration/.github/workflows/` und der App-Quellcode sind lokal vorbereitet. **Sie sind bei Übergabe noch nicht veröffentlicht oder aktiviert.**
+Die Integration und der App-Quellcode sind auf `main` veröffentlicht. Der stündliche Workflow ist aktiv. Der [erste vollständige Lauf](https://github.com/kaos2310/Super-Builders/actions/runs/42712496915) ist mit allen sieben Jobs erfolgreich abgeschlossen. Die [Kernel- und ReSuSFS-Downloads](https://github.com/kaos2310/Super-Builders/releases/tag/s928b-ezif-suki41168-susfs2.4.0-674aa00c-69b8e734) sowie die [App-Pakete](https://github.com/kaos2310/Super-Builders/releases/tag/build-center-v1.0.1) sind öffentlich verfügbar.
 
-Das Paket `SukiSU-Build-Center-GitHub-Integration-1.0.0.zip` enthält bereits die vollständige, direkt ins Repository kopierbare Struktur:
+Das Paket `SukiSU-Build-Center-GitHub-Integration-1.0.1.zip` enthält bereits die vollständige, direkt ins Repository kopierbare Struktur:
 
 ```text
 .github/workflows/build-center.yml

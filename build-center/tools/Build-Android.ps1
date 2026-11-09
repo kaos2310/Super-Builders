@@ -5,8 +5,9 @@ param(
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+$appInfo=Get-Content -LiteralPath (Join-Path $root 'config.json') -Raw | ConvertFrom-Json
 $work=Join-Path $root 'build\android'
-$output=Join-Path $root 'dist'
+$output=Join-Path $root "dist\$($appInfo.version)"
 $privateDir=Join-Path $root 'private'
 New-Item -ItemType Directory -Path $work,$output,$privateDir -Force | Out-Null
 $platform=Join-Path $AndroidSdk 'platforms\android-36\android.jar'
@@ -28,7 +29,7 @@ $assets=Join-Path $work 'assets'
 New-Item -ItemType Directory -Path $assets -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $root 'web') -Destination $assets -Recurse -Force
 $unsigned=Join-Path $work 'unsigned.apk'
-& (Join-Path $buildTools 'aapt2.exe') link -o $unsigned -I $platform --manifest (Join-Path $root 'android\AndroidManifest.xml') -A $assets --min-sdk-version 29 --target-sdk-version 35 --version-code 1 --version-name '1.0.0' $compiled
+& (Join-Path $buildTools 'aapt2.exe') link -o $unsigned -I $platform --manifest (Join-Path $root 'android\AndroidManifest.xml') -A $assets --min-sdk-version 29 --target-sdk-version 35 --version-code $appInfo.version_code --version-name $appInfo.version $compiled
 Check-Exit 'APK-Paket'
 Push-Location -LiteralPath $work
 try { & (Join-Path $buildTools 'aapt.exe') add $unsigned 'classes.dex'; Check-Exit 'DEX verpacken' } finally { Pop-Location }
@@ -48,7 +49,7 @@ if(!(Test-Path -LiteralPath $key)) {
 $aligned=Join-Path $work 'aligned.apk'
 & (Join-Path $buildTools 'zipalign.exe') -f 4 $unsigned $aligned
 Check-Exit 'ZIP-Ausrichtung'
-$apk=Join-Path $output 'SukiSU-Build-Center-1.0.0.apk'
+$apk=Join-Path $output "SukiSU-Build-Center-$($appInfo.version).apk"
 try {
     & (Join-Path $buildTools 'apksigner.bat') sign --ks $key --ks-key-alias buildcenter --ks-pass env:KAOSLAB_CENTER_KEY_PASS --v4-signing-enabled false --out $apk $aligned
     Check-Exit 'APK-Signierung'

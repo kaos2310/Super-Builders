@@ -17,6 +17,7 @@ from center_core import CenterError, checked_file, request
 
 ROOT = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 WEB = ROOT / 'web'
+VERSION = json.loads((ROOT/'config.json').read_text())['version']
 
 
 class CenterServer(http.server.ThreadingHTTPServer):
@@ -56,7 +57,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.json({'error': 'Ungültiger Host oder Origin.'}, 403)
         path = urllib.parse.urlsplit(self.path).path
         if path == '/api/info':
-            return self.json({'app': 'SukiSU Build Center', 'mode': self.server.mode, 'version': '1.0.0'})
+            return self.json({'app': 'SukiSU Build Center', 'mode': self.server.mode, 'version': VERSION})
         if path.startswith('/api/file/'):
             key = path.removeprefix('/api/file/')
             with self.server.file_lock:

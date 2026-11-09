@@ -1,4 +1,4 @@
-const CACHE = 'kaoslab-build-center-v1';
+const CACHE = 'kaoslab-build-center-v1.0.1';
 const SHELL = ['./', './index.html', './styles.css', './app.js', './api.js', './icon.svg', './icon-192.png', './icon-512.png', './manifest.webmanifest'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))));

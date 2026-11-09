@@ -6,7 +6,8 @@ import shutil
 import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
-DIST=ROOT/'dist';DIST.mkdir(exist_ok=True)
+VERSION=json.loads((ROOT/'config.json').read_text())['version']
+DIST=ROOT/'dist'/VERSION;DIST.mkdir(parents=True,exist_ok=True)
 TOP={'.gitignore','PLAN.md','README.md','VERIFICATION.md','config.json','center_core.py',
      'desktop.py','Start-Web.cmd','package.json','package-lock.json'}
 DIRS={'web','android','ci','tools','tests','integration'}
@@ -33,19 +34,19 @@ def archive(path,files):
         assert set(z.namelist())==set(files)
 
 files=sources()
-source_zip=DIST/'SukiSU-Build-Center-Source-1.0.0.zip'
+source_zip=DIST/f'SukiSU-Build-Center-Source-{VERSION}.zip'
 archive(source_zip,{'SukiSU-Build-Center/'+n:d for n,d in files.items()})
 
 web={n:d for n,d in files.items() if n.startswith('web/') or n in {'desktop.py','center_core.py','config.json','Start-Web.cmd','README.md','VERIFICATION.md'}}
-web['SukiSU-Build-Center.exe']=(DIST/'SukiSU-Build-Center-1.0.0.exe').read_bytes()
-archive(DIST/'SukiSU-Build-Center-Web-1.0.0.zip',{'SukiSU-Build-Center-Web/'+n:d for n,d in web.items()})
+web['SukiSU-Build-Center.exe']=(DIST/f'SukiSU-Build-Center-{VERSION}.exe').read_bytes()
+archive(DIST/f'SukiSU-Build-Center-Web-{VERSION}.zip',{'SukiSU-Build-Center-Web/'+n:d for n,d in web.items()})
 
 payload={}
 for name,data in files.items():
     if name.startswith('integration/.github/workflows/'):
         payload[name.removeprefix('integration/')]=data
     payload['build-center/'+name]=data
-archive(DIST/'SukiSU-Build-Center-GitHub-Integration-1.0.0.zip',payload)
+archive(DIST/f'SukiSU-Build-Center-GitHub-Integration-{VERSION}.zip',payload)
 manifest={'schema':1,'repository':'kaos2310/Super-Builders','target_ref':'main',
     'workflow_files':sorted(n for n in payload if n.startswith('.github/workflows/')),
     'file_count':len(payload),'files':{n:sha(d) for n,d in sorted(payload.items())},

@@ -1,7 +1,8 @@
 {
   "schema": 1,
   "name": "SukiSU Build Center",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "version_code": 2,
   "repository": "kaos2310/Super-Builders",
   "controller_ref": "main",
   "workflow": "build-center.yml",

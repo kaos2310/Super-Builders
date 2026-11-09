@@ -3,6 +3,7 @@ import {Github, GH, selectKernelArtifact, selectReleaseAssets, assertRepository}
 const $ = id => document.getElementById(id);
 let token = '', sources = null, installed = null, activeRun = null, checking = false, pollBusy = false;
 let api, localServer = false, nativeCounter = 0;
+let lastBuildPoll = 0;
 const nativePending = new Map();
 window.__nativeResult = (id, result) => {
   const pending = nativePending.get(id); if (!pending) return;
@@ -114,12 +115,13 @@ async function refresh(){
     if(failure)message(failure.reason.message,true);else{message(installed?'Quellen geprüft. Der Build pinnt beide Quellen beim Start erneut.':'Quellen geprüft. Die lokale App ist bereit; die GitHub-Integration ist noch nicht eingerichtet.');}
     $('last-check').textContent='Geprüft: '+new Date().toLocaleString('de-DE');
     await loadDownloads();
-    if(installed&&!activeRun){const runs=await api.runs();if(runs.length)await followRun(runs[0]);}
+    if(installed&&!pendingRequest&&(!activeRun||activeRun.status==='completed')){const runs=await api.runs();if(runs.length)await followRun(runs[0]);}
   }catch(e){message(e.message,true);}finally{checking=false;$('refresh').disabled=false;$('refresh').textContent='↻  Updates prüfen';}
 }
 const stateNames={completed:'Abgeschlossen',in_progress:'Läuft',queued:'In Warteschlange',waiting:'Wartet',pending:'Vorgemerkt',requested:'Angefordert'};
 function runStatus(run){return run.status==='completed'?({success:'ERFOLGREICH',failure:'FEHLGESCHLAGEN',cancelled:'ABGEBROCHEN',skipped:'ÜBERSPRUNGEN',timed_out:'ZEITLIMIT'})[run.conclusion]||run.conclusion:stateNames[run.status]?.toUpperCase()||run.status;}
 async function followRun(run){
+  lastBuildPoll=Date.now();
   activeRun=run;localStorage.setItem('center-run',JSON.stringify({repo:api.repo,id:run.id}));
   $('run-link').href=run.html_url;$('run-label').textContent=`Lauf ${run.id} · ${run.head_branch} · ${run.head_sha.slice(0,8)}`;
   pill('run-status',runStatus(run),run.status==='completed'?(run.conclusion==='success'?'':'bad'):'running');
@@ -133,7 +135,9 @@ async function followRun(run){
 }
 let pendingRequest=null;
 async function poll(){
-  if(pollBusy||document.hidden)return;pollBusy=true;
+  if(pollBusy||document.hidden)return;
+  if(!token&&!pendingRequest&&lastBuildPoll&&Date.now()-lastBuildPoll<300000)return;
+  lastBuildPoll=Date.now();pollBusy=true;
   try{
     if(pendingRequest){const run=await api.findRun(pendingRequest.id);if(run){pendingRequest=null;localStorage.removeItem('center-pending');await followRun(run);}else if(Date.now()-pendingRequest.time>600000){message('GitHub hat noch keinen passenden Lauf gemeldet. Vor einem erneuten Start die Actions-Seite prüfen.',true);pendingRequest=null;localStorage.removeItem('center-pending');}}
     else if(activeRun&&activeRun.status!=='completed')await followRun(await api.run(activeRun.id));

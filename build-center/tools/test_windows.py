@@ -6,7 +6,8 @@ import time
 import urllib.request
 
 ROOT=Path(__file__).resolve().parents[1]
-p=subprocess.Popen([str(ROOT/'dist/SukiSU-Build-Center-1.0.0.exe'),'--no-browser','--stay','--port','18944'],
+VERSION=json.loads((ROOT/'config.json').read_text())['version']
+p=subprocess.Popen([str(ROOT/f'dist/{VERSION}/SukiSU-Build-Center-{VERSION}.exe'),'--no-browser','--stay','--port','18944'],
                    creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
 try:
     for _ in range(80):
@@ -15,7 +16,7 @@ try:
             break
         except Exception:time.sleep(.15)
     else:raise RuntimeError('Packaged EXE did not start')
-    assert info=={'app':'SukiSU Build Center','mode':'windows','version':'1.0.0'}
+    assert info=={'app':'SukiSU Build Center','mode':'windows','version':VERSION}
     with urllib.request.urlopen('http://127.0.0.1:18944/') as r:html=r.read().decode()
     assert 'SHA-256-Prüfsummen' in html and 'GitHub-Verbindung' in html
     result={'packaged_exe_started':True,'embedded_final_ui_served':True,'info':info}
