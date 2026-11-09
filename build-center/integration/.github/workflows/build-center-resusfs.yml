@@ -1,0 +1,73 @@
+name: Build Center / resusfs
+'on':
+  workflow_call:
+    inputs:
+      center_plan:
+        type: string
+        required: true
+      center_pin:
+        type: string
+        required: true
+      center_short:
+        type: string
+        required: true
+      center_code:
+        type: string
+        required: true
+      center_count:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        repository: kaos2310/Super-Builders
+        ref: f269b2d31779901efe920c3c8a3f00838e35e119
+        persist-credentials: false
+    - name: Checkout Build Center controller
+      uses: actions/checkout@v6
+      with:
+        path: .build-center
+        persist-credentials: false
+    - name: Prepare immutable update candidate
+      env:
+        CENTER_PLAN: ${{ inputs.center_plan }}
+      run: python3 "$GITHUB_WORKSPACE/.build-center/build-center/ci/bootstrap.py" .
+    - name: Download the exact official SuSFS CLI sources
+      run: python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" update-tool
+    - name: Verify retained ReSuSFS behavior and new feature gates
+      run: |
+        set -euo pipefail
+        python3 -B android14-6.1/build-helpers/resusfs-${{ inputs.center_code }}-240/test.py
+        node android14-6.1/build-helpers/resusfs-${{ inputs.center_code }}-240/test.mjs
+    - uses: nttld/setup-ndk@v1
+      id: ndk
+      with:
+        ndk-version: r27c
+    - name: Build private official SUSFS2.4.0 tool and runtime helper
+      env:
+        ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
+      run: |
+        set -euo pipefail
+        mkdir -p module-output
+        python3 -B android14-6.1/build-helpers/resusfs-${{ inputs.center_code }}-240/build_tool.py --ndk "$ANDROID_NDK_ROOT" --output module-output/ksu_susfs
+        CLANG="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+        "$CLANG" --target=aarch64-linux-android26 -Os -nostdlib -static -fno-builtin -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -Wl,-e,_start -Wl,--build-id=none -Wl,-z,max-page-size=16384 android14-6.1/build-helpers/susfs-runtime-${{ inputs.center_code }}/susfs-runtime.c -o module-output/susfs-runtime
+        readelf -h module-output/ksu_susfs | grep -q AArch64
+        readelf -h module-output/susfs-runtime | grep -q AArch64
+    - name: Package ReSuSFS without replacing global tools or saved configuration
+      run: |
+        set -euo pipefail
+        python3 -B android14-6.1/build-helpers/resusfs-${{ inputs.center_code }}-240/package.py --runtime-helper module-output/susfs-runtime --susfs-tool module-output/ksu_susfs --output module-output
+        python3 -B android14-6.1/build-helpers/resusfs-${{ inputs.center_code }}-240/test_package.py module-output/ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-r2-SukiSU${{ inputs.center_code }}-arm64.zip
+    - uses: actions/upload-artifact@v7
+      with:
+        name: ReSuSFS-SUSFS2.4.0-Runtime1-r2-SukiSU${{ inputs.center_code }}-ARM64
+        path: module-output/
+        if-no-files-found: error
+        retention-days: 30

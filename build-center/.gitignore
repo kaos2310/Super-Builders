@@ -1,0 +1,9 @@
+.build-deps/
+node_modules/
+build/
+dist/
+private/
+__pycache__/
+*.pyc
+*.spec
+.test-results/

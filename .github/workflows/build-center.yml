@@ -1,0 +1,182 @@
+name: SukiSU Build Center
+run-name: "Build Center · ${{ inputs.request_id || 'automatisch' }} · ${{ inputs.channel || 'main' }}"
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Offizieller SukiSU-Kanal
+        type: choice
+        options: [main, release]
+        default: main
+      force:
+        description: Auch bei vorhandenem Ergebnis neu bauen
+        type: boolean
+        default: false
+      request_id:
+        description: Zuordnung zum App-Auftrag
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: build-center-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Offizielle Quellen und neue Versionen prüfen
+    runs-on: ubuntu-24.04
+    outputs:
+      build: ${{ steps.resolve.outputs.build }}
+      plan: ${{ steps.resolve.outputs.plan }}
+      code: ${{ steps.resolve.outputs.code }}
+      count: ${{ steps.resolve.outputs.count }}
+      pin: ${{ steps.resolve.outputs.pin }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Beide Quellen auf unveränderliche Commits auflösen
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: ${{ inputs.channel || 'main' }}
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          set -euo pipefail
+          ARGS=(--channel "$CHANNEL")
+          [[ "$FORCE" != true ]] || ARGS+=(--force)
+          python3 build-center/ci/check_updates.py "${ARGS[@]}"
+      - uses: actions/upload-artifact@v7
+        if: steps.resolve.outputs.plan != ''
+        with:
+          name: Build-Center-Plan-${{ steps.resolve.outputs.pair }}
+          path: build-plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+  dependencies:
+    needs: resolve
+    if: needs.resolve.outputs.build == 'true'
+    uses: ./.github/workflows/build-center-cache.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      center_plan: ${{ needs.resolve.outputs.plan }}
+      center_pin: ${{ needs.resolve.outputs.pin }}
+      center_short: ${{ fromJSON(needs.resolve.outputs.plan).sukisu_short }}
+      center_code: ${{ needs.resolve.outputs.code }}
+      center_count: ${{ needs.resolve.outputs.count }}
+
+  userspace:
+    needs: resolve
+    if: needs.resolve.outputs.build == 'true'
+    uses: ./.github/workflows/build-center-userspace.yml
+    with:
+      center_plan: ${{ needs.resolve.outputs.plan }}
+      center_pin: ${{ needs.resolve.outputs.pin }}
+      center_short: ${{ fromJSON(needs.resolve.outputs.plan).sukisu_short }}
+      center_code: ${{ needs.resolve.outputs.code }}
+      center_count: ${{ needs.resolve.outputs.count }}
+      resukisu_commit: ${{ needs.resolve.outputs.pin }}
+      resukisu_version_code: ${{ needs.resolve.outputs.code }}
+
+  zeromount:
+    needs: resolve
+    if: needs.resolve.outputs.build == 'true'
+    uses: ./.github/workflows/build-center-zeromount.yml
+    with:
+      center_plan: ${{ needs.resolve.outputs.plan }}
+      center_pin: ${{ needs.resolve.outputs.pin }}
+      center_short: ${{ fromJSON(needs.resolve.outputs.plan).sukisu_short }}
+      center_code: ${{ needs.resolve.outputs.code }}
+      center_count: ${{ needs.resolve.outputs.count }}
+
+  resusfs:
+    name: Passendes ReSuSFS-Modul und offizielles SuSFS-Werkzeug
+    needs: resolve
+    if: needs.resolve.outputs.build == 'true'
+    uses: ./.github/workflows/build-center-resusfs.yml
+    with:
+      center_plan: ${{ needs.resolve.outputs.plan }}
+      center_pin: ${{ needs.resolve.outputs.pin }}
+      center_short: ${{ fromJSON(needs.resolve.outputs.plan).sukisu_short }}
+      center_code: ${{ needs.resolve.outputs.code }}
+      center_count: ${{ needs.resolve.outputs.count }}
+
+  strict:
+    name: Kernel und Samsung Strict KMI / CRC
+    needs: [resolve, dependencies, userspace, zeromount]
+    if: needs.resolve.outputs.build == 'true'
+    uses: ./.github/workflows/build-center-strict.yml
+    permissions:
+      contents: write
+      actions: write
+    with:
+      center_plan: ${{ needs.resolve.outputs.plan }}
+      center_pin: ${{ needs.resolve.outputs.pin }}
+      center_short: ${{ fromJSON(needs.resolve.outputs.plan).sukisu_short }}
+      center_code: ${{ needs.resolve.outputs.code }}
+      center_count: ${{ needs.resolve.outputs.count }}
+      android_version: android14
+      kernel_version: '6.1'
+      sub_level: '162'
+      os_patch_level: '2026-03'
+      add_susfs: true
+      susfs_uid_gated_hiding: true
+      susfs_runtime_setters: true
+      add_zeromount: true
+      add_droidspaces: true
+      droidspaces_resource_limits: false
+      add_zram: true
+      add_bbg: true
+      add_overlayfs_support: true
+      add_kpm: true
+      susfs_open_redirect: true
+      susfs_su_session: false
+      add_ptrace_fix: true
+      add_perf_patches: true
+      sukisu_commit: ${{ needs.resolve.outputs.pin }}
+      resukisu_source_branch: main
+      resukisu_version_code: ${{ needs.resolve.outputs.code }}
+      device_codename: e3q
+      kmi_mode: strict
+      kmi_profile: full-strict
+      kmi_minimal_config: false
+      package_strict_anykernel: true
+
+  publish:
+    name: Geprüfte Kernel-ZIP und SuSFS zum Download bereitstellen
+    needs: [resolve, strict, userspace, zeromount, resusfs]
+    if: needs.resolve.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: '*-Strict-AnyKernel3-Flash'
+          path: release-files
+          merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: 'ReSuSFS-*'
+          path: resusfs-files
+          merge-multiple: true
+      - name: ZIP-Inhalt prüfen und Release mit SHA-256 veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CENTER_PLAN: ${{ needs.resolve.outputs.plan }}
+        run: python3 build-center/ci/publish.py release-files
