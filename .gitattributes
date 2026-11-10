@@ -1,0 +1,2 @@
+build-center/ci/firmware/** text eol=lf
+build-center/ci/hidden_names/** text eol=lf
