@@ -12,6 +12,12 @@ from ci import firmware_profile as profile
 
 
 class FirmwareProfileTests(unittest.TestCase):
+    def test_hashed_inputs_have_identical_bytes_on_git_and_windows(self):
+        document, _ = profile.load()
+        for name in document['files']:
+            with self.subTest(name=name):
+                self.assertNotIn(b'\r\n', (profile.DATA / name).read_bytes())
+
     def test_measured_profile_matches_all_strict_symbols(self):
         document, values = profile.load()
         self.assertEqual(values['SAMSUNG_TARGET_FIRMWARE'], 'S928BXXS6EZJ1')
