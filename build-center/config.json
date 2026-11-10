@@ -1,15 +1,15 @@
 {
   "schema": 1,
   "name": "SukiSU Build Center",
-  "version": "1.0.1",
-  "version_code": 2,
+  "version": "1.1.0",
+  "version_code": 3,
   "repository": "kaos2310/Super-Builders",
   "controller_ref": "main",
   "workflow": "build-center.yml",
   "channel": "main",
   "automatic_builds": true,
   "kernel_revision": "hidden-name-readdir-v2",
-  "profile": "S928BXXU6EZIF / EUX / Android 14 / Linux 6.1.162",
+  "profile": "S928BXXS6EZJ1 / EUX / Android 17 (GKI 14) / Linux 6.1.162",
   "reference_run": 42129383180,
   "baseline_commit": "f269b2d31779901efe920c3c8a3f00838e35e119",
   "baseline_sukisu": "d7d042816b82b200c25b3a93dcc158ba0307cabf",
@@ -18,5 +18,7 @@
   "susfs_project": "simonpunk/susfs4ksu",
   "susfs_branch": "gki-android14-6.1",
   "susfs_release_base": "a2165b6f875b73e2f87d3c6f12814efac8de061d",
-  "susfs_functional_base": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c"
+  "susfs_functional_base": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
+  "firmware": "S928BXXS6EZJ1",
+  "firmware_profile": "S928BXXS6EZJ1-EUX-android14-6.1.162"
 }

@@ -22,11 +22,14 @@ def main():
         if not {'anykernel.sh','STRICT-KMI.txt'}<=names or 'Image' not in names:
             raise RuntimeError('Strict AnyKernel3 payload missing')
         strict=z.read('STRICT-KMI.txt').decode()
-        if 'S928BXXU6EZIF' not in strict or 'strict' not in strict.lower():
+        if 'S928BXXS6EZJ1' not in strict or 'strict' not in strict.lower():
             raise RuntimeError('Strict firmware evidence missing')
-        if 'Requires firmware S928BXXU6EZIF' not in z.read('anykernel.sh').decode():
-            raise RuntimeError('Flash installer does not accept the audited EZIF firmware')
+        if 'Requires firmware S928BXXS6EZJ1' not in z.read('anykernel.sh').decode():
+            raise RuntimeError('Flash installer does not accept the audited EZJ1 firmware')
         hidden=json.loads(z.read('SUSFS-HIDDEN-NAME-READDIR.json'))
+        firmware=json.loads(z.read('FIRMWARE-TARGET.json'))
+        if firmware['firmware']!=plan['firmware'] or firmware['profile']!=plan['profile'] or firmware['image_sha256']!=hashlib.sha256(z.read('Image')).hexdigest():
+            raise RuntimeError('Measured firmware target does not match the packaged Image')
         if hidden['revision']!=plan.get('kernel_revision') or hidden['image_sha256']!=hashlib.sha256(z.read('Image')).hexdigest():
             raise RuntimeError('Hidden-name correction does not match the packaged Image')
     modules=list(Path('resusfs-files').rglob('ReSuSFS-*.zip'))
@@ -47,7 +50,7 @@ def main():
     (root/'build-plan.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     notes=root/'RELEASE-NOTES.md'
     notes.write_text(f"SukiSU {plan['sukisu_code']} + SuSFS {plan['susfs_version']}\n\n"
-        f"S928BXXU6EZIF / EUX / Linux 6.1.162.\n\n"
+        f"S928BXXS6EZJ1 / EUX / Linux 6.1.162.\n\n"
         f"SukiSU commit: {plan['sukisu_commit']}\n\nSuSFS commit: {plan['susfs_commit']}\n\n"
         f"Kernel, ARM64 userspace and ZeroMount compatibility jobs passed. Samsung Strict KMI and DLKM CRC gates passed.\n\n"
         f"CI run: https://github.com/{plan['repository']}/actions/runs/{plan['run_id']}\n\n"
@@ -58,7 +61,7 @@ def main():
     # gh obtains the Actions token from GH_TOKEN, never from a command argument.
     subprocess.run(['gh','release','create',plan['release_tag'],'--repo',plan['repository'],
                     '--target',os.environ['GITHUB_SHA'],'--prerelease','--title',
-                    f"S928B EZIF · SukiSU {plan['sukisu_code']} · SuSFS {plan['susfs_version']}",
+                    f"S928B EZJ1 · SukiSU {plan['sukisu_code']} · SuSFS {plan['susfs_version']}",
                     '--notes-file',str(notes),*[str(p) for p in root.iterdir() if p.is_file()]],check=True)
 
 

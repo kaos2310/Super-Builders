@@ -21,13 +21,13 @@ export function apiError(status, headers = {}) {
 export function selectKernelArtifact(artifacts, run) {
   if (run?.status !== 'completed' || run?.conclusion !== 'success') return null;
   return artifacts.find(a => !a.expired && a.name.endsWith('-Strict-AnyKernel3-Flash')
-    && a.name.includes('S928BXXU6EZIF-EUX') && a.digest?.match(/^sha256:[0-9a-f]{64}$/)
+    && a.name.includes('S928BXXS6EZJ1-EUX') && a.digest?.match(/^sha256:[0-9a-f]{64}$/)
     && String(a.workflow_run?.id ?? run.id) === String(run.id)) || null;
 }
 
 export function selectReleaseAssets(releases) {
   // Only Build Center releases carry a manifest generated after the full pipeline.
-  return releases.filter(r => !r.draft && r.tag_name?.startsWith('s928b-ezif-suki')
+  return releases.filter(r => !r.draft && r.tag_name?.startsWith('s928b-ezj1-suki')
     && r.assets?.some(a => a.name === 'build-plan.json'));
 }
 
@@ -67,7 +67,7 @@ export class Github {
     return {sukisu_commit: pin, sukisu_code: code, sukisu_count: count, sukisu_tag: release.tag_name,
       sukisu_message: commit.commit.message.split('\n')[0], channel,
       susfs_commit: susCommit.id, susfs_version: version, susfs_message: susCommit.title,
-      manager, release_tag: `s928b-ezif-suki${code}-susfs${version.replace(/^v/, '')}-${pin.slice(0,8)}-${susCommit.id.slice(0,8)}`,
+      manager, release_tag: `s928b-ezj1-suki${code}-susfs${version.replace(/^v/, '')}-${pin.slice(0,8)}-${susCommit.id.slice(0,8)}`,
       susfs_source_url: `https://gitlab.com/simonpunk/susfs4ksu/-/archive/${susCommit.id}/susfs4ksu-${susCommit.id}.zip`};
   }
   async installation() {

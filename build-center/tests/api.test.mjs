@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Github, selectKernelArtifact, assertRepository, selectReleaseAssets, apiError} from '../web/api.js';
 
 const run={id:42,status:'completed',conclusion:'success'};
-const artifact={id:1,name:'6.1.162-SukiSU-41168-S928BXXU6EZIF-EUX-Strict-AnyKernel3-Flash',digest:'sha256:'+'a'.repeat(64),expired:false,workflow_run:{id:42}};
+const artifact={id:1,name:'6.1.162-SukiSU-41168-S928BXXS6EZJ1-EUX-Strict-AnyKernel3-Flash',digest:'sha256:'+'a'.repeat(64),expired:false,workflow_run:{id:42}};
 test('successful strict kernel selected, debug artifact never offered',()=>{
   assert.equal(selectKernelArtifact([{...artifact,name:'debug-AnyKernel3'},artifact],run),artifact);
 });
@@ -14,6 +14,9 @@ test('partial, failed and expired builds never become downloadable kernels',()=>
 test('artifact must belong to selected run and have digest',()=>{
   assert.equal(selectKernelArtifact([{...artifact,workflow_run:{id:43}}],run),null);
   assert.equal(selectKernelArtifact([{...artifact,digest:null}],run),null);
+});
+test('EZJ1 client rejects an otherwise valid EZIF kernel',()=>{
+  assert.equal(selectKernelArtifact([{...artifact,name:artifact.name.replace('S928BXXS6EZJ1','S928BXXU6EZIF')}],run),null);
 });
 test('GitHub token is never sent to GitLab',async()=>{
   let actual;const api=new Github(async b=>{actual=b;return {status:200,data:{}};},'private');
@@ -36,8 +39,9 @@ test('repository validation rejects injected paths',()=>{
   }
 });
 test('only releases with immutable build manifest become automation results',()=>{
-  const candidate={tag_name:'s928b-ezif-suki41168-susfs2.4.0-a-b',assets:[{name:'build-plan.json'}]};
+  const candidate={tag_name:'s928b-ezj1-suki41168-susfs2.4.0-a-b',assets:[{name:'build-plan.json'}]};
   assert.deepEqual(selectReleaseAssets([{...candidate,draft:true},{tag_name:'other',assets:[]},candidate]),[candidate]);
+  assert.deepEqual(selectReleaseAssets([{...candidate,tag_name:candidate.tag_name.replace('ezj1','ezif')}]),[]);
 });
 test('expired artifacts and API rate limits have actionable errors',()=>{
   assert.match(apiError(410),/abgelaufen/);assert.match(apiError(403),/API-Limit/);

@@ -94,8 +94,8 @@ async function loadDownloads(){
     if(release){for(const a of release.assets.filter(a=>a.name.endsWith('.zip')||a.name.endsWith('.apk')||a.name==='SHA256SUMS.txt')){
       rows.unshift(row(a.name,`${release.tag_name} · ${a.digest||'SHA256SUMS.txt im Release'}`,'Download',()=>download(a.browser_download_url,a.name,a.digest||'',a.name.endsWith('.apk')?'apk':'file'),a.name.endsWith('.apk')?'APK':'ZIP'));
     }}
-    else if(api.repo==='kaos2310/Super-Builders'&&allReleases.some(r=>r.tag_name==='s928b-ezif-sukisu41165-susfs240-20261108'&&!r.draft)){
-      const baseline=allReleases.find(r=>r.tag_name==='s928b-ezif-sukisu41165-susfs240-20261108'&&!r.draft);
+    else if(api.repo==='kaos2310/Super-Builders'&&allReleases.some(r=>r.tag_name==='s928b-ezj1-sukisu41165-susfs240-20261108'&&!r.draft)){
+      const baseline=allReleases.find(r=>r.tag_name==='s928b-ezj1-sukisu41165-susfs240-20261108'&&!r.draft);
       for(const a of baseline.assets.filter(a=>a.digest?.startsWith('sha256:')&&a.name.endsWith('.zip')&&(a.name.includes('AnyKernel3')||a.name.startsWith('ReSuSFS-')))){
         rows.unshift(row('Referenz · '+a.name,`Vorhandener Stand 41165 / SuSFS 2.4.0 · ${a.digest}`,'Download',()=>download(a.browser_download_url,a.name,a.digest)));
       }
@@ -149,7 +149,7 @@ $('forget').addEventListener('click',()=>{token='';$('token').value='';if(window
 $('build').addEventListener('click',()=>{
   if(!sources)return;
   if(pendingRequest){message('Ein Build-Auftrag wartet bereits auf seine GitHub-Lauf-ID.');return;}
-  $('plan-review').textContent=`SukiSU ${sources.sukisu_code}\n${sources.sukisu_commit}\n\nSuSFS ${sources.susfs_version}\n${sources.susfs_commit}\n\nProfil: S928BXXU6EZIF / EUX / 6.1.162\nDie Pipeline liest beim Start den neuesten Stand erneut ein.`;
+  $('plan-review').textContent=`SukiSU ${sources.sukisu_code}\n${sources.sukisu_commit}\n\nSuSFS ${sources.susfs_version}\n${sources.susfs_commit}\n\nProfil: S928BXXS6EZJ1 / EUX / 6.1.162\nDie Pipeline liest beim Start den neuesten Stand erneut ein.`;
   $('build-dialog').showModal();
 });
 $('build-dialog').addEventListener('close',async()=>{if($('build-dialog').returnValue!=='build')return;

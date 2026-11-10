@@ -172,10 +172,10 @@ def resolve_sources(channel="main", token="", get=request):
     version = match[1]
     manager = next((a for a in release.get("assets", [])
                     if a["name"].endswith(".apk") and f"_{code}-" in a["name"]), None)
-    tag = f"s928b-ezif-suki{code}-susfs{version.removeprefix('v')}-{pin[:8]}-{sus_pin[:8]}"
+    tag = f"s928b-ezj1-suki{code}-susfs{version.removeprefix('v')}-{pin[:8]}-{sus_pin[:8]}"
     return {"schema": 1, "channel": channel, "sukisu_commit": pin, "sukisu_code": code,
             "sukisu_count": count, "sukisu_tag": release["tag_name"],
             "sukisu_message": commit["commit"]["message"].splitlines()[0],
             "susfs_commit": sus_pin, "susfs_version": version, "release_tag": tag,
-            "profile": "S928BXXU6EZIF-EUX-android14-6.1.162", "manager": manager,
+            "profile": "S928BXXS6EZJ1-EUX-android14-6.1.162", "firmware": "S928BXXS6EZJ1", "manager": manager,
             "susfs_source_url": f"https://gitlab.com/simonpunk/susfs4ksu/-/archive/{sus_pin}/susfs4ksu-{sus_pin}.zip"}

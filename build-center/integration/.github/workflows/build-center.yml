@@ -25,7 +25,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: build-center-${{ github.repository }}
+  group: build-center-${{ github.repository }}-s928b-ezj1
   cancel-in-progress: false
 
 jobs:

@@ -9,6 +9,10 @@ import os
 from pathlib import Path
 import re
 import shutil
+if __package__:
+    from .firmware_profile import prepare as prepare_firmware
+else:
+    from firmware_profile import prepare as prepare_firmware
 
 OLD_PIN = 'd7d042816b82b200c25b3a93dcc158ba0307cabf'
 OLD_CODE = '41165'
@@ -23,8 +27,8 @@ def validate(plan):
         raise ValueError('Invalid source/version mapping')
     if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:[\w.+-]*)', plan['susfs_version']):
         raise ValueError('Invalid SuSFS version')
-    if plan['profile'] != 'S928BXXU6EZIF-EUX-android14-6.1.162':
-        raise ValueError('Only the audited S928B/EZIF profile is supported')
+    if plan['profile'] != 'S928BXXS6EZJ1-EUX-android14-6.1.162':
+        raise ValueError('Only the audited S928B/EZJ1 profile is supported')
     if not re.fullmatch(r'v[\w.+-]+', plan['sukisu_tag']):
         raise ValueError('Invalid SukiSU tag')
 
@@ -40,6 +44,7 @@ def prepare(root, plan):
     helper = root / 'android14-6.1/build-helpers'
     if not (helper / 'sukisu-41165-susfs/apply.py').is_file():
         raise ValueError('Audited 41165 builder is missing')
+    prepare_firmware(root, plan)
     code, pin = str(plan['sukisu_code']), plan['sukisu_commit']
     def migrate(text):
         text=text.replace(OLD_PIN, pin).replace(OLD_PIN[:8], pin[:8])
