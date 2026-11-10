@@ -1193,10 +1193,13 @@ jobs:
         cp "$KERNEL_ROOT/common/.susfs-runtime-v1.json" "$GITHUB_WORKSPACE/susfs-runtime-audit/SOURCE.json"
         python3 "$PORT/release240.py" "$KERNEL_ROOT/common"
         cp "$KERNEL_ROOT/common/.susfs-release240.json" "$GITHUB_WORKSPACE/susfs-runtime-audit/SUSFS-RELEASE240.json"
-    - name: Integrate official SuSFS updates and freeze final sources
+    - name: Integrate SuSFS updates and tested hidden-name directory filtering
       run: |
         set -euo pipefail
         python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" susfs-after --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
+        HIDDEN="$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-hidden-name-readdir"
+        python3 "$HIDDEN/test.py" --common "$KERNEL_ROOT/common" --output "$GITHUB_WORKSPACE/susfs-runtime-audit/hidden-name-host"
+        python3 "$HIDDEN/apply.py" --common "$KERNEL_ROOT/common"
         python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" capture-final --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
@@ -1593,6 +1596,10 @@ jobs:
         cp "$ANYKERNEL3/SUSFS-RUNTIME.json" "$GITHUB_WORKSPACE/susfs-runtime-audit/IMAGE.json"
         cp "$KERNEL_ROOT/common/.susfs-release240.json" "$ANYKERNEL3/SUSFS-RELEASE240.json"
         cp "$FINAL_CONFIG_FILE" "$GITHUB_WORKSPACE/susfs-runtime-audit/BUILD-CONFIG.txt"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-hidden-name-readdir/apply.py" \
+          --common "$KERNEL_ROOT/common" --verify-only --image "$ANYKERNEL3/Image" --vmlinux "$VMLINUX" \
+          --receipt "$ANYKERNEL3/SUSFS-HIDDEN-NAME-READDIR.json"
+        cp "$GITHUB_WORKSPACE/susfs-runtime-audit/hidden-name-host/TESTS.json" "$ANYKERNEL3/SUSFS-HIDDEN-NAME-TESTS.json"
         CLANG=$(find "$KERNEL_ROOT/prebuilts/clang/host/linux-x86" -path '*/bin/clang' | head -1)
         test -x "$CLANG"
         "$CLANG" --target=aarch64-linux-android26 -Os -nostdlib -static -fno-builtin -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -Wl,-e,_start -Wl,--build-id=none -Wl,-z,max-page-size=16384 "$PORT/susfs-runtime.c" -o "$GITHUB_WORKSPACE/susfs-runtime-audit/susfs-runtime-arm64"

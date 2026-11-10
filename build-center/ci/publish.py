@@ -24,6 +24,9 @@ def main():
         strict=z.read('STRICT-KMI.txt').decode()
         if 'S928BXXU6EZIF' not in strict or 'strict' not in strict.lower():
             raise RuntimeError('Strict firmware evidence missing')
+        hidden=json.loads(z.read('SUSFS-HIDDEN-NAME-READDIR.json'))
+        if hidden['revision']!=plan.get('kernel_revision') or hidden['image_sha256']!=hashlib.sha256(z.read('Image')).hexdigest():
+            raise RuntimeError('Hidden-name correction does not match the packaged Image')
     modules=list(Path('resusfs-files').rglob('ReSuSFS-*.zip'))
     if len(modules)!=1:raise RuntimeError('Expected exactly one matching ReSuSFS module')
     with zipfile.ZipFile(modules[0]) as z:
@@ -46,6 +49,7 @@ def main():
         f"SukiSU commit: {plan['sukisu_commit']}\n\nSuSFS commit: {plan['susfs_commit']}\n\n"
         f"Kernel, ARM64 userspace and ZeroMount compatibility jobs passed. Samsung Strict KMI and DLKM CRC gates passed.\n\n"
         f"CI run: https://github.com/{plan['repository']}/actions/runs/{plan['run_id']}\n\n"
+        f"Kernel correction: {plan['kernel_revision']}. Native and compat directory callbacks apply the existing runtime/owner-aware HIDDEN_NAME policy. Exact-C regression and packaged Image receipts are included.\n\n"
         "The kernel ZIP is the actual AnyKernel3 flash package. SuSFS is integrated into this kernel. The ReSuSFS module contains the matching source-built official tool and retained module settings; the separate source ZIP is a source archive. Device boot and installation were not tested by CI.\n",encoding='utf-8')
     sums=''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in sorted(root.iterdir()) if p.is_file() and p.name!='SHA256SUMS.txt')
     (root/'SHA256SUMS.txt').write_text(sums,encoding='utf-8')

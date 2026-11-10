@@ -108,6 +108,11 @@ def check(common,ksu,config=None,final_capture=False):
             'stage':'source_manifest','final_sources':bool(final_capture or (previous and previous.get('final_sources'))),
             'sources_sha256':hashes,'device_runtime_tested':False,
             'scope':'Source identity captured in this CI run. Compilation and CRC evidence are separate subsequent gates.'}
+    hidden_receipt=common/'.susfs-hidden-name-readdir.json'
+    if final_capture or hidden_receipt.exists():
+        hidden=module(h/'susfs-hidden-name-readdir/apply.py','hidden_name_check').verify(common)
+        result['hidden_name_readdir_revision']=hidden['revision']
+        result['hidden_name_sources_sha256']=hidden['output_sha256']
     receipt_path.write_text(json.dumps(result,indent=2)+'\n')
     if config:
         command(sys.executable,h/f'audit-susfs-{code}.py','--common',common,'--ksu',ksu,'--config',config)

@@ -8,6 +8,7 @@
   "workflow": "build-center.yml",
   "channel": "main",
   "automatic_builds": true,
+  "kernel_revision": "hidden-name-readdir-v1",
   "profile": "S928BXXU6EZIF / EUX / Android 14 / Linux 6.1.162",
   "reference_run": 42129383180,
   "baseline_commit": "f269b2d31779901efe920c3c8a3f00838e35e119",

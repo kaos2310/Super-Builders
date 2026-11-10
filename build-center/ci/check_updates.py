@@ -3,6 +3,7 @@ import argparse
 from datetime import datetime, timezone
 import json
 import os
+import re
 from pathlib import Path
 import sys
 import urllib.parse
@@ -43,6 +44,12 @@ def main():
         plan['run_id'] = os.environ.get('GITHUB_RUN_ID', '')
         plan['sukisu_short'] = plan['sukisu_commit'][:8]
         plan['pair_key'] = plan['sukisu_commit'][:8]+'-'+plan['susfs_commit'][:8]
+        revision=config.get('kernel_revision','')
+        if revision:
+            if not re.fullmatch(r'[a-z0-9][a-z0-9.-]{0,63}',revision):
+                raise ValueError('Invalid downstream kernel revision')
+            plan['kernel_revision']=revision
+            plan['release_tag']+='-'+revision
         if args.force:
             plan['release_tag'] += '-r' + (plan['run_id'] or 'local')
         exists = False
