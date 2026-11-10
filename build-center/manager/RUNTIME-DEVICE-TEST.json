@@ -1,0 +1,183 @@
+{
+  "apk": "8de3ff7599eca328d500d35cede9ffe373d9416f6451f1a8c8d1411e24b73166",
+  "before": {
+    "protocol": "kaoslab-susfs-runtime",
+    "version": 1,
+    "size": 48,
+    "supported": 15,
+    "enabled": 15,
+    "generation": 9
+  },
+  "events": [
+    {
+      "control": "uid-gating",
+      "enabled": false,
+      "before": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 15,
+        "generation": 9
+      },
+      "after": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 14,
+        "generation": 10
+      }
+    },
+    {
+      "control": "uid-gating",
+      "enabled": true,
+      "before": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 14,
+        "generation": 10
+      },
+      "after": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 15,
+        "generation": 11
+      }
+    },
+    {
+      "control": "hidden-name",
+      "enabled": false,
+      "before": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 15,
+        "generation": 11
+      },
+      "after": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 13,
+        "generation": 12
+      }
+    },
+    {
+      "control": "hidden-name",
+      "enabled": true,
+      "before": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 13,
+        "generation": 12
+      },
+      "after": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 15,
+        "generation": 13
+      }
+    },
+    {
+      "control": "unicode-filter",
+      "enabled": false,
+      "before": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 15,
+        "generation": 13
+      },
+      "after": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 11,
+        "generation": 14
+      }
+    },
+    {
+      "control": "unicode-filter",
+      "enabled": true,
+      "before": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 11,
+        "generation": 14
+      },
+      "after": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 15,
+        "generation": 15
+      }
+    },
+    {
+      "control": "symbol-hiding",
+      "enabled": false,
+      "before": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 15,
+        "generation": 15
+      },
+      "after": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 7,
+        "generation": 16
+      }
+    },
+    {
+      "control": "symbol-hiding",
+      "enabled": true,
+      "before": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 7,
+        "generation": 16
+      },
+      "after": {
+        "protocol": "kaoslab-susfs-runtime",
+        "version": 1,
+        "size": 48,
+        "supported": 15,
+        "enabled": 15,
+        "generation": 17
+      }
+    }
+  ],
+  "transport": "Real touchscreen taps in the released manager, observed independently through the kernel runtime ioctl helper",
+  "after": {
+    "protocol": "kaoslab-susfs-runtime",
+    "version": 1,
+    "size": 48,
+    "supported": 15,
+    "enabled": 15,
+    "generation": 17
+  },
+  "all_four_controls_off_on_passed": true
+}

@@ -3,6 +3,7 @@ from pathlib import Path
 import hashlib
 import json
 import shutil
+import subprocess
 import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -10,7 +11,7 @@ VERSION=json.loads((ROOT/'config.json').read_text())['version']
 DIST=ROOT/'dist'/VERSION;DIST.mkdir(parents=True,exist_ok=True)
 TOP={'.gitignore','PLAN.md','README.md','VERIFICATION.md','config.json','center_core.py',
      'desktop.py','Start-Web.cmd','package.json','package-lock.json'}
-DIRS={'web','android','ci','tools','tests','integration'}
+DIRS={'web','android','ci','tools','tests','integration','manager'}
 
 def sha(data):return hashlib.sha256(data).hexdigest()
 def sources():
@@ -50,7 +51,10 @@ archive(DIST/f'SukiSU-Build-Center-GitHub-Integration-{VERSION}.zip',payload)
 manifest={'schema':1,'repository':'kaos2310/Super-Builders','target_ref':'main',
     'workflow_files':sorted(n for n in payload if n.startswith('.github/workflows/')),
     'file_count':len(payload),'files':{n:sha(d) for n,d in sorted(payload.items())},
-    'publication_performed':False,'schedule_activated':False,'new_kernel_build_started':False}
+    'payload_kind':'repository-integration-source-snapshot',
+    'source_commit':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),
+    'schedule':'17 * * * *','firmware':'S928BXXS6EZJ1',
+    'verified_kernel_run':'https://github.com/kaos2310/Super-Builders/actions/runs/42894816028'}
 (DIST/'GITHUB-PAYLOAD.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
 shutil.copyfile(ROOT/'.test-results/SuSFS-v2.4.0-69b8e734-samsung.zip',DIST/'SuSFS-v2.4.0-69b8e734-sources.zip')
 sums=''.join(sha(p.read_bytes())+'  '+p.name+'\n' for p in sorted(DIST.iterdir()) if p.is_file() and p.name!='SHA256SUMS.txt')

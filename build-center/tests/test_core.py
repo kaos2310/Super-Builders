@@ -29,10 +29,21 @@ def zip_bytes(items):
     return b.getvalue()
 
 
-def valid_kernel():return zip_bytes([('anykernel.sh',b'#!/bin/sh'),('Image',b'ARM64 kernel'),('STRICT-KMI.txt',b'S928BXXS6EZJ1 full-strict')])
+def valid_kernel(firmware='S928BXXS6EZJ1', image=b'ARM64 kernel', digest=None):
+    receipt={'firmware':firmware,'csc':'EUX','profile':'S928BXXS6EZJ1-EUX-android14-6.1.162',
+             'image_sha256': digest or sha256(image)}
+    return zip_bytes([('anykernel.sh',b'#!/bin/sh'),('Image',image),('STRICT-KMI.txt',b'full-strict'),
+                      ('FIRMWARE-TARGET.json',json.dumps(receipt).encode())])
 
 
 class DownloadTests(unittest.TestCase):
+    def test_release_kernel_must_identify_ezj1_and_its_actual_image(self):
+        good=valid_kernel()
+        self.assertEqual(checked_file(good,'kernel.zip',sha256(good),'kernel')[0],good)
+        for bad in (valid_kernel(firmware='S928BXXU6EZIF'), valid_kernel(digest='0'*64)):
+            with self.assertRaisesRegex(CenterError,'EZJ1-Firmware'):
+                checked_file(bad,'kernel.zip',sha256(bad),'kernel')
+
     def test_windows_apk_asset_separators_are_normalized(self):
         with tempfile.TemporaryDirectory() as tmp:
             p=Path(tmp)/'unsigned.apk'

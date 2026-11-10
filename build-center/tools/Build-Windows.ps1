@@ -1,12 +1,12 @@
 [CmdletBinding()]
-param()
+param([string]$BuildDependencies='')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $appInfo=Get-Content -LiteralPath (Join-Path $root 'config.json') -Raw | ConvertFrom-Json
 $appName="SukiSU-Build-Center-$($appInfo.version)"
 $distDir=Join-Path $root "dist\$($appInfo.version)"
 $oldPythonPath=$env:PYTHONPATH
-$env:PYTHONPATH=Join-Path $root '.build-deps'
+$env:PYTHONPATH=if($BuildDependencies){(Resolve-Path -LiteralPath $BuildDependencies).Path}else{Join-Path $root '.build-deps'}
 Push-Location -LiteralPath $root
 try {
     $webData=(Join-Path $root 'web')+';web'

@@ -123,15 +123,32 @@ def checked_file(raw, name, expected="", kind="file"):
                 info = candidates[0]
                 raw = outer.read(info)
                 safe_name = PurePosixPath(info.filename).name
+        except zipfile.BadZipFile:
+            raise CenterError("Beschädigte ZIP-Datei.") from None
+    if kind in ('kernel', 'kernel-artifact'):
+        if not expected:
+            raise CenterError('Für Kernel-Pakete ist eine SHA-256-Prüfsumme erforderlich.')
+        try:
             with zipfile.ZipFile(io.BytesIO(raw)) as inner:
                 names = set(inner.namelist())
+                if len(names) != len(inner.namelist()):
+                    raise CenterError('Mehrdeutige Einträge im Kernel-Paket.')
                 if "anykernel.sh" not in names or not any(
                     n in names for n in ("Image", "Image.gz", "Image.gz-dtb", "Image.lz4")):
                     raise CenterError("Kernel-ZIP enthält kein vollständiges AnyKernel3-Paket.")
                 if "STRICT-KMI.txt" not in names:
                     raise CenterError("Nachweis des Strict-KMI-Profils fehlt im Kernel-Paket.")
+                if 'FIRMWARE-TARGET.json' not in names or 'Image' not in names:
+                    raise CenterError('Der geprüfte EZJ1-Firmware-Nachweis fehlt.')
+                receipt = json.loads(inner.read('FIRMWARE-TARGET.json'))
+                if (receipt.get('firmware') != 'S928BXXS6EZJ1' or receipt.get('csc') != 'EUX'
+                        or receipt.get('profile') != 'S928BXXS6EZJ1-EUX-android14-6.1.162'
+                        or receipt.get('image_sha256') != sha256(inner.read('Image'))):
+                    raise CenterError('Kernel-Image und EZJ1-Firmware-Nachweis stimmen nicht überein.')
         except zipfile.BadZipFile:
             raise CenterError("Beschädigte ZIP-Datei.") from None
+        except (ValueError, KeyError):
+            raise CenterError('Ungültiger EZJ1-Firmware-Nachweis.') from None
     return raw, safe_name, sha256(raw)
 
 

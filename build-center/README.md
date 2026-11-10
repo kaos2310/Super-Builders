@@ -1,83 +1,64 @@
-# SukiSU Build Center 1.0.1
+# SukiSU Build Center 1.1.0 · Samsung EZJ1
 
-Deutsche App für Android, Windows und den lokalen Browser. Gemeinsame Oberfläche, keine laufenden Fremdserver erforderlich. Der Kernel-Build läuft in deinem GitHub-Repository.
-
-## Starten
+Deutsche App für Android, Windows und den lokalen Browser. Das Buildziel ist **SM-S928B / S928BXXS6EZJ1 / EUX / Android 17 mit Android 14-GKI 6.1.162**.
 
 | Variante | Datei | Start |
 | --- | --- | --- |
-| Android ab Android 10 | `SukiSU-Build-Center-1.0.1.apk` | APK auf dem Telefon installieren und öffnen |
-| Windows 11, x64 | `SukiSU-Build-Center-1.0.1.exe` | Portable EXE öffnen; sie nutzt Microsoft Edge als App-Fenster |
-| Lokale Web-App | `SukiSU-Build-Center-Web-1.0.1.zip` | Entpacken und `Start-Web.cmd` öffnen; Python ist unter Windows im Paket enthalten |
+| Build Center für Android ab 10 | `SukiSU-Build-Center-1.1.0.apk` | Als Update installieren; bestehende Einstellungen bleiben erhalten |
+| Windows 11 x64 | `SukiSU-Build-Center-1.1.0.exe` | Portable EXE öffnen; Microsoft Edge wird als App-Fenster verwendet |
+| Lokale Web-App | `SukiSU-Build-Center-Web-1.1.0.zip` | Entpacken und `Start-Web.cmd` starten |
 | Web auf Linux/macOS | Quellpaket | Python 3.11 oder neuer: `python3 desktop.py --web` |
+| Zusätzlicher SukiSU-Root-Manager | `SukiSU_EZJ1_v4.3.0-r2-runtime1_41168-arm64-v8a-release.apk` | Parallel zum offiziellen Manager installieren; separate bewusste Manager-Freigabe erforderlich |
 
-Die Windows-Anwendung und die lokale Web-App binden ausschließlich `127.0.0.1`. Nach dem Schließen der Oberfläche endet der Server nach ungefähr drei Minuten. `--stay` hält ihn ausdrücklich geöffnet. Die Web-Oberfläche kann zusätzlich als PWA installiert werden. Hintergrund-Builds werden vom GitHub-Zeitplan übernommen.
+Windows und die lokale Web-App binden ausschließlich `127.0.0.1`. Die EXE enthält die benötigte Python-Laufzeit. Nach Schließen der Oberfläche endet der Server nach ungefähr drei Minuten; `--stay` hält ihn geöffnet. Eine PWA-Installation der Web-Oberfläche ist möglich.
 
-## GitHub-Verbindung
+## GitHub-Verbindung und Ablauf
 
-Voreingestellt sind `kaos2310/Super-Builders`, Branch `main` und der neueste offizielle SukiSU-Entwicklungsstand. Alternativ lässt sich die neueste veröffentlichte Version auswählen.
+Voreingestellt sind `kaos2310/Super-Builders`, Branch `main` und der neueste offizielle SukiSU-Entwicklungsstand. Alternativ kann der aktuelle offizielle Release-Tag gewählt werden. Für den manuellen Build-Start benötigt ein auf dieses Repository beschränkter Token **Actions: Read and write** und **Contents: Read**. Öffentliche Quellprüfungen und Release-Downloads funktionieren ohne Token, abhängig von den GitHub-/GitLab-API-Limits.
 
-Für den Build-Start einen Fine-grained Personal Access Token für genau dieses Repository eintragen:
+Der Token bleibt in Web und Windows im Arbeitsspeicher. Android speichert ihn nur auf ausdrücklichen Wunsch verschlüsselt im Android Keystore. Bei geöffneter App werden die Quellen alle 15 Minuten geprüft. Der Actions-Zeitplan prüft unabhängig davon stündlich bei Minute 17. GitHub kann geplante Läufe verzögert ausführen.
 
-- **Actions: Read and write** für Workflow-Start, Status und Artefakte.
-- **Contents: Read** für Quellen und Releases.
+1. Offizielle SukiSU- und SuSFS-Quellen auf vollständige Commit-IDs auflösen und die Versionsformel kontrollieren.
+2. Die gemessenen EZJ1-Firmwaredaten, das Geräteprofil und die unveränderte strenge Samsung-CRC-Baseline prüfen.
+3. Updates integrieren und Kernel, ARM64-Userspace, ZeroMount-Kompatibilität und ReSuSFS bauen.
+4. Quell-, Konfigurations-, KMI-/DLKM-/CRC-, KPM- und Paketprüfungen ausführen.
+5. Bei Erfolg die echte AnyKernel3-ZIP, das passende ReSuSFS-Modul, SuSFS-Quellen, Build-Plan und Prüfsummen öffentlich bereitstellen. Kernel-Releases bleiben bis zur gesonderten Geräteprüfung als Prerelease gekennzeichnet.
 
-Der Token bleibt in Web und Windows nur im Arbeitsspeicher. Android kann ihn auf ausdrücklichen Wunsch über den Android Keystore verschlüsselt speichern. Öffentliche Quellprüfungen und öffentliche Release-Downloads funktionieren ohne Token, vorbehaltlich der API-Limits von GitHub und GitLab. Ohne Token fragt die App laufende Builds höchstens alle fünf Minuten ab; mit Token ist die Statusabfrage häufiger.
+Bereits veröffentlichte identische Quellpaare werden übersprungen. Nach einem Fehlschlag gilt für dieselbe Quellkombination eine 24-Stunden-Wartezeit; ein ausdrücklich gewählter Neubau übergeht diese Wartezeit und erhält einen eigenen Release-Tag. Neue Quellen müssen weiterhin alle Prüfschritte bestehen.
 
-## Was die App erledigt
+## Downloadprüfung
 
-1. SukiSU `main` oder den offiziellen Release-Tag in eine konkrete Commit-ID auflösen; die Versionsnummer aus der vollständigen Commitanzahl und der überprüften offiziellen Kbuild-Formel bestimmen.
-2. SuSFS ausschließlich im passenden Zweig `gki-android14-6.1` prüfen. Commit und Versionsmakro werden separat gelesen: ein neuer Commit kann dieselbe Versionsnummer behalten.
-3. Einen Build-Auftrag mit eindeutiger ID an `build-center.yml` senden und ausschließlich den zugehörigen Actions-Lauf verfolgen.
-4. Die Pipeline lädt Werkzeuge und Quellen, integriert die Updates und baut Kernel, ARM64-Userspace, ZeroMount-Kompatibilität und das passende ReSuSFS-Modul.
-5. Erst nach erfolgreichen Kernel-, KMI-, DLKM-/CRC- und Paketprüfungen ein GitHub-Prerelease mit der echten AnyKernel3-ZIP, ReSuSFS-ZIP, SuSFS-Quellarchiv, Build-Plan und SHA256SUMS erzeugen. Eine offizielle Manager-Release-APK wird beigefügt, wenn ihre Versionsnummer zum gewählten SukiSU-Stand passt.
-6. Alle 15 Minuten bei geöffneter App auf Quellen prüfen. Nach Installation der GitHub-Integration prüft Actions stündlich selbstständig, auch wenn sämtliche Apps geschlossen sind. GitHub kann geplante Läufe verzögert starten; der Zeitplan liegt bei Minute 17 jeder Stunde.
+Die neue Oberfläche bietet nur Kernel für `S928BXXS6EZJ1-EUX` an. Android und der lokale Web-/Windows-Server kontrollieren die veröffentlichte SHA256, entpacken Actions-Artefakte und prüfen die echte Kernel-ZIP. `FIRMWARE-TARGET.json` muss das EZJ1/EUX-Profil und den Hash des tatsächlich enthaltenen `Image` belegen. AnyKernel3- und Strict-KMI-Nachweise sind erforderlich. Ein EZIF-Paket wird dadurch auch bei ansonsten gültiger äußerer Prüfsumme abgelehnt.
 
-Eine neue Manager-Version kann auf `main` bereits existieren, bevor eine passende signierte APK als Release vorliegt. Die App bietet dann den offiziellen Actions-Link an und kennzeichnet diesen Zustand. Auf Android prüft der APK-Download Paketname und offizielles Signierzertifikat, bevor der Android-Paketinstaller geöffnet wird.
+Der reine statische Browser öffnet den GitHub-Download; die zusätzliche lokale Inhaltsprüfung erfordert die Android-App oder den lokalen Server. Kernel-/ReSuSFS-ZIPs werden zum Speichern bereitgestellt. APK-Downloads öffnen nach Prüfung den Android-Paketinstaller; Kernel werden durch das Build Center nicht geflasht.
 
-Bei Actions-Artefakten wird die SHA-256-Prüfsumme der äußeren GitHub-ZIP geprüft und daraus genau eine tatsächliche Kernel-ZIP entnommen. `anykernel.sh`, Kernel-Image und Strict-KMI-Nachweis müssen darin enthalten sein. Bei Downloads ohne veröffentlichte Vergleichssumme wird die berechnete SHA-256 angezeigt. ReSuSFS- und Kernel-ZIPs werden als Dateien bereitgestellt; die App flasht keinen Kernel und startet kein Telefon neu.
+Die angepasste Manager-APK wird anhand ihrer eigenen Paketkennung und ihres exakten Zertifikats akzeptiert. Der offizielle SukiSU-Manager behält seine eigene Signaturprüfung. Beide Identitäten werden getrennt geprüft.
 
-## Einmalige GitHub-Integration
+## Root-Manager und SuSFS-Runtime
 
-Die Integration und der App-Quellcode sind auf `main` veröffentlicht. Der stündliche Workflow ist aktiv. Der [erste vollständige Lauf](https://github.com/kaos2310/Super-Builders/actions/runs/42712496915) ist mit allen sieben Jobs erfolgreich abgeschlossen. Die [Kernel- und ReSuSFS-Downloads](https://github.com/kaos2310/Super-Builders/releases/tag/s928b-ezif-suki41168-susfs2.4.0-674aa00c-69b8e734) sowie die [App-Pakete](https://github.com/kaos2310/Super-Builders/releases/tag/build-center-v1.0.1) sind öffentlich verfügbar.
+Der zusätzliche **SukiSU EZJ1**-Manager verwendet den passenden SukiSU 41168/UAPI6-Userspace und KPM 0.14.0/ABI2. Auf beiden bestehenden Startseiten ergänzt die Karte **SuSFS-Laufzeit** vier sofort wirksame Schalter:
 
-Das Paket `SukiSU-Build-Center-GitHub-Integration-1.0.1.zip` enthält bereits die vollständige, direkt ins Repository kopierbare Struktur:
+- UID-Filter;
+- verborgene Namen in Verzeichnislisten (HIDDEN_NAME-v2);
+- Unicode-Filter;
+- Kernel-Symbole verbergen.
 
-```text
-.github/workflows/build-center.yml
-.github/workflows/build-center-cache.yml
-.github/workflows/build-center-userspace.yml
-.github/workflows/build-center-zeromount.yml
-.github/workflows/build-center-resusfs.yml
-.github/workflows/build-center-strict.yml
-build-center/config.json
-build-center/center_core.py
-build-center/ci/...
-```
+Die App zeigt Buildziel und echte Geräte-Firmware separat. Sie prüft Runtime-ABI, unterstützte Bits und die vom Kernel gelieferte Generation. Ein veralteter Schaltauftrag wird abgewiesen und nicht automatisch wiederholt. Die Änderungen gelten bis zum nächsten Neustart; gespeicherte ReSuSFS-Einstellungen werden dabei nicht überschrieben.
 
-Nach Veröffentlichung auf `main` sind manueller Start aus der App und stündlicher Zeitplan aktiv. Das Workflow-Token erhält im jeweiligen Job die erforderlichen Rechte; für den Zeitplan ist kein persönlicher Token als Repository-Secret nötig. Bereits veröffentlichte identische Quellpaare werden übersprungen. Nach einem fehlgeschlagenen Bau wartet dieselbe Quellkombination 24 Stunden auf einen automatischen Wiederholungsversuch; die Option für einen ausdrücklichen Neubau hebt diese Wartezeit auf. Ein ausdrücklich angeforderter Neubau bekommt einen eigenen unveränderlichen Release-Tag.
+Die erstmalige Root-Manager-Freigabe erfolgt bewusst durch den Gerätebesitzer über einen bereits vertrauenswürdigen Zugang. Anleitung, Rücknahme und vollständige Quell-/Buildinformationen stehen in [manager/README.md](manager/README.md). Private Schlüssel sind in keinem Paket enthalten.
 
-Für dauerhafte Änderungen am Zeitplan/Kanal `build-center/config.json` und den Hauptworkflow anpassen. Zum Pausieren kann der Hauptworkflow in GitHub Actions deaktiviert werden; die App zeigt den deaktivierten Zustand an.
+## Gemessenes Firmwareprofil und Prüfumfang
 
-## Kernel-Profil und Grenzen automatischer Updates
+Alle sechs gelieferten Odin-Archive wurden vollständig per SHA256 und Odin-Tar-MD5 geprüft. Die extrahierte EZJ1-Stock-Konfiguration stimmt bytegenau mit der verwendeten geprüften Konfiguration überein. Aus882Moduldateien wurden 5470 eindeutige Import-CRCs geprüft; alle 2485 Einträge der strengen Baseline stimmen überein. Die Herkunft der Baseline bleibt unverändert dokumentiert.
 
-Referenz ist der erfolgreiche Lauf `42129383180`. Die technische Grundlage ist die vorhandene 41165-Linie am unveränderlichen Commit `f269b2d31779901efe920c3c8a3f00838e35e119`. Die vorhandenen Branches und Dateien werden nicht verändert; jeder CI-Job lädt eine frische Kopie.
+Der Build verwendet den bestehenden geprüften Samsung-Port auf AOSP6.1.162. Ein eigenständiger vollständiger Samsung-EZJ1-OSS-Abgleich ist nicht nachgewiesen; Stock-Konfiguration, Firmwareidentität und Modul-CRCs wurden aus den gelieferten Archiven gemessen. `CONFIG_CGROUP_PIDS=n` und `CONFIG_CFS_BANDWIDTH=n` bleiben im vorhandenen stockkompatiblen Profil erhalten.
 
-Das Profil bleibt SM-S928B/EUX, Firmware S928BXXU6EZIF, Android-14-GKI, Linux 6.1.162, KPM, DroidSpaces und strenge Samsung-KMI-/DLKM-/CRC-Prüfungen. CPU-/PID-Limitoptionen bleiben ausgeschaltet. Andere Firmware oder Kernel-Hauptversionen werden nicht automatisch gewählt.
+HIDDEN_NAME-v2 ist auf dem Samsung mit der vorhandenen EZIF-Firmware durch 514 Prüfungen aus echten Test-Apps auf F2FS und FUSE belegt. Das ist ein eigener Runtime-Nachweis für den eingebauten Fehlerfix. Ein EZJ1-Stockpaket und ein erfolgreiches CI-Ergebnis ersetzen keinen Geräte-Boot-Test auf der EZJ1-Firmware. Der Stand der einzelnen Prüfungen steht in [VERIFICATION.md](VERIFICATION.md).
 
-Neue Quellstände erhalten keine übernommenen historischen Kompilierungsnachweise. Die Pipeline erfasst ihre tatsächlichen Quellen neu und führt die semantischen Tests und den vollständigen Build aus. SuSFS-Änderungen werden dreiseitig mit dem vorhandenen Port zusammengeführt; Konflikte, geänderte UAPI oder nicht unterstützte Module brechen den Build ab. Die ReSuSFS-Integration unterstützt derzeit die geprüfte SuSFS-2.4.0-Schnittstelle. Ein künftiger inkompatibler Versionssprung braucht eine Anpassung; er wird nicht als fertiger Download veröffentlicht.
+## Quellen und Pakete
 
-## Lokal nachbauen und prüfen
+- [Öffentliche App-Pakete 1.1.0](https://github.com/kaos2310/Super-Builders/releases/tag/build-center-v1.1.0)
+- [EZJ1-Kernel-Lauf](https://github.com/kaos2310/Super-Builders/actions/runs/42894816028)
+- [Erfolgreicher HIDDEN_NAME-v2-EZIF-Lauf](https://github.com/kaos2310/Super-Builders/actions/runs/42877994599)
 
-Android benötigt JDK 17 oder neuer und Android SDK Plattform 36 / Build Tools 36.0.0. `tools/Build-Android.ps1` verwendet standardmäßig die auf diesem PC vorhandenen Pfade. Der lokale App-Signierschlüssel liegt unter `private/` und ist in keinem Auslieferungs- oder GitHub-Paket enthalten.
-
-Für Windows: PyInstaller 6.20.0 unter `.build-deps` installieren und `tools/Build-Windows.ps1` ausführen. Die Windows-EXE enthält die Python-Laufzeit. Pillow wird ausschließlich zum Erzeugen der Symbole verwendet, PyYAML ausschließlich zur Workflow-Erzeugung.
-
-```powershell
-python -m unittest discover -s tests -p 'test_*.py' -v
-npm ci --ignore-scripts
-npm test
-node tests/browser.mjs
-```
-
-Die Browser-Tests verwenden kontrollierte API-Antworten und starten keinen echten GitHub-Build. `tools/live_smoke.py` prüft echte offizielle API-Antworten, die Quellmigration und einen bereits vorhandenen Kernel-Download in einem frischen isolierten Testordner. Die Prüfergebnisse stehen in `VERIFICATION.md`.
+Das Integrations-ZIP enthält die vollständigen `.github/workflows/`-Dateien und `build-center/`. Das separate Manager-Quell-ZIP enthält 1363 Dateien einschließlich der beiden exakten Upstream-Quellstände, Anpassungspatch, Buildanleitung und verifizierten nativen Eingaben. Das SuSFS-Quellarchiv ist ein Quellpaket; das installierbare ReSuSFS-Modul kommt aus dem passenden Kernel-Release.

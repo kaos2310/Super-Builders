@@ -1,0 +1,534 @@
+diff --git a/manager/app/build.gradle.kts b/manager/app/build.gradle.kts
+index 610a69c..c194311 100644
+--- a/manager/app/build.gradle.kts
++++ b/manager/app/build.gradle.kts
+@@ -3,6 +3,7 @@
+ import com.google.protobuf.gradle.id
+ import java.net.HttpURLConnection
+ import java.net.URI
++import java.security.MessageDigest
+ 
+ plugins {
+     alias(libs.plugins.agp.app)
+@@ -117,6 +118,8 @@ android {
+         jniLibs {
+             useLegacyPackaging = true
+             excludes += "lib/*/libandroidx.graphics.path.so"
++            // Preserve the CI-verified executables byte for byte.
++            keepDebugSymbols += setOf("**/libksud.so", "**/libkptools.so")
+         }
+     }
+ 
+@@ -151,7 +154,9 @@ android {
+         applicationId = managerPackageName
+ 
+         buildConfigField("boolean", "IS_PR_BUILD", isPrBuild.toString())
+-        val commit = providers.exec { commandLine("git", "rev-parse", "HEAD") }.standardOutput.asText.get().trim()
++        val commit = providers.gradleProperty("KSU_BUILD_COMMIT").orNull
++            ?: providers.exec { commandLine("git", "rev-parse", "HEAD") }.standardOutput.asText.get().trim()
++        require(commit.matches(Regex("[0-9a-f]{40}"))) { "Invalid immutable source identity" }
+         buildConfigField("String", "MANAGER_COMMIT", "\"$commit\"")
+         resValue("string", "app_name", managerName)
+ 
+@@ -164,7 +169,10 @@ android {
+         }
+ 
+         ndk {
+-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "riscv64")
++            val requested = providers.gradleProperty("KSU_ABIS").orNull?.split(",")
++                ?: listOf("arm64-v8a", "armeabi-v7a", "x86_64", "riscv64")
++            require(requested.isNotEmpty() && requested.all { it in setOf("arm64-v8a", "armeabi-v7a", "x86_64", "riscv64") })
++            abiFilters += requested
+         }
+     }
+ 
+@@ -295,9 +303,14 @@ kotlin {
+ val androidSdkDirectory = androidComponents.sdkComponents.sdkDirectory
+ val androidNdkDirectory = androidComponents.sdkComponents.ndkDirectory
+ val kpmToolsDir = layout.buildDirectory.dir("generated/kpmTools")
++val pinnedKpmDirectory = providers.gradleProperty("KSU_PINNED_KPM_DIR").orNull
++require(managerPackageName != "com.kaoslab.sukisu.manager" || pinnedKpmDirectory != null) {
++    "The EZJ1 manager requires verified matching KernelPatch ABI2 tools"
++}
+ val downloadKpmTools = tasks.register("downloadKpmTools") {
+     description = "Download the latest KPM tools to bundle in the APK"
+     outputs.dir(kpmToolsDir)
++    if (pinnedKpmDirectory != null) inputs.dir(file(pinnedKpmDirectory))
+     // Keep the downloaded tools in the build directory. Once both files are
+     // present, subsequent builds use the local copies without contacting GitHub.
+     outputs.upToDateWhen {
+@@ -306,6 +319,30 @@ val downloadKpmTools = tasks.register("downloadKpmTools") {
+             root.resolve("assets/kpm/kpimg").isFile
+     }
+     doLast {
++        if (pinnedKpmDirectory != null) {
++            val source = file(pinnedKpmDirectory)
++            val expected = mapOf(
++                "kptools-android" to "e5402160fbcdc37b4342b2f32d7db2f4399ad4410a6647853b9238640c86f61c",
++                "kpimg" to "f4714f8c01cf8c842098b6a87a848297954d4cbac694aa0dd341fdef4ff35559",
++                "ksud" to "0354e1a97b9f96a1e668e43b8fc56c1e14637ca57070c9c3ff801b9ce6e1226b")
++            expected.forEach { (name, digest) ->
++                val bytes = source.resolve(name).readBytes()
++                val actual = MessageDigest.getInstance("SHA-256").digest(bytes)
++                    .joinToString("") { "%02x".format(it.toInt() and 0xff) }
++                check(actual == digest) { "Pinned native input changed: $name" }
++                if (name != "kpimg") check(bytes[18] == 183.toByte() && bytes[19] == 0.toByte()) {
++                    "Pinned native executable is not ARM64: $name"
++                }
++            }
++            val root = kpmToolsDir.get().asFile
++            mapOf("kptools-android" to "jniLibs/arm64-v8a/libkptools.so", "kpimg" to "assets/kpm/kpimg")
++                .forEach { (name, relative) ->
++                    val output = root.resolve(relative)
++                    output.parentFile.mkdirs()
++                    source.resolve(name).copyTo(output, overwrite = true)
++                }
++            return@doLast
++        }
+         val baseUrl = "https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/refs/heads/main/kpm"
+         val downloads = listOf("kptools-android", "kpimg").associateWith { name ->
+             val target = temporaryDir.resolve(name)
+diff --git a/manager/app/src/main/java/com/sukisu/ultra/data/repository/CiManagerUpdater.kt b/manager/app/src/main/java/com/sukisu/ultra/data/repository/CiManagerUpdater.kt
+index c37c2bd..8b0250d 100644
+--- a/manager/app/src/main/java/com/sukisu/ultra/data/repository/CiManagerUpdater.kt
++++ b/manager/app/src/main/java/com/sukisu/ultra/data/repository/CiManagerUpdater.kt
+@@ -241,8 +241,9 @@ class CiManagerUpdater(private val context: Context) {
+     private fun String.shellQuote(): String = "'" + replace("'", "'\\''") + "'"
+ 
+     companion object {
+-        private const val RELEASE_ASSET_PREFIX =
+-            "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/"
++        private val RELEASE_ASSET_PREFIX = if (BuildConfig.APPLICATION_ID == "com.kaoslab.sukisu.manager")
++            "https://github.com/kaos2310/Super-Builders/releases/download/"
++        else "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/"
+         private const val MAX_APK_BYTES = 512L * 1024 * 1024
+         private val SUPPORTED_ABIS = setOf("arm64-v8a", "armeabi-v7a", "x86_64", "riscv64")
+     }
+diff --git a/manager/app/src/main/java/com/sukisu/ultra/data/repository/SusfsRuntimeRepository.kt b/manager/app/src/main/java/com/sukisu/ultra/data/repository/SusfsRuntimeRepository.kt
+new file mode 100644
+index 0000000..9a4d232
+--- /dev/null
++++ b/manager/app/src/main/java/com/sukisu/ultra/data/repository/SusfsRuntimeRepository.kt
+@@ -0,0 +1,66 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++package com.sukisu.ultra.data.repository
++
++import kotlinx.serialization.json.Json
++import kotlinx.serialization.json.JsonPrimitive
++import kotlinx.serialization.json.jsonObject
++import kotlinx.serialization.json.longOrNull
++
++enum class RuntimeControl(val argument: String, val bit: Long) {
++    UidGate("uid-gating", 1), HiddenName("hidden-name", 2),
++    Unicode("unicode-filter", 4), Symbols("symbol-hiding", 8)
++}
++
++data class RuntimeSnapshot(val supported: Long, val enabled: Long, val generation: Long) {
++    fun supports(control: RuntimeControl) = supported and control.bit != 0L
++    fun enabled(control: RuntimeControl) = enabled and control.bit != 0L
++
++    companion object {
++        fun parse(output: String): RuntimeSnapshot {
++            val obj = Json.parseToJsonElement(output).jsonObject
++            require((obj["protocol"] as? JsonPrimitive)?.content == "kaoslab-susfs-runtime") { "Unbekanntes Runtime-Protokoll" }
++            fun number(key: String): Long {
++                val value = obj[key] as? JsonPrimitive ?: error("Runtime-Feld fehlt: $key")
++                require(!value.isString) { "Runtime-Zahl erwartet: $key" }
++                return value.longOrNull ?: error("Ungueltige Runtime-Zahl: $key")
++            }
++            require(number("version") == 1L && number("size") == 48L) { "Runtime-ABI wird nicht unterstuetzt" }
++            val supported = number("supported")
++            val enabled = number("enabled")
++            val generation = number("generation")
++            require(supported in 0L..15L && enabled in 0L..15L && (enabled and supported.inv()) == 0L) { "Ungueltige Runtime-Maske" }
++            require(generation in 1..0xffffffffL) { "Ungueltige Runtime-Generation" }
++            return RuntimeSnapshot(supported, enabled, generation)
++        }
++    }
++}
++
++data class RuntimeCommandResult(val code: Int, val output: String, val error: String = "")
++fun interface RuntimeCommandRunner { fun run(command: String): RuntimeCommandResult }
++
++class SusfsRuntimeRepository(private val runner: RuntimeCommandRunner) {
++    companion object { const val TOOL = "/data/adb/modules/ReSuSFS/bin/susfs-runtime" }
++
++    private fun execute(command: String): RuntimeSnapshot {
++        val result = runner.run(command)
++        check(result.code == 0) {
++            (result.error.ifBlank { result.output }.ifBlank { "Runtime nicht verfuegbar (Root/ReSuSFS pruefen)" }).take(300)
++        }
++        return RuntimeSnapshot.parse(result.output.trim())
++    }
++
++    fun read() = execute("$TOOL status")
++
++    fun set(control: RuntimeControl, value: Boolean, observed: RuntimeSnapshot): RuntimeSnapshot {
++        require(observed.supports(control)) { "Diese Funktion wird vom laufenden Kernel nicht unterstuetzt" }
++        require(observed.generation in 1..0xffffffffL)
++        // The helper checks this observed generation atomically. Never retry a
++        // stale setter: refresh first so concurrent WebUI changes remain visible.
++        val result = execute("$TOOL set ${control.argument} ${if (value) 1 else 0} ${observed.generation}")
++        check(result.supported == observed.supported && result.enabled(control) == value &&
++              (result.enabled and control.bit.inv()) == (observed.enabled and control.bit.inv())) {
++            "Runtime-Aenderung nicht bestaetigt; Status neu laden"
++        }
++        return result
++    }
++}
+diff --git a/manager/app/src/main/java/com/sukisu/ultra/data/repository/ThemeStoreResumableUploader.kt b/manager/app/src/main/java/com/sukisu/ultra/data/repository/ThemeStoreResumableUploader.kt
+index 7710117..ab9e78a 100644
+--- a/manager/app/src/main/java/com/sukisu/ultra/data/repository/ThemeStoreResumableUploader.kt
++++ b/manager/app/src/main/java/com/sukisu/ultra/data/repository/ThemeStoreResumableUploader.kt
+@@ -176,8 +176,8 @@ internal class ThemeStoreResumableUploader(
+                 health.speed = if (health.speed == 0.0) speed else health.speed * 0.6 + speed * 0.4
+                 health.cooldownUntil = 0L
+             } else if (fault) {
+-                // Only transport/5xx faults cool a route. A rejected 4xx is the
+-                // request's fault and must not send every later chunk elsewhere.
++                // Rejected scoped edge tickets and redirects also cool that
++                // ingress. Account-side request rejections abort without retry.
+                 health.cooldownUntil = System.nanoTime() + TimeUnit.SECONDS.toNanos(30)
+             }
+         }
+@@ -261,7 +261,11 @@ internal class ThemeStoreResumableUploader(
+                                 break
+                             } catch (error: Exception) {
+                                 synchronized(lock) { progress.remove(index); report(true) }
+-                                val rejected = error is ThemeUploadHttpException && !error.retryable
++                                // An edge uses a scoped ticket, not account credentials.
++                                // Its expired ticket or redirect must allow a retry at
++                                // the primary; a primary 4xx still fails immediately.
++                                val rejected = route.ticket == null &&
++                                    error is ThemeUploadHttpException && !error.retryable
+                                 val abort = error is CancellationException ||
+                                     error is ThemeStoreUnauthorizedException
+                                 fault = !(rejected || abort)
+diff --git a/manager/app/src/main/java/com/sukisu/ultra/ui/component/SusfsRuntimeCard.kt b/manager/app/src/main/java/com/sukisu/ultra/ui/component/SusfsRuntimeCard.kt
+new file mode 100644
+index 0000000..64d8b6e
+--- /dev/null
++++ b/manager/app/src/main/java/com/sukisu/ultra/ui/component/SusfsRuntimeCard.kt
+@@ -0,0 +1,107 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++package com.sukisu.ultra.ui.component
++
++import androidx.compose.foundation.layout.*
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material3.*
++import androidx.compose.runtime.*
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import com.sukisu.ultra.R
++import com.sukisu.ultra.data.repository.*
++import com.topjohnwu.superuser.Shell
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++
++@Composable
++fun SusfsRuntimeCard(onOpenModules: () -> Unit) {
++    var open by remember { mutableStateOf(false) }
++    var snapshot by remember { mutableStateOf<RuntimeSnapshot?>(null) }
++    var busy by remember { mutableStateOf(false) }
++    var error by remember { mutableStateOf<String?>(null) }
++    var firmware by remember { mutableStateOf("") }
++    val scope = rememberCoroutineScope()
++    val repository = remember {
++        SusfsRuntimeRepository { command ->
++            val result = Shell.cmd(command).exec()
++            RuntimeCommandResult(result.code, result.out.joinToString("\n"), result.err.joinToString("\n"))
++        }
++    }
++    fun refresh() {
++        if (busy) return
++        busy = true
++        scope.launch {
++            try {
++                val result = withContext(Dispatchers.IO) {
++                    val property = ProcessBuilder("/system/bin/getprop", "ro.build.PDA").start()
++                        .inputStream.bufferedReader().use { it.readText().trim() }
++                    property to repository.read()
++                }
++                firmware = result.first
++                snapshot = result.second
++                error = null
++            } catch (failure: Exception) {
++                if (failure is CancellationException) throw failure
++                snapshot = null
++                error = failure.message ?: "Runtime nicht verfuegbar"
++            } finally { busy = false }
++        }
++    }
++    OutlinedCard(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
++        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
++            Text(stringResource(R.string.kaos_runtime_title), style = MaterialTheme.typography.titleMedium)
++            Text(stringResource(R.string.kaos_runtime_summary), style = MaterialTheme.typography.bodyMedium)
++        }
++    }
++    LaunchedEffect(open) { if (open) refresh() }
++    if (open) AlertDialog(
++        onDismissRequest = { if (!busy) open = false },
++        title = { Text(stringResource(R.string.kaos_runtime_title)) },
++        text = {
++            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
++                Text(stringResource(R.string.kaos_runtime_target))
++                if (firmware.isNotBlank()) Text(stringResource(R.string.kaos_runtime_device, firmware))
++                Text(stringResource(R.string.kaos_runtime_scope), style = MaterialTheme.typography.bodySmall)
++                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
++                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
++                RuntimeControl.entries.forEach { control ->
++                    val current = snapshot
++                    val label = when (control) {
++                        RuntimeControl.UidGate -> R.string.kaos_runtime_uid
++                        RuntimeControl.HiddenName -> R.string.kaos_runtime_names
++                        RuntimeControl.Unicode -> R.string.kaos_runtime_unicode
++                        RuntimeControl.Symbols -> R.string.kaos_runtime_symbols
++                    }
++                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
++                        Text(stringResource(label), Modifier.weight(1f))
++                        Switch(checked = current?.enabled(control) == true,
++                            enabled = !busy && current?.supports(control) == true,
++                            onCheckedChange = { value ->
++                                if (current != null && !busy) {
++                                    busy = true
++                                    scope.launch {
++                                        try {
++                                            snapshot = withContext(Dispatchers.IO) { repository.set(control, value, current) }
++                                            error = null
++                                        } catch (failure: Exception) {
++                                            if (failure is CancellationException) throw failure
++                                            error = failure.message ?: "Aenderung nicht bestaetigt"
++                                            snapshot = withContext(Dispatchers.IO) { runCatching { repository.read() }.getOrNull() }
++                                        } finally { busy = false }
++                                    }
++                                }
++                            })
++                    }
++                }
++                OutlinedButton(onClick = { refresh() }, enabled = !busy) { Text(stringResource(R.string.kaos_runtime_refresh)) }
++                TextButton(onClick = { open = false; onOpenModules() }, enabled = !busy) { Text(stringResource(R.string.kaos_runtime_module)) }
++            }
++        },
++        confirmButton = { TextButton(onClick = { open = false }, enabled = !busy) { Text(stringResource(android.R.string.ok)) } }
++    )
++}
+diff --git a/manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMaterial.kt b/manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMaterial.kt
+index 1131e6f..2bb42cb 100644
+--- a/manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMaterial.kt
++++ b/manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMaterial.kt
+@@ -173,6 +173,7 @@ fun HomePagerMaterial(
+             }
+             StatsRow(state = state, actions = actions)
+             InfoCard(systemInfo = state.systemInfo, showFullStatus = state.showFullStatus)
++            com.sukisu.ultra.ui.component.SusfsRuntimeCard(onOpenModules = actions.onModuleClick)
+             SupportLinks(onOpenUrl = actions.onOpenUrl)
+             Spacer(
+                 Modifier.height(
+diff --git a/manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMiuix.kt b/manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMiuix.kt
+index 4471515..ea57976 100644
+--- a/manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMiuix.kt
++++ b/manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMiuix.kt
+@@ -205,6 +205,7 @@ fun HomePagerMiuix(
+                             showFullStatus = state.showFullStatus,
+                             modifier = Modifier.fillMaxWidth(),
+                         )
++                        com.sukisu.ultra.ui.component.SusfsRuntimeCard(onOpenModules = actions.onModuleClick)
+                         SupportLinks(
+                             onOpenUrl = actions.onOpenUrl,
+                             modifier = Modifier.fillMaxWidth(),
+diff --git a/manager/app/src/main/java/com/sukisu/ultra/ui/util/Downloader.kt b/manager/app/src/main/java/com/sukisu/ultra/ui/util/Downloader.kt
+index 4cf5fd3..569d917 100644
+--- a/manager/app/src/main/java/com/sukisu/ultra/ui/util/Downloader.kt
++++ b/manager/app/src/main/java/com/sukisu/ultra/ui/util/Downloader.kt
+@@ -2,6 +2,7 @@ package com.sukisu.ultra.ui.util
+ 
+ import android.net.Uri
+ import android.os.Build
++import com.sukisu.ultra.BuildConfig
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.flow.onEach
+@@ -59,6 +60,7 @@ fun checkNewCiVersion(): LatestVersionInfo = checkReleaseVersion("tags/manager-c
+ 
+ private fun checkReleaseVersion(endpoint: String, isCi: Boolean): LatestVersionInfo {
+     if (!isNetworkAvailable(ksuApp)) return LatestVersionInfo()
++    if (BuildConfig.APPLICATION_ID == "com.kaoslab.sukisu.manager") return checkEzj1ManagerRelease()
+     val url = "https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra/releases/$endpoint"
+     return runCatching {
+         ksuApp.okhttpClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
+@@ -109,3 +111,28 @@ private fun checkReleaseVersion(endpoint: String, isCi: Boolean): LatestVersionI
+         android.util.Log.w("UpdateCheck", "$endpoint: update check failed", it)
+     }.getOrDefault(LatestVersionInfo())
+ }
++
++private fun checkEzj1ManagerRelease(): LatestVersionInfo = runCatching {
++    val url = "https://api.github.com/repos/kaos2310/Super-Builders/releases?per_page=40"
++    ksuApp.okhttpClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
++        if (!response.isSuccessful) return LatestVersionInfo()
++        val releases = org.json.JSONArray(response.body.string())
++        val pattern = Regex("""^SukiSU_EZJ1_v.+_(\d+)-arm64-v8a-release\.apk$""")
++        var latest = LatestVersionInfo()
++        for (i in 0 until releases.length()) {
++            val release = releases.getJSONObject(i)
++            if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue
++            val assets = release.getJSONArray("assets")
++            for (j in 0 until assets.length()) {
++                val asset = assets.getJSONObject(j)
++                val match = pattern.matchEntire(asset.optString("name")) ?: continue
++                val code = match.groupValues[1].toLongOrNull() ?: continue
++                val download = asset.optString("browser_download_url")
++                if (code > latest.versionCode && download.startsWith("https://github.com/kaos2310/Super-Builders/releases/download/")) {
++                    latest = LatestVersionInfo(code, download, release.optString("body"))
++                }
++            }
++        }
++        latest
++    }
++}.getOrDefault(LatestVersionInfo())
+diff --git a/manager/app/src/main/res/values-de/kaoslab_runtime.xml b/manager/app/src/main/res/values-de/kaoslab_runtime.xml
+new file mode 100644
+index 0000000..11ef05e
+--- /dev/null
++++ b/manager/app/src/main/res/values-de/kaoslab_runtime.xml
+@@ -0,0 +1,14 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="kaos_runtime_title">SuSFS-Laufzeit</string>
++    <string name="kaos_runtime_summary">Laufende Steuerung und Status · EZJ1 / EUX</string>
++    <string name="kaos_runtime_target">Buildziel: S928BXXS6EZJ1 / EUX</string>
++    <string name="kaos_runtime_device">Geräte-Firmware: %1$s</string>
++    <string name="kaos_runtime_scope">Änderungen wirken sofort bis zum nächsten Neustart. Erfordert ReSuSFS Runtime-ABI v1 und Root-Zugriff.</string>
++    <string name="kaos_runtime_uid">UID-Filter</string>
++    <string name="kaos_runtime_names">Verborgene Namen in Verzeichnislisten</string>
++    <string name="kaos_runtime_unicode">Unicode-Filter</string>
++    <string name="kaos_runtime_symbols">Kernel-Symbole verbergen</string>
++    <string name="kaos_runtime_refresh">Status neu laden</string>
++    <string name="kaos_runtime_module">Module und SuSFS-WebUI</string>
++</resources>
+diff --git a/manager/app/src/main/res/values/kaoslab_runtime.xml b/manager/app/src/main/res/values/kaoslab_runtime.xml
+new file mode 100644
+index 0000000..5968b67
+--- /dev/null
++++ b/manager/app/src/main/res/values/kaoslab_runtime.xml
+@@ -0,0 +1,14 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="kaos_runtime_title">SuSFS runtime</string>
++    <string name="kaos_runtime_summary">Live controls and status · EZJ1 / EUX</string>
++    <string name="kaos_runtime_target">Build target: S928BXXS6EZJ1 / EUX</string>
++    <string name="kaos_runtime_device">Device firmware: %1$s</string>
++    <string name="kaos_runtime_scope">Changes apply immediately until the next reboot. ReSuSFS runtime ABI v1 and root access are required.</string>
++    <string name="kaos_runtime_uid">UID gating</string>
++    <string name="kaos_runtime_names">Hidden names in directory lists</string>
++    <string name="kaos_runtime_unicode">Unicode filter</string>
++    <string name="kaos_runtime_symbols">Kernel symbol hiding</string>
++    <string name="kaos_runtime_refresh">Refresh status</string>
++    <string name="kaos_runtime_module">Modules and SuSFS WebUI</string>
++</resources>
+diff --git a/manager/app/src/test/java/com/sukisu/ultra/data/repository/SusfsRuntimeRepositoryTest.kt b/manager/app/src/test/java/com/sukisu/ultra/data/repository/SusfsRuntimeRepositoryTest.kt
+new file mode 100644
+index 0000000..fee5e2b
+--- /dev/null
++++ b/manager/app/src/test/java/com/sukisu/ultra/data/repository/SusfsRuntimeRepositoryTest.kt
+@@ -0,0 +1,61 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++package com.sukisu.ultra.data.repository
++
++import org.junit.Assert.*
++import org.junit.Test
++
++class SusfsRuntimeRepositoryTest {
++    private val status = """{"protocol":"kaoslab-susfs-runtime","version":1,"size":48,"supported":15,"enabled":15,"generation":7}"""
++
++    @Test fun readsAllFourCapabilitiesAndUnsignedGeneration() {
++        val value = RuntimeSnapshot.parse(status.replace("\"generation\":7", "\"generation\":4294967295"))
++        assertEquals(4294967295L, value.generation)
++        RuntimeControl.entries.forEach { assertTrue(value.supports(it)); assertTrue(value.enabled(it)) }
++    }
++
++    @Test fun malformedProtocolCannotEnableControls() {
++        val invalid = listOf(
++            status.replace("\"version\":1", "\"version\":2"),
++            status.replace("\"size\":48", "\"size\":44"),
++            status.replace("\"supported\":15", "\"supported\":16"),
++            status.replace("\"supported\":15", "\"supported\":13"),
++            status.replace("\"generation\":7", "\"generation\":0"),
++            status.replace("\"generation\":7", "\"generation\":4294967296"),
++            status.replace("\"generation\":7", "\"generation\":\"7\""),
++            status.replace("kaoslab-susfs-runtime", "unknown"))
++        invalid.forEach { data ->
++            assertThrows(Exception::class.java) { RuntimeSnapshot.parse(data) }
++        }
++    }
++
++    @Test fun setterUsesOneWhitelistedControlAndObservedGeneration() {
++        val commands = mutableListOf<String>()
++        val repository = SusfsRuntimeRepository { command ->
++            commands += command
++            RuntimeCommandResult(0, status.replace("\"enabled\":15", "\"enabled\":13").replace("\"generation\":7", "\"generation\":8"))
++        }
++        val after = repository.set(RuntimeControl.HiddenName, false, RuntimeSnapshot.parse(status))
++        assertEquals(listOf("/data/adb/modules/ReSuSFS/bin/susfs-runtime set hidden-name 0 7"), commands)
++        assertEquals(13L, after.enabled)
++    }
++
++    @Test fun staleSetterIsNeverRetried() {
++        var calls = 0
++        val repository = SusfsRuntimeRepository { calls++; RuntimeCommandResult(75, "unsupported feature or stale generation; no setter issued") }
++        assertThrows(IllegalStateException::class.java) { repository.set(RuntimeControl.HiddenName, false, RuntimeSnapshot.parse(status)) }
++        assertEquals(1, calls)
++    }
++
++    @Test fun unsupportedControlDoesNotIssueAnyCommand() {
++        var calls = 0
++        val repository = SusfsRuntimeRepository { calls++; RuntimeCommandResult(0, status) }
++        val observed = RuntimeSnapshot(13, 13, 7)
++        assertThrows(IllegalArgumentException::class.java) { repository.set(RuntimeControl.HiddenName, true, observed) }
++        assertEquals(0, calls)
++    }
++
++    @Test fun unintendedChangesToOtherBitsAreRejected() {
++        val repository = SusfsRuntimeRepository { RuntimeCommandResult(0, status.replace("\"enabled\":15", "\"enabled\":9")) }
++        assertThrows(IllegalStateException::class.java) { repository.set(RuntimeControl.HiddenName, false, RuntimeSnapshot.parse(status)) }
++    }
++}
+diff --git a/manager/app/src/test/java/com/sukisu/ultra/data/repository/ThemeStoreDistributedUploadTest.kt b/manager/app/src/test/java/com/sukisu/ultra/data/repository/ThemeStoreDistributedUploadTest.kt
+index b94335d..1d4ab63 100644
+--- a/manager/app/src/test/java/com/sukisu/ultra/data/repository/ThemeStoreDistributedUploadTest.kt
++++ b/manager/app/src/test/java/com/sukisu/ultra/data/repository/ThemeStoreDistributedUploadTest.kt
+@@ -343,7 +343,7 @@ class ThemeStoreDistributedUploadTest {
+                     else -> { exchange.requestBody.readBytes(); Thread.sleep(35_000); exchange.reply("{\"ok\":true}") }
+                 }
+             }.use { primary ->
+-                withTimeout(25_000) {
++                withTimeout(45_000) {
+                     // Longer than the watchdog, so this exercises adaptive route
+                     // cancellation rather than OkHttp's default 10-second timeout.
+                     val client = OkHttpClient.Builder().readTimeout(60, TimeUnit.SECONDS).build()
+diff --git a/manager/build.gradle.kts b/manager/build.gradle.kts
+index 1cadae9..04db901 100644
+--- a/manager/build.gradle.kts
++++ b/manager/build.gradle.kts
+@@ -13,8 +13,8 @@ extra["androidBuildToolsVersion"] = "37.0.0"
+ extra["androidCompileNdkVersion"] = libs.versions.ndk.get()
+ extra["androidSourceCompatibility"] = JavaVersion.VERSION_21
+ extra["androidTargetCompatibility"] = JavaVersion.VERSION_21
+-extra["managerVersionCode"] = getVersionCode()
+-extra["managerVersionName"] = getVersionName()
++extra["managerVersionCode"] = providers.gradleProperty("KSU_BUILD_CODE").orNull?.toInt() ?: getVersionCode()
++extra["managerVersionName"] = providers.gradleProperty("KSU_BUILD_NAME").orNull ?: getVersionName()
+ 
+ fun getGitCommitCount(): Int {
+     val process = Runtime.getRuntime().exec(arrayOf("git", "rev-list", "--count", "HEAD"))
+@@ -35,4 +35,4 @@ fun getVersionCode(): Int {
+ 
+ fun getVersionName(): String {
+     return getGitDescribe()
+-}
+\ No newline at end of file
++}

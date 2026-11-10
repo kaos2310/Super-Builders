@@ -1,14 +1,15 @@
 [CmdletBinding()]
 param(
     [string]$AndroidSdk='D:\StudioAndroid',
-    [string]$JavaHome='D:\Android Studio\jbr'
+    [string]$JavaHome='D:\Android Studio\jbr',
+    [string]$SigningDirectory=''
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $appInfo=Get-Content -LiteralPath (Join-Path $root 'config.json') -Raw | ConvertFrom-Json
 $work=Join-Path $root 'build\android'
 $output=Join-Path $root "dist\$($appInfo.version)"
-$privateDir=Join-Path $root 'private'
+$privateDir=if($SigningDirectory){(Resolve-Path -LiteralPath $SigningDirectory).Path}else{Join-Path $root 'private'}
 New-Item -ItemType Directory -Path $work,$output,$privateDir -Force | Out-Null
 $platform=Join-Path $AndroidSdk 'platforms\android-36\android.jar'
 $buildTools=Join-Path $AndroidSdk 'build-tools\36.0.0'

@@ -31,6 +31,13 @@ export function selectReleaseAssets(releases) {
     && r.assets?.some(a => a.name === 'build-plan.json'));
 }
 
+export function selectEzj1ManagerAssets(releases) {
+  return releases.filter(r => !r.draft && !r.prerelease).flatMap(r => (r.assets || []).filter(a =>
+    /^SukiSU_EZJ1_v.+_\d+-arm64-v8a-release\.apk$/.test(a.name)
+    && /^sha256:[0-9a-f]{64}$/.test(a.digest || '')
+    && a.browser_download_url?.startsWith('https://github.com/kaos2310/Super-Builders/releases/download/')));
+}
+
 export class Github {
   constructor(transport, token = '', repo = 'kaos2310/Super-Builders') {
     this.transport = transport; this.token = token; this.repo = assertRepository(repo);

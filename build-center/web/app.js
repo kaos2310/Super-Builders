@@ -1,4 +1,4 @@
-import {Github, GH, selectKernelArtifact, selectReleaseAssets, assertRepository} from './api.js';
+import {Github, GH, selectKernelArtifact, selectReleaseAssets, selectEzj1ManagerAssets, assertRepository} from './api.js';
 
 const $ = id => document.getElementById(id);
 let token = '', sources = null, installed = null, activeRun = null, checking = false, pollBusy = false;
@@ -89,10 +89,13 @@ async function loadDownloads(){
   }
   try{
     const allReleases=await api.releases();
+    for(const a of selectEzj1ManagerAssets(allReleases).slice(0,1)){
+      rows.unshift(row('SukiSU EZJ1 · Root-Manager mit SuSFS-Runtime',`Eigene Paketkennung · ARM64 · ${a.digest}`,window.KaosNative?'Installieren':'Download',()=>download(a.browser_download_url,a.name,a.digest,'apk'),'APK'));
+    }
     const releases=selectReleaseAssets(allReleases);
     const release=releases[0];
     if(release){for(const a of release.assets.filter(a=>a.name.endsWith('.zip')||a.name.endsWith('.apk')||a.name==='SHA256SUMS.txt')){
-      rows.unshift(row(a.name,`${release.tag_name} · ${a.digest||'SHA256SUMS.txt im Release'}`,'Download',()=>download(a.browser_download_url,a.name,a.digest||'',a.name.endsWith('.apk')?'apk':'file'),a.name.endsWith('.apk')?'APK':'ZIP'));
+      rows.unshift(row(a.name,`${release.tag_name} · ${a.digest||'SHA256SUMS.txt im Release'}`,'Download',()=>download(a.browser_download_url,a.name,a.digest||'',a.name.endsWith('.apk')?'apk':a.name.includes('AnyKernel3')?'kernel':'file'),a.name.endsWith('.apk')?'APK':'ZIP'));
     }}
     else if(api.repo==='kaos2310/Super-Builders'&&allReleases.some(r=>r.tag_name==='s928b-ezj1-sukisu41165-susfs240-20261108'&&!r.draft)){
       const baseline=allReleases.find(r=>r.tag_name==='s928b-ezj1-sukisu41165-susfs240-20261108'&&!r.draft);

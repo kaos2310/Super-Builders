@@ -1,0 +1,35 @@
+{
+  "package": "com.kaoslab.sukisu.manager",
+  "version_code": 41168,
+  "version_name": "v4.3.0-r2-EZJ1-runtime1",
+  "apk": "SukiSU_EZJ1_v4.3.0-r2-runtime1_41168-arm64-v8a-release.apk",
+  "apk_sha256": "8de3ff7599eca328d500d35cede9ffe373d9416f6451f1a8c8d1411e24b73166",
+  "certificate_bytes": 744,
+  "certificate_sha256": "28ef122baa66fe3fa7d49ce2ca4d652b16c22cd51d719d8e606a0ad0b8ee2d36",
+  "debuggable": false,
+  "abi": "arm64-v8a",
+  "native_binaries_byte_exact": true,
+  "native_files": {
+    "lib/arm64-v8a/libksud.so": "0354e1a97b9f96a1e668e43b8fc56c1e14637ca57070c9c3ff801b9ce6e1226b",
+    "lib/arm64-v8a/libkptools.so": "e5402160fbcdc37b4342b2f32d7db2f4399ad4410a6647853b9238640c86f61c",
+    "assets/kpm/kpimg": "f4714f8c01cf8c842098b6a87a848297954d4cbac694aa0dd341fdef4ff35559"
+  },
+  "sukisu_pin": "674aa00c18adc3d7ef4069c03018d6194230865a",
+  "kernelpatch_pin": "1c5b608916357ac86a94cc736e235db1fac4a29d",
+  "patch_sha256": "d416c5fdc371cdd73cc81bf688afbcb8e6f7439decde0e5a1070169f66746793",
+  "changed_source_sha256": {
+    "manager/app/build.gradle.kts": "3a2b214d979013f38059609559c99d1e7c9d297a812e7bf96047550349390a6b",
+    "manager/app/src/main/java/com/sukisu/ultra/data/repository/CiManagerUpdater.kt": "676d36e2397c60af9062e38c5b63d8859aa03382c363da891f0600895c087f35",
+    "manager/app/src/main/java/com/sukisu/ultra/data/repository/SusfsRuntimeRepository.kt": "8788cffcb2ce713362954a37a83b0a6d644f67766f85595f61be25700296d4f9",
+    "manager/app/src/main/java/com/sukisu/ultra/data/repository/ThemeStoreResumableUploader.kt": "bf63115ce83869b7c7525c98dda0d43c739fc25a07fb02ace6eb81e70d8cb53a",
+    "manager/app/src/main/java/com/sukisu/ultra/ui/component/SusfsRuntimeCard.kt": "cf6281899c44d932aafd039d43f06983f78dcc703fd8fc1175b108fe592ee6d7",
+    "manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMaterial.kt": "2de59777a48441ece9f2215d79681694d663effeb895af6ed2aafe8bd227117f",
+    "manager/app/src/main/java/com/sukisu/ultra/ui/screen/home/HomeMiuix.kt": "0f2b7148f5ea7d91297ae4ce9850de8942f3825f2e45f9c80b58cb81cd356621",
+    "manager/app/src/main/java/com/sukisu/ultra/ui/util/Downloader.kt": "25c1c4f319b202de8bdedf2169dde72e8bc0f631f5cdf7f7195c6b1dc4c41742",
+    "manager/app/src/main/res/values-de/kaoslab_runtime.xml": "1ad3ba6b5495fbfb5f8c836eb9f89ff202158935bab5e3c427b3b6445fdc71c0",
+    "manager/app/src/main/res/values/kaoslab_runtime.xml": "2d9d814dd03d5720a8f81ec6e51297f4493f49d4f1aaf43a7b8bdf98ec7720ce",
+    "manager/app/src/test/java/com/sukisu/ultra/data/repository/SusfsRuntimeRepositoryTest.kt": "972d6595b2e0c7311bfac09d3a4b08074396d0023e5fe3c96f260fe57b50ebc7",
+    "manager/app/src/test/java/com/sukisu/ultra/data/repository/ThemeStoreDistributedUploadTest.kt": "23f97db9f375ed88522a0e6506ce68678b3425ab45fb3f6754627db4a8bf3ecd",
+    "manager/build.gradle.kts": "c803961d5a860f15e5f179bed487e09a1311f4925f8a4d1b64c7bf14b9a5f2f1"
+  }
+}

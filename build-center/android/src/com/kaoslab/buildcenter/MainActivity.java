@@ -42,6 +42,7 @@ public class MainActivity extends Activity {
     private static final String HOST="appassets.androidplatform.net";
     private static final int LIMIT=512*1024*1024;
     private static final String CERT="947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef";
+    private static final String EZJ1_CERT="28ef122baa66fe3fa7d49ce2ca4d652b16c22cd51d719d8e606a0ad0b8ee2d36";
     private WebView web;
     private final ExecutorService executor=Executors.newFixedThreadPool(3);
     private boolean destroyed=false;
@@ -145,11 +146,18 @@ public class MainActivity extends Activity {
                     Set<String> entries=new HashSet<>();try(ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(raw))){ZipEntry e;while((e=z.getNextEntry())!=null){entries.add(e.getName());if(e.getSize()>LIMIT)throw new IOException("ZIP-Eintrag zu groß.");}}
                     if(!entries.contains("anykernel.sh")||!entries.contains("STRICT-KMI.txt")||Collections.disjoint(entries,Arrays.asList("Image","Image.gz","Image.gz-dtb","Image.lz4")))throw new IOException("AnyKernel3-/Strict-KMI-Paket unvollständig.");
                 }
+                if("kernel".equals(kind)||"kernel-artifact".equals(kind))verifyEzj1Kernel(raw,expected);
                 boolean install="apk".equals(kind);
                 if(install){
                     File apk=new File(getCacheDir(),"manager.apk");try(FileOutputStream out=new FileOutputStream(apk)){out.write(raw);}
                     PackageInfo info=getPackageManager().getPackageArchiveInfo(apk.getPath(),PackageManager.GET_SIGNING_CERTIFICATES);
-                    if(info==null||!"com.sukisu.ultra".equals(info.packageName)||info.signingInfo==null||!sha(info.signingInfo.getApkContentsSigners()[0].toByteArray()).equals(CERT)){apk.delete();throw new IOException("APK ist nicht der offiziell signierte SukiSU-Manager.");}
+                    boolean valid=false;
+                    if(info!=null&&info.signingInfo!=null&&info.signingInfo.getApkContentsSigners().length==1){
+                        String certificate=sha(info.signingInfo.getApkContentsSigners()[0].toByteArray());
+                        valid=("com.sukisu.ultra".equals(info.packageName)&&CERT.equals(certificate))||
+                            ("com.kaoslab.sukisu.manager".equals(info.packageName)&&EZJ1_CERT.equals(certificate));
+                    }
+                    if(!valid){apk.delete();throw new IOException("Paketkennung oder Signatur des SukiSU-Managers stimmt nicht überein.");}
                     pendingApk=apk;runOnUiThread(()->installApk());
                 }else{
                     ContentValues values=new ContentValues();values.put(MediaStore.Downloads.DISPLAY_NAME,name);values.put(MediaStore.Downloads.MIME_TYPE,name.endsWith(".zip")?"application/zip":"text/plain");values.put(MediaStore.Downloads.RELATIVE_PATH,"Download/KAOSLAB");values.put(MediaStore.Downloads.IS_PENDING,1);
@@ -171,6 +179,20 @@ public class MainActivity extends Activity {
     }
     @Override protected void onResume(){super.onResume();if(pendingApk!=null&&getPackageManager().canRequestPackageInstalls())installApk();}
     private static String sha(byte[] raw)throws Exception{byte[] digest=MessageDigest.getInstance("SHA-256").digest(raw);StringBuilder b=new StringBuilder();for(byte v:digest)b.append(String.format(Locale.ROOT,"%02x",v&255));return b.toString();}
+    private static void verifyEzj1Kernel(byte[] raw,String expected)throws Exception{
+        if(expected.isEmpty())throw new IOException("Kernel-Prüfsumme fehlt.");
+        byte[] receipt=null;String imageHash=null;Set<String> names=new HashSet<>();
+        try(ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(raw))){ZipEntry e;while((e=z.getNextEntry())!=null){
+            if(!names.add(e.getName()))throw new IOException("Mehrdeutige Kernel-Einträge.");
+            if("Image".equals(e.getName()))imageHash=sha(read(z,LIMIT));
+            else if("FIRMWARE-TARGET.json".equals(e.getName()))receipt=read(z,1024*1024);
+        }}
+        if(receipt==null||imageHash==null||!names.contains("anykernel.sh")||!names.contains("STRICT-KMI.txt"))throw new IOException("EZJ1-/Strict-KMI-Nachweis fehlt.");
+        JSONObject target=new JSONObject(new String(receipt,StandardCharsets.UTF_8));
+        if(!"S928BXXS6EZJ1".equals(target.optString("firmware"))||!"EUX".equals(target.optString("csc"))||
+           !"S928BXXS6EZJ1-EUX-android14-6.1.162".equals(target.optString("profile"))||!imageHash.equals(target.optString("image_sha256")))
+            throw new IOException("Kernel-Image und EZJ1-Firmware-Nachweis stimmen nicht überein.");
+    }
     private static byte[] read(InputStream in,int limit)throws IOException{ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] buf=new byte[32768];int n;while((n=in.read(buf))!=-1){if(out.size()+n>limit)throw new IOException("Download überschreitet das Größenlimit.");out.write(buf,0,n);}return out.toByteArray();}
     private static boolean allowed(URI u,String method,boolean download){
         if(!"https".equals(u.getScheme())||u.getUserInfo()!=null||(u.getPort()!=-1&&u.getPort()!=443))return false;
