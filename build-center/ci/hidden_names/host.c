@@ -27,9 +27,13 @@ static void run_case(int abi,bool hidden_expected){
   }while(abi!=0&&abi!=3&&pos<(size_t)bytes);
  }
  require(found==(hidden_expected?0:1),"directory leak or unexpected hiding",abi);
- require(total==(hidden_expected?5:6),"visible neighbors lost",abi);
- require(seen[0]&&seen[1]&&seen[3]&&seen[4]&&seen[5],"dot entries or visible control lost",abi);
- require(open_file->f_pos==6,"end position not preserved",abi);
+ require(total==nr_entries-(hidden_expected?1:0),"visible neighbors lost",abi);
+ for(int i=0;i<nr_entries;i++){
+  if(hidden_expected&&!strcmp(active_entries[i],entries[2]))continue;
+  bool returned=false;for(int j=0;j<6;j++)if(!strcmp(active_entries[i],entries[j]))returned=seen[j];
+  require(returned,"dot entries or visible control lost",abi);
+ }
+ require(open_file->f_pos==nr_entries,"end position not preserved",abi);
  require(rcu_depth==0,"RCU reader imbalance",abi);
 }
 int main(void){
@@ -45,6 +49,12 @@ int main(void){
   dir.d_name=(struct qstr){"obb",3};rename_retry=1;run_case(abi,true);dir.d_name=(struct qstr){"data",4};
   test_uid=110155;run_case(abi,true);test_uid=10155;
   ops.iterate_shared=NULL;run_case(abi,true);ops.iterate_shared=backend;
+  /* A trailing hidden entry must preserve previously emitted bytes even
+   * when ZeroMount takes its nonnegative-error injection/EOF branch. */
+  const char *hidden_tail[]={entries[0],entries[1],entries[3],entries[4],entries[5],entries[2]};
+  active_entries=hidden_tail;run_case(abi,true);
+  const char *dots_then_hidden[]={entries[0],entries[1],entries[2]};
+  active_entries=dots_then_hidden;nr_entries=3;run_case(abi,true);
   const char *hidden_only[]={"com.kaoslab.susfstarget"};active_entries=hidden_only;nr_entries=1;file.f_pos=0;unsigned char b[96];
   require(call_abi(abi,b,sizeof(b))==0,"all-hidden directory should be EOF",abi);require(file.f_pos==1,"all-hidden cursor must advance",abi);require(call_abi(abi,b,sizeof(b))==0,"repeated EOF should terminate",abi);
   active_entries=entries;nr_entries=6;

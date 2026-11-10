@@ -21,3 +21,13 @@ The test compiles the actual readdir syscall implementations against kernel API
 boundary fakes. The original source must reproduce the directory leak; the fixed
 source must pass all five ABIs with ZeroMount both enabled and disabled. This
 does not replace a full ARM64 build or actual Android app verification.
+
+## Partial reads with ZeroMount
+
+The first directory-filter revision reset `buf->error` while validating a
+trailing hidden entry. With ZeroMount enabled, this could take its EOF branch
+before the visible bytes already written to the userspace buffer were counted.
+Revision v2 keeps name-validation errors in a local variable and preserves the
+existing callback error state when an entry is skipped. The tests replay v1 as
+a negative control and cover hidden-last entries, visible dot prefixes, small
+buffers, and EOF for every directory ABI.

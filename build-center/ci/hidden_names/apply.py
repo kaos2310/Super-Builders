@@ -9,7 +9,7 @@ import subprocess
 
 HERE=Path(__file__).resolve().parent
 STATE='.susfs-hidden-name-readdir.json'
-REVISION='hidden-name-readdir-v1'
+REVISION='hidden-name-readdir-v2'
 CALLBACKS=('fillonedir','filldir','filldir64','compat_fillonedir','compat_filldir')
 
 def sha(data):return hashlib.sha256(data).hexdigest()
@@ -18,7 +18,7 @@ def once(source,old,new,count=1):
     if source.count(old)!=count:raise RuntimeError('Unexpected readdir anchor: '+repr(old))
     return source.replace(old,new)
 
-def transform(source):
+def transform(source, *, preserve_partial_reads=True):
     source=once(source,'#include <asm/unaligned.h>',
         '#include <asm/unaligned.h>\n\n#ifdef CONFIG_KSU_SUSFS_HIDDEN_NAME\n#include <linux/susfs_name_filter.h>\n#endif')
     source=once(source,'\tstruct dir_context ctx;','\tstruct dir_context ctx;\n#ifdef CONFIG_KSU_SUSFS_HIDDEN_NAME\n\tbool hidden_name_scope;\n#endif',5)
@@ -29,6 +29,15 @@ def transform(source):
         body=source[start:end]
         member='result' if name in ('fillonedir','compat_fillonedir') else 'error'
         anchor='\tbuf->'+member+' = verify_dirent_name(name, namlen);\n\tif ('+('buf->result' if member=='result' else 'unlikely(buf->error)')+')\n\t\treturn false;'
+        if member=='error' and preserve_partial_reads:
+            # A hidden trailing entry must not reset buf->error after visible
+            # entries were emitted. ZeroMount uses that state before normal
+            # partial-buffer finalization. Keep validation errors separate.
+            opening=body.index('{\n')+2
+            body=body[:opening]+'\tint hidden_name_error;\n'+body[opening:]
+            validation='\thidden_name_error = verify_dirent_name(name, namlen);\n\tif (unlikely(hidden_name_error)) {\n\t\tbuf->error = hidden_name_error;\n\t\treturn false;\n\t}'
+            body=once(body,anchor,validation)
+            anchor=validation
         block='\n#ifdef CONFIG_KSU_SUSFS_HIDDEN_NAME\n\tif (buf->hidden_name_scope &&\n\t    susfs_is_hidden_name(name, namlen, current_uid().val))\n\t\treturn true; /* Skip without consuming userspace buffer space. */\n#endif'
         body=once(body,anchor,anchor+block)
         source=source[:start]+body+source[end:]
@@ -38,6 +47,9 @@ def original(source):
     source=source.replace('\n\n#ifdef CONFIG_KSU_SUSFS_HIDDEN_NAME\n#include <linux/susfs_name_filter.h>\n#endif','',1)
     source=source.replace('\n#ifdef CONFIG_KSU_SUSFS_HIDDEN_NAME\n\tbool hidden_name_scope;\n#endif','')
     source=source.replace('#ifdef CONFIG_KSU_SUSFS_HIDDEN_NAME\n\tbuf.hidden_name_scope = susfs_hidden_name_dir(f.file);\n#endif\n\n','')
+    source=source.replace('\tint hidden_name_error;\n','')
+    source=source.replace('\thidden_name_error = verify_dirent_name(name, namlen);\n\tif (unlikely(hidden_name_error)) {\n\t\tbuf->error = hidden_name_error;\n\t\treturn false;\n\t}',
+        '\tbuf->error = verify_dirent_name(name, namlen);\n\tif (unlikely(buf->error))\n\t\treturn false;')
     block='\n#ifdef CONFIG_KSU_SUSFS_HIDDEN_NAME\n\tif (buf->hidden_name_scope &&\n\t    susfs_is_hidden_name(name, namlen, current_uid().val))\n\t\treturn true; /* Skip without consuming userspace buffer space. */\n#endif'
     return source.replace(block,'')
 
@@ -71,7 +83,7 @@ def apply(common):
         'input_sha256':{'fs/readdir.c':sha(source.encode())},
         'output_sha256':{name:sha(data) for name,data in files.items()},
         'policy':'existing runtime-controlled susfs_is_hidden_name with owner exemption; Android/data and Android/obb only',
-        'inode_cache_required':False,'kernel_abi_changed':False,'device_tested':False}
+        'inode_cache_required':False,'partial_read_state_preserved':True,'kernel_abi_changed':False,'device_tested':False}
     (common/STATE).write_text(json.dumps(state,indent=2)+'\n')
     return verify(common)
 

@@ -9,7 +9,7 @@ def main():
  text=(a.common/'fs/readdir.c' if a.common else a.source).read_text();old=m.original(text) if 'susfs_name_filter.h' in text else text;new=m.transform(old)
  header=(HERE/'host.h').read_text()+'\n'+(HERE/'susfs_name_filter.h').read_text();tail=(HERE/'host.c').read_text();results=[]
  for zm in (0,1):
-  for kind,source in [('baseline',old),('fixed',new)]:
+  for kind,source in [('baseline',old),('previous-v1',m.transform(old,preserve_partial_reads=False)),('fixed',new)]:
    code=header+'\n'+re.sub(r'^#include[^\n]*\n','',source,flags=re.M)+'\n'+tail
    path=a.output/f'{kind}-zm{zm}.c';path.write_text(code);binary=path.with_suffix('')
    cmd=[a.cc,'-std=gnu11','-O1','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-Wno-unused-function','-Wno-unused-label','-Wno-sign-compare','-Wno-pointer-sign','-DCONFIG_KSU_SUSFS_HIDDEN_NAME=1']
@@ -19,8 +19,11 @@ def main():
    run=subprocess.run([str(binary)],capture_output=True,text=True)
    if kind=='baseline':
     if run.returncode==0 or 'directory leak or unexpected hiding' not in run.stderr:raise RuntimeError('Baseline did not reproduce the intended leak: '+run.stdout+run.stderr)
+   elif kind=='previous-v1':
+    if zm and (run.returncode==0 or 'visible neighbors lost' not in run.stderr):raise RuntimeError('V1 did not reproduce the ZeroMount partial-read loss: '+run.stdout+run.stderr)
+    if not zm and run.returncode:raise RuntimeError('V1 failed without ZeroMount: '+run.stdout+run.stderr)
    elif run.returncode:raise RuntimeError(run.stdout+run.stderr)
    results.append({'kind':kind,'zeromount':bool(zm),'exit_code':run.returncode,'output':(run.stdout+run.stderr).strip()})
- result={'regression_reproduced':True,'five_abis_tested':True,'inode_cache_independent':True,'owner_and_runtime_exceptions_tested':True,'small_buffer_and_eof_tested':True,'cases':results,'limitation':'Kernel API boundary fakes; full ARM64 build, CRC checks and real app tests are separate gates.'}
+ result={'regression_reproduced':True,'previous_revision_zeromount_loss_reproduced':True,'trailing_hidden_entries_and_partial_reads_tested':True,'five_abis_tested':True,'inode_cache_independent':True,'owner_and_runtime_exceptions_tested':True,'small_buffer_and_eof_tested':True,'cases':results,'limitation':'Kernel API boundary fakes; full ARM64 build, CRC checks and real app tests are separate gates.'}
  (a.output/'TESTS.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result,indent=2))
 if __name__=='__main__':main()
