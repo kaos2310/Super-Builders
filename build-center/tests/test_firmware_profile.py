@@ -12,6 +12,26 @@ from ci import firmware_profile as profile
 
 
 class FirmwareProfileTests(unittest.TestCase):
+    def test_device_identity_uses_measured_archives_images_and_timestamp(self):
+        _, values = profile.load()
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'device-profiles.json'
+            other = {'stock_kernel': {'release': 'unrelated'}}
+            baseline = {'firmware': 'S928BXXU6EZIF', 'stock_kernel': {},
+                        'firmware_archives': {key: {} for key in ('ap', 'bl', 'keep_oem_unlock_bl', 'cp', 'csc', 'home_csc')}}
+            path.write_text(json.dumps({'devices': {'e3q': baseline, 'lake': other}}))
+            profile.prepare_device_profile(path, values)
+            document = json.loads(path.read_text())
+            target = document['devices']['e3q']
+            self.assertEqual(document['devices']['lake'], other)
+            self.assertEqual(target['firmware'], values['SAMSUNG_TARGET_FIRMWARE'])
+            self.assertEqual('6.1.162' + target['stock_kernel']['release'], values['SAMSUNG_TARGET_KERNEL_RELEASE'])
+            self.assertEqual('#1 SMP PREEMPT ' + target['stock_kernel']['build_timestamp'], values['SAMSUNG_TARGET_KERNEL_VERSION_STRING'])
+            evidence = json.loads((profile.DATA / 'evidence.json').read_text())
+            self.assertEqual(target['stock_images'], evidence['stock_images'])
+            for key, archive in target['firmware_archives'].items():
+                self.assertEqual(archive['sha256'], evidence['archives'][key]['sha256'])
+
     def test_hashed_inputs_have_identical_bytes_on_git_and_windows(self):
         document, _ = profile.load()
         for name in document['files']:

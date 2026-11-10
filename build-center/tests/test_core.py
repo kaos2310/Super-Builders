@@ -151,6 +151,10 @@ class BootstrapTests(unittest.TestCase):
             (port/'PREFLIGHT.json').write_text('{"arm64_sukisu_subtree_compiled":true}')
             (h/'configure-sukisu-41165.py').write_text("PIN='d7d042816b82b200c25b3a93dcc158ba0307cabf'\ncount=3980\nversion=41165")
             (root/'.github/workflows').mkdir(parents=True)
+            (root/'device-profiles.json').write_text(json.dumps({'devices': {'e3q': {
+                'firmware': 'S928BXXU6EZIF', 'stock_kernel': {}, 'firmware_archives':
+                {key: {} for key in ('ap', 'bl', 'keep_oem_unlock_bl', 'cp', 'csc', 'home_csc')}
+            }}}))
             (root/'android14-6.1/samsung-s928bxxu6ezif-target.env').write_bytes((FIRMWARE_DATA/'baseline-target.env').read_bytes())
             (root/'android14-6.1/samsung-e3q-zzi4-dlkm-crc-baseline.tsv').write_bytes((FIRMWARE_DATA/'strict-baseline.tsv').read_bytes())
             prepare(root,self.plan())

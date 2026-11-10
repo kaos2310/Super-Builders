@@ -62,6 +62,30 @@ def migrate(text, profile):
     return text
 
 
+def prepare_device_profile(path, values):
+    document = json.loads(path.read_text(encoding='utf-8'))
+    target = document['devices']['e3q']
+    if target['firmware'] != 'S928BXXU6EZIF':
+        raise ValueError('Unreviewed baseline device profile')
+    evidence = json.loads((DATA / 'evidence.json').read_text())
+    for key, source in {'firmware': 'FIRMWARE', 'firmware_package': 'PACKAGE',
+                        'firmware_build_datetime': 'BUILD_DATETIME', 'ap': 'AP',
+                        'csc_build': 'CSC_BUILD', 'cp': 'CP', 'csc': 'CSC'}.items():
+        target[key] = values['SAMSUNG_TARGET_' + source]
+    for key, archive in evidence['archives'].items():
+        original = target['firmware_archives'][key]
+        original.update({field: archive[field] for field in ('name', 'tar_md5', 'sha256', 'md5_verified')})
+    target['stock_images'] = evidence['stock_images']
+    version = values['SAMSUNG_TARGET_KERNEL_VERSION_STRING']
+    target['stock_kernel'].update(
+        release=values['SAMSUNG_TARGET_KERNEL_RELEASE'].removeprefix('6.1.162'),
+        version_string=version, build_timestamp=version.removeprefix('#1 SMP PREEMPT '),
+        build_user=values['SAMSUNG_TARGET_KERNEL_BUILD_USER'],
+        build_host=values['SAMSUNG_TARGET_KERNEL_BUILD_HOST'],
+        compiler_info=values['SAMSUNG_TARGET_KERNEL_COMPILER'])
+    path.write_text(json.dumps(document, indent=2) + '\n', encoding='utf-8', newline='\n')
+
+
 def prepare(root, plan):
     profile, values = load()
     if plan['profile'] != PROFILE:
@@ -77,6 +101,8 @@ def prepare(root, plan):
     baseline = android / 'samsung-e3q-zzi4-dlkm-crc-baseline.tsv'
     if sha(baseline.read_text().encode()) != profile['strict_baseline_sha256']:
         raise ValueError('The audited strict CRC baseline was changed')
+    device_profile = root / 'device-profiles.json'
+    prepare_device_profile(device_profile, values)
     helper = android / 'build-helpers'
     for path in helper.rglob('*'):
         if not path.is_file() or path.is_symlink():
@@ -106,6 +132,7 @@ def prepare(root, plan):
                'kernel_release': profile['kernel_release'], 'strict_baseline_sha256': profile['strict_baseline_sha256'],
                'strict_symbols_revalidated': 2485, 'stock_import_crcs_revalidated': 5470,
                'output_sha256': {name: sha((android / name).read_bytes()) for name in outputs},
+               'device_profile_sha256': sha(device_profile.read_bytes()),
                'device_boot_tested': False, 'stock_archive_md5_verified': True}
     marker.write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
     return verify(root)
@@ -117,6 +144,8 @@ def verify(root):
     receipt = json.loads((root / MARKER).read_text())
     if receipt['profile'] != PROFILE or receipt['kernel_release'] != profile['kernel_release']:
         raise ValueError('Prepared firmware profile mismatch')
+    if sha((root / 'device-profiles.json').read_bytes()) != receipt['device_profile_sha256']:
+        raise ValueError('Prepared device profile drift')
     for name, expected in receipt['output_sha256'].items():
         if sha((root / 'android14-6.1' / name).read_bytes()) != expected:
             raise ValueError('Prepared firmware input drift: ' + name)
