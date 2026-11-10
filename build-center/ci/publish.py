@@ -24,6 +24,8 @@ def main():
         strict=z.read('STRICT-KMI.txt').decode()
         if 'S928BXXU6EZIF' not in strict or 'strict' not in strict.lower():
             raise RuntimeError('Strict firmware evidence missing')
+        if 'Requires firmware S928BXXU6EZIF' not in z.read('anykernel.sh').decode():
+            raise RuntimeError('Flash installer does not accept the audited EZIF firmware')
         hidden=json.loads(z.read('SUSFS-HIDDEN-NAME-READDIR.json'))
         if hidden['revision']!=plan.get('kernel_revision') or hidden['image_sha256']!=hashlib.sha256(z.read('Image')).hexdigest():
             raise RuntimeError('Hidden-name correction does not match the packaged Image')
