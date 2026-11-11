@@ -1,5 +1,15 @@
 # Prüfstand · EZJ1 / Build Center
 
+## 11. November 2026: SukiSU 41176 Kbuild-Kompatibilität
+
+Der vollständige bestehende Kompatibilitätspatch scheitert gegen den offiziellen Commit `3af6085d0d26e73ffd1a3e7b34362435dcfb5a03` reproduzierbar an `kernel/Kbuild:128`. Die Ursache sind zusätzliche Upstream-Linkerflags im bereits vom bestehenden Profil entfernten Preinit-Runner-Abschnitt.
+
+Die Korrektur ersetzt bei der Vorbereitung ausschließlich den bekannten Kbuild-Diffabschnitt für genau diesen Quell-Pin, Version 41176 und 3991 Commits. Beide Fragment-Identitäten sind geprüft; veränderte Vorlagen werden abgewiesen. Andere Abschnitte des Gesamtpatches bleiben bytegenau erhalten.
+
+Frische lokale Nachweise: 44 Python-Tests bestanden, darunter sieben neue Prüfungen für Begrenzung, Identitäten, Wiederholbarkeit und Ablehnung unerwarteter Vorlagen. Mit dem tatsächlichen gepinnten Baseline-Builder und dem offiziellen vollständigen 41176-Verlauf wurde der alte Fehler reproduziert und der korrigierte Gesamtpatch vollständig angewendet. Die resultierende Kbuild entspricht vor der Versionskonfiguration mit kanonischen LF-Zeilenenden bytegenau dem bisherigen geprüften Profil. Der echte migrierte Versions- und Zertifikatshelper besteht einschließlich `--verify-only`. Die EZJ1-Firmware-Nachweise und die strenge CRC-Basis wurden erneut geprüft.
+
+Ein vollständiger Kernel-Link, neue Stock-Modul-CRC-Ergebnisse und ein Gerätetest sind damit noch nicht nachgewiesen; diese Nachweise gehören zum neuen Actions-Lauf beziehungsweise einem späteren Gerätetest.
+
 ## 11. November 2026: Build Center 1.1.1
 
 Die App-Ablehnung wurde auf einen gespeicherten Workflow-Branch `kaos2310` zurückgeführt. GitHub liefert dafür HTTP 422; `main` wurde unabhängig über die öffentliche API bestätigt. Die App prüft den Branch jetzt bei der Verbindung und vor jedem Auftrag. Bekannte GitHub-Ablehnungen bekommen einen konkreten Hinweis. Der lokale Windows-/Web-Proxy erhält dafür den HTTP-Status; seine bisherigen CI- und Download-Aufrufer behalten ihren Fehlervertrag.

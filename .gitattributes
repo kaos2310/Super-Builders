@@ -1,3 +1,5 @@
 build-center/ci/firmware/** text eol=lf
 build-center/ci/hidden_names/** text eol=lf
+build-center/ci/compat/** text eol=lf -whitespace
+build-center/tests/fixtures/*.patch text eol=lf -whitespace
 build-center/manager/upstream.patch text eol=lf -whitespace
