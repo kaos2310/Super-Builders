@@ -43,12 +43,12 @@ function showSources(s){
   $('suki-sha').textContent=s.sukisu_commit.slice(0,12);$('sus-sha').textContent=s.susfs_commit.slice(0,12);$('channel-label').textContent=s.channel;
   pill('suki-pill','QUELLE AKTUELL');pill('sus-pill','QUELLE AKTUELL');
 }
-function installationState(value){
+function installationState(value,error=''){
   installed=value;
   const ready=Boolean(value&&value.state==='active');
-  $('build-hint').textContent=ready?'Workflow eingerichtet · Updates in GitHub Actions integrieren':value?'Workflow ist deaktiviert. Auf GitHub aktivieren.':'Build-Center-Workflow muss einmalig im Repository eingerichtet werden.';
+  $('build-hint').textContent=error||(ready?'Workflow und Branch bestätigt · Updates in GitHub Actions integrieren':value?'Workflow ist deaktiviert. Auf GitHub aktivieren.':'Build-Center-Workflow muss einmalig im Repository eingerichtet werden.');
   $('build').disabled=!ready||!sources||!token;
-  pill('connection-state',ready?(token?'VERBUNDEN':'WORKFLOW BEREIT'):'EINRICHTUNG OFFEN',ready?'':'neutral');
+  pill('connection-state',ready?(token?'VERBUNDEN':'WORKFLOW BEREIT'):error?'VERBINDUNG PRÜFEN':'EINRICHTUNG OFFEN',ready?'':error?'bad':'neutral');
 }
 function row(title,sub,buttonText,action,type='ZIP'){
   const div=node('div',undefined,'download-row');const info=node('div',undefined,'download-info');
@@ -111,9 +111,9 @@ async function loadDownloads(){
 }
 async function refresh(){
   if(checking)return;checking=true;$('refresh').disabled=true;$('refresh').textContent='↻  Wird geprüft …';
-  try{makeApi();const results=await Promise.allSettled([api.sources($('channel').value),api.installation()]);
+  try{makeApi();const results=await Promise.allSettled([api.sources($('channel').value),api.installation($('ref').value)]);
     if(results[0].status==='fulfilled')showSources(results[0].value);else{sources=null;pill('suki-pill','PRÜFUNG FEHLGESCHLAGEN','bad');pill('sus-pill','NICHT BESTÄTIGT','bad');}
-    if(results[1].status==='fulfilled')installationState(results[1].value);else{installationState(null);}
+    if(results[1].status==='fulfilled')installationState(results[1].value);else{installationState(null,results[1].reason.message);}
     const failure=results.find(r=>r.status==='rejected');
     if(failure)message(failure.reason.message,true);else{message(installed?'Quellen geprüft. Der Build pinnt beide Quellen beim Start erneut.':'Quellen geprüft. Die lokale App ist bereit; die GitHub-Integration ist noch nicht eingerichtet.');}
     $('last-check').textContent='Geprüft: '+new Date().toLocaleString('de-DE');
@@ -147,12 +147,15 @@ async function poll(){
   }catch(e){message(e.message,true);}finally{pollBusy=false;}
 }
 $('refresh').addEventListener('click',refresh);
+for(const id of ['repository','ref','channel'])$(id).addEventListener('input',()=>{
+  sources=null;installationState(null,'Einstellungen geändert. Verbindung speichern & prüfen.');
+});
 $('settings-form').addEventListener('submit',async event=>{event.preventDefault();try{token=$('token').value.trim();saveSettings();if(window.KaosNative)window.KaosNative.storeToken($('remember-token').checked?token:'');sources=null;activeRun=null;makeApi();await refresh();}catch(e){message(e.message,true);}});
 $('forget').addEventListener('click',()=>{token='';$('token').value='';if(window.KaosNative)window.KaosNative.storeToken('');makeApi();installationState(installed);message('Token entfernt. Öffentliche Lesezugriffe bleiben verfügbar.');});
 $('build').addEventListener('click',()=>{
   if(!sources)return;
   if(pendingRequest){message('Ein Build-Auftrag wartet bereits auf seine GitHub-Lauf-ID.');return;}
-  $('plan-review').textContent=`SukiSU ${sources.sukisu_code}\n${sources.sukisu_commit}\n\nSuSFS ${sources.susfs_version}\n${sources.susfs_commit}\n\nProfil: S928BXXS6EZJ1 / EUX / 6.1.162\nDie Pipeline liest beim Start den neuesten Stand erneut ein.`;
+  $('plan-review').textContent=`Repository: ${api.repo}\nWorkflow-Branch: ${$('ref').value.trim()}\n\nSukiSU ${sources.sukisu_code}\n${sources.sukisu_commit}\n\nSuSFS ${sources.susfs_version}\n${sources.susfs_commit}\n\nProfil: S928BXXS6EZJ1 / EUX / 6.1.162\nDie Pipeline liest beim Start den neuesten Stand erneut ein.`;
   $('build-dialog').showModal();
 });
 $('build-dialog').addEventListener('close',async()=>{if($('build-dialog').returnValue!=='build')return;

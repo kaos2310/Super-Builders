@@ -1,12 +1,12 @@
-# SukiSU Build Center 1.1.0 · Samsung EZJ1
+# SukiSU Build Center 1.1.1 · Samsung EZJ1
 
 Deutsche App für Android, Windows und den lokalen Browser. Das Buildziel ist **SM-S928B / S928BXXS6EZJ1 / EUX / Android 17 mit Android 14-GKI 6.1.162**.
 
 | Variante | Datei | Start |
 | --- | --- | --- |
-| Build Center für Android ab 10 | `SukiSU-Build-Center-1.1.0.apk` | Als Update installieren; bestehende Einstellungen bleiben erhalten |
-| Windows 11 x64 | `SukiSU-Build-Center-1.1.0.exe` | Portable EXE öffnen; Microsoft Edge wird als App-Fenster verwendet |
-| Lokale Web-App | `SukiSU-Build-Center-Web-1.1.0.zip` | Entpacken und `Start-Web.cmd` starten |
+| Build Center für Android ab 10 | `SukiSU-Build-Center-1.1.1.apk` | Als Update installieren; bestehende Einstellungen bleiben erhalten |
+| Windows 11 x64 | `SukiSU-Build-Center-1.1.1.exe` | Portable EXE öffnen; Microsoft Edge wird als App-Fenster verwendet |
+| Lokale Web-App | `SukiSU-Build-Center-Web-1.1.1.zip` | Entpacken und `Start-Web.cmd` starten |
 | Web auf Linux/macOS | Quellpaket | Python 3.11 oder neuer: `python3 desktop.py --web` |
 | Zusätzlicher SukiSU-Root-Manager | `SukiSU_EZJ1_v4.3.0-r2-runtime1_41168-arm64-v8a-release.apk` | Parallel zum offiziellen Manager installieren; separate bewusste Manager-Freigabe erforderlich |
 
@@ -15,6 +15,8 @@ Windows und die lokale Web-App binden ausschließlich `127.0.0.1`. Die EXE enth�
 ## GitHub-Verbindung und Ablauf
 
 Voreingestellt sind `kaos2310/Super-Builders`, Branch `main` und der neueste offizielle SukiSU-Entwicklungsstand. Alternativ kann der aktuelle offizielle Release-Tag gewählt werden. Für den manuellen Build-Start benötigt ein auf dieses Repository beschränkter Token **Actions: Read and write** und **Contents: Read**. Öffentliche Quellprüfungen und Release-Downloads funktionieren ohne Token, abhängig von den GitHub-/GitLab-API-Limits.
+
+In das Feld **Workflow-Branch** gehört ein vorhandener Branch wie `main`, kein GitHub-Benutzername. Version 1.1.1 prüft diesen Wert bei der Verbindungsprüfung und erneut vor jedem Build-Auftrag. Ein ungültiger Wert wird verständlich angezeigt und deaktiviert den Startknopf. Der Bestätigungsdialog zeigt zusätzlich Repository und Workflow-Branch. Änderungen an den Verbindungsfeldern müssen erneut geprüft werden.
 
 Der Token bleibt in Web und Windows im Arbeitsspeicher. Android speichert ihn nur auf ausdrücklichen Wunsch verschlüsselt im Android Keystore. Bei geöffneter App werden die Quellen alle 15 Minuten geprüft. Der Actions-Zeitplan prüft unabhängig davon stündlich bei Minute 17. GitHub kann geplante Läufe verzögert ausführen.
 
