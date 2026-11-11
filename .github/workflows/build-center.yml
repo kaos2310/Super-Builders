@@ -1,5 +1,5 @@
 name: SukiSU Build Center
-run-name: "Build Center · ${{ inputs.request_id || 'automatisch' }} · ${{ inputs.channel || 'main' }}"
+run-name: "SukiSU 41178 EZJ1 · ${{ inputs.request_id || 'pinned preview' }} · latest SUSFS"
 
 on:
   schedule:
@@ -52,6 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           ARGS=(--channel "$CHANNEL")
+          ARGS+=(--sukisu-ref 1c9cca42f8049227d4eea20ab3979db3c5662a7d)
           [[ "$FORCE" != true ]] || ARGS+=(--force)
           python3 build-center/ci/check_updates.py "${ARGS[@]}"
       - uses: actions/upload-artifact@v7

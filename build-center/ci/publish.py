@@ -52,6 +52,7 @@ def main():
     notes.write_text(f"SukiSU {plan['sukisu_code']} + SuSFS {plan['susfs_version']}\n\n"
         f"S928BXXS6EZJ1 / EUX / Linux 6.1.162.\n\n"
         f"SukiSU commit: {plan['sukisu_commit']}\n\nSuSFS commit: {plan['susfs_commit']}\n\n"
+        + (f"Requested source: official PR merge preview, {plan['sukisu_pull_request']}. This is a preview, not the main-branch version.\n\n" if plan.get('sukisu_source_kind') == 'official-pull-request-merge-preview' else '') +
         f"Kernel, ARM64 userspace and ZeroMount compatibility jobs passed. Samsung Strict KMI and DLKM CRC gates passed.\n\n"
         f"CI run: https://github.com/{plan['repository']}/actions/runs/{plan['run_id']}\n\n"
         f"Kernel correction: {plan['kernel_revision']}. Native and compat directory callbacks apply the existing runtime/owner-aware HIDDEN_NAME policy. Exact-C regression and packaged Image receipts are included.\n\n"

@@ -11,10 +11,10 @@ import re
 import shutil
 if __package__:
     from .firmware_profile import prepare as prepare_firmware
-    from .kbuild_compat import SOURCE_PIN as KBUILD_REFRESH_PIN, adapt_compat_patch
+    from .kbuild_compat import REVIEWED_PINS as KBUILD_REFRESH_PINS, adapt_compat_patch
 else:
     from firmware_profile import prepare as prepare_firmware
-    from kbuild_compat import SOURCE_PIN as KBUILD_REFRESH_PIN, adapt_compat_patch
+    from kbuild_compat import REVIEWED_PINS as KBUILD_REFRESH_PINS, adapt_compat_patch
 
 OLD_PIN = 'd7d042816b82b200c25b3a93dcc158ba0307cabf'
 OLD_CODE = '41165'
@@ -27,6 +27,9 @@ def validate(plan):
     count, code = plan['sukisu_count'], plan['sukisu_code']
     if type(count) is not int or type(code) is not int or code != 40000+count-2815 or count < 2815:
         raise ValueError('Invalid source/version mapping')
+    reviewed = KBUILD_REFRESH_PINS.get(plan['sukisu_commit'])
+    if reviewed is not None and (code, count) != reviewed:
+        raise ValueError('Invalid reviewed source/version mapping')
     if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:[\w.+-]*)', plan['susfs_version']):
         raise ValueError('Invalid SuSFS version')
     if plan['profile'] != 'S928BXXS6EZJ1-EUX-android14-6.1.162':
@@ -72,10 +75,10 @@ def prepare(root, plan):
     shutil.copytree(Path(__file__).with_name('hidden_names'), helper / 'susfs-hidden-name-readdir',
                     ignore=shutil.ignore_patterns('__pycache__'))
     port = helper / f'sukisu-{code}-susfs'
-    if pin == KBUILD_REFRESH_PIN:
+    if pin in KBUILD_REFRESH_PINS:
         compat = port / 'compat.patch'
         compat.write_bytes(adapt_compat_patch(compat.read_bytes(), plan))
-        print('Refreshed the exact 41176 Kbuild preinit deletion hunk; audited build profile retained')
+        print(f'Refreshed the exact {code} Kbuild preinit deletion hunk; audited build profile retained')
     wrapper = "from pathlib import Path\nimport sys\nsys.path.insert(0,str(Path(__file__).resolve().parents[1]))\nfrom _center_runtime import {}\n{}()\n"
     (port / 'apply.py').write_text(wrapper.format('port_apply', 'port_apply'), encoding='utf-8')
     (port / 'check.py').write_text(wrapper.format('port_check', 'port_check'), encoding='utf-8')

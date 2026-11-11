@@ -541,6 +541,7 @@ jobs:
         PIN="${{ inputs.sukisu_commit }}"
         test "$PIN" = ${{ inputs.center_pin }}
         git clone https://github.com/SukiSU-Ultra/SukiSU-Ultra.git "$KSU_DIR"
+        git -C "$KSU_DIR" fetch origin "$PIN"
         git -C "$KSU_DIR" checkout --detach "$PIN"
         test "$(git -C "$KSU_DIR" rev-parse HEAD)" = "$PIN"
         test "$(git -C "$KSU_DIR" rev-list --count HEAD)" = ${{ inputs.center_count }}

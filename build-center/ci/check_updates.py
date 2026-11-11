@@ -29,6 +29,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--channel', choices=('main', 'release'), default='main')
     parser.add_argument('--force', action='store_true')
+    parser.add_argument('--sukisu-ref', help='Exact official repository commit for an explicit build request')
     args = parser.parse_args()
     config = json.loads((Path(__file__).resolve().parents[1] / 'config.json').read_text())
     scheduled = os.environ.get('GITHUB_EVENT_NAME') == 'schedule'
@@ -36,7 +37,12 @@ def main():
         outputs = {'build': 'false', 'reason': 'Automatic builds are disabled'}
     else:
         token = os.environ.get('GH_TOKEN', '')
-        plan = resolve_sources(args.channel, token)
+        plan = resolve_sources(args.channel, token, source_ref=args.sukisu_ref)
+        if args.sukisu_ref == '1c9cca42f8049227d4eea20ab3979db3c5662a7d':
+            if (plan['sukisu_code'], plan['sukisu_count']) != (41178, 3993):
+                raise ValueError('The requested 41178 preview source/version mapping changed')
+            plan['sukisu_source_kind'] = 'official-pull-request-merge-preview'
+            plan['sukisu_pull_request'] = 'https://github.com/SukiSU-Ultra/SukiSU-Ultra/pull/1044'
         plan['baseline_commit'] = config['baseline_commit']
         plan['susfs_release_base'] = config['susfs_release_base']
         plan['susfs_functional_base'] = config['susfs_functional_base']

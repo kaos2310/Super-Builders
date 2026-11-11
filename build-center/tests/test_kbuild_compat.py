@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from ci.kbuild_compat import adapt_compat_patch, SOURCE_PIN, BASE_FRAGMENT_SHA256
+from ci.kbuild_compat import adapt_compat_patch, SOURCE_PIN, BASE_FRAGMENT_SHA256, REVIEWED_PINS
 
 FIXTURE = Path(__file__).with_name('fixtures').joinpath('kbuild-41165.patch')
 
@@ -35,6 +35,20 @@ class KbuildCompatibilityTests(unittest.TestCase):
     def test_refresh_is_idempotent(self):
         fixed = adapt_compat_patch(self.patch,self.plan)
         self.assertEqual(adapt_compat_patch(fixed,self.plan),fixed)
+
+    def test_41178_preview_uses_the_reviewed_hunk_and_remains_idempotent(self):
+        preview = {'sukisu_commit':'1c9cca42f8049227d4eea20ab3979db3c5662a7d',
+                   'sukisu_code':41178,'sukisu_count':3993}
+        fixed = adapt_compat_patch(self.patch,preview)
+        self.assertNotEqual(fixed,self.patch)
+        self.assertEqual(fixed,adapt_compat_patch(self.patch,self.plan))
+        self.assertEqual(adapt_compat_patch(fixed,preview),fixed)
+
+    def test_reviewed_pins_cannot_use_each_others_version_mapping(self):
+        for pin, (code, count) in REVIEWED_PINS.items():
+            for wrong in ((code+1,count+1),(code,count+1),(code+1,count)):
+                with self.assertRaisesRegex(RuntimeError,'source/version mapping'):
+                    adapt_compat_patch(self.patch,{'sukisu_commit':pin,'sukisu_code':wrong[0],'sukisu_count':wrong[1]})
 
     def test_other_official_source_pins_are_not_rewritten(self):
         other = dict(self.plan,sukisu_commit='a'*40)

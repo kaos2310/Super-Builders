@@ -133,6 +133,30 @@ class ResolveTests(unittest.TestCase):
             return r
         with self.assertRaisesRegex(CenterError,'Commitanzahl'):resolve_sources(get=get)
 
+    def test_explicit_source_pin_is_resolved_with_its_true_count(self):
+        urls=[]
+        def get(url,*args,**kw):
+            urls.append(url);r=self.fake(url,*args,**kw)
+            if '/commits?sha=' in url:
+                r['headers']['link']=r['headers']['link'].replace('page=3983','page=3993')
+            return r
+        p=resolve_sources(get=get,source_ref='a'*40)
+        self.assertEqual(p['sukisu_code'],41178)
+        self.assertEqual(p['sukisu_count'],3993)
+        self.assertEqual(p['channel'],'pinned')
+        self.assertEqual(p['sukisu_requested_ref'],'a'*40)
+        self.assertIn('/commits/'+'a'*40,' '.join(urls))
+
+    def test_explicit_pin_cannot_resolve_to_another_commit(self):
+        with self.assertRaisesRegex(CenterError,'Auftrag'):
+            resolve_sources(get=self.fake,source_ref='c'*40)
+
+    def test_invalid_explicit_ref_fails_before_any_network_request(self):
+        def forbidden(*args,**kwargs):raise AssertionError('Network request was not expected')
+        for ref in ('main','refs/pull/1044/merge','a'*39,'a'*41):
+            with self.assertRaises(CenterError):resolve_sources(get=forbidden,source_ref=ref)
+        with self.assertRaises(CenterError):resolve_sources('release',get=forbidden,source_ref='a'*40)
+
 
 class MergeTests(unittest.TestCase):
     def test_custom_overlay_and_upstream_change_preserved(self):
@@ -155,6 +179,11 @@ class BootstrapTests(unittest.TestCase):
     def test_invalid_plan_rejected_before_writes(self):
         p=self.plan();p['sukisu_code']=41170
         with self.assertRaisesRegex(ValueError,'mapping'):validate(p)
+
+    def test_reviewed_pin_with_another_valid_formula_fails_before_writes(self):
+        p=self.plan();p.update(sukisu_commit='1c9cca42f8049227d4eea20ab3979db3c5662a7d',
+                               sukisu_code=41176,sukisu_count=3991)
+        with self.assertRaisesRegex(ValueError,'reviewed source/version mapping'):validate(p)
     def test_new_sources_do_not_inherit_compilation_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);h=root/'android14-6.1/build-helpers';port=h/'sukisu-41165-susfs';port.mkdir(parents=True)

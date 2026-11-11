@@ -164,16 +164,20 @@ def checked_file(raw, name, expected="", kind="file"):
     return raw, safe_name, sha256(raw)
 
 
-def resolve_sources(channel="main", token="", get=request):
+def resolve_sources(channel="main", token="", get=request, source_ref=None):
     if channel not in ("main", "release"):
         raise CenterError("Unbekannter Update-Kanal.")
+    if source_ref is not None and (not SHA.fullmatch(source_ref) or channel != "main"):
+        raise CenterError("Ein expliziter Quellstand erfordert eine vollständige Commit-ID im main-Kanal.")
     base = "https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra"
     release = get(base + "/releases/latest", token)["data"]
-    ref = "main" if channel == "main" else release["tag_name"]
+    ref = source_ref or ("main" if channel == "main" else release["tag_name"])
     commit = get(base + "/commits/" + urllib.parse.quote(ref, safe=""), token)["data"]
     pin = commit["sha"]
     if not SHA.fullmatch(pin):
         raise CenterError("Ungültige SukiSU-Commit-ID.")
+    if source_ref is not None and pin != source_ref:
+        raise CenterError("Der aufgelöste SukiSU-Commit stimmt nicht mit dem Auftrag überein.")
     counts = get(base + f"/commits?sha={pin}&per_page=1", token)
     last = re.search(r"[?&]page=(\d+)[^>]*>; rel=\"last\"", counts["headers"].get("link", ""))
     count = int(last[1]) if last else len(counts["data"])
@@ -202,7 +206,8 @@ def resolve_sources(channel="main", token="", get=request):
     manager = next((a for a in release.get("assets", [])
                     if a["name"].endswith(".apk") and f"_{code}-" in a["name"]), None)
     tag = f"s928b-ezj1-suki{code}-susfs{version.removeprefix('v')}-{pin[:8]}-{sus_pin[:8]}"
-    return {"schema": 1, "channel": channel, "sukisu_commit": pin, "sukisu_code": code,
+    return {"schema": 1, "channel": "pinned" if source_ref else channel,
+            "sukisu_requested_ref": source_ref, "sukisu_commit": pin, "sukisu_code": code,
             "sukisu_count": count, "sukisu_tag": release["tag_name"],
             "sukisu_message": commit["commit"]["message"].splitlines()[0],
             "susfs_commit": sus_pin, "susfs_version": version, "release_tag": tag,
