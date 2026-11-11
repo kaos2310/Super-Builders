@@ -1,0 +1,80 @@
+diff --git a/kernel/Kbuild b/kernel/Kbuild
+index 17abbf5e..513b4879 100644
+--- a/kernel/Kbuild
++++ b/kernel/Kbuild
+@@ -6,21 +6,7 @@ kernelsu-objs += feature/mount_hide.o
+ kernelsu-objs += feature/sulog.o
+ kernelsu-objs += feature/sucompat.o
+ 
+-kernelsu-objs += hook/lsm_hook.o
+ kernelsu-objs += hook/setuid_hook.o
+-kernelsu-objs += hook/syscall_event_bridge.o
+-kernelsu-objs += hook/syscall_hook_manager.o
+-kernelsu-objs += hook/tp_marker.o
+-ifeq ($(CONFIG_ARM64),y)
+-kernelsu-objs += hook/arm64/patch_memory.o
+-kernelsu-objs += hook/arm64/syscall_hook.o
+-else ifeq ($(CONFIG_X86_64),y)
+-kernelsu-objs += hook/x86_64/patch_memory.o
+-kernelsu-objs += hook/x86_64/syscall_hook.o
+-else ifeq ($(CONFIG_RISCV),y)
+-kernelsu-objs += hook/riscv64/patch_memory.o
+-kernelsu-objs += hook/riscv64/syscall_hook.o
+-endif
+ 
+ kernelsu-objs += infra/file_wrapper.o
+ kernelsu-objs += infra/event_queue.o
+@@ -83,9 +69,6 @@ endif
+ ifeq ($(CONFIG_KSU_DEBUG),y)
+ ccflags-y += -DCONFIG_KSU_DEBUG=1
+ endif
+-ifeq ($(CONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER),y)
+-ccflags-y += -DCONFIG_KSU_X86_PATCH_SYSCALL_DISPATCHER=1
+-endif
+ endif
+ 
+ ifeq ($(CONFIG_KPM),y)
+@@ -128,39 +111,11 @@ endif
+ 
+ ccflags-y += -I$(KSU_KERNEL_DIR) -I$(KSU_KERNEL_DIR)/include
+ 
+-# preinit runner: a static nolibc binary embedded into kernelsu, see preinit/.
+-# It is built against the installed UAPI headers of the target kernel
+-# (CONFIG_HEADERS_INSTALL, enabled by gki_defconfig).
+-KSU_UAPI_INC := $(objtree)/usr/include
+-ifneq ($(wildcard $(KSU_UAPI_INC)/linux/unistd.h),)
+-kernelsu-objs += preinit/preinit.o
+-kernelsu-objs += preinit/blob.o
+-
+-KSU_RUNNER_CFLAGS := $(CLANG_FLAGS) -std=gnu11 -Os -Wall \
+-	-nostdinc -isystem $(shell $(CC) -print-file-name=include) \
+-	-I$(KSU_KERNEL_DIR)/preinit/runner/nolibc -I$(KSU_UAPI_INC) \
+-	-I$(KSU_KERNEL_DIR)/include \
+-	-ffreestanding -fno-stack-protector -fno-pic -fno-pie \
+-	-fno-asynchronous-unwind-tables -fno-unwind-tables \
+-	-ffunction-sections -fdata-sections
+-
+-quiet_cmd_ksu_runner = RUNNER  $@
+-      cmd_ksu_runner = $(CC) $(KSU_RUNNER_CFLAGS) -c -o $@.o $< && \
+-		$(LD) -static -nostdlib -e _start --gc-sections -s -o $@ $@.o && \
+-		rm -f $@.o
+-
+-$(obj)/preinit/runner.elf: $(KSU_KERNEL_DIR)/preinit/runner/runner.c \
+-		$(wildcard $(KSU_KERNEL_DIR)/preinit/runner/nolibc/*.h \
+-			   $(KSU_KERNEL_DIR)/preinit/runner/nolibc/sys/*.h \
+-			   $(KSU_KERNEL_DIR)/include/uapi/*.h) FORCE
+-	$(call if_changed,ksu_runner)
+-
+-targets += preinit/runner.elf
+-$(obj)/preinit/blob.o: $(obj)/preinit/runner.elf
+-asflags-y += -DKSU_PREINIT_RUNNER_BIN=\"$(obj)/preinit/runner.elf\"
+-else
+-$(warning -- KernelSU: $(KSU_UAPI_INC) not found, preinit disabled)
++# The bounded SUSFS manual-hook profile does not provide native preinit.
+ ccflags-y += -DKSU_NO_PREINIT
++kernelsu-objs += hook/lsm_hook.o
++ifeq ($(CONFIG_ARM64),y)
++kernelsu-objs += hook/arm64/patch_memory.o
+ endif
+ 
+ obj-$(CONFIG_KSU) += kernelsu.o
