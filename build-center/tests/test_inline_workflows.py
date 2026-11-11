@@ -42,6 +42,18 @@ class InlineWorkflowTests(unittest.TestCase):
             self.assertEqual(result['jobs'][name]['if'], original['jobs'][name]['if'])
         self.assertNotIn('uses', result['jobs']['strict'])
 
+    def test_active_main_build_retains_every_existing_build_and_publish_gate(self):
+        original, _ = expand(self.workflow(), ROOT)
+        active = yaml.load((ROOT / '.github/workflows/build-center.yml').read_text(encoding='utf-8'), Loader=Loader)
+        self.assertEqual(set(active['jobs']), set(original['jobs']))
+        for name in set(original['jobs']) - {'resolve'}:
+            self.assertEqual(active['jobs'][name], original['jobs'][name], name)
+        resolver = active['jobs']['resolve']['steps'][1]['run']
+        self.assertIn('--expected-main-code 41176', resolver)
+        self.assertIn('--expected-main-commit 3af6085d0d26e73ffd1a3e7b34362435dcfb5a03', resolver)
+        self.assertNotIn('--sukisu-ref', resolver)
+        self.assertNotIn('41178', resolver)
+
     def test_effective_permissions_match_the_reviewed_callers(self):
         result, _ = expand(self.workflow(), ROOT)
         for name in ('userspace', 'zeromount', 'resusfs'):

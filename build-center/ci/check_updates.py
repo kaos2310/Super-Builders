@@ -25,11 +25,23 @@ def recent_failure(repo,pair,token='',get=request,now=None):
     return run.get('status')=='completed' and run.get('conclusion') in ('failure','timed_out','cancelled')
 
 
+def verify_expected_main(plan, expected_commit, expected_code):
+    """Reject a moved main or a preview before any build outputs are emitted."""
+    if not re.fullmatch(r'[0-9a-f]{40}', expected_commit or '') or not isinstance(expected_code, int):
+        raise ValueError('Expected official main requires both a full commit and version code')
+    if (plan['channel'] != 'main' or plan.get('sukisu_requested_ref') is not None or
+            plan['sukisu_commit'] != expected_commit or plan['sukisu_code'] != expected_code):
+        raise ValueError('Resolved official main differs from the reviewed source/version; recheck upstream')
+    plan['sukisu_source_kind'] = 'official-main'
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--channel', choices=('main', 'release'), default='main')
     parser.add_argument('--force', action='store_true')
     parser.add_argument('--sukisu-ref', help='Exact official repository commit for an explicit build request')
+    parser.add_argument('--expected-main-commit', help='Fail if official main moved since source review')
+    parser.add_argument('--expected-main-code', type=int, help='Required official main version code')
     args = parser.parse_args()
     config = json.loads((Path(__file__).resolve().parents[1] / 'config.json').read_text())
     scheduled = os.environ.get('GITHUB_EVENT_NAME') == 'schedule'
@@ -38,6 +50,10 @@ def main():
     else:
         token = os.environ.get('GH_TOKEN', '')
         plan = resolve_sources(args.channel, token, source_ref=args.sukisu_ref)
+        if args.expected_main_commit is not None or args.expected_main_code is not None:
+            verify_expected_main(plan, args.expected_main_commit, args.expected_main_code)
+        elif args.channel == 'main' and args.sukisu_ref is None:
+            plan['sukisu_source_kind'] = 'official-main'
         if args.sukisu_ref == '1c9cca42f8049227d4eea20ab3979db3c5662a7d':
             if (plan['sukisu_code'], plan['sukisu_count']) != (41178, 3993):
                 raise ValueError('The requested 41178 preview source/version mapping changed')

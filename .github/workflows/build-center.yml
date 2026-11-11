@@ -1,12 +1,12 @@
 name: SukiSU Build Center
-run-name: SukiSU 41178 EZJ1 · ${{ inputs.request_id || 'pinned preview' }} · latest SUSFS
+run-name: SukiSU 41176 EZJ1 · ${{ inputs.request_id || 'official main' }} · latest SUSFS
 'on':
   schedule:
   - cron: 17 * * * *
   workflow_dispatch:
     inputs:
       channel:
-        description: Explizit gepinnter SukiSU-41178-Vorschauauftrag
+        description: Geprüfter offizieller SukiSU-Hauptbranch 41176
         type: choice
         options:
         - main
@@ -23,7 +23,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: build-center-${{ github.repository }}-s928b-ezj1-41178-${{ github.ref_name }}
+  group: build-center-${{ github.repository }}-s928b-ezj1-41176-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   resolve:
@@ -49,7 +49,7 @@ jobs:
       run: |
         set -euo pipefail
         ARGS=(--channel "$CHANNEL")
-        ARGS+=(--sukisu-ref 1c9cca42f8049227d4eea20ab3979db3c5662a7d)
+        ARGS+=(--expected-main-commit 3af6085d0d26e73ffd1a3e7b34362435dcfb5a03 --expected-main-code 41176)
         [[ "$FORCE" != true ]] || ARGS+=(--force)
         python3 build-center/ci/check_updates.py "${ARGS[@]}"
     - uses: actions/upload-artifact@v7
