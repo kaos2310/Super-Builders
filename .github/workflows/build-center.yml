@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: Offizieller SukiSU-Kanal
+        description: Explizit gepinnter SukiSU-41178-Vorschauauftrag
         type: choice
-        options: [main, release]
+        options: [main]
         default: main
       force:
         description: Auch bei vorhandenem Ergebnis neu bauen
@@ -25,7 +25,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: build-center-${{ github.repository }}-s928b-ezj1
+  group: build-center-${{ github.repository }}-s928b-ezj1-41178-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
