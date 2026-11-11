@@ -32,7 +32,7 @@ test('GitHub token is never sent to GitLab',async()=>{
   assert.equal(actual.token,'');
 });
 test('dispatch uses correlation id, selected channel and no token in body',async()=>{
-  let sent;const api=new Github(async b=>{sent=b;return {status:204,data:null};},'private');
+  let sent;const api=new Github(async b=>{sent=b;return b.method==='POST'?{status:204,data:null}:{status:200,data:{sha:'a'.repeat(40)}};},'private');
   const id=await api.dispatch('main','release');
   assert.equal(sent.data.inputs.request_id,id);assert.equal(sent.data.inputs.channel,'release');
   assert.equal(sent.data.inputs.force,'false');assert.equal(sent.data.ref,'main');assert.ok(!JSON.stringify(sent.data).includes('private'));

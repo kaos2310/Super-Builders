@@ -54,7 +54,7 @@ class SafeRedirect(urllib.request.HTTPRedirectHandler):
         return result
 
 
-def request(url, token="", method="GET", data=None, *, binary=False):
+def request(url, token="", method="GET", data=None, *, binary=False, allow_http_errors=False):
     if not allowed_url(url, method, download=binary):
         raise CenterError("Diese Netzwerkadresse ist für die App nicht freigegeben.")
     headers = {"User-Agent": "KAOSLAB-SukiSU-Build-Center/1.0", "Accept": "application/vnd.github+json"}
@@ -80,6 +80,18 @@ def request(url, token="", method="GET", data=None, *, binary=False):
             return {"status": response.status, "headers": result_headers,
                     "data": json.loads(raw) if raw else None}
     except urllib.error.HTTPError as exc:
+        if allow_http_errors and not binary:
+            try:
+                detail = json.loads(exc.read(8192))
+            except (ValueError, UnicodeDecodeError):
+                detail = {}
+            finally:
+                exc.close()
+            return {"status": exc.code,
+                    "headers": {k.lower(): v for k, v in exc.headers.items() if k.lower() in (
+                        "x-ratelimit-remaining", "x-ratelimit-reset", "retry-after")},
+                    "data": {"message": detail.get("message", "")} if isinstance(detail, dict) else {}}
+        exc.close()
         message = {401: "GitHub-Token ungültig oder abgelaufen.",
                    403: "Zugriff verweigert oder API-Limit erreicht.",
                    404: "Quelle oder Workflow nicht gefunden.",

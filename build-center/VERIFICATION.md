@@ -1,4 +1,18 @@
-# Prüfstand 10. November 2026 · EZJ1 / Build Center 1.1.0
+# Prüfstand · EZJ1 / Build Center
+
+## 11. November 2026: Build Center 1.1.1
+
+Die App-Ablehnung wurde auf einen gespeicherten Workflow-Branch `kaos2310` zurückgeführt. GitHub liefert dafür HTTP 422; `main` wurde unabhängig über die öffentliche API bestätigt. Die App prüft den Branch jetzt bei der Verbindung und vor jedem Auftrag. Bekannte GitHub-Ablehnungen bekommen einen konkreten Hinweis. Der lokale Windows-/Web-Proxy erhält dafür den HTTP-Status; seine bisherigen CI- und Download-Aufrufer behalten ihren Fehlervertrag.
+
+- Vor der Korrektur scheiterten fünf der sechs neuen JavaScript-Regressionen am nachgewiesenen Verhalten.
+- Danach bestanden 17 JavaScript-Tests, 37 Python-Tests und 11 Browser-Funktionsprüfungen.
+- Live-Leseprüfung: `kaos2310` wird mit passendem Branch-Hinweis abgewiesen, `main` bestätigt.
+- Die Windows-EXE 1.1.1 startet und liefert die eingebettete aktuelle Oberfläche aus.
+- Die Android-APK 1.1.1 (Code 4) ist mit dem bisherigen Zertifikat signiert und als Update auf dem Samsung installiert. Der ungültige gespeicherte Branch wurde in der echten App erkannt. Nach Korrektur und Speicherung durch den Benutzer wurde der App-Auftrag als Actions-Lauf 43084161292 angenommen.
+
+Der automatische Lauf 43055798367 war unabhängig davon bei der Ubuntu-Paketinstallation an einer DNS-Störung gescheitert. Ein begrenzter Neuversuch hat die Paketinstallation sowie den SukiSU-41176-Userspace erfolgreich abgeschlossen. Der vollständige Kernel- und Veröffentlichungsstatus wird dadurch noch nicht als abgeschlossen ausgegeben. Kernelcode und Build-Prüfungen wurden für diesen App-Fix nicht geändert.
+
+## Prüfstand vom 10. November 2026 · Build Center 1.1.0
 
 ## Kernel aus GitHub Actions
 

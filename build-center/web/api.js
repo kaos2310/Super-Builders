@@ -8,11 +8,20 @@ export function assertRepository(value) {
   return value;
 }
 
-export function apiError(status, headers = {}) {
+export function apiError(status, headers = {}, data = {}) {
   if (status === 401) return 'GitHub-Token ungültig oder abgelaufen.';
   if (status === 403 || status === 429) {
     const reset = headers['x-ratelimit-reset'];
     return 'Zugriff verweigert oder API-Limit erreicht.' + (reset ? ` Neuer Versuch ab ${new Date(Number(reset) * 1000).toLocaleTimeString('de-DE')}.` : '');
+  }
+  if (status === 422) {
+    const detail = typeof data?.message === 'string' ? data.message : '';
+    if (/No (?:ref|commit) found|Reference does not exist/i.test(detail))
+      return 'Workflow-Branch nicht gefunden. Unter GitHub-Verbindung einen vorhandenen Branch eintragen, zum Beispiel main.';
+    if (/workflow_dispatch/i.test(detail))
+      return 'Der Workflow auf diesem Branch unterstützt keinen manuellen Start. Workflow-Branch und build-center.yml prüfen.';
+    if (/Unexpected inputs|Provided value|Required input/i.test(detail))
+      return 'GitHub hat die Workflow-Eingaben abgelehnt. App und Workflow müssen denselben Stand verwenden.';
   }
   return ({404: 'Quelle oder Workflow nicht gefunden.', 410: 'Artefakt abgelaufen.',
     422: 'GitHub hat den Auftrag abgelehnt. Branch und Workflow-Eingaben prüfen.'})[status] || `Netzwerkfehler (HTTP ${status}).`;
@@ -45,7 +54,11 @@ export class Github {
   async call(url, method = 'GET', data) {
     const token = new URL(url).hostname === 'api.github.com' ? this.token : '';
     const response = await this.transport({url, method, data, token});
-    if (response.status < 200 || response.status >= 300) throw new Error(apiError(response.status, response.headers));
+    if (response.status < 200 || response.status >= 300) {
+      const error = new Error(apiError(response.status, response.headers, response.data));
+      error.status = response.status;
+      throw error;
+    }
     return response;
   }
   async data(path) { return (await this.call(`${GH}/repos/${this.repo}${path}`)).data; }
@@ -77,13 +90,30 @@ export class Github {
       manager, release_tag: `s928b-ezj1-suki${code}-susfs${version.replace(/^v/, '')}-${pin.slice(0,8)}-${susCommit.id.slice(0,8)}`,
       susfs_source_url: `https://gitlab.com/simonpunk/susfs4ksu/-/archive/${susCommit.id}/susfs4ksu-${susCommit.id}.zip`};
   }
-  async installation() {
-    try { return await this.data('/actions/workflows/build-center.yml'); }
-    catch (error) { if (error.message.includes('nicht gefunden')) return null; throw error; }
+  async validateWorkflowRef(ref) {
+    if (typeof ref !== 'string' || !ref.trim() || ref.trim().length > 200 || /[\x00-\x1f\x7f]/.test(ref))
+      throw new Error('Gültigen Workflow-Branch eingeben, zum Beispiel main.');
+    const name = ref.trim();
+    try {
+      const commit = await this.data(`/commits/${encodeURIComponent(name)}`);
+      if (!shaPattern.test(commit?.sha)) throw new Error('Workflow-Branch konnte nicht bestätigt werden. Verbindung erneut prüfen.');
+    } catch (error) {
+      if (error.status === 404 || error.status === 422)
+        throw new Error(`Workflow-Branch „${name}“ existiert in ${this.repo} nicht. Einen vorhandenen Branch wie main eintragen; hier gehört kein Benutzername hin.`);
+      throw error;
+    }
+    return name;
+  }
+  async installation(ref = 'main') {
+    let workflow;
+    try { workflow = await this.data('/actions/workflows/build-center.yml'); }
+    catch (error) { if (error.status === 404) return null; throw error; }
+    if (workflow.state === 'active') await this.validateWorkflowRef(ref);
+    return workflow;
   }
   async dispatch(ref, channel, force = false) {
     if (!this.token) throw new Error('Zum Starten einen GitHub-Token mit Actions-Schreibrecht hinterlegen.');
-    if (!ref.trim() || ref.length > 200) throw new Error('Gültigen Workflow-Branch eingeben.');
+    ref = await this.validateWorkflowRef(ref);
     const requestId = crypto.randomUUID();
     await this.call(`${GH}/repos/${this.repo}/actions/workflows/build-center.yml/dispatches`, 'POST', {
       ref, inputs: {channel, force: String(force), request_id: requestId}

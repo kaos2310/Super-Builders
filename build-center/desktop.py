@@ -96,7 +96,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 raise CenterError('Ungültige Anfragegröße.')
             body = json.loads(self.rfile.read(size))
             if self.path == '/api/proxy':
-                return self.json(request(body['url'], body.get('token', ''), body.get('method', 'GET'), body.get('data')))
+                return self.json(request(body['url'], body.get('token', ''), body.get('method', 'GET'), body.get('data'), allow_http_errors=True))
             if self.path == '/api/download':
                 raw = request(body['url'], body.get('token', ''), binary=True)
                 raw, name, digest = checked_file(raw, body['filename'], body.get('digest', ''), body.get('kind', 'file'))

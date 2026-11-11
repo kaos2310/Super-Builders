@@ -23,6 +23,7 @@ function response(url){
   if(url.includes('/files/'))return {content:encode('#define SUSFS_VERSION "v2.4.0"')};
   if(url.includes('gitlab.com'))return {id:susPin,title:'KernelSU: Sync with upstream'};
   if(url.includes('SukiSU-Ultra/SukiSU-Ultra/commits/'))return {sha:pin,commit:{message:failSources?'failure':'manager update'}};
+  if(url.includes('/repos/kaos2310/Super-Builders/commits/'))return {sha:pin};
   if(url.endsWith('/actions/workflows/build-center.yml'))return {state:'active'};
   if(url.includes('/actions/workflows/build-center.yml/runs'))return {workflow_runs:[currentRun]};
   if(url.includes('/jobs?')){jobRequests++;return {jobs:[{name:'Offizielle Quellen prüfen',status:'completed',conclusion:'success',steps:[]},{name:'Kernel und Samsung Strict KMI / CRC',status:'in_progress',steps:[{name:'Build Kernel',status:'in_progress'}]}]};}
@@ -40,6 +41,7 @@ try{
   await page.clock.install();
   await page.route('**/api/proxy',async route=>{
     const b=route.request().postDataJSON();
+    if(b.url.endsWith('/repos/kaos2310/Super-Builders/commits/kaos2310'))return route.fulfill({json:{status:422,data:{message:'No commit found for SHA: kaos2310'},headers:{}}});
     if(failSources&&b.url.includes('SukiSU-Ultra/SukiSU-Ultra/commits/'))return route.fulfill({json:{status:403,data:{},headers:{}}});
     if(b.method==='POST'){dispatched++;requestId=b.data.inputs.request_id;currentRun=makeRun(9001);return route.fulfill({json:{status:204,data:null,headers:{}}});}
     const value=response(b.url);await route.fulfill({json:value.data?{status:200,...value}:{status:200,headers:{},data:value}});
@@ -53,7 +55,16 @@ try{
   await page.locator('#token').fill('test-only-not-a-real-token');await page.locator('#settings-form button[type=submit]').click();
   await page.waitForFunction(()=>!document.getElementById('build').disabled);
   const stored=await page.evaluate(()=>JSON.stringify(localStorage));assert.ok(!stored.includes('test-only-not-a-real-token'));report.checks.push('Web token never persists in localStorage');
+  await page.locator('#ref').fill('kaos2310');assert.equal(await page.locator('#build').isDisabled(),true);
+  await page.locator('#settings-form button[type=submit]').click();await page.waitForFunction(()=>!document.getElementById('refresh').disabled);
+  assert.match(await page.locator('#build-hint').textContent(),/Workflow-Branch.*kaos2310.*main/);
+  assert.equal(await page.locator('#connection-state').textContent(),'VERBINDUNG PRÜFEN');
+  assert.equal(await page.locator('#build').isDisabled(),true);assert.equal(dispatched,0);
+  report.checks.push('A username entered as branch gives a precise error and cannot submit a build');
+  await page.locator('#ref').fill('main');await page.locator('#settings-form button[type=submit]').click();
+  await page.waitForFunction(()=>!document.getElementById('build').disabled);
   await page.locator('#build').click();assert.equal(await page.locator('#build-dialog').isVisible(),true);
+  assert.match(await page.locator('#plan-review').textContent(),/Workflow-Branch: main/);
   await page.locator('#build-dialog button[value=cancel]').click();assert.equal(dispatched,0);report.checks.push('Review and cancel do not dispatch a workflow');
   await page.locator('#build').click();await page.locator('#confirm-build').click();
   await page.waitForFunction(()=>document.getElementById('run-label').textContent.includes('9001'));
