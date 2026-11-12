@@ -35,6 +35,13 @@ def verify_expected_main(plan, expected_commit, expected_code):
     plan['sukisu_source_kind'] = 'official-main'
 
 
+def verify_expected_susfs(plan, expected_commit):
+    if not re.fullmatch(r'[0-9a-f]{40}', expected_commit or ''):
+        raise ValueError('Expected SUSFS requires a full commit')
+    if plan['susfs_commit'] != expected_commit:
+        raise ValueError('Resolved latest SUSFS differs from the reviewed source; recheck upstream')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--channel', choices=('main', 'release'), default='main')
@@ -42,6 +49,7 @@ def main():
     parser.add_argument('--sukisu-ref', help='Exact official repository commit for an explicit build request')
     parser.add_argument('--expected-main-commit', help='Fail if official main moved since source review')
     parser.add_argument('--expected-main-code', type=int, help='Required official main version code')
+    parser.add_argument('--expected-susfs-commit', help='Fail if the reviewed latest SUSFS branch moved')
     args = parser.parse_args()
     config = json.loads((Path(__file__).resolve().parents[1] / 'config.json').read_text())
     scheduled = os.environ.get('GITHUB_EVENT_NAME') == 'schedule'
@@ -50,6 +58,8 @@ def main():
     else:
         token = os.environ.get('GH_TOKEN', '')
         plan = resolve_sources(args.channel, token, source_ref=args.sukisu_ref)
+        if args.expected_susfs_commit is not None:
+            verify_expected_susfs(plan, args.expected_susfs_commit)
         if args.expected_main_commit is not None or args.expected_main_code is not None:
             verify_expected_main(plan, args.expected_main_commit, args.expected_main_code)
         elif args.channel == 'main' and args.sukisu_ref is None:

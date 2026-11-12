@@ -21,6 +21,12 @@ class KbuildCompatibilityTests(unittest.TestCase):
     def test_baseline_fixture_is_the_exact_audited_template(self):
         self.assertEqual(hashlib.sha256(self.fragment).hexdigest(), BASE_FRAGMENT_SHA256)
 
+    def test_official_41179_uses_the_reviewed_identical_kbuild_section(self):
+        pin='dae36db016079546b9fc028636a3326d09979777'
+        self.assertEqual(REVIEWED_PINS.get(pin),(41179,3994))
+        plan={'sukisu_commit':pin,'sukisu_code':41179,'sukisu_count':3994}
+        self.assertEqual(adapt_compat_patch(self.patch,plan),adapt_compat_patch(self.patch,self.plan))
+
     def test_refresh_changes_only_the_kbuild_section(self):
         fixed = adapt_compat_patch(self.patch,self.plan)
         old_parts = re.split(rb'(?=^diff --git )',self.patch,flags=re.M)

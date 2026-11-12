@@ -1,12 +1,12 @@
 name: SukiSU Build Center
-run-name: SukiSU 41176 EZJ1 · ${{ inputs.request_id || 'official main' }} · latest SUSFS
+run-name: SukiSU 41179 EZJ1 · ${{ inputs.request_id || 'official main' }} · Guard6.13 BRENE75 · SUSFS2.4.0
 'on':
   schedule:
   - cron: 17 * * * *
   workflow_dispatch:
     inputs:
       channel:
-        description: Geprüfter offizieller SukiSU-Hauptbranch 41176
+        description: Geprüfter offizieller SukiSU-Hauptbranch 41179
         type: choice
         options:
         - main
@@ -23,7 +23,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: build-center-${{ github.repository }}-s928b-ezj1-41176-${{ github.ref_name }}
+  group: build-center-${{ github.repository }}-s928b-ezj1-41179-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   resolve:
@@ -49,7 +49,8 @@ jobs:
       run: |
         set -euo pipefail
         ARGS=(--channel "$CHANNEL")
-        ARGS+=(--expected-main-commit 3af6085d0d26e73ffd1a3e7b34362435dcfb5a03 --expected-main-code 41176)
+        ARGS+=(--expected-main-commit dae36db016079546b9fc028636a3326d09979777 --expected-main-code 41179)
+        ARGS+=(--expected-susfs-commit 69b8e734920b8f9ed885ab8d112969719698e242)
         [[ "$FORCE" != true ]] || ARGS+=(--force)
         python3 build-center/ci/check_updates.py "${ARGS[@]}"
     - uses: actions/upload-artifact@v7
@@ -610,6 +611,27 @@ jobs:
         path: |
           module-artifacts/
           brene71-adapter/
+        if-no-files-found: error
+        retention-days: 30
+    - name: Build matching Guard6.13 Runtime helper from source
+      env:
+        ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
+      run: |
+        set -euo pipefail
+        mkdir -p guard6-output
+        CLANG="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+        "$CLANG" --target=aarch64-linux-android26 -Os -nostdlib -static -fno-builtin -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -Wl,-e,_start -Wl,--build-id=none -Wl,-z,max-page-size=16384 "builder/android14-6.1/build-helpers/susfs-runtime-${{ needs.resolve.outputs.code }}/susfs-runtime.c" -o guard6-output/susfs-runtime
+        readelf -h guard6-output/susfs-runtime | grep -q AArch64
+    - name: Test and package complete Guard6.13 BRENE75 with additive Runtime menu
+      run: |
+        set -euo pipefail
+        HELPERS="$GITHUB_WORKSPACE/builder/android14-6.1/build-helpers"
+        python3 -B .build-center/build-center/guard6/test.py --helpers "$HELPERS" --plan builder/.build-center-plan.json --runtime-helper guard6-output/susfs-runtime
+        python3 -B .build-center/build-center/guard6/package.py --helpers "$HELPERS" --plan builder/.build-center-plan.json --runtime-helper guard6-output/susfs-runtime --output guard6-output
+    - uses: actions/upload-artifact@v7
+      with:
+        name: ZeroMount-Guard6.13-BRENE75-SUSFS2.4.0-SukiSU${{ needs.resolve.outputs.code }}-ARM64
+        path: guard6-output/
         if-no-files-found: error
         retention-days: 30
     needs: resolve
@@ -2560,6 +2582,11 @@ jobs:
       with:
         pattern: ReSuSFS-*
         path: resusfs-files
+        merge-multiple: true
+    - uses: actions/download-artifact@v8
+      with:
+        pattern: ZeroMount-Guard6.13-BRENE75-*
+        path: guard6-files
         merge-multiple: true
     - name: ZIP-Inhalt prüfen und Release mit SHA-256 veröffentlichen
       env:

@@ -46,11 +46,24 @@ class InlineWorkflowTests(unittest.TestCase):
         original, _ = expand(self.workflow(), ROOT)
         active = yaml.load((ROOT / '.github/workflows/build-center.yml').read_text(encoding='utf-8'), Loader=Loader)
         self.assertEqual(set(active['jobs']), set(original['jobs']))
-        for name in set(original['jobs']) - {'resolve'}:
+        for name in set(original['jobs']) - {'resolve','zeromount','publish'}:
             self.assertEqual(active['jobs'][name], original['jobs'][name], name)
+        zero=copy.deepcopy(active['jobs']['zeromount'])
+        additions=zero['steps'][12:]
+        zero['steps']=zero['steps'][:12]
+        self.assertEqual(zero,original['jobs']['zeromount'])
+        self.assertEqual(len(additions),3)
+        self.assertIn('guard6/test.py',additions[1]['run'])
+        self.assertIn('guard6/package.py',additions[1]['run'])
+        self.assertIn('ZeroMount-Guard6.13-BRENE75',additions[2]['with']['name'])
+        publish=copy.deepcopy(active['jobs']['publish'])
+        guard_download=publish['steps'].pop(3)
+        self.assertEqual(publish,original['jobs']['publish'])
+        self.assertEqual(guard_download['with']['path'],'guard6-files')
         resolver = active['jobs']['resolve']['steps'][1]['run']
-        self.assertIn('--expected-main-code 41176', resolver)
-        self.assertIn('--expected-main-commit 3af6085d0d26e73ffd1a3e7b34362435dcfb5a03', resolver)
+        self.assertIn('--expected-main-code 41179', resolver)
+        self.assertIn('--expected-main-commit dae36db016079546b9fc028636a3326d09979777', resolver)
+        self.assertIn('--expected-susfs-commit 69b8e734920b8f9ed885ab8d112969719698e242',resolver)
         self.assertNotIn('--sukisu-ref', resolver)
         self.assertNotIn('41178', resolver)
 

@@ -16,7 +16,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from center_core import CenterError, SafeRedirect, allowed_url, checked_file, resolve_sources, sha256
 from desktop import CenterServer
 from ci.bootstrap import prepare, validate
-from ci.check_updates import recent_failure, verify_expected_main
+from ci.check_updates import recent_failure, verify_expected_main, verify_expected_susfs
 from ci.runtime import three_way
 from ci.firmware_profile import DATA as FIRMWARE_DATA
 from tools.normalize_apk import normalize
@@ -139,6 +139,12 @@ class ResolveTests(unittest.TestCase):
         p=resolve_sources(get=self.fake)
         for pin,code in [('main',41168),('a'*40,None),(None,41168)]:
             with self.assertRaises(ValueError):verify_expected_main(p,pin,code)
+
+    def test_latest_susfs_commit_must_match_the_reviewed_plan(self):
+        p=resolve_sources(get=self.fake)
+        verify_expected_susfs(p,'b'*40)
+        for pin in ('c'*40,'main','b'*39):
+            with self.assertRaisesRegex(ValueError,'SUSFS'):verify_expected_susfs(p,pin)
     def test_release_ref_is_resolved_not_assumed_main(self):
         urls=[]
         def get(url,*args,**kw):urls.append(url);return self.fake(url,*args,**kw)
