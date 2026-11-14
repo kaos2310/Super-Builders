@@ -42,6 +42,10 @@ def native(common, ksu, pin):
             raise RuntimeError('Parallel SELinux hook: '+name)
     if 'susfs_is_avc_log_spoofing_enabled' not in (common/'security/selinux/avc.c').read_text():
         raise RuntimeError('SuSFS AVC logging lost')
+    for name,tokens in [('security/selinux/ss/services.c',('susfs_security_context_to_sid_core','susfs_string_to_context_struct')),
+                        ('fs/susfs.c',('SUS_TYPE_HLIST','susfs_mutex_lock_sus_type'))]:
+        if any(token in (common/name).read_text() for token in tokens):
+            raise RuntimeError('Parallel legacy SuSFS SELinux state: '+name)
 
 
 def port_apply():
@@ -115,6 +119,8 @@ def check(common,ksu,config=None,final_capture=False):
             'stage':'source_manifest','final_sources':bool(final_capture or (previous and previous.get('final_sources'))),
             'sources_sha256':hashes,'device_runtime_tested':False,
             'scope':'Source identity captured in this CI run. Compilation and CRC evidence are separate subsequent gates.'}
+    path_uid=wire_suspath(common,ksu,verify_only=True)
+    if path_uid:result['sus_path_uid_filter']=path_uid
     hidden_receipt=common/'.susfs-hidden-name-readdir.json'
     if final_capture or hidden_receipt.exists():
         hidden=module(h/'susfs-hidden-name-readdir/apply.py','hidden_name_check').verify(common)
@@ -154,8 +160,30 @@ def without_endif_annotations(data):
     # A trailing // comment on a preprocessing directive has no C semantics.
     # New upstream annotations otherwise conflict with adjacent local feature
     # blocks even when both code changes are independent.
-    return re.sub(rb'(?m)^([ \t]*#endif)[ \t]+//[ \t]*#ifdef[ \t]+CONFIG_KSU_SUSFS[A-Z0-9_]*[ \t]*(\r?)$',
-                  rb'\1\2',data)
+    data=re.sub(rb'(?m)^([ \t]*#endif)[ \t]+//[ \t]*#ifdef[ \t]+CONFIG_KSU_SUSFS[A-Z0-9_]*[ \t]*(\r?)$',
+                rb'\1\2',data)
+    return re.sub(rb'(?m)^/\* selinux hide \*/\r?\n',b'',data)
+
+
+def only_legacy_services_additions(base,target):
+    added=b'''int susfs_security_context_to_sid_default(struct selinux_state *state,
+\t\t\t\t    const char *scontext, u32 scontext_len,
+\t\t\t\t    u32 *sid, u32 def_sid, gfp_t gfp_flags)
+{
+\treturn susfs_security_context_to_sid_core(state, scontext, scontext_len,
+\t\t\t\t\t    sid, def_sid, gfp_flags, 1);
+}
+
+int susfs_security_context_to_sid_force(struct selinux_state *state,
+\t\t\t\t  const char *scontext, u32 scontext_len,
+\t\t\t\t  u32 *sid)
+{
+\treturn susfs_security_context_to_sid_core(state, scontext, scontext_len,
+\t\t\t\t\t    sid, SECSID_NULL, GFP_KERNEL, 1);
+}
+
+'''
+    return target.count(added)==1 and target.replace(added,b'').rstrip(b'\n')==base.rstrip(b'\n')
 
 
 def three_way(local,base,target):
@@ -235,7 +263,10 @@ def prepare_susfs(common):
                 command('git','-C',tree,'apply','--check','-',input=patch)
                 command('git','-C',tree,'apply','-',input=patch)
         for name in touched:
-            records[name]=[(tree/name).read_bytes() if (tree/name).exists() else None for tree in trees]
+            pair=[(tree/name).read_bytes() if (tree/name).exists() else None for tree in trees]
+            if name=='security/selinux/ss/services.c' and all(p is not None for p in pair) and only_legacy_services_additions(*pair):
+                native_exclusions.append(name)
+            else:records[name]=pair
     for name in changed:
         if name.startswith(('kernel_patches/fs/','kernel_patches/include/linux/')):
             mapped=name.removeprefix('kernel_patches/');safe_relative(mapped)
@@ -274,21 +305,77 @@ def sync_susfs(common,ksu):
         evidence['merge_conflicts']=conflicts
         audit.write_text(json.dumps(evidence,indent=2)+'\n')
         raise RuntimeError('SuSFS source conflicts: '+', '.join(c['path'] for c in conflicts)+'. Exact sources saved in source evidence.')
+    # Validate the audited priority overlay before updating it from the pinned
+    # upstream delta. Its exact-C semantic tests run after this integration.
+    code=plan['sukisu_code'];h=root/'android14-6.1/build-helpers'
+    priority=module(h/f'susfs-priority-uid-{code}/apply.py','center_priority_before_merge')
+    priority_state=priority.verify(common,ksu)
+    priority_text=results.get('fs/susfs.c',(common/'fs/susfs.c').read_bytes()).decode()
+    refreshed=dict(priority_state,functions_sha256={name:digest(priority.body(priority_text,name).encode()) for name in priority.NAMES},
+                   effective_source_pin=plan['susfs_commit'],prior_functions_sha256=priority_state['functions_sha256'])
     # All merges must succeed before any effective kernel source is changed.
     for name,data in results.items():
         p=common/name
         if data is None:
             if p.exists():p.unlink()
         else:p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
+    (common/'.susfs-priority-uid.json').write_text(json.dumps(refreshed,indent=2)+'\n')
     header=(common/'include/linux/susfs.h').read_text()
     if not re.search(r'^#define\s+SUSFS_VERSION\s+"'+re.escape(plan['susfs_version'])+'"',header,re.M):
         raise RuntimeError('Merged SuSFS version does not match pinned upstream')
     native(common,ksu,plan['sukisu_commit'])
     receipt={'source_pin':plan['susfs_commit'],'release_base':plan['susfs_release_base'],
              'susfs_version':plan['susfs_version'],'updated_files':list(results),'conflicts':0,
-             'merge_policy':'Only trailing SUSFS #endif annotations are ignored; C code conflicts remain fatal.'}
+             'merge_policy':'SUSFS directive annotations and the legacy SELinux heading are non-semantic; C code conflicts remain fatal.',
+             'effective_source_sha256':dict({name:digest(data) for name,data in results.items() if data is not None},
+                                            **{'include/linux/susfs.h':digest((common/'include/linux/susfs.h').read_bytes())})}
     (common/'.build-center-susfs-update.json').write_text(json.dumps(receipt,indent=2)+'\n')
     print('PASS: official SuSFS delta merged without conflicts')
+
+
+def wire_suspath(common,ksu,verify_only=False):
+    root,plan=context();header=(common/'include/linux/susfs_def.h').read_text()
+    if 'CMD_SUSFS_SET_SUS_PATH_UID_FILTER' not in header:return None
+    if not re.search(r'^#define CMD_SUSFS_SET_SUS_PATH_UID_FILTER 0x55554$',header,re.M):
+        raise RuntimeError('SUS_PATH command ABI changed')
+    source=(common/'fs/susfs.c').read_text(encoding='utf-8')
+    for name in ('susfs_set_sus_path_uid_filter','susfs_parse_sus_path_app_strings','susfs_is_uid_allowed_for_sus_path'):
+        if not re.search(r'^(?:static )?(?:void|bool) '+name+r'\([^;]*\)\s*\{',source,re.M):
+            raise RuntimeError('SUS_PATH implementation missing: '+name)
+    case=('#ifdef CONFIG_KSU_SUSFS_SUS_PATH\n'
+          '    case CMD_SUSFS_SET_SUS_PATH_UID_FILTER: {\n'
+          '        susfs_set_sus_path_uid_filter(arg);\n        return 0;\n    }\n#endif\n')
+    refresh=('#ifdef CONFIG_KSU_SUSFS_SUS_PATH\n'
+             '    /* Refresh only after throne tracking, outside fsnotify locks. */\n'
+             '    susfs_parse_sus_path_app_strings();\n#endif\n')
+    dispatch=ksu/'kernel/supercall/dispatch.c';observer=ksu/'kernel/manager/pkg_observer.c'
+    before_d=dispatch.read_text();before_o=observer.read_text();after_d=before_d;after_o=before_o
+    if 'case CMD_SUSFS_SET_SUS_PATH_UID_FILTER:' not in after_d:
+        anchor='#ifdef CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER\n    case CMD_SUSFS_SET_PRIORITY_UID_FILTER:'
+        if after_d.count(anchor)!=1:raise RuntimeError('SUS_PATH dispatcher anchor changed')
+        after_d=after_d.replace(anchor,case+anchor)
+    if '    susfs_parse_sus_path_app_strings();' not in after_o:
+        anchor=('#ifdef CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER\n'
+                '    /* Resolve after throne tracking, outside fsnotify locks. */\n'
+                '    susfs_parse_priority_app_strings();\n#endif\n')
+        if after_o.count(anchor)!=1:raise RuntimeError('SUS_PATH refresh anchor changed')
+        after_o=after_o.replace(anchor,anchor+refresh)
+    include='#ifdef CONFIG_KSU_SUSFS\n#include <linux/susfs.h>\n#endif'
+    if after_o.count(include)!=1:raise RuntimeError('SUS_PATH include anchor changed')
+    if after_d.count(case)!=1 or after_o.count(refresh)!=1:
+        raise RuntimeError('SUS_PATH control wiring drift')
+    receipt={'source_pin':plan['susfs_commit'],'sukisu_pin':plan['sukisu_commit'],'command':'0x55554',
+             'dispatcher_case_sha256':digest(case.encode()),'refresh_block_sha256':digest(refresh.encode()),
+             'new_filter_wired':True,'native_uapi_unchanged':True}
+    path=common/'.build-center-suspath-uid.json'
+    if verify_only:
+        if before_d!=after_d or before_o!=after_o or not path.exists() or json.loads(path.read_text())!=receipt:
+            raise RuntimeError('SUS_PATH source wiring was not prepared or changed')
+    else:
+        dispatch.write_text(after_d,encoding='utf-8',newline='\n');observer.write_text(after_o,encoding='utf-8',newline='\n')
+        path.write_text(json.dumps(receipt,indent=2)+'\n')
+        print('PASS: official SUS_PATH UID command and package refresh wired into native SukiSU')
+    return receipt
 
 
 def update_tool():
@@ -328,10 +415,11 @@ def update_tool():
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('mode',choices=('susfs-before','susfs-after','capture-final','update-tool'));p.add_argument('--common',type=Path);p.add_argument('--ksu',type=Path)
+    p=argparse.ArgumentParser();p.add_argument('mode',choices=('susfs-before','susfs-after','susfs-wire','capture-final','update-tool'));p.add_argument('--common',type=Path);p.add_argument('--ksu',type=Path)
     a=p.parse_args()
     if a.mode=='update-tool':update_tool()
     elif a.common is None:p.error('--common is required for kernel operations')
     elif a.mode=='susfs-before':prepare_susfs(a.common)
     elif a.mode=='susfs-after':sync_susfs(a.common,a.ksu)
+    elif a.mode=='susfs-wire':wire_suspath(a.common,a.ksu)
     else:check(a.common,a.ksu,final_capture=True)

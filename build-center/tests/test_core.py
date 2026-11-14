@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 import zipfile
@@ -221,7 +222,8 @@ class BootstrapTests(unittest.TestCase):
             }}}))
             (root/'android14-6.1/samsung-s928bxxu6ezif-target.env').write_bytes((FIRMWARE_DATA/'baseline-target.env').read_bytes())
             (root/'android14-6.1/samsung-e3q-zzi4-dlkm-crc-baseline.tsv').write_bytes((FIRMWARE_DATA/'strict-baseline.tsv').read_bytes())
-            prepare(root,self.plan())
+            with patch('ci.bootstrap.prepare_susfs_helpers'):
+                prepare(root,self.plan())
             evidence=json.loads((h/'sukisu-41168-susfs/PREFLIGHT.json').read_text())
             self.assertFalse(evidence['historical_evidence_reused']);self.assertFalse(evidence['full_kernel_link_tested'])
             self.assertNotIn('arm64_sukisu_subtree_compiled',evidence)

@@ -1221,6 +1221,13 @@ jobs:
         set -euo pipefail
         python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-priority-uid-${{ needs.resolve.outputs.code }}/apply.py" \
           --common "$KERNEL_ROOT/common"
+    - name: Integrate pinned SuSFS updates before control overlays
+      run: |
+        set -euo pipefail
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-runtime-${{ needs.resolve.outputs.code }}/release240.py" "$KERNEL_ROOT/common"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" susfs-after --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-runtime-${{ needs.resolve.outputs.code }}/release240.py" "$KERNEL_ROOT/common"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" susfs-wire --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
     - name: Apply UID-gated SUSFS visibility consumers
       if: 'true'
       run: |
@@ -1785,11 +1792,11 @@ jobs:
     - name: Integrate SuSFS updates and tested hidden-name directory filtering
       run: |
         set -euo pipefail
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" susfs-after --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
         HIDDEN="$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-hidden-name-readdir"
         python3 "$HIDDEN/test.py" --common "$KERNEL_ROOT/common" --output "$GITHUB_WORKSPACE/susfs-runtime-audit/hidden-name-host"
         python3 "$HIDDEN/apply.py" --common "$KERNEL_ROOT/common"
         python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" capture-final --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_suspath_test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" --output "$GITHUB_WORKSPACE/susfs-runtime-audit/suspath-host"
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
       env:

@@ -32,9 +32,9 @@ class InlineWorkflowTests(unittest.TestCase):
     def test_all_original_jobs_steps_and_gate_dependencies_remain(self):
         original = self.workflow()
         result, counts = expand(original, ROOT)
-        self.assertEqual(counts, {'dependencies': 14, 'userspace': 14, 'zeromount': 12, 'resusfs': 9, 'strict': 76})
+        self.assertEqual(counts, {'dependencies': 14, 'userspace': 14, 'zeromount': 12, 'resusfs': 9, 'strict': 77})
         self.assertEqual(set(result['jobs']), set(original['jobs']))
-        self.assertEqual(sum(len(j['steps']) for j in result['jobs'].values()), 132)
+        self.assertEqual(sum(len(j['steps']) for j in result['jobs'].values()), 133)
         self.assertEqual(result['jobs']['resolve'], original['jobs']['resolve'])
         self.assertEqual(result['jobs']['publish'], original['jobs']['publish'])
         for name in counts:

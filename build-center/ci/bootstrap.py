@@ -12,9 +12,11 @@ import shutil
 if __package__:
     from .firmware_profile import prepare as prepare_firmware
     from .kbuild_compat import REVIEWED_PINS as KBUILD_REFRESH_PINS, adapt_compat_patch
+    from .susfs_helpers import prepare as prepare_susfs_helpers
 else:
     from firmware_profile import prepare as prepare_firmware
     from kbuild_compat import REVIEWED_PINS as KBUILD_REFRESH_PINS, adapt_compat_patch
+    from susfs_helpers import prepare as prepare_susfs_helpers
 
 OLD_PIN = 'd7d042816b82b200c25b3a93dcc158ba0307cabf'
 OLD_CODE = '41165'
@@ -72,6 +74,7 @@ def prepare(root, plan):
     # Replace the historical evidence gate with a live source-preparation gate.
     # All semantic tests and full kernel compilation still execute afterwards.
     shutil.copyfile(Path(__file__).with_name('runtime.py'), helper / '_center_runtime.py')
+    shutil.copyfile(Path(__file__).with_name('suspath_test.py'), helper / '_center_suspath_test.py')
     adapter=helper/'_center_kbuild_compat'
     (adapter/'compat').mkdir(parents=True)
     shutil.copyfile(Path(__file__).with_name('kbuild_compat.py'),adapter/'kbuild_compat.py')
@@ -112,6 +115,7 @@ def prepare(root, plan):
         (helper / f'configure-sukisu-{code}.py').read_text().replace(
             "'KSU_VERSION_FULL':'v4.3.0-r2-", "'KSU_VERSION_FULL':'"+plan['sukisu_tag']+'-').replace(
             "'VERSION_TAG':'4.3.0-r1'", "'VERSION_TAG':'"+plan['sukisu_tag'].removeprefix('v')+"'"), encoding='utf-8')
+    prepare_susfs_helpers(helper,code)
     marker.write_text(json.dumps(plan, indent=2)+'\n', encoding='utf-8')
     print(f'Prepared SukiSU {code} at {pin}; historical compilation evidence was not reused')
 

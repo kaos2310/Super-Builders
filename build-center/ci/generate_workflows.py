@@ -85,10 +85,18 @@ def generate(baseline,out):
                 before=next(i for i,s in enumerate(steps) if s.get('name')=='Apply pinned SUSFS')
                 steps.insert(before,{'name':'Prepare official pinned SuSFS delta',
                     'run':f'python3 "{runtime}" susfs-before --common "$KERNEL_ROOT/common"'})
+                release='$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-runtime-${{ inputs.center_code }}/release240.py'
+                before=next(i for i,s in enumerate(steps) if s.get('name')=='Apply UID-gated SUSFS visibility consumers')
+                steps.insert(before,{'name':'Integrate pinned SuSFS updates before control overlays',
+                    'run':'set -euo pipefail\n'+f'python3 "{release}" "$KERNEL_ROOT/common"\n'+
+                    f'python3 "{runtime}" susfs-after --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'+
+                    f'python3 "{release}" "$KERNEL_ROOT/common"\n'+
+                    f'python3 "{runtime}" susfs-wire --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'})
                 before=next(i for i,s in enumerate(steps) if s.get('name')=='Build Kernel')
                 steps.insert(before,{'name':'Integrate official SuSFS updates and freeze final sources',
-                    'run':'set -euo pipefail\n'+f'python3 "{runtime}" susfs-after --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'+
-                    f'python3 "{runtime}" capture-final --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'})
+                    'run':'set -euo pipefail\n'+
+                    f'python3 "{runtime}" capture-final --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'+
+                    'python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_suspath_test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" --output "$GITHUB_WORKSPACE/susfs-runtime-audit/suspath-host"\n'})
                 steps.append({'name':'Upload immutable plan and source manifests','if':'always()',
                     'uses':'actions/upload-artifact@v7','with':{'name':'Build-Center-Source-Evidence-${{ github.run_id }}',
                     'path':'.build-center-plan.json\n**/.build-center-source-manifest.json\n**/.build-center-susfs-update.json\n.build-center-susfs/upstream-changes.json',

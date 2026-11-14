@@ -1,0 +1,34 @@
+"""Prepare audited control overlays for both legacy and updated SUSFS sources."""
+from pathlib import Path
+import shutil
+
+
+def once(text,old,new):
+    if text.count(old)!=1:raise RuntimeError('Audited SUSFS helper anchor changed')
+    return text.replace(old,new)
+
+
+def prepare(helper,code):
+    release=helper/f'susfs-runtime-{code}/release240.py'
+    original=release.read_text()
+    if "EXPECTED = 'b3de6f8bba7b0c2adf63e4fb9777ccb2dc2916790b8fd085e8723e60f6dec25d'" not in original:
+        raise RuntimeError('Audited release helper changed')
+    shutil.copyfile(Path(__file__).with_name('release_identity.py'),release)
+    uid=helper/'susfs-uid-gated/apply.py';text=uid.read_text()
+    old='    guard("susfs_is_inode_sus_path", "\\tif (!susfs_is_current_proc_umounted_app()) {")'
+    new=('    a,b=body_span(files["fs/susfs.c"],"susfs_is_inode_sus_path")\n'
+         '    path_body=files["fs/susfs.c"][a:b]\n'
+         '    path_anchor="\\tif (!susfs_is_current_proc_umounted_app()) {"\n'
+         '    if path_anchor not in path_body:path_anchor="\\tif (uid < 10000) {"\n'
+         '    guard("susfs_is_inode_sus_path",path_anchor)')
+    uid.write_text(once(text,old,new),encoding='utf-8',newline='\n')
+    runtime=helper/f'susfs-runtime-{code}/apply.py';text=runtime.read_text()
+    text=once(text,'    from release240 import EXPECTED\n    release=json.loads((common/\'.susfs-release240.json\').read_text())',
+              "    from release240 import verify as verify_release\n    release=verify_release(common)\n    EXPECTED=release['release_header_sha256']")
+    runtime.write_text(text,encoding='utf-8',newline='\n')
+    test=helper/f'susfs-priority-uid-{code}/test.py';text=test.read_text()
+    old="    header=(common/'include/linux/susfs.h').read_text()"
+    new=("    for key in ('SUSFS_UID_FILTER_MIN_UID','SUSFS_UID_FILTER_MAX_UID','SUSFS_UID_FILTER_UID_NUM','SUSFS_UID_FILTER_BITMAP_LEN'):\n"
+         "        match=re.search(r'^#define '+key+r' .*$',defs,re.M)\n"
+         "        if match:constants+=match[0]+'\\n'\n"+old)
+    test.write_text(once(text,old,new),encoding='utf-8',newline='\n')
