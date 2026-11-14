@@ -23,13 +23,23 @@ REVIEWED_PINS = {
 BASE_FRAGMENT_SHA256 = '9077757358943819e7f2ff8833678983cd91afc0a215396e534a72cb682fd98c'
 FIXED_FRAGMENT_SHA256 = '822bbc66db146efc304ad9fee0cbd0ec1f764fae96578d284ba74a5e30d14a15'
 KBUILD_HEADER = b'diff --git a/kernel/Kbuild b/kernel/Kbuild\n'
+REVIEWED_KBUILD_BLOB = '029f391165b27c59cebacc91e94842c2fccdac8e'
 
 
-def adapt_compat_patch(patch, plan):
+def adapt_compat_patch(patch, plan, upstream_kbuild=None):
     """Change only Kbuild's patch section; reject unreviewed inputs."""
     mapping = REVIEWED_PINS.get(plan['sukisu_commit'])
     if mapping is None:
-        return patch
+        # Future official commits with exactly the same reviewed Kbuild can
+        # use the same bounded refresh without another version/pin exception.
+        if upstream_kbuild is None:return patch
+        blob=hashlib.sha1(b'blob '+str(len(upstream_kbuild)).encode()+b'\0'+upstream_kbuild).hexdigest()
+        if blob!=REVIEWED_KBUILD_BLOB:return patch
+        code,count=plan['sukisu_code'],plan['sukisu_count']
+        if (not re.fullmatch('[0-9a-f]{40}',plan['sukisu_commit']) or type(count) is not int
+                or type(code) is not int or count<2815 or code!=40000+count-2815):
+            raise RuntimeError('Kbuild refresh requires an exact official source/version mapping')
+        mapping=(code,count)
     if (plan['sukisu_code'], plan['sukisu_count']) != mapping:
         raise RuntimeError('Kbuild refresh requires an exact reviewed SukiSU source/version mapping')
     parts = re.split(rb'(?=^diff --git )', patch, flags=re.M)

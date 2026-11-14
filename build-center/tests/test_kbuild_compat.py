@@ -92,6 +92,18 @@ class KbuildCompatibilityTests(unittest.TestCase):
         other = dict(self.plan,sukisu_commit='a'*40)
         self.assertEqual(adapt_compat_patch(self.patch,other),self.patch)
 
+    def test_future_pin_with_identical_reviewed_kbuild_is_adapted_automatically(self):
+        other={'sukisu_commit':'b'*40,'sukisu_code':41183,'sukisu_count':3998}
+        source=FIXTURE.with_name('kbuild-41183-upstream').read_bytes()
+        self.assertEqual(adapt_compat_patch(self.patch,other,source),adapt_compat_patch(self.patch,self.plan))
+        with self.assertRaisesRegex(RuntimeError,'source/version mapping'):
+            adapt_compat_patch(self.patch,dict(other,sukisu_code=41184),source)
+
+    def test_changed_unknown_kbuild_is_not_automatically_refreshed(self):
+        other={'sukisu_commit':'b'*40,'sukisu_code':41183,'sukisu_count':3998}
+        source=FIXTURE.with_name('kbuild-41183-upstream').read_bytes()+b'\n# changed upstream\n'
+        self.assertEqual(adapt_compat_patch(self.patch,other,source),self.patch)
+
     def test_wrong_version_mapping_is_rejected(self):
         for key in ('sukisu_code','sukisu_count'):
             with self.assertRaisesRegex(RuntimeError,'source/version mapping'):

@@ -62,14 +62,21 @@ def port_apply():
     selected=[c for c in parts if c.startswith(('diff --git a/security/selinux/hooks.c ','diff --git a/security/selinux/selinuxfs.c '))]
     if len(selected)!=2:raise RuntimeError('Expected two legacy manual SELinux sections')
     reverse=''.join(selected).encode();compat=(port/'compat.patch').read_bytes()
+    upstream_kbuild=command('git','-C',a.ksu,'show',plan['sukisu_commit']+':kernel/Kbuild')
+    if (a.ksu/'kernel/Kbuild').read_bytes()!=upstream_kbuild:
+        raise RuntimeError('Official Kbuild source changed before compatibility review')
+    adapter=module(helper/'_center_kbuild_compat/kbuild_compat.py','center_kbuild_compat')
+    compat=adapter.adapt_compat_patch(compat,plan,upstream_kbuild=upstream_kbuild)
     command('git','-C',a.ksu,'apply','--check','-',input=compat)
     command('git','-C',a.common,'apply','--reverse','--check','-',input=reverse)
+    (port/'compat.patch').write_bytes(compat)
     command('git','-C',a.ksu,'apply','-',input=compat)
     command('git','-C',a.common,'apply','--reverse','-',input=reverse)
     command(sys.executable,helper/f'configure-sukisu-{code}.py',a.ksu)
     native(a.common,a.ksu,plan['sukisu_commit'])
     receipt={'schema':1,'pin':plan['sukisu_commit'],'susfs_target':plan['susfs_commit'],
              'kernel_patch_sha256':digest(patch),'compat_patch_sha256':digest(compat),
+             'kbuild_upstream_blob':command('git','-C',a.ksu,'rev-parse',plan['sukisu_commit']+':kernel/Kbuild').decode().strip(),
              'stage':'source_preparation','historical_evidence_reused':False,'device_runtime_tested':False}
     (a.common/f'.sukisu-{code}-susfs-port.json').write_text(json.dumps(receipt,indent=2)+'\n')
     print('Prepared native port. This is source preparation, not a compilation receipt.')

@@ -72,6 +72,10 @@ def prepare(root, plan):
     # Replace the historical evidence gate with a live source-preparation gate.
     # All semantic tests and full kernel compilation still execute afterwards.
     shutil.copyfile(Path(__file__).with_name('runtime.py'), helper / '_center_runtime.py')
+    adapter=helper/'_center_kbuild_compat'
+    (adapter/'compat').mkdir(parents=True)
+    shutil.copyfile(Path(__file__).with_name('kbuild_compat.py'),adapter/'kbuild_compat.py')
+    shutil.copyfile(Path(__file__).with_name('compat')/'kbuild-41176.patch',adapter/'compat/kbuild-41176.patch')
     shutil.copytree(Path(__file__).with_name('hidden_names'), helper / 'susfs-hidden-name-readdir',
                     ignore=shutil.ignore_patterns('__pycache__'))
     port = helper / f'sukisu-{code}-susfs'
