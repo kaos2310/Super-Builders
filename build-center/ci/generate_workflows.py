@@ -71,6 +71,12 @@ def generate(baseline,out):
                     {'name':'Prepare immutable update candidate','env':{'CENTER_PLAN':'${{ inputs.center_plan }}'},
                      'run':f'python3 "$GITHUB_WORKSPACE/.build-center/build-center/ci/bootstrap.py" {location}'}]
             steps[steps.index(checkout)+1:steps.index(checkout)+1]=insert
+            if dest=='build-center-userspace.yml':
+                compat='python3 "$GITHUB_WORKSPACE/.build-center/build-center/ci/userspace_compat.py" sukisu --plan builder/.build-center-plan.json --receipt userspace-artifacts/USERSPACE-COMPAT.json'
+                before=next(s for s in steps if s.get('name')=='Verify immutable official workspace lock')
+                before['run']=before['run'].replace('test ! -e sukisu/target',compat+'\ntest ! -e sukisu/target')
+                after=next(s for s in steps if s.get('name')=='Verify immutable locks, real generated UAPI6 and ARM64 binaries')
+                after['run']=after['run'].replace('cp sukisu/Cargo.lock',compat+' --verify-only\ncp sukisu/Cargo.lock')
             if dest=='build-center-resusfs.yml':
                 steps.insert(steps.index(insert[-1])+1,{'name':'Download the exact official SuSFS CLI sources',
                     'run':'python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" update-tool'})
