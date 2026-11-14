@@ -24,12 +24,18 @@ class ReleaseIdentityTests(unittest.TestCase):
             update={'source_pin':'a'*40,'release_base':'b'*40,'susfs_version':'v2.4.0','conflicts':0,
                     'effective_source_sha256':{'include/linux/susfs.h':hashlib.sha256(header).hexdigest()}}
             (common/'.build-center-susfs-update.json').write_text(json.dumps(update))
-            result=release_identity.apply(common)
+            env=root/'github-env';env.write_text('EXISTING=value\n')
+            with patch.dict('os.environ',{'GITHUB_ENV':str(env)}):
+                result=release_identity.apply(common)
+            exported=env.read_text()
+            self.assertEqual(exported,'EXISTING=value\nSUSFS_EXPECTED_VERSION=v2.4.0\nSUSFS_PINNED_COMMIT='+'a'*40+'\n')
             self.assertEqual(result['upstream_release_pin'],'a'*40)
             self.assertFalse(result['release_only_change'])
             self.assertEqual(release_identity.verify(common),result)
             (common/'include/linux/susfs.h').write_bytes(header+b'// drift\n')
-            with self.assertRaisesRegex(RuntimeError,'header drift'):release_identity.verify(common)
+            with patch.dict('os.environ',{'GITHUB_ENV':str(env)}):
+                with self.assertRaisesRegex(RuntimeError,'header drift'):release_identity.apply(common)
+            self.assertEqual(env.read_text(),exported)
             (common/'include/linux/susfs.h').write_bytes(header);update['source_pin']='d'*40
             (common/'.build-center-susfs-update.json').write_text(json.dumps(update))
             with self.assertRaisesRegex(RuntimeError,'binding'):release_identity.verify(common)

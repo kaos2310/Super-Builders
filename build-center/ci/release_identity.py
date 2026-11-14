@@ -3,6 +3,8 @@ from pathlib import Path
 import argparse
 import hashlib
 import json
+import os
+import re
 
 UPSTREAM='a2165b6f875b73e2f87d3c6f12814efac8de061d'
 EXPECTED='b3de6f8bba7b0c2adf63e4fb9777ccb2dc2916790b8fd085e8723e60f6dec25d'
@@ -56,7 +58,17 @@ def apply(common):
                 'priority_functional_pin':'5f85e6e7838a54ad363de5749d33361a5da2316b',
                 'release_header_sha256':EXPECTED,'release_only_change':True}
     (common/'.susfs-release240.json').write_text(json.dumps(result,indent=2)+'\n')
-    return verify(common)
+    verified=verify(common)
+    # The initial action exports the legacy functional base. Later source and
+    # configuration audits must use the verified effective update identity.
+    if not verified['release_only_change'] and os.environ.get('GITHUB_ENV'):
+        pin=verified['upstream_release_pin']
+        if not re.fullmatch('[0-9a-f]{40}',pin):
+            raise RuntimeError('Invalid merged release source pin')
+        with Path(os.environ['GITHUB_ENV']).open('a',encoding='utf-8',newline='\n') as output:
+            output.write('SUSFS_EXPECTED_VERSION='+verified['susfs_version']+'\n'
+                         'SUSFS_PINNED_COMMIT='+pin+'\n')
+    return verified
 
 
 if __name__=='__main__':
