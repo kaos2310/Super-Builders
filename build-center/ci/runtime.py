@@ -152,6 +152,38 @@ def three_way(local,base,target):
         return p.stdout
 
 
+def gki_reference_patches(old,new):
+    """Reference only changed patch sections; retain the native SELinux port.
+
+    The Samsung port moves context in unchanged VFS/proc hunks. Reapplying
+    those hunks to calculate an unrelated upstream delta is both unnecessary
+    and incorrect. The native SukiSU port also deliberately removes the
+    legacy manual hooks in these two files; they must not be merged back.
+    """
+    def sections(patch):
+        result={}
+        for part in re.split(rb'(?=^diff --git )',patch,flags=re.M):
+            if not part.strip():continue
+            match=re.match(rb'diff --git a/([^\s]+) b/([^\s]+)\r?\n',part)
+            if not match or match[1]!=match[2]:
+                raise RuntimeError('Unsupported upstream GKI patch path/rename')
+            name=str(safe_relative(match[1].decode()))
+            if name in result:raise RuntimeError('Duplicate upstream GKI patch section: '+name)
+            for marker in (b'--- a/',b'+++ b/'):
+                if not re.search(rb'^'+re.escape(marker+match[1])+rb'\r?$',part,re.M):
+                    raise RuntimeError('Unsupported upstream GKI file creation/deletion: '+name)
+            result[name]=part
+        return result
+    before,after=sections(old),sections(new)
+    if before.keys()!=after.keys():
+        raise RuntimeError('Upstream GKI patch file layout changed; explicit compatibility review required')
+    changed=sorted(name for name in before if before[name]!=after[name])
+    native={'security/selinux/hooks.c','security/selinux/selinuxfs.c'}
+    excluded=[name for name in changed if name in native]
+    paths=[name for name in changed if name not in native]
+    return [b''.join(table[name] for name in paths) for table in (before,after)],paths,excluded
+
+
 def prepare_susfs(common):
     root,plan=context();work=root/'.build-center-susfs';work.mkdir(exist_ok=False)
     repo=work/'upstream';command('git','init','-q',repo)
@@ -164,13 +196,13 @@ def prepare_susfs(common):
     old,new=plan['susfs_release_base'],plan['susfs_commit']
     changed=command('git','-C',repo,'diff','--name-only',old,new,'--','kernel_patches').decode().splitlines()
     records={}
+    reference_paths=[];native_exclusions=[]
     patch_name='kernel_patches/50_add_susfs_in_gki-android14-6.1.patch'
     if patch_name in changed:
         patches=[get(old,patch_name),get(new,patch_name)]
         if any(p is None for p in patches):raise RuntimeError('Upstream GKI patch was removed')
-        touched=set()
-        for patch in patches:
-            for n in re.findall(rb'^(?:--- a/|\+\+\+ b/)([^\r\n]+)',patch,re.M):touched.add(str(safe_relative(n.decode())))
+        patches,reference_paths,native_exclusions=gki_reference_patches(*patches)
+        touched=set(reference_paths)
         trees=[work/'old-patched',work/'new-patched']
         for tree,patch in zip(trees,patches):
             tree.mkdir();command('git','init','-q',tree)
@@ -178,8 +210,9 @@ def prepare_susfs(common):
                 original=common/name
                 if original.is_file():
                     dest=tree/name;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(original,dest)
-            command('git','-C',tree,'apply','--check','-',input=patch)
-            command('git','-C',tree,'apply','-',input=patch)
+            if touched:
+                command('git','-C',tree,'apply','--check','-',input=patch)
+                command('git','-C',tree,'apply','-',input=patch)
         for name in touched:
             records[name]=[(tree/name).read_bytes() if (tree/name).exists() else None for tree in trees]
     for name in changed:
@@ -195,7 +228,9 @@ def prepare_susfs(common):
                 file=f'{number}-{kind}';(work/file).write_bytes(data);item[kind]=file
         serial[name]=item
     (work/'delta.json').write_text(json.dumps(serial,indent=2)+'\n')
-    (work/'upstream-changes.json').write_text(json.dumps({'old':old,'new':new,'all_changed_files':changed,'effective_files':list(serial)},indent=2)+'\n')
+    (work/'upstream-changes.json').write_text(json.dumps({'old':old,'new':new,'all_changed_files':changed,'effective_files':list(serial),
+        'gki_reference_paths':reference_paths,'native_selinux_excluded_legacy_paths':native_exclusions,
+        'selinux_policy':'SukiSU native implementation; legacy manual hooks remain excluded by the audited port'},indent=2)+'\n')
     print('Official SuSFS delta:',len(serial),'effective kernel files;',len(changed),'upstream files')
 
 
