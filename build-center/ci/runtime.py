@@ -137,6 +137,20 @@ def safe_relative(name):
     return path
 
 
+class SusfsMergeConflict(RuntimeError):
+    def __init__(self,output):
+        super().__init__('SuSFS-Konflikt: lokale Anpassung und Upstream ändern dieselbe Stelle.')
+        self.output=output
+
+
+def without_endif_annotations(data):
+    # A trailing // comment on a preprocessing directive has no C semantics.
+    # New upstream annotations otherwise conflict with adjacent local feature
+    # blocks even when both code changes are independent.
+    return re.sub(rb'(?m)^([ \t]*#endif)[ \t]+//[ \t]*#ifdef[ \t]+CONFIG_KSU_SUSFS[A-Z0-9_]*[ \t]*(\r?)$',
+                  rb'\1\2',data)
+
+
 def three_way(local,base,target):
     if local==base or local==target:return target
     if base==target:return local
@@ -146,9 +160,9 @@ def three_way(local,base,target):
         raise RuntimeError('Binary merge requires review')
     with tempfile.TemporaryDirectory(prefix='susfs-merge-') as tmp:
         paths=[Path(tmp)/n for n in ('local','base','target')]
-        for p,data in zip(paths,(local,base,target)):p.write_bytes(data)
+        for p,data in zip(paths,(local,base,target)):p.write_bytes(without_endif_annotations(data))
         p=subprocess.run(['git','merge-file','-p',*map(str,paths)],capture_output=True)
-        if p.returncode:raise RuntimeError('SuSFS-Konflikt: lokale Anpassung und Upstream ändern dieselbe Stelle.')
+        if p.returncode:raise SusfsMergeConflict(p.stdout)
         return p.stdout
 
 
@@ -236,11 +250,23 @@ def prepare_susfs(common):
 
 def sync_susfs(common,ksu):
     root,plan=context();work=root/'.build-center-susfs';records=json.loads((work/'delta.json').read_text())
-    results={}
+    results={};conflicts=[]
     for name,item in records.items():
         safe_relative(name);p=common/name
         values=[(work/item[k]).read_bytes() if item[k] is not None else None for k in ('base','target')]
-        results[name]=three_way(p.read_bytes() if p.exists() else None,*values)
+        local=p.read_bytes() if p.exists() else None
+        try:results[name]=three_way(local,*values)
+        except SusfsMergeConflict as error:
+            # Preserve all three public kernel source versions in the already
+            # uploaded source-evidence audit, without changing the live tree.
+            conflicts.append({'path':name,'local':local.decode(),'base':values[0].decode(),
+                              'target':values[1].decode(),'merge_output':error.output.decode(errors='replace')})
+            print('SuSFS merge conflict:',name,flush=True)
+    if conflicts:
+        audit=work/'upstream-changes.json';evidence=json.loads(audit.read_text())
+        evidence['merge_conflicts']=conflicts
+        audit.write_text(json.dumps(evidence,indent=2)+'\n')
+        raise RuntimeError('SuSFS source conflicts: '+', '.join(c['path'] for c in conflicts)+'. Exact sources saved in source evidence.')
     # All merges must succeed before any effective kernel source is changed.
     for name,data in results.items():
         p=common/name
@@ -252,7 +278,8 @@ def sync_susfs(common,ksu):
         raise RuntimeError('Merged SuSFS version does not match pinned upstream')
     native(common,ksu,plan['sukisu_commit'])
     receipt={'source_pin':plan['susfs_commit'],'release_base':plan['susfs_release_base'],
-             'susfs_version':plan['susfs_version'],'updated_files':list(results),'conflicts':0}
+             'susfs_version':plan['susfs_version'],'updated_files':list(results),'conflicts':0,
+             'merge_policy':'Only trailing SUSFS #endif annotations are ignored; C code conflicts remain fatal.'}
     (common/'.build-center-susfs-update.json').write_text(json.dumps(receipt,indent=2)+'\n')
     print('PASS: official SuSFS delta merged without conflicts')
 
