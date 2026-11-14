@@ -8,7 +8,21 @@ def once(text,old,new):
     return text.replace(old,new)
 
 
-def prepare(helper,code):
+def bind_source_pair(helper,code,plan):
+    # These controls run only after the official delta was merged and its
+    # measured release receipt verified. Their exact-pin checks and receipts
+    # must identify that effective source, while retaining historical mappings.
+    session=helper/f'su-session-{code}/apply.py'
+    session.write_text(once(session.read_text(),
+        'SUSFS_PIN = "'+plan['susfs_functional_base']+'"',
+        'SUSFS_PIN = "'+plan['susfs_commit']+'"'),encoding='utf-8',newline='\n')
+    uid=helper/'susfs-uid-gated/apply.py'
+    uid.write_text(once(uid.read_text(),'def susfs_pin(ksu):\n',
+        'def susfs_pin(ksu):\n    if source_pin(ksu) == '+repr(plan['sukisu_commit'])+': return '+repr(plan['susfs_commit'])+'\n'),
+        encoding='utf-8',newline='\n')
+
+
+def prepare(helper,code,plan=None):
     release=helper/f'susfs-runtime-{code}/release240.py'
     original=release.read_text()
     if "EXPECTED = 'b3de6f8bba7b0c2adf63e4fb9777ccb2dc2916790b8fd085e8723e60f6dec25d'" not in original:
@@ -35,3 +49,4 @@ def prepare(helper,code):
          "        match=re.search(r'^#define '+key+r' .*$',defs,re.M)\n"
          "        if match:constants+=match[0]+'\\n'\n"+old)
     test.write_text(once(text,old,new),encoding='utf-8',newline='\n')
+    if plan is not None:bind_source_pair(helper,code,plan)

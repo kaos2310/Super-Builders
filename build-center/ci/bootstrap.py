@@ -115,7 +115,7 @@ def prepare(root, plan):
         (helper / f'configure-sukisu-{code}.py').read_text().replace(
             "'KSU_VERSION_FULL':'v4.3.0-r2-", "'KSU_VERSION_FULL':'"+plan['sukisu_tag']+'-').replace(
             "'VERSION_TAG':'4.3.0-r1'", "'VERSION_TAG':'"+plan['sukisu_tag'].removeprefix('v')+"'"), encoding='utf-8')
-    prepare_susfs_helpers(helper,code)
+    prepare_susfs_helpers(helper,code,plan)
     marker.write_text(json.dumps(plan, indent=2)+'\n', encoding='utf-8')
     print(f'Prepared SukiSU {code} at {pin}; historical compilation evidence was not reused')
 
