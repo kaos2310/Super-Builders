@@ -56,6 +56,20 @@ class KbuildCompatibilityTests(unittest.TestCase):
         self.assertTrue(fixed.startswith(self.before) and fixed.endswith(self.after))
         self.assertIn(b'-KSU_RUNNER_LDFLAGS :=',fixed)
 
+    def test_official_41183_has_identical_kbuild_and_uses_same_exact_patch(self):
+        pin='ef77212e51c95886192ac066ec7ec28a0108cdee'
+        upstream=FIXTURE.with_name('kbuild-41183-upstream').read_bytes()
+        self.assertEqual(upstream,FIXTURE.with_name('kbuild-41181-upstream').read_bytes())
+        self.assertEqual(hashlib.sha1(b'blob '+str(len(upstream)).encode()+b'\0'+upstream).hexdigest(),
+                         '029f391165b27c59cebacc91e94842c2fccdac8e')
+        self.assertEqual(REVIEWED_PINS[pin],(41183,3998))
+        plan={'sukisu_commit':pin,'sukisu_code':41183,'sukisu_count':3998}
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'kernel').mkdir();(root/'kernel/Kbuild').write_bytes(upstream)
+            patch=root/'compat.patch';patch.write_bytes(adapt_compat_patch(self.fragment,plan))
+            result=subprocess.run(['git','apply','--no-index','--check',str(patch)],cwd=root,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
+
     def test_refresh_is_idempotent(self):
         fixed = adapt_compat_patch(self.patch,self.plan)
         self.assertEqual(adapt_compat_patch(fixed,self.plan),fixed)
