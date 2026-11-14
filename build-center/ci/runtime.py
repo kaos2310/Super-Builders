@@ -165,6 +165,28 @@ def without_endif_annotations(data):
     return re.sub(rb'(?m)^/\* selinux hide \*/\r?\n',b'',data)
 
 
+def restore_endif_annotations(data):
+    # Existing audited helpers use these explanatory markers as scope anchors.
+    # Rebuild them from the actual nested preprocessing guards after merging.
+    stack=[];output=[]
+    for line in data.splitlines(keepends=True):
+        match=re.match(rb'^([ \t]*)#[ \t]*(ifdef|ifndef|if|endif|elif|else)\b([^\r\n]*)',line)
+        if match:
+            directive=match[2]
+            if directive in (b'if',b'ifdef',b'ifndef'):
+                name=re.fullmatch(rb'[ \t]+(CONFIG_KSU_SUSFS[A-Z0-9_]*)[ \t]*',match[3]) if directive==b'ifdef' else None
+                stack.append(name[1] if name else None)
+            elif directive==b'endif':
+                if not stack:raise RuntimeError('Unbalanced preprocessing guards after SuSFS merge')
+                name=stack.pop()
+                if name:
+                    end=b'\r\n' if line.endswith(b'\r\n') else b'\n' if line.endswith(b'\n') else b''
+                    line=match[1]+b'#endif // #ifdef '+name+end
+        output.append(line)
+    if stack:raise RuntimeError('Unclosed preprocessing guards after SuSFS merge')
+    return b''.join(output)
+
+
 def only_legacy_services_additions(base,target):
     added=b'''int susfs_security_context_to_sid_default(struct selinux_state *state,
 \t\t\t\t    const char *scontext, u32 scontext_len,
@@ -198,7 +220,7 @@ def three_way(local,base,target):
         for p,data in zip(paths,(local,base,target)):p.write_bytes(without_endif_annotations(data))
         p=subprocess.run(['git','merge-file','-p',*map(str,paths)],capture_output=True)
         if p.returncode:raise SusfsMergeConflict(p.stdout)
-        return p.stdout
+        return restore_endif_annotations(p.stdout)
 
 
 def gki_reference_patches(old,new):
@@ -326,6 +348,7 @@ def sync_susfs(common,ksu):
     native(common,ksu,plan['sukisu_commit'])
     receipt={'source_pin':plan['susfs_commit'],'release_base':plan['susfs_release_base'],
              'susfs_version':plan['susfs_version'],'updated_files':list(results),'conflicts':0,
+             'stage':'source_integration_before_control_overlays',
              'merge_policy':'SUSFS directive annotations and the legacy SELinux heading are non-semantic; C code conflicts remain fatal.',
              'effective_source_sha256':dict({name:digest(data) for name,data in results.items() if data is not None},
                                             **{'include/linux/susfs.h':digest((common/'include/linux/susfs.h').read_bytes())})}

@@ -2,6 +2,7 @@ from pathlib import Path
 import contextlib
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -19,8 +20,15 @@ class SusfsMergeTests(unittest.TestCase):
         merged=runtime.three_way(local,base,target)
         self.assertIn(b'__attribute__((hot))',merged)
         self.assertIn(b'extern int mount_hook(void);',merged)
-        self.assertEqual(merged.count(b'#ifdef'),2)
+        self.assertEqual(len(re.findall(rb'^#ifdef',merged,re.M)),2)
         self.assertEqual(merged.count(b'#endif'),2)
+        self.assertIn(b'#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH\n',merged)
+
+    def test_nested_scope_markers_are_restored_for_logging_helpers(self):
+        raw=b'#ifdef CONFIG_KSU_SUSFS_ENABLE_LOG\n#if OTHER\ncall();\n#endif\n#endif\n'
+        actual=runtime.restore_endif_annotations(raw)
+        self.assertEqual(actual,b'#ifdef CONFIG_KSU_SUSFS_ENABLE_LOG\n#if OTHER\ncall();\n#endif\n#endif // #ifdef CONFIG_KSU_SUSFS_ENABLE_LOG\n')
+        with self.assertRaisesRegex(RuntimeError,'Unclosed'):runtime.restore_endif_annotations(b'#ifdef CONFIG_KSU_SUSFS\n')
 
     def test_normalization_is_limited_to_directive_annotations(self):
         original=b'const char *s = "#endif // #ifdef CONFIG_KSU_SUSFS";\n#endif // Other comment\n#endif // #ifdef CONFIG_OTHER\n'

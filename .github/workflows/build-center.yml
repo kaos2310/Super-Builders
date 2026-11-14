@@ -519,7 +519,7 @@ jobs:
         cp sukisu/Cargo.lock userspace-artifacts/Cargo.effective.lock
         git -C sukisu show HEAD:Cargo.lock > userspace-artifacts/Cargo.upstream.lock
         cd userspace-artifacts
-        sha256sum ksud ksuinit *.lock *-metadata.json ksud-build-messages.jsonl BUILD-IDENTITY.json > SHA256SUMS
+        sha256sum ksud ksuinit *.lock *-metadata.json ksud-build-messages.jsonl BUILD-IDENTITY.json USERSPACE-COMPAT.json > SHA256SUMS
     - uses: actions/upload-artifact@v7
       with:
         name: SukiSU-${{ needs.resolve.outputs.code }}-ARM64-ksud-ksuinit
