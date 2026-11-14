@@ -1,7 +1,9 @@
 from pathlib import Path
 import hashlib
 import re
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -26,6 +28,22 @@ class KbuildCompatibilityTests(unittest.TestCase):
         self.assertEqual(REVIEWED_PINS.get(pin),(41179,3994))
         plan={'sukisu_commit':pin,'sukisu_code':41179,'sukisu_count':3994}
         self.assertEqual(adapt_compat_patch(self.patch,plan),adapt_compat_patch(self.patch,self.plan))
+
+    def test_official_41181_replays_the_patch_on_its_exact_upstream_kbuild(self):
+        pin='d84d9e655ea655e871dcac721c0aed551f1c2582'
+        plan={'sukisu_commit':pin,'sukisu_code':41181,'sukisu_count':3996}
+        upstream=FIXTURE.with_name('kbuild-41181-upstream').read_bytes()
+        blob=hashlib.sha1(b'blob '+str(len(upstream)).encode()+b'\0'+upstream).hexdigest()
+        self.assertEqual(blob,'029f391165b27c59cebacc91e94842c2fccdac8e')
+        self.assertEqual(REVIEWED_PINS[pin],(41181,3996))
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'kernel').mkdir();(root/'kernel/Kbuild').write_bytes(upstream)
+            patch=root/'compat.patch';patch.write_bytes(self.fragment)
+            def check():
+                return subprocess.run(['git','apply','--no-index','--check',str(patch)],cwd=root,capture_output=True)
+            self.assertNotEqual(check().returncode,0,'Old template must reproduce the patch failure')
+            patch.write_bytes(adapt_compat_patch(self.fragment,plan))
+            result=check();self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
 
     def test_refresh_changes_only_the_kbuild_section(self):
         fixed = adapt_compat_patch(self.patch,self.plan)

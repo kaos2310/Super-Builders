@@ -13,6 +13,9 @@ REVIEWED_PINS = {
     SOURCE_PIN: (41176, 3991),
     '1c9cca42f8049227d4eea20ab3979db3c5662a7d': (41178, 3993),
     'dae36db016079546b9fc028636a3326d09979777': (41179, 3994),
+    # Official 41181 retains the exact 41179 kernel/Kbuild blob
+    # 029f391165b27c59cebacc91e94842c2fccdac8e; only manager files changed.
+    'd84d9e655ea655e871dcac721c0aed551f1c2582': (41181, 3996),
 }
 BASE_FRAGMENT_SHA256 = '9077757358943819e7f2ff8833678983cd91afc0a215396e534a72cb682fd98c'
 FIXED_FRAGMENT_SHA256 = '822bbc66db146efc304ad9fee0cbd0ec1f764fae96578d284ba74a5e30d14a15'
