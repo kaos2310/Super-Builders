@@ -21,6 +21,9 @@ def prepare(helper,code):
          '    path_anchor="\\tif (!susfs_is_current_proc_umounted_app()) {"\n'
          '    if path_anchor not in path_body:path_anchor="\\tif (uid < 10000) {"\n'
          '    guard("susfs_is_inode_sus_path",path_anchor)')
+    text=once(text,old,new)
+    old='edit("fs/susfs.c", "#ifdef CONFIG_KSU_SUSFS_SUS_PATH\\n", feature + "#ifdef CONFIG_KSU_SUSFS_SUS_PATH\\n",'
+    new='edit("fs/susfs.c", "\\n#ifdef CONFIG_KSU_SUSFS_SUS_PATH\\n", "\\n" + feature + "#ifdef CONFIG_KSU_SUSFS_SUS_PATH\\n",'
     uid.write_text(once(text,old,new),encoding='utf-8',newline='\n')
     runtime=helper/f'susfs-runtime-{code}/apply.py';text=runtime.read_text()
     text=once(text,'    from release240 import EXPECTED\n    release=json.loads((common/\'.susfs-release240.json\').read_text())',
