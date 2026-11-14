@@ -10,6 +10,7 @@ import urllib.parse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from center_core import CenterError, request, resolve_sources
+from ci.network import source_get
 
 
 def recent_failure(repo,pair,token='',get=request,now=None):
@@ -88,7 +89,7 @@ def main():
         outputs = {'build': 'false', 'reason': 'Automatic builds are disabled'}
     else:
         token = os.environ.get('GH_TOKEN', '')
-        plan = resolve_sources(args.channel, token, source_ref=args.sukisu_ref)
+        plan = resolve_sources(args.channel, token, get=source_get, source_ref=args.sukisu_ref)
         verify_source_request(plan, os.environ.get('CENTER_SOURCE_REQUEST',''), os.environ.get('GITHUB_SHA',''))
         if args.expected_susfs_commit is not None:
             verify_expected_susfs(plan, args.expected_susfs_commit)

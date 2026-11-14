@@ -76,6 +76,17 @@ def prepare(root, plan):
     (adapter/'compat').mkdir(parents=True)
     shutil.copyfile(Path(__file__).with_name('kbuild_compat.py'),adapter/'kbuild_compat.py')
     shutil.copyfile(Path(__file__).with_name('compat')/'kbuild-41176.patch',adapter/'compat/kbuild-41176.patch')
+    if pin=='b2d01e8bcea80139be9076c63dcc9a6694691d72':
+        shutil.copyfile(Path(__file__).with_name('lock_compat.py'),helper/'_center_lock_compat.py')
+        lock_wrapper=("from pathlib import Path\nimport argparse,json\nimport _center_lock_compat as impl\n"
+            +f"PIN={pin!r}\n"
+            +"def upstream(root,path):return impl.upstream(root,PIN,path)\n"
+            +"def verify(root):return impl.verify(root,PIN)\n"
+            +"def apply(root):return impl.apply(root,PIN)\n"
+            +"if __name__=='__main__':\n"
+            +"    p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('--verify-only',action='store_true');a=p.parse_args()\n"
+            +"    print(json.dumps(verify(a.source) if a.verify_only else apply(a.source),indent=2))\n")
+        (helper/f'sukisu_{code}_lock.py').write_text(lock_wrapper,encoding='utf-8',newline='\n')
     shutil.copytree(Path(__file__).with_name('hidden_names'), helper / 'susfs-hidden-name-readdir',
                     ignore=shutil.ignore_patterns('__pycache__'))
     port = helper / f'sukisu-{code}-susfs'
