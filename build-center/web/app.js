@@ -1,8 +1,9 @@
-import {Github, GH, selectKernelArtifact, selectReleaseAssets, selectEzj1ManagerAssets, assertRepository} from './api.js';
+import {Github, GH, selectKernelArtifact, selectReleaseAssets, selectEzj1ManagerAssets, assertRepository, runOutcome} from './api.js';
 
 const $ = id => document.getElementById(id);
 let token = '', sources = null, installed = null, activeRun = null, checking = false, pollBusy = false;
-let api, localServer = false, nativeCounter = 0;
+let api, localServer = false, nativeCounter = 0, controller = null;
+let settingsGeneration = 0, reviewedBuild = null, refreshAgain = false;
 let lastBuildPoll = 0;
 const nativePending = new Map();
 window.__nativeResult = (id, result) => {
@@ -45,9 +46,9 @@ function showSources(s){
 }
 function installationState(value,error=''){
   installed=value;
-  const ready=Boolean(value&&value.state==='active');
-  $('build-hint').textContent=error||(ready?'Workflow und Branch bestätigt · Updates in GitHub Actions integrieren':value?'Workflow ist deaktiviert. Auf GitHub aktivieren.':'Build-Center-Workflow muss einmalig im Repository eingerichtet werden.');
-  $('build').disabled=!ready||!sources||!token;
+  const ready=Boolean(value&&value.state==='active'&&sources&&controller);
+  $('build-hint').textContent=error||(ready?`SukiSU ${sources.sukisu_code} · ${controller.protocol===2?'Updates automatisch zugeordnet · ':''}Build-Branch ${controller.ref} · Controller ${controller.sha.slice(0,8)}`:value?.state==='active'?'Build-Controller für die angezeigten Quellen wird geprüft.':value?'Workflow ist deaktiviert. Auf GitHub aktivieren.':'Build-Center-Workflow muss einmalig im Repository eingerichtet werden.');
+  $('build').disabled=!ready||!sources||!token||checking;
   pill('connection-state',ready?(token?'VERBUNDEN':'WORKFLOW BEREIT'):error?'VERBINDUNG PRÜFEN':'EINRICHTUNG OFFEN',ready?'':error?'bad':'neutral');
 }
 function row(title,sub,buttonText,action,type='ZIP'){
@@ -110,29 +111,49 @@ async function loadDownloads(){
   downloadRows=rows;renderDownloads();
 }
 async function refresh(){
-  if(checking)return;checking=true;$('refresh').disabled=true;$('refresh').textContent='↻  Wird geprüft …';
-  try{makeApi();const results=await Promise.allSettled([api.sources($('channel').value),api.installation($('ref').value)]);
+  if(checking){refreshAgain=true;return;}checking=true;$('refresh').disabled=true;$('refresh').textContent='↻  Wird geprüft …';
+  const generation=settingsGeneration,requested=settings();
+  try{makeApi();const requestApi=api;controller=null;sources=null;installationState(installed);const results=await Promise.allSettled([requestApi.sources(requested.channel),requestApi.installation(requested.ref,false)]);
+    if(generation!==settingsGeneration)return;
     if(results[0].status==='fulfilled')showSources(results[0].value);else{sources=null;pill('suki-pill','PRÜFUNG FEHLGESCHLAGEN','bad');pill('sus-pill','NICHT BESTÄTIGT','bad');}
-    if(results[1].status==='fulfilled')installationState(results[1].value);else{installationState(null,results[1].reason.message);}
-    const failure=results.find(r=>r.status==='rejected');
-    if(failure)message(failure.reason.message,true);else{message(installed?'Quellen geprüft. Der Build pinnt beide Quellen beim Start erneut.':'Quellen geprüft. Die lokale App ist bereit; die GitHub-Integration ist noch nicht eingerichtet.');}
+    let failure=results.find(r=>r.status==='rejected')?.reason,migrated=false;
+    if(!failure&&sources&&results[1].value?.state==='active'){
+      try{
+        const selected=await requestApi.compatibleController(sources,requested.ref);
+        if(generation!==settingsGeneration)return;
+        controller=selected;
+        if(controller.ref!==$('ref').value.trim()){
+          $('ref').value=controller.ref;saveSettings();migrated=true;
+          activeRun=null;pendingRequest=null;localStorage.removeItem('center-run');localStorage.removeItem('center-pending');
+        }
+      }catch(e){if(generation!==settingsGeneration)return;failure=e;}
+    }
+    if(failure){installationState(null,failure.message);message(failure.message,true);}
+    else{installationState(results[1].value);message(migrated?`Passender Build-Branch für SukiSU ${sources.sukisu_code} automatisch übernommen: ${controller.ref}.`:controller?.protocol===2?`SukiSU ${sources.sukisu_code} und SuSFS ${sources.susfs_version} automatisch zugeordnet. Der Build prüft genau diese Quellen und das Samsung-Profil.`:controller?`Quellen und Build-Controller für SukiSU ${sources.sukisu_code} stimmen überein.`:installed?'Quellen geprüft. Der Build pinnt beide Quellen beim Start erneut.':'Quellen geprüft. Die lokale App ist bereit; die GitHub-Integration ist noch nicht eingerichtet.');}
     $('last-check').textContent='Geprüft: '+new Date().toLocaleString('de-DE');
     await loadDownloads();
-    if(installed&&!pendingRequest&&(!activeRun||activeRun.status==='completed')){const runs=await api.runs();if(runs.length)await followRun(runs[0]);}
-  }catch(e){message(e.message,true);}finally{checking=false;$('refresh').disabled=false;$('refresh').textContent='↻  Updates prüfen';}
+    if(activeRun&&activeRun.head_branch!==$('ref').value.trim())activeRun=null;
+    if(installed&&!pendingRequest&&(!activeRun||activeRun.status==='completed')){const runs=await api.runs($('ref').value.trim());if(runs.length)await followRun(runs[0]);}
+  }catch(e){message(e.message,true);}finally{checking=false;$('refresh').disabled=false;$('refresh').textContent='↻  Updates prüfen';$('build').disabled=!(installed?.state==='active'&&sources&&controller&&token)||refreshAgain;if(refreshAgain){refreshAgain=false;void refresh();}}
 }
 const stateNames={completed:'Abgeschlossen',in_progress:'Läuft',queued:'In Warteschlange',waiting:'Wartet',pending:'Vorgemerkt',requested:'Angefordert'};
-function runStatus(run){return run.status==='completed'?({success:'ERFOLGREICH',failure:'FEHLGESCHLAGEN',cancelled:'ABGEBROCHEN',skipped:'ÜBERSPRUNGEN',timed_out:'ZEITLIMIT'})[run.conclusion]||run.conclusion:stateNames[run.status]?.toUpperCase()||run.status;}
 async function followRun(run){
+  if(run.head_branch!==$('ref').value.trim())return;
+  const completedNow=run.status==='completed'&&run.conclusion==='success'&&(activeRun?.id!==run.id||activeRun?.status!=='completed');
   lastBuildPoll=Date.now();
   activeRun=run;localStorage.setItem('center-run',JSON.stringify({repo:api.repo,id:run.id}));
   $('run-link').href=run.html_url;$('run-label').textContent=`Lauf ${run.id} · ${run.head_branch} · ${run.head_sha.slice(0,8)}`;
-  pill('run-status',runStatus(run),run.status==='completed'?(run.conclusion==='success'?'':'bad'):'running');
   const jobs=await api.jobs(run.id),list=$('jobs');list.replaceChildren();
+  const artifacts=run.status==='completed'&&run.conclusion==='success'?await api.artifacts(run.id):[];
+  if(completedNow&&sources&&selectKernelArtifact(artifacts,run))await loadDownloads();
+  const outcome=runOutcome(run,jobs,artifacts);
+  if(controller&&run.head_sha!==controller.sha){outcome.text='ANDERER CONTROLLER-STAND';outcome.className='neutral';}
+  pill('run-status',outcome.text,outcome.className);
+  if(outcome.text==='KEIN KERNEL GEBAUT')message('GitHub hat den Workflow ohne Kernelbau beendet. Es wurde keine neue Kernel-ZIP erstellt. Den Plan und die übersprungenen Jobs auf GitHub prüfen.');
   for(const job of jobs){const li=node('li');const detail=node('div');detail.append(node('b',job.name),node('small',job.steps?.find(s=>s.status==='in_progress')?.name||stateNames[job.status]||job.status));li.append(node('span',job.conclusion==='success'?'✓':job.conclusion==='failure'?'!':'·','job-marker'),detail,node('span',job.conclusion||stateNames[job.status]||job.status,'job-state'));list.append(li);}
   if(!jobs.length)list.append(node('li','GitHub plant die ersten Jobs …'));
   if(run.status==='completed'&&run.conclusion==='success'){
-    const artifact=selectKernelArtifact(await api.artifacts(run.id),run);
+    const artifact=selectKernelArtifact(artifacts,run);
     if(artifact){const key='run-'+run.id;if(!downloadRows.some(r=>r.dataset.run===key)){const r=row(`Kernel-ZIP aus Lauf ${run.id}`,artifact.name+' · '+artifact.digest,'Download',()=>download(artifact.archive_download_url,artifact.name+'.zip',artifact.digest,'kernel-artifact'));r.dataset.run=key;downloadRows.unshift(r);renderDownloads();}}
   }
 }
@@ -142,26 +163,37 @@ async function poll(){
   if(!token&&!pendingRequest&&lastBuildPoll&&Date.now()-lastBuildPoll<300000)return;
   lastBuildPoll=Date.now();pollBusy=true;
   try{
-    if(pendingRequest){const run=await api.findRun(pendingRequest.id);if(run){pendingRequest=null;localStorage.removeItem('center-pending');await followRun(run);}else if(Date.now()-pendingRequest.time>600000){message('GitHub hat noch keinen passenden Lauf gemeldet. Vor einem erneuten Start die Actions-Seite prüfen.',true);pendingRequest=null;localStorage.removeItem('center-pending');}}
+    if(pendingRequest){const run=await api.findRun(pendingRequest.id,pendingRequest.ref||$('ref').value.trim());if(run){pendingRequest=null;localStorage.removeItem('center-pending');await followRun(run);}else if(Date.now()-pendingRequest.time>600000){message('GitHub hat noch keinen passenden Lauf gemeldet. Vor einem erneuten Start die Actions-Seite prüfen.',true);pendingRequest=null;localStorage.removeItem('center-pending');}}
     else if(activeRun&&activeRun.status!=='completed')await followRun(await api.run(activeRun.id));
   }catch(e){message(e.message,true);}finally{pollBusy=false;}
 }
 $('refresh').addEventListener('click',refresh);
 for(const id of ['repository','ref','channel'])$(id).addEventListener('input',()=>{
-  sources=null;installationState(null,'Einstellungen geändert. Verbindung speichern & prüfen.');
+  settingsGeneration++;
+  sources=null;controller=null;installationState(null,'Einstellungen geändert. Verbindung speichern & prüfen.');
 });
-$('settings-form').addEventListener('submit',async event=>{event.preventDefault();try{token=$('token').value.trim();saveSettings();if(window.KaosNative)window.KaosNative.storeToken($('remember-token').checked?token:'');sources=null;activeRun=null;makeApi();await refresh();}catch(e){message(e.message,true);}});
-$('forget').addEventListener('click',()=>{token='';$('token').value='';if(window.KaosNative)window.KaosNative.storeToken('');makeApi();installationState(installed);message('Token entfernt. Öffentliche Lesezugriffe bleiben verfügbar.');});
+$('settings-form').addEventListener('submit',async event=>{event.preventDefault();try{settingsGeneration++;token=$('token').value.trim();saveSettings();if(window.KaosNative)window.KaosNative.storeToken($('remember-token').checked?token:'');sources=null;activeRun=null;makeApi();await refresh();}catch(e){message(e.message,true);}});
+$('forget').addEventListener('click',()=>{settingsGeneration++;reviewedBuild=null;token='';$('token').value='';if(window.KaosNative)window.KaosNative.storeToken('');makeApi();installationState(installed);message('Token entfernt. Öffentliche Lesezugriffe bleiben verfügbar.');});
 $('build').addEventListener('click',()=>{
-  if(!sources)return;
+  if(!sources||!controller||checking)return;
   if(pendingRequest){message('Ein Build-Auftrag wartet bereits auf seine GitHub-Lauf-ID.');return;}
-  $('plan-review').textContent=`Repository: ${api.repo}\nWorkflow-Branch: ${$('ref').value.trim()}\n\nSukiSU ${sources.sukisu_code}\n${sources.sukisu_commit}\n\nSuSFS ${sources.susfs_version}\n${sources.susfs_commit}\n\nProfil: S928BXXS6EZJ1 / EUX / 6.1.162\nDie Pipeline liest beim Start den neuesten Stand erneut ein.`;
+  if(activeRun&&activeRun.status!=='completed'&&activeRun.head_branch===$('ref').value.trim()){
+    $('pipeline').scrollIntoView({behavior:'smooth'});message(`Für diesen Build-Branch läuft bereits Auftrag ${activeRun.id}. Der aktuelle Lauf wird angezeigt.`);return;
+  }
+  reviewedBuild={api,ref:controller.ref,channel:$('channel').value,generation:settingsGeneration,
+    sources:{...sources},controllerSha:controller.sha};
+  $('plan-review').textContent=`Repository: ${api.repo}\nWorkflow-Branch: ${controller.ref}\nController: ${controller.sha}\n\nSukiSU ${sources.sukisu_code}\n${sources.sukisu_commit}\n\nSuSFS ${sources.susfs_version}\n${sources.susfs_commit}\n\nProfil: S928BXXS6EZJ1 / EUX / 6.1.162\nDie Pipeline prüft die angezeigten Quellen erneut. Bei einer Änderung ist eine neue Prüfung erforderlich.`;
   $('build-dialog').showModal();
 });
 $('build-dialog').addEventListener('close',async()=>{if($('build-dialog').returnValue!=='build')return;
   $('build').disabled=true;try{
-    const id=await api.dispatch($('ref').value.trim(),$('channel').value,$('force-build').checked);
-    pendingRequest={id,time:Date.now(),repo:api.repo};localStorage.setItem('center-pending',JSON.stringify(pendingRequest));
+    const review=reviewedBuild;reviewedBuild=null;
+    if(!review||review.generation!==settingsGeneration||checking||!sources||!controller
+      ||review.controllerSha!==controller.sha||review.ref!==controller.ref
+      ||review.sources.sukisu_commit!==sources.sukisu_commit||review.sources.susfs_commit!==sources.susfs_commit)
+      throw new Error('Quellen oder Einstellungen haben sich seit der Bestätigung geändert. Updates erneut prüfen und den Build neu bestätigen.');
+    const id=await review.api.dispatch(review.ref,review.channel,$('force-build').checked,{sources:review.sources,controllerSha:review.controllerSha});
+    pendingRequest={id,time:Date.now(),repo:review.api.repo,ref:review.ref};localStorage.setItem('center-pending',JSON.stringify(pendingRequest));
     activeRun=null;message('Build-Auftrag gesendet. Warte auf den zugehörigen GitHub-Lauf …');pill('run-status','AUFTRAG GESENDET','running');await poll();
   }catch(e){message(e.message,true);}finally{installationState(installed);}
 });

@@ -42,6 +42,37 @@ def verify_expected_susfs(plan, expected_commit):
         raise ValueError('Resolved latest SUSFS differs from the reviewed source; recheck upstream')
 
 
+def verify_source_request(plan, raw, controller_sha):
+    """Bind the app review to both official sources and this exact controller.
+
+    An empty request is used by scheduled checks and GitHub's manual latest
+    builds. Those resolve once and freeze the resulting plan as before.
+    """
+    if not raw:
+        return
+    try:
+        expected = json.loads(raw)
+    except (TypeError, ValueError):
+        raise ValueError('Invalid app source request JSON') from None
+    if not isinstance(expected, dict) or type(expected.get('schema')) is not int or expected['schema'] != 1:
+        raise ValueError('Invalid app source request schema')
+    for key in ('sukisu_commit','susfs_commit','controller_sha'):
+        if not re.fullmatch(r'[0-9a-f]{40}',str(expected.get(key,''))):
+            raise ValueError('Invalid immutable source/controller pin: '+key)
+    count, code = expected.get('sukisu_count'), expected.get('sukisu_code')
+    if type(count) is not int or type(code) is not int or count < 2815 or code != 40000 + count - 2815:
+        raise ValueError('Invalid source/version mapping in app request')
+    if expected.get('channel') not in ('main','release') or expected['channel'] != plan['channel']:
+        raise ValueError('Reviewed app channel changed; check updates again')
+    if expected['controller_sha'] != controller_sha:
+        raise ValueError('Build controller moved after app review; check updates again')
+    for key in ('sukisu_commit','sukisu_code','sukisu_count','susfs_commit'):
+        if expected[key] != plan[key]:
+            raise ValueError('Official source/version moved after app review: '+key+'; check updates again')
+    plan['source_request_schema'] = 1
+    plan['controller_sha'] = controller_sha
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--channel', choices=('main', 'release'), default='main')
@@ -58,6 +89,7 @@ def main():
     else:
         token = os.environ.get('GH_TOKEN', '')
         plan = resolve_sources(args.channel, token, source_ref=args.sukisu_ref)
+        verify_source_request(plan, os.environ.get('CENTER_SOURCE_REQUEST',''), os.environ.get('GITHUB_SHA',''))
         if args.expected_susfs_commit is not None:
             verify_expected_susfs(plan, args.expected_susfs_commit)
         if args.expected_main_commit is not None or args.expected_main_code is not None:

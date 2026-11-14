@@ -137,12 +137,8 @@ public class MainActivity extends Activity {
                 String kind=b.optString("kind","file");
                 if("kernel-artifact".equals(kind)){
                     if(expected.isEmpty())throw new IOException("Prüfsumme für Kernel-Artefakt fehlt.");
-                    byte[][] payload=new byte[1][];String[] filename=new String[1];int found=0;
-                    try(ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(raw))){ZipEntry e;while((e=z.getNextEntry())!=null){
-                        if(e.getName().startsWith("/")||e.getName().contains("..")||e.getName().contains("\\"))throw new IOException("Unsicherer ZIP-Pfad.");
-                        if(!e.isDirectory()&&e.getName().endsWith(".zip")){found++;if(found>1)throw new IOException("Mehrdeutiges Kernel-Artefakt.");payload[0]=read(z,LIMIT);filename[0]=e.getName().substring(e.getName().lastIndexOf('/')+1);}
-                    }}
-                    if(found!=1)throw new IOException("Flashbare Kernel-ZIP fehlt.");raw=payload[0];name=filename[0];
+                    KernelArtifact.Payload payload=KernelArtifact.unpack(raw,getCacheDir(),LIMIT);
+                    raw=payload.bytes;name=payload.filename;
                     Set<String> entries=new HashSet<>();try(ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(raw))){ZipEntry e;while((e=z.getNextEntry())!=null){entries.add(e.getName());if(e.getSize()>LIMIT)throw new IOException("ZIP-Eintrag zu groß.");}}
                     if(!entries.contains("anykernel.sh")||!entries.contains("STRICT-KMI.txt")||Collections.disjoint(entries,Arrays.asList("Image","Image.gz","Image.gz-dtb","Image.lz4")))throw new IOException("AnyKernel3-/Strict-KMI-Paket unvollständig.");
                 }
@@ -209,7 +205,9 @@ public class MainActivity extends Activity {
         URL current=initial.toURL();boolean auth=true;
         for(int i=0;i<6;i++){
             HttpsURLConnection c=(HttpsURLConnection)current.openConnection();c.setConnectTimeout(30000);c.setReadTimeout(binary?90000:35000);c.setInstanceFollowRedirects(false);c.setRequestMethod(method);
-            c.setRequestProperty("User-Agent","KAOSLAB-SukiSU-Build-Center/1.0");c.setRequestProperty("Accept",binary?"application/octet-stream":"application/vnd.github+json");
+            // The Actions API returns a JSON-media redirect; the redirected archive is binary.
+            boolean artifactApi="api.github.com".equals(current.getHost())&&current.getPath().matches("/repos/[\\w.-]+/[\\w.-]+/actions/artifacts/[0-9]+/zip");
+            c.setRequestProperty("User-Agent","KAOSLAB-SukiSU-Build-Center/1.0");c.setRequestProperty("Accept",binary&&!artifactApi?"application/octet-stream":"application/vnd.github+json");
             if(auth&&"api.github.com".equals(current.getHost())&&!token.isEmpty())c.setRequestProperty("Authorization","Bearer "+token);
             if(body!=null){c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");try(OutputStream out=c.getOutputStream()){out.write(body.toString().getBytes(StandardCharsets.UTF_8));}}
             int status=c.getResponseCode();

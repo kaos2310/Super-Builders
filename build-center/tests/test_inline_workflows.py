@@ -61,9 +61,14 @@ class InlineWorkflowTests(unittest.TestCase):
         self.assertEqual(publish,original['jobs']['publish'])
         self.assertEqual(guard_download['with']['path'],'guard6-files')
         resolver = active['jobs']['resolve']['steps'][1]['run']
-        self.assertIn('--expected-main-code 41179', resolver)
-        self.assertIn('--expected-main-commit dae36db016079546b9fc028636a3326d09979777', resolver)
-        self.assertIn('--expected-susfs-commit 69b8e734920b8f9ed885ab8d112969719698e242',resolver)
+        self.assertEqual(active['env']['BUILD_CENTER_PROTOCOL'],'2')
+        self.assertEqual(active['jobs']['resolve']['steps'][1]['env']['CENTER_SOURCE_REQUEST'],
+                         "${{ inputs.source_request || '' }}")
+        self.assertEqual(active['on']['workflow_dispatch']['inputs']['source_request']['type'],'string')
+        self.assertEqual(active['on']['workflow_dispatch']['inputs']['channel']['options'],['main','release'])
+        self.assertNotIn('--expected-main-code', resolver)
+        self.assertNotIn('--expected-main-commit', resolver)
+        self.assertNotIn('--expected-susfs-commit',resolver)
         self.assertNotIn('--sukisu-ref', resolver)
         self.assertNotIn('41178', resolver)
 

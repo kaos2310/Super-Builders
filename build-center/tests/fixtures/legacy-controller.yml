@@ -1,0 +1,7 @@
+name: Legacy SukiSU 41179 controller
+jobs:
+  resolve:
+    steps:
+      - run: |
+          ARGS+=(--expected-main-commit dae36db016079546b9fc028636a3326d09979777 --expected-main-code 41179)
+          ARGS+=(--expected-susfs-commit 69b8e734920b8f9ed885ab8d112969719698e242)

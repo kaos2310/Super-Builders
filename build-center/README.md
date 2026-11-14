@@ -1,4 +1,14 @@
-# SukiSU Build Center 1.1.1 · Samsung EZJ1
+# SukiSU Build Center 1.1.3 · Samsung EZJ1
+
+## Automatische Einstellungen bei Updates
+
+Version 1.1.3 übernimmt SukiSU-Commit, Versionscode, Commitanzahl, SuSFS-Commit und Update-Kanal gemeinsam. Sie findet den dauerhaften Branch `codex/build-center-auto-updates` auch vor dessen erstem Build und ersetzt automatisch eine gespeicherte ältere versionsgebundene Branch-Einstellung. Die Zuordnung gilt für Android und die Web-/Windows-Oberfläche.
+
+Die zugehörige GitHub-Integration muss einmalig veröffentlicht werden. Eine APK-Installation allein ändert keine GitHub-Workflows. Der neue Controller ist durch `controller.json` an die exakten Workflow- und Resolver-Dateien gebunden. Die App reicht die im Dialog gezeigten Quellen als `source_request` weiter. CI prüft zusätzlich die Controller-ID aus `GITHUB_SHA`, beide offiziellen Commits und die Versionsberechnung vor dem Schreiben des Build-Plans. Ein zwischenzeitlich geänderter Stand erfordert eine neue Prüfung und Bestätigung.
+
+Geplante GitHub-Läufe lösen die offiziellen Quellen selbst einmalig auf und verwenden denselben festen Build-Plan. Das EZJ1/EUX-Profil und alle bisherigen Build-, KMI-, CRC- und Veröffentlichungsprüfungen bleiben erhalten. Geänderte Upstream-Schnittstellen können weiterhin einen Build abbrechen und benötigen dann eine passende Quellanpassung; die App bestätigt keine unbekannte Kernel-Kompatibilität.
+
+Nach Änderungen am Controller: `python -B tools/update_controller_manifest.py` aus `build-center/` ausführen und Workflow, Resolver und Manifest gemeinsam veröffentlichen. Die App benötigt weiterhin nur Actions-Schreibrecht und Contents-Leserecht.
 
 Deutsche App für Android, Windows und den lokalen Browser. Das Buildziel ist **SM-S928B / S928BXXS6EZJ1 / EUX / Android 17 mit Android 14-GKI 6.1.162**.
 

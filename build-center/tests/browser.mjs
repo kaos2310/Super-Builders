@@ -15,7 +15,7 @@ const pin='a'.repeat(40),susPin='b'.repeat(40);
 const encode=s=>Buffer.from(s).toString('base64');
 let dispatched=0,requestId='',failSources=false;
 const makeRun=(id,status='in_progress')=>({id,status,conclusion:status==='completed'?'success':null,head_branch:'main',head_sha:pin,display_title:requestId?'Build Center · '+requestId:'Build Center · automatisch',html_url:'https://github.com/a/b/actions/runs/'+id});
-let currentRun=makeRun(9000),jobRequests=0;
+let currentRun=makeRun(9000,'completed'),jobRequests=0;
 function response(url){
   if(url.endsWith('/releases/latest'))return {tag_name:'v4.3.0-r2',assets:[]};
   if(url.includes('SukiSU-Ultra/SukiSU-Ultra/commits?'))return {data:[{sha:pin}],headers:{link:'<https://api.github.com/repos/a/b/commits?per_page=1&page=3983>; rel="last"'}};
@@ -24,6 +24,7 @@ function response(url){
   if(url.includes('gitlab.com'))return {id:susPin,title:'KernelSU: Sync with upstream'};
   if(url.includes('SukiSU-Ultra/SukiSU-Ultra/commits/'))return {sha:pin,commit:{message:failSources?'failure':'manager update'}};
   if(url.includes('/repos/kaos2310/Super-Builders/commits/'))return {sha:pin};
+  if(url.includes('/contents/.github/'))return {encoding:'base64',content:encode(`ARGS+=(--expected-main-commit ${pin} --expected-main-code 41168)\nARGS+=(--expected-susfs-commit ${susPin})`)};
   if(url.endsWith('/actions/workflows/build-center.yml'))return {state:'active'};
   if(url.includes('/actions/workflows/build-center.yml/runs'))return {workflow_runs:[currentRun]};
   if(url.includes('/jobs?')){jobRequests++;return {jobs:[{name:'Offizielle Quellen prüfen',status:'completed',conclusion:'success',steps:[]},{name:'Kernel und Samsung Strict KMI / CRC',status:'in_progress',steps:[{name:'Build Kernel',status:'in_progress'}]}]};}
@@ -70,7 +71,7 @@ try{
   await page.waitForFunction(()=>document.getElementById('run-label').textContent.includes('9001'));
   assert.equal(dispatched,1);assert.match(await page.locator('#jobs').textContent(),/Build Kernel/);report.checks.push('Explicit dispatch follows its correlated run and displays job steps');
   currentRun=makeRun(9001,'completed');await page.clock.runFor(16000);
-  await page.waitForFunction(()=>document.getElementById('run-status').textContent==='ERFOLGREICH');
+  await page.waitForFunction(()=>document.getElementById('run-status').textContent==='KEINE KERNEL-ZIP');
   currentRun=makeRun(9002);await page.locator('#refresh').click();await page.waitForFunction(()=>!document.getElementById('refresh').disabled);
   assert.match(await page.locator('#run-label').textContent(),/9002/);report.checks.push('Refresh follows the next scheduled run after the previous run completed');
   failSources=true;await page.locator('#refresh').click();await page.waitForFunction(()=>!document.getElementById('refresh').disabled);

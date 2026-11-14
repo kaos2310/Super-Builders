@@ -1,15 +1,16 @@
 name: SukiSU Build Center
-run-name: SukiSU 41179 EZJ1 · ${{ inputs.request_id || 'official main' }} · Guard6.13 BRENE75 · SUSFS2.4.0
+run-name: Build Center EZJ1 · ${{ inputs.request_id || 'automatisch' }} · ${{ inputs.channel || 'main' }}
 'on':
   schedule:
   - cron: 17 * * * *
   workflow_dispatch:
     inputs:
       channel:
-        description: Geprüfter offizieller SukiSU-Hauptbranch 41179
+        description: Offizieller SukiSU-Kanal
         type: choice
         options:
         - main
+        - release
         default: main
       force:
         description: Auch bei vorhandenem Ergebnis neu bauen
@@ -19,11 +20,17 @@ run-name: SukiSU 41179 EZJ1 · ${{ inputs.request_id || 'official main' }} · Gu
         description: Zuordnung zum App-Auftrag
         type: string
         default: ''
+      source_request:
+        description: Von der App geprüfte unveränderliche Quellen und Controller-ID
+        type: string
+        default: ''
+env:
+  BUILD_CENTER_PROTOCOL: '2'
 permissions:
   contents: read
   actions: read
 concurrency:
-  group: build-center-${{ github.repository }}-s928b-ezj1-41179-${{ github.ref_name }}
+  group: build-center-${{ github.repository }}-s928b-ezj1-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   resolve:
@@ -46,11 +53,10 @@ jobs:
         GH_TOKEN: ${{ github.token }}
         CHANNEL: ${{ inputs.channel || 'main' }}
         FORCE: ${{ inputs.force || false }}
+        CENTER_SOURCE_REQUEST: ${{ inputs.source_request || '' }}
       run: |
         set -euo pipefail
         ARGS=(--channel "$CHANNEL")
-        ARGS+=(--expected-main-commit dae36db016079546b9fc028636a3326d09979777 --expected-main-code 41179)
-        ARGS+=(--expected-susfs-commit 69b8e734920b8f9ed885ab8d112969719698e242)
         [[ "$FORCE" != true ]] || ARGS+=(--force)
         python3 build-center/ci/check_updates.py "${ARGS[@]}"
     - uses: actions/upload-artifact@v7

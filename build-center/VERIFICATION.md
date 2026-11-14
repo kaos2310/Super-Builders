@@ -1,15 +1,5 @@
 # Prüfstand · EZJ1 / Build Center
 
-## 11. November 2026: SukiSU 41176 Kbuild-Kompatibilität
-
-Der vollständige bestehende Kompatibilitätspatch scheitert gegen den offiziellen Commit `3af6085d0d26e73ffd1a3e7b34362435dcfb5a03` reproduzierbar an `kernel/Kbuild:128`. Die Ursache sind zusätzliche Upstream-Linkerflags im bereits vom bestehenden Profil entfernten Preinit-Runner-Abschnitt.
-
-Die Korrektur ersetzt bei der Vorbereitung ausschließlich den bekannten Kbuild-Diffabschnitt für genau diesen Quell-Pin, Version 41176 und 3991 Commits. Beide Fragment-Identitäten sind geprüft; veränderte Vorlagen werden abgewiesen. Andere Abschnitte des Gesamtpatches bleiben bytegenau erhalten.
-
-Frische lokale Nachweise: 44 Python-Tests bestanden, darunter sieben neue Prüfungen für Begrenzung, Identitäten, Wiederholbarkeit und Ablehnung unerwarteter Vorlagen. Mit dem tatsächlichen gepinnten Baseline-Builder und dem offiziellen vollständigen 41176-Verlauf wurde der alte Fehler reproduziert und der korrigierte Gesamtpatch vollständig angewendet. Die resultierende Kbuild entspricht vor der Versionskonfiguration mit kanonischen LF-Zeilenenden bytegenau dem bisherigen geprüften Profil. Der echte migrierte Versions- und Zertifikatshelper besteht einschließlich `--verify-only`. Die EZJ1-Firmware-Nachweise und die strenge CRC-Basis wurden erneut geprüft.
-
-Ein vollständiger Kernel-Link, neue Stock-Modul-CRC-Ergebnisse und ein Gerätetest sind damit noch nicht nachgewiesen; diese Nachweise gehören zum neuen Actions-Lauf beziehungsweise einem späteren Gerätetest.
-
 ## 11. November 2026: Build Center 1.1.1
 
 Die App-Ablehnung wurde auf einen gespeicherten Workflow-Branch `kaos2310` zurückgeführt. GitHub liefert dafür HTTP 422; `main` wurde unabhängig über die öffentliche API bestätigt. Die App prüft den Branch jetzt bei der Verbindung und vor jedem Auftrag. Bekannte GitHub-Ablehnungen bekommen einen konkreten Hinweis. Der lokale Windows-/Web-Proxy erhält dafür den HTTP-Status; seine bisherigen CI- und Download-Aufrufer behalten ihren Fehlervertrag.
@@ -84,3 +74,9 @@ Die vier neuen Schalter wurden **in der installierten Release-App** aus- und wie
 Ausgangsmaske 15 wurde wiederhergestellt. Dieser App-Runtime-Test lief auf dem vorhandenen EZIF-Kernel 41168/UAPI6; seine Beobachtung wird nicht als EZJ1-Boot-Test ausgegeben.
 
 [Öffentlicher EZJ1-Kernel-Download](https://github.com/kaos2310/Super-Builders/releases/tag/s928b-ezj1-suki41168-susfs2.4.0-674aa00c-69b8e734-hidden-name-readdir-v2-r42894816028). App-/Quellpakete und Prüfsummen stehen im separaten Build-Center-v1.1.0-Release. Lokale Geräte-Backups, private Schlüssel, Token und UI-Screenshots werden nicht in öffentliche Pakete aufgenommen.
+# Nachtrag 1.1.3 vom 14.11.2026
+
+Die automatische Quellzuordnung mit gemeinsamem `source_request` ist implementiert und lokal geprüft. 32 JavaScript-Tests, 77 Python-Tests und 31 Browser-Prüfungen bestehen. Die APK verwendet dasselbe Zertifikat wie 1.1.2; alle neun eingebetteten Web-Dateien wurden bytegenau mit den geprüften Quellen verglichen. Workflow und Resolver sind durch `controller.json` gebunden. Die bisherigen Build- und Veröffentlichungsprüfungen bleiben laut Strukturtests erhalten; actionlint meldet ausschließlich dieselben 41 konstanten Profilbedingungen wie die Ausgangsfassung.
+
+GitHub-Veröffentlichung und Installation dieser Version auf dem Telefon sind noch offen. Die Browser-Prüfungen verwenden simulierte GitHub-Antworten. Ein echter neuer Kernelbau, Flash oder Boot wurde nicht ausgeführt. Der vollständige Arbeitsbericht liegt in `REPARATUR.md` des Reparaturpakets; maschinenlesbare Ergebnisse in `dist/VERIFICATION.json`.
+

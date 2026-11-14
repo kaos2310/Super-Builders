@@ -1,0 +1,12 @@
+{
+  "schema": 2,
+  "workflow": "build-center.yml",
+  "source_binding": "source-request-v1",
+  "profile": "S928BXXS6EZJ1-EUX-android14-6.1.162",
+  "channels": [
+    "main",
+    "release"
+  ],
+  "workflow_sha256": "9acacc28c6f5a293167dce8d6ab47f86c1e572f4ae6229e88fd2e59a61a7830f",
+  "resolver_sha256": "7c88b29df54830c8533983b4f5d9e8933727e471ce3db6fa4477c60f7522a434"
+}
