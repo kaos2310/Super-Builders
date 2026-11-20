@@ -42,6 +42,9 @@ def prepare(helper,code,plan=None):
     runtime=helper/f'susfs-runtime-{code}/apply.py';text=runtime.read_text()
     text=once(text,'    from release240 import EXPECTED\n    release=json.loads((common/\'.susfs-release240.json\').read_text())',
               "    from release240 import verify as verify_release\n    release=verify_release(common)\n    EXPECTED=release['release_header_sha256']")
+    text=once(text,"or b'v2.4.0' not in blob:","or release['susfs_version'].encode('ascii') + b'\\0' not in blob:")
+    text=once(text,"raise RuntimeError('Compiled SUSFS v2.4.0 release identity missing')",
+              "raise RuntimeError('Compiled SuSFS version from the immutable plan is missing')")
     runtime.write_text(text,encoding='utf-8',newline='\n')
     test=helper/f'susfs-priority-uid-{code}/test.py';text=test.read_text()
     old="    header=(common/'include/linux/susfs.h').read_text()"

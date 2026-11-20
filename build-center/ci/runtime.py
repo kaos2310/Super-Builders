@@ -11,7 +11,14 @@ import subprocess
 import sys
 import tempfile
 
+if __package__:
+    from .release_identity import require_version
+else:
+    from _center_release_identity import require_version
+
 HERE = Path(__file__).resolve().parent
+SUSFS_HEADER = 'kernel_patches/include/linux/susfs.h'
+SUSFS_ANDROID_MAKEFILE_SHA256 = '14b726b424787e46bc60c59c9c9b51282fe248a1bfd58ec91fdd6261f8958013'
 
 
 def context():
@@ -265,6 +272,7 @@ def prepare_susfs(common):
         p=subprocess.run(['git','-C',str(repo),'show',pin+':'+path],capture_output=True)
         return p.stdout if p.returncode==0 else None
     old,new=plan['susfs_release_base'],plan['susfs_commit']
+    require_version(get(new,SUSFS_HEADER) or b'',plan['susfs_version'])
     changed=command('git','-C',repo,'diff','--name-only',old,new,'--','kernel_patches').decode().splitlines()
     records={}
     reference_paths=[];native_exclusions=[]
@@ -327,6 +335,8 @@ def sync_susfs(common,ksu):
         evidence['merge_conflicts']=conflicts
         audit.write_text(json.dumps(evidence,indent=2)+'\n')
         raise RuntimeError('SuSFS source conflicts: '+', '.join(c['path'] for c in conflicts)+'. Exact sources saved in source evidence.')
+    header=results.get('include/linux/susfs.h',(common/'include/linux/susfs.h').read_bytes())
+    require_version(header or b'',plan['susfs_version'])
     # Validate the audited priority overlay before updating it from the pinned
     # upstream delta. Its exact-C semantic tests run after this integration.
     code=plan['sukisu_code'];h=root/'android14-6.1/build-helpers'
@@ -342,9 +352,6 @@ def sync_susfs(common,ksu):
             if p.exists():p.unlink()
         else:p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
     (common/'.susfs-priority-uid.json').write_text(json.dumps(refreshed,indent=2)+'\n')
-    header=(common/'include/linux/susfs.h').read_text()
-    if not re.search(r'^#define\s+SUSFS_VERSION\s+"'+re.escape(plan['susfs_version'])+'"',header,re.M):
-        raise RuntimeError('Merged SuSFS version does not match pinned upstream')
     native(common,ksu,plan['sukisu_commit'])
     receipt={'source_pin':plan['susfs_commit'],'release_base':plan['susfs_release_base'],
              'susfs_version':plan['susfs_version'],'updated_files':list(results),'conflicts':0,
@@ -403,8 +410,6 @@ def wire_suspath(common,ksu,verify_only=False):
 
 def update_tool():
     root,plan=context()
-    if plan['susfs_version']!='v2.4.0':
-        raise RuntimeError('ReSuSFS adapter requires a reviewed compatibility update for '+plan['susfs_version'])
     h=root/f"android14-6.1/build-helpers/resusfs-{plan['sukisu_code']}-240"
     repo=root/'.build-center-susfs-tool'
     if not (repo/'.git').exists():
@@ -413,20 +418,25 @@ def update_tool():
     elif command('git','-C',repo,'remote','get-url','origin').decode().strip()!='https://gitlab.com/simonpunk/susfs4ksu.git':
         raise RuntimeError('Unexpected existing SuSFS tool source remote')
     command('git','-C',repo,'fetch','--depth=1','origin',plan['susfs_commit'])
+    header=command('git','-C',repo,'show',plan['susfs_commit']+':'+SUSFS_HEADER)
+    require_version(header,plan['susfs_version'])
     names=command('git','-C',repo,'ls-tree','-r','--name-only',plan['susfs_commit'],'--','ksu_susfs/jni').decode().splitlines()
     files={}
     for name in names:
         short=name.removeprefix('ksu_susfs/jni/');safe_relative(short)
         files[short]=command('git','-C',repo,'show',plan['susfs_commit']+':'+name)
     files['LICENSE']=command('git','-C',repo,'show',plan['susfs_commit']+':LICENSE')
-    if not {'main.c','includes/susfs_defs.h'}<=files.keys():raise RuntimeError('Official SuSFS CLI layout changed')
+    if not {'Android.mk','main.c','includes/susfs_defs.h'}<=files.keys():raise RuntimeError('Official SuSFS CLI layout changed')
+    if digest(files['Android.mk'])!=SUSFS_ANDROID_MAKEFILE_SHA256:
+        raise RuntimeError('Official SuSFS CLI build recipe changed; the ARM64 compiler wrapper requires review')
     dest=h/'upstream'
     for p in dest.rglob('*'):
         if p.is_file() and p.relative_to(dest).as_posix() not in files:p.unlink()
     for name,data in files.items():
         p=dest/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
     source={'repository':'https://gitlab.com/simonpunk/susfs4ksu','branch':'gki-android14-6.1',
-        'pin':plan['susfs_commit'],'source_files_sha256':{n:digest(data) for n,data in files.items()},
+            'pin':plan['susfs_commit'],'susfs_version':plan['susfs_version'],
+            'source_files_sha256':{n:digest(data) for n,data in files.items()},
         'native_binary_is_source_build':True,'device_tested':False}
     (h/'SOURCE.json').write_text(json.dumps(source,indent=2)+'\n')
     test=h/'test.py'

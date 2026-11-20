@@ -40,6 +40,8 @@ Der Token bleibt in Web und Windows im Arbeitsspeicher. Android speichert ihn nu
 
 Bereits veröffentlichte identische Quellpaare werden übersprungen. Nach einem Fehlschlag gilt für dieselbe Quellkombination und denselben Controller eine 24-Stunden-Wartezeit. Ein reparierter Controller darf dasselbe Paar erneut versuchen. Ein ausdrücklich gewählter Neubau übergeht die Wartezeit und erhält einen eigenen Release-Tag. Neue Quellen müssen weiterhin alle Prüfschritte bestehen.
 
+Der SuSFS-Kernelstand und das offizielle ARM64-Kommandozeilenwerkzeug stammen vom selben Commit. Für SuSFS 2.4.0 enthält das Release weiterhin die geprüften Zusatzmodule ReSuSFS und Guard6.13/BRENE75. Bei einer anderen Versionsnummer wird das passende offizielle Kommandozeilenwerkzeug separat als ZIP bereitgestellt, sofern der vollständige Build alle Prüfungen besteht. Die Zusatzmodule benötigen für andere Versionen einen eigenen Kompatibilitätsnachweis.
+
 ## Downloadprüfung
 
 Die neue Oberfläche bietet nur Kernel für `S928BXXS6EZJ1-EUX` an. Android und der lokale Web-/Windows-Server kontrollieren die veröffentlichte SHA256, entpacken Actions-Artefakte und prüfen die echte Kernel-ZIP. `FIRMWARE-TARGET.json` muss das EZJ1/EUX-Profil und den Hash des tatsächlich enthaltenen `Image` belegen. AnyKernel3- und Strict-KMI-Nachweise sind erforderlich. Ein EZIF-Paket wird dadurch auch bei ansonsten gültiger äußerer Prüfsumme abgelehnt.

@@ -4,12 +4,14 @@ import json
 import sys
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 import yaml
 
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from ci import release_identity,runtime,susfs_helpers
 from ci.generate_workflows import Loader
+from ci.publish import collect_companions
 
 
 class ReleaseIdentityTests(unittest.TestCase):
@@ -45,6 +47,56 @@ class ReleaseIdentityTests(unittest.TestCase):
             helper=Path(tmp);file=helper/'susfs-runtime-41183/release240.py';file.parent.mkdir();file.write_text('unreviewed')
             with self.assertRaisesRegex(RuntimeError,'helper changed'):susfs_helpers.prepare(helper,41183)
             self.assertEqual(file.read_text(),'unreviewed')
+
+    def test_new_susfs_version_can_pass_the_pinned_release_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);common=root/'common';(common/'include/linux').mkdir(parents=True)
+            header=common/'include/linux/susfs.h'
+            plan={'profile':'S928BXXS6EZJ1-EUX-android14-6.1.162','susfs_version':'v2.4.1',
+                  'susfs_commit':'a'*40,'susfs_release_base':'b'*40,'susfs_functional_base':'c'*40}
+            (root/'.build-center-plan.json').write_text(json.dumps(plan))
+            receipt=common/'.build-center-susfs-update.json'
+            update={'source_pin':'a'*40,'release_base':'b'*40,'susfs_version':'v2.4.1','conflicts':0}
+            for value in ('v2.4.1','v2.4.10'):
+                header.write_bytes(f'#define SUSFS_VERSION "{value}"\n'.encode())
+                update['effective_source_sha256']={'include/linux/susfs.h':hashlib.sha256(header.read_bytes()).hexdigest()}
+                receipt.write_text(json.dumps(update))
+                if value=='v2.4.1':
+                    result=release_identity.apply(common)
+                    self.assertEqual(result['susfs_version'],value)
+                    self.assertEqual(release_identity.verify(common),result)
+                else:
+                    with self.assertRaisesRegex(RuntimeError,'header version'):
+                        release_identity.apply(common)
+
+
+class SusfsCompanionTests(unittest.TestCase):
+    def test_new_version_packages_only_the_official_cli_with_the_same_pin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);release=root/'release';release.mkdir()
+            modules=root/'resusfs-files';modules.mkdir()
+            binary=b'\x7fELF\x02\x01'+bytes(12)+b'\xb7\x00'+b'test payload'
+            (modules/'ksu_susfs').write_bytes(binary)
+            proof={'pin':'a'*40,'susfs_version':'v2.4.1','built_from_official_c_sources':True,
+                   'target':'aarch64-linux-android26','sha256':hashlib.sha256(binary).hexdigest(),'bytes':len(binary)}
+            receipt=modules/'SUSFS-TOOL-BUILD.json';receipt.write_text(json.dumps(proof))
+            plan={'susfs_commit':'a'*40,'susfs_version':'v2.4.1'}
+            result=collect_companions(release,plan,modules,root/'no-legacy-guard6')
+            self.assertNotIn('guard6_filename',result)
+            target=release/result['susfs_cli_filename']
+            with zipfile.ZipFile(target) as archive:
+                self.assertEqual(set(archive.namelist()),{'ksu_susfs','SUSFS-TOOL-BUILD.json'})
+                self.assertEqual(archive.read('ksu_susfs'),binary)
+            self.assertEqual(result['susfs_cli_sha256'],hashlib.sha256(target.read_bytes()).hexdigest())
+            proof['pin']='b'*40;receipt.write_text(json.dumps(proof))
+            with self.assertRaisesRegex(RuntimeError,'source receipt do not match'):
+                collect_companions(release,plan,modules,root/'no-legacy-guard6')
+
+    def test_2_4_0_still_requires_the_reviewed_companion_archives(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)
+            with self.assertRaisesRegex(RuntimeError,'matching ReSuSFS module'):
+                collect_companions(directory,{'susfs_version':'v2.4.0'},directory,directory)
 
 
 class SuspathWiringTests(unittest.TestCase):

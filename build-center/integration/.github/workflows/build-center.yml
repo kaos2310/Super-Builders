@@ -622,6 +622,7 @@ jobs:
         if-no-files-found: error
         retention-days: 30
     - name: Build matching Guard6.13 Runtime helper from source
+      if: fromJSON(needs.resolve.outputs.plan).susfs_version == 'v2.4.0'
       env:
         ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
       run: |
@@ -631,12 +632,14 @@ jobs:
         "$CLANG" --target=aarch64-linux-android26 -Os -nostdlib -static -fno-builtin -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -Wl,-e,_start -Wl,--build-id=none -Wl,-z,max-page-size=16384 "builder/android14-6.1/build-helpers/susfs-runtime-${{ needs.resolve.outputs.code }}/susfs-runtime.c" -o guard6-output/susfs-runtime
         readelf -h guard6-output/susfs-runtime | grep -q AArch64
     - name: Test and package complete Guard6.13 BRENE75 with additive Runtime menu
+      if: fromJSON(needs.resolve.outputs.plan).susfs_version == 'v2.4.0'
       run: |
         set -euo pipefail
         HELPERS="$GITHUB_WORKSPACE/builder/android14-6.1/build-helpers"
         python3 -B .build-center/build-center/guard6/test.py --helpers "$HELPERS" --plan builder/.build-center-plan.json --runtime-helper guard6-output/susfs-runtime
         python3 -B .build-center/build-center/guard6/package.py --helpers "$HELPERS" --plan builder/.build-center-plan.json --runtime-helper guard6-output/susfs-runtime --output guard6-output
     - uses: actions/upload-artifact@v7
+      if: fromJSON(needs.resolve.outputs.plan).susfs_version == 'v2.4.0'
       with:
         name: ZeroMount-Guard6.13-BRENE75-SUSFS2.4.0-SukiSU${{ needs.resolve.outputs.code }}-ARM64
         path: guard6-output/
@@ -667,6 +670,7 @@ jobs:
     - name: Download the exact official SuSFS CLI sources
       run: python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" update-tool
     - name: Verify retained ReSuSFS behavior and new feature gates
+      if: fromJSON(needs.resolve.outputs.plan).susfs_version == 'v2.4.0'
       run: |
         set -euo pipefail
         python3 -B android14-6.1/build-helpers/resusfs-${{ needs.resolve.outputs.code }}-240/test.py
@@ -675,26 +679,40 @@ jobs:
       id: ndk
       with:
         ndk-version: r27c
-    - name: Build private official SUSFS2.4.0 tool and runtime helper
+    - name: Build the ARM64 tool from the exact official SuSFS source
       env:
         ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
+        LEGACY_SUSFS_COMPANIONS: ${{ fromJSON(needs.resolve.outputs.plan).susfs_version == 'v2.4.0' }}
       run: |
         set -euo pipefail
         mkdir -p module-output
         python3 -B android14-6.1/build-helpers/resusfs-${{ needs.resolve.outputs.code }}-240/build_tool.py --ndk "$ANDROID_NDK_ROOT" --output module-output/ksu_susfs
-        CLANG="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
-        "$CLANG" --target=aarch64-linux-android26 -Os -nostdlib -static -fno-builtin -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -Wl,-e,_start -Wl,--build-id=none -Wl,-z,max-page-size=16384 android14-6.1/build-helpers/susfs-runtime-${{ needs.resolve.outputs.code }}/susfs-runtime.c -o module-output/susfs-runtime
         readelf -h module-output/ksu_susfs | grep -q AArch64
-        readelf -h module-output/susfs-runtime | grep -q AArch64
+        if [[ "$LEGACY_SUSFS_COMPANIONS" == true ]]; then
+          CLANG="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+          "$CLANG" --target=aarch64-linux-android26 -Os -nostdlib -static -fno-builtin -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -Wl,-e,_start -Wl,--build-id=none -Wl,-z,max-page-size=16384 android14-6.1/build-helpers/susfs-runtime-${{ needs.resolve.outputs.code }}/susfs-runtime.c -o module-output/susfs-runtime
+          readelf -h module-output/susfs-runtime | grep -q AArch64
+        fi
     - name: Package ReSuSFS without replacing global tools or saved configuration
+      if: fromJSON(needs.resolve.outputs.plan).susfs_version == 'v2.4.0'
       run: |
         set -euo pipefail
         python3 -B android14-6.1/build-helpers/resusfs-${{ needs.resolve.outputs.code }}-240/package.py --runtime-helper module-output/susfs-runtime --susfs-tool module-output/ksu_susfs --output module-output
         python3 -B android14-6.1/build-helpers/resusfs-${{ needs.resolve.outputs.code }}-240/test_package.py module-output/ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-r2-SukiSU${{ needs.resolve.outputs.code }}-arm64.zip
     - uses: actions/upload-artifact@v7
+      if: fromJSON(needs.resolve.outputs.plan).susfs_version == 'v2.4.0'
       with:
         name: ReSuSFS-SUSFS2.4.0-Runtime1-r2-SukiSU${{ needs.resolve.outputs.code }}-ARM64
         path: module-output/
+        if-no-files-found: error
+        retention-days: 30
+    - uses: actions/upload-artifact@v7
+      if: fromJSON(needs.resolve.outputs.plan).susfs_version != 'v2.4.0'
+      with:
+        name: SuSFS-Tools-${{ fromJSON(needs.resolve.outputs.plan).susfs_version }}-SukiSU${{ needs.resolve.outputs.code }}-ARM64
+        path: |
+          module-output/ksu_susfs
+          module-output/SUSFS-TOOL-BUILD.json
         if-no-files-found: error
         retention-days: 30
     needs: resolve
@@ -2595,10 +2613,11 @@ jobs:
         merge-multiple: true
     - uses: actions/download-artifact@v8
       with:
-        pattern: ReSuSFS-*
+        pattern: ${{ fromJSON(needs.resolve.outputs.plan).susfs_version == 'v2.4.0' && 'ReSuSFS-*' || 'SuSFS-Tools-*' }}
         path: resusfs-files
         merge-multiple: true
     - uses: actions/download-artifact@v8
+      if: fromJSON(needs.resolve.outputs.plan).susfs_version == 'v2.4.0'
       with:
         pattern: ZeroMount-Guard6.13-BRENE75-*
         path: guard6-files

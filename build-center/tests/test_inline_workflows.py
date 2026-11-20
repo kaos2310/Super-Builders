@@ -32,9 +32,9 @@ class InlineWorkflowTests(unittest.TestCase):
     def test_all_original_jobs_steps_and_gate_dependencies_remain(self):
         original = self.workflow()
         result, counts = expand(original, ROOT)
-        self.assertEqual(counts, {'dependencies': 14, 'userspace': 14, 'zeromount': 12, 'resusfs': 9, 'strict': 77})
+        self.assertEqual(counts, {'dependencies': 14, 'userspace': 14, 'zeromount': 12, 'resusfs': 10, 'strict': 77})
         self.assertEqual(set(result['jobs']), set(original['jobs']))
-        self.assertEqual(sum(len(j['steps']) for j in result['jobs'].values()), 133)
+        self.assertEqual(sum(len(j['steps']) for j in result['jobs'].values()), 134)
         self.assertEqual(result['jobs']['resolve'], original['jobs']['resolve'])
         self.assertEqual(result['jobs']['publish'], original['jobs']['publish'])
         for name in counts:
@@ -56,9 +56,15 @@ class InlineWorkflowTests(unittest.TestCase):
         self.assertIn('guard6/test.py',additions[1]['run'])
         self.assertIn('guard6/package.py',additions[1]['run'])
         self.assertIn('ZeroMount-Guard6.13-BRENE75',additions[2]['with']['name'])
+        legacy="fromJSON(needs.resolve.outputs.plan).susfs_version == 'v2.4.0'"
+        self.assertTrue(all(step['if']==legacy for step in additions))
         publish=copy.deepcopy(active['jobs']['publish'])
         guard_download=publish['steps'].pop(3)
+        module_download=publish['steps'][2]['with']
+        self.assertEqual(module_download['pattern'],"${{ "+legacy+" && 'ReSuSFS-*' || 'SuSFS-Tools-*' }}")
+        module_download['pattern']='ReSuSFS-*'
         self.assertEqual(publish,original['jobs']['publish'])
+        self.assertEqual(guard_download['if'],legacy)
         self.assertEqual(guard_download['with']['path'],'guard6-files')
         resolver = active['jobs']['resolve']['steps'][1]['run']
         self.assertEqual(active['env']['BUILD_CENTER_PROTOCOL'],'2')

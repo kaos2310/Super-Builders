@@ -35,6 +35,34 @@ def transform(value):
     return value
 
 
+def prepare_resusfs_steps(steps):
+    version='fromJSON(inputs.center_plan).susfs_version'
+    legacy=version+" == 'v2.4.0'"
+    for name in ('Verify retained ReSuSFS behavior and new feature gates',
+                 'Package ReSuSFS without replacing global tools or saved configuration'):
+        next(step for step in steps if step.get('name')==name)['if']=legacy
+
+    build=next(step for step in steps if step.get('name')=='Build private official SUSFS2.4.0 tool and runtime helper')
+    build['name']='Build the ARM64 tool from the exact official SuSFS source'
+    build['env']['LEGACY_SUSFS_COMPANIONS']='${{ '+legacy+' }}'
+    prefix,runtime=build['run'].split('CLANG=',1)
+    runtime='CLANG='+runtime
+    cli_verify='readelf -h module-output/ksu_susfs | grep -q AArch64\n'
+    if runtime.count(cli_verify)!=1:
+        raise RuntimeError('SuSFS ARM64 verification step changed')
+    runtime=runtime.replace(cli_verify,'')
+    build['run']=prefix+cli_verify+'if [[ "$LEGACY_SUSFS_COMPANIONS" == true ]]; then\n'
+    build['run']+=''.join('  '+line for line in runtime.splitlines(keepends=True))+'fi\n'
+
+    upload=next(step for step in steps if step.get('uses','').startswith('actions/upload-artifact@'))
+    upload['if']=legacy
+    steps.insert(steps.index(upload)+1,{
+        'uses':upload['uses'],'if':version+" != 'v2.4.0'",
+        'with':{'name':'SuSFS-Tools-${{ '+version+' }}-SukiSU${{ inputs.center_code }}-ARM64',
+                'path':'module-output/ksu_susfs\nmodule-output/SUSFS-TOOL-BUILD.json\n',
+                'if-no-files-found':'error','retention-days':30}})
+
+
 def generate(baseline,out):
     config=json.loads((ROOT/'config.json').read_text());out.mkdir(parents=True,exist_ok=True)
     mapping={
@@ -83,6 +111,7 @@ def generate(baseline,out):
             if dest=='build-center-resusfs.yml':
                 steps.insert(steps.index(insert[-1])+1,{'name':'Download the exact official SuSFS CLI sources',
                     'run':'python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" update-tool'})
+                prepare_resusfs_steps(steps)
             if dest=='build-center-strict.yml':
                 setup=next(s for s in steps if s.get('name','').startswith('Setup exact official SukiSU'))
                 setup['run']=setup['run'].replace('RESUKISU_VERSION_FULL=v4.3.0-r2-',

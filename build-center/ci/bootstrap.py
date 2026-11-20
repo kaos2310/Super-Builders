@@ -38,7 +38,7 @@ def validate(plan):
     reviewed = KBUILD_REFRESH_PINS.get(plan['sukisu_commit'])
     if reviewed is not None and (code, count) != reviewed:
         raise ValueError('Invalid reviewed source/version mapping')
-    if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:[\w.+-]*)', plan['susfs_version']):
+    if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9_.+\-]*', plan['susfs_version']):
         raise ValueError('Invalid SuSFS version')
     if plan['profile'] != 'S928BXXS6EZJ1-EUX-android14-6.1.162':
         raise ValueError('Only the audited S928B/EZJ1 profile is supported')
@@ -80,6 +80,7 @@ def prepare(root, plan):
     # Replace the historical evidence gate with a live source-preparation gate.
     # All semantic tests and full kernel compilation still execute afterwards.
     shutil.copyfile(Path(__file__).with_name('runtime.py'), helper / '_center_runtime.py')
+    shutil.copyfile(Path(__file__).with_name('release_identity.py'), helper / '_center_release_identity.py')
     shutil.copyfile(Path(__file__).with_name('versioning.py'), helper / '_center_versioning.py')
     shutil.copyfile(Path(__file__).with_name('suspath_test.py'), helper / '_center_suspath_test.py')
     adapter=helper/'_center_kbuild_compat'
