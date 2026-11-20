@@ -91,6 +91,26 @@ class NovaPortTests(unittest.TestCase):
     def test_native_patch_review_rejects_unknown_input(self):
         with self.assertRaises(RuntimeError):nova.review_native_gki_delta(b'changed baseline', b'changed target')
 
+    def test_header_delta_preserves_enhanced_declarations(self):
+        name = 'include/linux/susfs.h'
+        base = (b'struct st_susfs_sus_path_list {\n int placeholder;\n};\n'
+                b'#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH\n\n/* sus_mount */\n'
+                b'\nvoid susfs_add_sus_path_loop(void __user **user_info);\n'
+                b'#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH\n\n/* sus_mount */\n')
+        target = base.replace(b'};\n', b'};\nstruct st_susfs_sus_path_uid_filter { int err; };\n')
+        target = target.replace(
+            b'void susfs_add_sus_path_loop(void __user **user_info);\n',
+            b'void susfs_add_sus_path_loop(void __user **user_info);\nvoid susfs_parse_sus_path_app_strings(void);\n')
+        enhanced = b'\nvoid susfs_add_sus_kstat_redirect(void __user **user_info);\n'
+        local = base.replace(b'#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH', b'#endif')+enhanced
+        with patch.dict(nova.SUSFS_SOURCE_HASHES, {name:(nova.sha(base), nova.sha(target))}), \
+                patch.object(nova, 'PREVIOUS_SUSFS_HEADER', nova.sha(local)):
+            with self.assertRaises(RuntimeError):
+                runtime.three_way(local, base, target)
+            self.assertEqual(nova.merge_susfs_file(name,local,base,target,runtime.three_way),target+enhanced)
+            with self.assertRaisesRegex(RuntimeError, 'header preimage changed'):
+                nova.merge_susfs_file(name,local+b'\n',base,target,runtime.three_way)
+
     def test_host_c_semantics_and_negative_controls(self):
         compiler = shutil.which('cc') or shutil.which('gcc')
         if not compiler:self.skipTest('Host C compiler unavailable; Actions and WSL run this check')

@@ -22,6 +22,7 @@ CODE, COUNT = 35004, 4008
 COMPAT_BASE = '9defbe9f834aac26e70914f716a358ffae3c973e02bda2a39ca7d6c36f410b0b'
 COMPAT_NOVA = '5c3ba699fc7a1db821d3b8555218e5e67c47d0ab754606d0385de0bc0be5b3c8'
 CERT = '947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef'
+PREVIOUS_SUSFS_HEADER = 'b3de6f8bba7b0c2adf63e4fb9777ccb2dc2916790b8fd085e8723e60f6dec25d'
 SUSFS_SOURCE_HASHES = {
     'fs/susfs.c': ('eb192f62a9ec70b0c00b0e800d5734a7e51f357bb3d001e10d1e3be9f76e9b0d', '2a8bb10bca2ad5134cd65bf02ef56863795949b1d9cbed603c380b58d9bc61bf'),
     'include/linux/susfs.h': ('1dbe8e9d31211bf07eacf5c28054b7f3bb27d034565b88f1ddff371c356c4dd6', '763a502a37c3ffa3807ba2cab46af31807b8bd87cccb86d12e552d0532a96573'),
@@ -96,9 +97,12 @@ def prepare_nova_helpers(root, plan):
     anchor = 'def verify(common):\n'
     replacement = ('def verify(common):\n'
                    '    if (common/\'.build-center-susfs-update.json\').exists():\n'
-                   '        from _center_nova import verified_release\n'
-                   '        return verified_release(common)\n')
-    if 'from _center_nova import verified_release' not in text:
+                   '        from importlib.util import module_from_spec, spec_from_file_location\n'
+                   '        spec = spec_from_file_location("center_nova_release", Path(__file__).resolve().parents[1] / "_center_nova.py")\n'
+                   '        adapter = module_from_spec(spec)\n'
+                   '        spec.loader.exec_module(adapter)\n'
+                   '        return adapter.verified_release(common)\n')
+    if 'return adapter.verified_release(common)' not in text:
         text = once(text, anchor, replacement)
     bej.write_text(text, encoding='utf-8', newline='\n')
     runtime = helpers/f'susfs-runtime-{CODE}/apply.py'
@@ -250,6 +254,18 @@ def merge_susfs_file(name, local, base, target, merger):
         return merger(local, base, target)
     if (sha(base), sha(target)) != SUSFS_SOURCE_HASHES[name]:
         raise RuntimeError('Unreviewed official Nova/SUSFS input: '+name)
+    if name == 'include/linux/susfs.h':
+        if sha(local) != PREVIOUS_SUSFS_HEADER:
+            raise RuntimeError('Reviewed enhanced SuSFS header preimage changed')
+        text = local.decode()
+        # The original port drops the comments on these two #endif lines.
+        # Align only those lines with the old upstream spelling so the new
+        # declarations can be merged into the same guarded blocks.
+        for preceding in ('};', 'void susfs_add_sus_path_loop(void __user **user_info);'):
+            end = '\n\n/* sus_mount */\n'
+            text = once(text, preceding+'\n#endif'+end,
+                        preceding+'\n#endif // #ifdef CONFIG_KSU_SUSFS_SUS_PATH'+end)
+        return merger(text.encode(), base, target)
     if name != 'fs/susfs.c':
         return merger(local, base, target)
     old = local.decode()
@@ -283,7 +299,7 @@ def verified_release(common):
     if (update.get('source_pin') != SUSFS_PIN or update.get('release_base') != SUSFS_BASE
             or update.get('susfs_version') != 'v2.4.0' or update.get('conflicts') != 0
             or original.get('upstream_release_pin') != SUSFS_BASE
-            or original.get('release_header_sha256') != 'b3de6f8bba7b0c2adf63e4fb9777ccb2dc2916790b8fd085e8723e60f6dec25d'
+            or original.get('release_header_sha256') != PREVIOUS_SUSFS_HEADER
             or sha(header) != update.get('output_sha256', {}).get('include/linux/susfs.h')):
         raise RuntimeError('Merged Nova/SUSFS release identity drift')
     if b'#define SUSFS_VERSION "v2.4.0"' not in header or b'st_susfs_sus_path_uid_filter' not in header:

@@ -241,7 +241,11 @@ def sync_susfs(common,ksu):
         inputs[name]=digest(local) if local is not None else None
         bases[name]=digest(values[0]) if values[0] is not None else None
         targets[name]=digest(values[1]) if values[1] is not None else None
-        results[name]=(adapter.merge_susfs_file(name,local,*values,three_way) if adapter else three_way(local,*values))
+        try:
+            results[name]=(adapter.merge_susfs_file(name,local,*values,three_way)
+                           if adapter else three_way(local,*values))
+        except RuntimeError as error:
+            raise RuntimeError(f'SuSFS source merge failed for {name}: {error}') from error
     if adapter:
         receipts=rebase_nova_receipts(common,ksu,helper,plan,results,records,work,overlay,uid,priority)
     # All merges must succeed before any effective kernel source is changed.
