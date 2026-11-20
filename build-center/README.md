@@ -1,10 +1,12 @@
-# SukiSU Build Center 1.1.3 · Samsung EZJ1
+# SukiSU Build Center 1.2.0 · Samsung EZJ1
 
 ## Automatische Einstellungen bei Updates
 
-Version 1.1.3 übernimmt SukiSU-Commit, Versionscode, Commitanzahl, SuSFS-Commit und Update-Kanal gemeinsam. Sie findet den dauerhaften Branch `codex/build-center-auto-updates` auch vor dessen erstem Build und ersetzt automatisch eine gespeicherte ältere versionsgebundene Branch-Einstellung. Die Zuordnung gilt für Android und die Web-/Windows-Oberfläche.
+Version 1.2.0 übernimmt SukiSU-Commit, Versionscode, Commitanzahl, Versionsformel, SuSFS-Commit und Update-Kanal gemeinsam. Die offizielle SukiSU-Repository-ID bleibt auch bei der Umbenennung von Ultra zu Nova dieselbe. Die Versionsberechnung wird aus dem unveränderlichen Kbuild gelesen und als einfache geprüfte Rechnung ausgeführt. Sie findet den dauerhaften Branch `codex/build-center-auto-updates` und ersetzt automatisch eine gespeicherte ältere versionsgebundene Branch-Einstellung.
 
-Die zugehörige GitHub-Integration muss einmalig veröffentlicht werden. Eine APK-Installation allein ändert keine GitHub-Workflows. Der neue Controller ist durch `controller.json` an die exakten Workflow- und Resolver-Dateien gebunden. Die App reicht die im Dialog gezeigten Quellen als `source_request` weiter. CI prüft zusätzlich die Controller-ID aus `GITHUB_SHA`, beide offiziellen Commits und die Versionsberechnung vor dem Schreiben des Build-Plans. Ein zwischenzeitlich geänderter Stand erfordert eine neue Prüfung und Bestätigung.
+Bei eingeschaltetem „Neue SukiSU- und SuSFS-Versionen automatisch prüfen und bauen“ startet die verbundene App neue Quellpaare ohne Bestätigungsdialog. Eine Änderung nur an SuSFS löst ebenfalls einen Build aus. Laufende Builds, vorhandene passende Kernel und bereits übermittelte Aufträge werden berücksichtigt; ein Neuladen erzeugt keinen Doppelauftrag. Der manuelle Build mit Vorschau bleibt verfügbar.
+
+Die zugehörige GitHub-Integration muss einmalig veröffentlicht werden. Eine APK-Installation allein ändert keine GitHub-Workflows. Auf `main` wird ausschließlich `.github/workflows/build-center.yml` aus `integration/main-automatic.yml` installiert. Dieser Zeitplan prüft alle 30 Minuten den aktuellen Controller-Branch und startet dessen vollständigen Kernelbau mit einem unveränderlichen Quellenauftrag. Damit arbeitet die Automatik auch bei geschlossener APK. Die übrigen Dateien aus `integration/.github/workflows/` gehören auf den Controller-Branch. `controller.json` bindet Workflow und Resolver an ihre exakten Hashes. CI prüft Controller-ID, beide offiziellen Commits und Versionsberechnung erneut, bevor der Build-Plan geschrieben wird.
 
 Geplante GitHub-Läufe lösen die offiziellen Quellen selbst einmalig auf und verwenden denselben festen Build-Plan. Das EZJ1/EUX-Profil und alle bisherigen Build-, KMI-, CRC- und Veröffentlichungsprüfungen bleiben erhalten. Geänderte Upstream-Schnittstellen können weiterhin einen Build abbrechen und benötigen dann eine passende Quellanpassung; die App bestätigt keine unbekannte Kernel-Kompatibilität.
 
@@ -24,11 +26,11 @@ Windows und die lokale Web-App binden ausschließlich `127.0.0.1`. Die EXE enth�
 
 ## GitHub-Verbindung und Ablauf
 
-Voreingestellt sind `kaos2310/Super-Builders`, Branch `main` und der neueste offizielle SukiSU-Entwicklungsstand. Alternativ kann der aktuelle offizielle Release-Tag gewählt werden. Für den manuellen Build-Start benötigt ein auf dieses Repository beschränkter Token **Actions: Read and write** und **Contents: Read**. Öffentliche Quellprüfungen und Release-Downloads funktionieren ohne Token, abhängig von den GitHub-/GitLab-API-Limits.
+Voreingestellt sind `kaos2310/Super-Builders`, Branch `codex/build-center-auto-updates` und der neueste offizielle SukiSU-Entwicklungsstand zusammen mit dem neuesten SuSFS-Stand für `gki-android14-6.1`. Alternativ kann der aktuelle offizielle SukiSU-Release-Tag gewählt werden. Für Build-Aufträge benötigt ein auf dieses Repository beschränkter Token **Actions: Read and write** und **Contents: Read**. Öffentliche Quellprüfungen und Release-Downloads funktionieren ohne Token, abhängig von den GitHub-/GitLab-API-Limits.
 
 In das Feld **Workflow-Branch** gehört ein vorhandener Branch wie `main`, kein GitHub-Benutzername. Version 1.1.1 prüft diesen Wert bei der Verbindungsprüfung und erneut vor jedem Build-Auftrag. Ein ungültiger Wert wird verständlich angezeigt und deaktiviert den Startknopf. Der Bestätigungsdialog zeigt zusätzlich Repository und Workflow-Branch. Änderungen an den Verbindungsfeldern müssen erneut geprüft werden.
 
-Der Token bleibt in Web und Windows im Arbeitsspeicher. Android speichert ihn nur auf ausdrücklichen Wunsch verschlüsselt im Android Keystore. Bei geöffneter App werden die Quellen alle 15 Minuten geprüft. Der Actions-Zeitplan prüft unabhängig davon stündlich bei Minute 17. GitHub kann geplante Läufe verzögert ausführen.
+Der Token bleibt in Web und Windows im Arbeitsspeicher. Android speichert ihn nur auf ausdrücklichen Wunsch verschlüsselt im Android Keystore. Bei geöffneter App werden beide Quellen alle 15 Minuten geprüft. Der Actions-Zeitplan prüft unabhängig davon bei Minute 17 und 47. GitHub kann geplante Läufe verzögert ausführen.
 
 1. Offizielle SukiSU- und SuSFS-Quellen auf vollständige Commit-IDs auflösen und die Versionsformel kontrollieren.
 2. Die gemessenen EZJ1-Firmwaredaten, das Geräteprofil und die unveränderte strenge Samsung-CRC-Baseline prüfen.
@@ -36,7 +38,7 @@ Der Token bleibt in Web und Windows im Arbeitsspeicher. Android speichert ihn nu
 4. Quell-, Konfigurations-, KMI-/DLKM-/CRC-, KPM- und Paketprüfungen ausführen.
 5. Bei Erfolg die echte AnyKernel3-ZIP, das passende ReSuSFS-Modul, SuSFS-Quellen, Build-Plan und Prüfsummen öffentlich bereitstellen. Kernel-Releases bleiben bis zur gesonderten Geräteprüfung als Prerelease gekennzeichnet.
 
-Bereits veröffentlichte identische Quellpaare werden übersprungen. Nach einem Fehlschlag gilt für dieselbe Quellkombination eine 24-Stunden-Wartezeit; ein ausdrücklich gewählter Neubau übergeht diese Wartezeit und erhält einen eigenen Release-Tag. Neue Quellen müssen weiterhin alle Prüfschritte bestehen.
+Bereits veröffentlichte identische Quellpaare werden übersprungen. Nach einem Fehlschlag gilt für dieselbe Quellkombination und denselben Controller eine 24-Stunden-Wartezeit. Ein reparierter Controller darf dasselbe Paar erneut versuchen. Ein ausdrücklich gewählter Neubau übergeht die Wartezeit und erhält einen eigenen Release-Tag. Neue Quellen müssen weiterhin alle Prüfschritte bestehen.
 
 ## Downloadprüfung
 

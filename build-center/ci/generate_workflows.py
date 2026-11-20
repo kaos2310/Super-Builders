@@ -72,6 +72,8 @@ def generate(baseline,out):
                      'run':f'python3 "$GITHUB_WORKSPACE/.build-center/build-center/ci/bootstrap.py" {location}'}]
             steps[steps.index(checkout)+1:steps.index(checkout)+1]=insert
             if dest=='build-center-userspace.yml':
+                upstream=next(s for s in steps if s.get('with',{}).get('repository')=='SukiSU-Ultra/SukiSU-Ultra')
+                upstream['with']['repository']='${{ fromJSON(inputs.center_plan).sukisu_repository }}'
                 compat='python3 "$GITHUB_WORKSPACE/.build-center/build-center/ci/userspace_compat.py" sukisu --plan builder/.build-center-plan.json --receipt userspace-artifacts/USERSPACE-COMPAT.json'
                 before=next(s for s in steps if s.get('name')=='Verify immutable official workspace lock')
                 before['run']=before['run'].replace('test ! -e sukisu/target',compat+'\ntest ! -e sukisu/target')
@@ -82,6 +84,11 @@ def generate(baseline,out):
                 steps.insert(steps.index(insert[-1])+1,{'name':'Download the exact official SuSFS CLI sources',
                     'run':'python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" update-tool'})
             if dest=='build-center-strict.yml':
+                setup=next(s for s in steps if s.get('name','').startswith('Setup exact official SukiSU'))
+                setup['run']=setup['run'].replace('RESUKISU_VERSION_FULL=v4.3.0-r2-',
+                    'RESUKISU_VERSION_FULL=${{ fromJSON(inputs.center_plan).sukisu_tag }}-')
+                setup['run']=setup['run'].replace('https://github.com/SukiSU-Ultra/SukiSU-Ultra.git',
+                    'https://github.com/${{ fromJSON(inputs.center_plan).sukisu_repository }}.git')
                 runtime='$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py'
                 before=next(i for i,s in enumerate(steps) if s.get('name')=='Apply pinned SUSFS')
                 steps.insert(before,{'name':'Prepare official pinned SuSFS delta',

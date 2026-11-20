@@ -11,9 +11,10 @@ import urllib.parse
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from center_core import CenterError, request, resolve_sources
 from ci.network import source_get
+from ci.versioning import validate_mapping, LEGACY_FORMULA
 
 
-def recent_failure(repo,pair,token='',get=request,now=None):
+def recent_failure(repo,pair,token='',get=request,now=None,controller_sha=None):
     now=now or datetime.now(timezone.utc)
     url=f'https://api.github.com/repos/{repo}/actions/artifacts?name=Build-Center-Plan-'+urllib.parse.quote(pair,safe='')+'&per_page=100'
     items=get(url,token)['data'].get('artifacts',[])
@@ -23,7 +24,8 @@ def recent_failure(repo,pair,token='',get=request,now=None):
     age=(now-datetime.fromisoformat(artifact['created_at'].replace('Z','+00:00'))).total_seconds()
     if age<0 or age>=86400:return False
     run=get(f"https://api.github.com/repos/{repo}/actions/runs/{artifact['workflow_run']['id']}",token)['data']
-    return run.get('status')=='completed' and run.get('conclusion') in ('failure','timed_out','cancelled')
+    return (run.get('status')=='completed' and run.get('conclusion') in ('failure','timed_out','cancelled')
+            and (controller_sha is None or run.get('head_sha')==controller_sha))
 
 
 def verify_expected_main(plan, expected_commit, expected_code):
@@ -61,8 +63,9 @@ def verify_source_request(plan, raw, controller_sha):
         if not re.fullmatch(r'[0-9a-f]{40}',str(expected.get(key,''))):
             raise ValueError('Invalid immutable source/controller pin: '+key)
     count, code = expected.get('sukisu_count'), expected.get('sukisu_code')
-    if type(count) is not int or type(code) is not int or count < 2815 or code != 40000 + count - 2815:
-        raise ValueError('Invalid source/version mapping in app request')
+    validate_mapping(expected)
+    if expected.get('sukisu_version_formula',LEGACY_FORMULA)!=plan.get('sukisu_version_formula',LEGACY_FORMULA):
+        raise ValueError('Official source/version formula moved after app review')
     if expected.get('channel') not in ('main','release') or expected['channel'] != plan['channel']:
         raise ValueError('Reviewed app channel changed; check updates again')
     if expected['controller_sha'] != controller_sha:
@@ -125,7 +128,8 @@ def main():
         except CenterError as exc:
             if 'nicht gefunden' not in str(exc):
                 raise
-        cooldown=not args.force and not exists and recent_failure(plan['repository'],plan['pair_key'],token)
+        cooldown=not args.force and not exists and recent_failure(plan['repository'],plan['pair_key'],token,
+            controller_sha=os.environ.get('GITHUB_SHA') or None)
         outputs = {'build': 'true' if args.force or (not exists and not cooldown) else 'false',
                    'plan': json.dumps(plan, separators=(',', ':')),
                    'code': str(plan['sukisu_code']), 'pin': plan['sukisu_commit'],

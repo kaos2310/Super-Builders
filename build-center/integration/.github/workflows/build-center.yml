@@ -455,7 +455,7 @@ jobs:
         test '${{ needs.resolve.outputs.code }}' = ${{ needs.resolve.outputs.code }}
     - uses: actions/checkout@v6
       with:
-        repository: SukiSU-Ultra/SukiSU-Ultra
+        repository: ${{ fromJSON(needs.resolve.outputs.plan).sukisu_repository }}
         ref: ${{ needs.resolve.outputs.pin }}
         fetch-depth: 0
         path: sukisu
@@ -1128,7 +1128,7 @@ jobs:
         set -euo pipefail
         PIN="${{ needs.resolve.outputs.pin }}"
         test "$PIN" = ${{ needs.resolve.outputs.pin }}
-        git clone https://github.com/SukiSU-Ultra/SukiSU-Ultra.git "$KSU_DIR"
+        git clone https://github.com/${{ fromJSON(needs.resolve.outputs.plan).sukisu_repository }}.git "$KSU_DIR"
         git -C "$KSU_DIR" fetch origin "$PIN"
         git -C "$KSU_DIR" checkout --detach "$PIN"
         test "$(git -C "$KSU_DIR" rev-parse HEAD)" = "$PIN"
@@ -1136,7 +1136,7 @@ jobs:
         ln -s "../../$KSU_DIR/kernel" common/drivers/kernelsu
         printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> common/drivers/Makefile
         printf '\nsource "drivers/kernelsu/Kconfig"\n' >> common/drivers/Kconfig
-        echo "RESUKISU_VERSION_FULL=v4.3.0-r2-${{ needs.resolve.outputs.code }}-${{ fromJSON(needs.resolve.outputs.plan).sukisu_short }}" >> "$GITHUB_ENV"
+        echo "RESUKISU_VERSION_FULL=${{ fromJSON(needs.resolve.outputs.plan).sukisu_tag }}-${{ needs.resolve.outputs.code }}-${{ fromJSON(needs.resolve.outputs.plan).sukisu_short }}" >> "$GITHUB_ENV"
     - name: Fix Old Kernel Compatibility
       working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |

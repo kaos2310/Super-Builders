@@ -13,10 +13,14 @@ if __package__:
     from .firmware_profile import prepare as prepare_firmware
     from .kbuild_compat import REVIEWED_PINS as KBUILD_REFRESH_PINS, adapt_compat_patch
     from .susfs_helpers import prepare as prepare_susfs_helpers
+    from .versioning import validate_mapping
+    from .helper_identity import prepare as prepare_identity_helpers
 else:
     from firmware_profile import prepare as prepare_firmware
     from kbuild_compat import REVIEWED_PINS as KBUILD_REFRESH_PINS, adapt_compat_patch
     from susfs_helpers import prepare as prepare_susfs_helpers
+    from versioning import validate_mapping
+    from helper_identity import prepare as prepare_identity_helpers
 
 OLD_PIN = 'd7d042816b82b200c25b3a93dcc158ba0307cabf'
 OLD_CODE = '41165'
@@ -27,8 +31,10 @@ def validate(plan):
         if not re.fullmatch('[0-9a-f]{40}', plan.get(key, '')):
             raise ValueError('Invalid immutable pin: '+key)
     count, code = plan['sukisu_count'], plan['sukisu_code']
-    if type(count) is not int or type(code) is not int or code != 40000+count-2815 or count < 2815:
-        raise ValueError('Invalid source/version mapping')
+    validate_mapping(plan)
+    if 'sukisu_repository' in plan and (plan.get('sukisu_repository_id')!=957055748
+            or not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+',plan['sukisu_repository'])):
+        raise ValueError('Invalid official SukiSU repository identity')
     reviewed = KBUILD_REFRESH_PINS.get(plan['sukisu_commit'])
     if reviewed is not None and (code, count) != reviewed:
         raise ValueError('Invalid reviewed source/version mapping')
@@ -74,6 +80,7 @@ def prepare(root, plan):
     # Replace the historical evidence gate with a live source-preparation gate.
     # All semantic tests and full kernel compilation still execute afterwards.
     shutil.copyfile(Path(__file__).with_name('runtime.py'), helper / '_center_runtime.py')
+    shutil.copyfile(Path(__file__).with_name('versioning.py'), helper / '_center_versioning.py')
     shutil.copyfile(Path(__file__).with_name('suspath_test.py'), helper / '_center_suspath_test.py')
     adapter=helper/'_center_kbuild_compat'
     (adapter/'compat').mkdir(parents=True)
@@ -111,10 +118,14 @@ def prepare(root, plan):
         if proof != port / 'PREFLIGHT.json' and str(code) in str(proof):
             proof.write_text(json.dumps({'stage':'not_reused','historical_evidence_reused':False,
                 'scope':'New execution evidence is recorded by the current CI run.'}, indent=2)+'\n', encoding='utf-8')
-    (helper / f'configure-sukisu-{code}.py').write_text(
-        (helper / f'configure-sukisu-{code}.py').read_text().replace(
-            "'KSU_VERSION_FULL':'v4.3.0-r2-", "'KSU_VERSION_FULL':'"+plan['sukisu_tag']+'-').replace(
-            "'VERSION_TAG':'4.3.0-r1'", "'VERSION_TAG':'"+plan['sukisu_tag'].removeprefix('v')+"'"), encoding='utf-8')
+    identity=("from pathlib import Path\nimport argparse\nfrom _center_versioning import configure_identity\n"
+              +f"PLAN={plan!r}\n"
+              +"def configure(root,verify=False):return configure_identity(root,PLAN,verify)\n"
+              +"if __name__=='__main__':\n"
+              +"    p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('--verify-only',action='store_true');a=p.parse_args()\n"
+              +"    configure(a.source,a.verify_only);print('PASS: immutable upstream kernel version and official manager identity')\n")
+    (helper/f'configure-sukisu-{code}.py').write_text(identity,encoding='utf-8',newline='\n')
+    prepare_identity_helpers(helper,code,plan)
     prepare_susfs_helpers(helper,code,plan)
     marker.write_text(json.dumps(plan, indent=2)+'\n', encoding='utf-8')
     print(f'Prepared SukiSU {code} at {pin}; historical compilation evidence was not reused')

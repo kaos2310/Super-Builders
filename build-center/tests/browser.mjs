@@ -17,12 +17,13 @@ let dispatched=0,requestId='',failSources=false;
 const makeRun=(id,status='in_progress')=>({id,status,conclusion:status==='completed'?'success':null,head_branch:'main',head_sha:pin,display_title:requestId?'Build Center · '+requestId:'Build Center · automatisch',html_url:'https://github.com/a/b/actions/runs/'+id});
 let currentRun=makeRun(9000,'completed'),jobRequests=0;
 function response(url){
+  if(url.endsWith('/repositories/957055748'))return {id:957055748,full_name:'SukiSU-Nova/SukiSU-Nova'};
   if(url.endsWith('/releases/latest'))return {tag_name:'v4.3.0-r2',assets:[]};
-  if(url.includes('SukiSU-Ultra/SukiSU-Ultra/commits?'))return {data:[{sha:pin}],headers:{link:'<https://api.github.com/repos/a/b/commits?per_page=1&page=3983>; rel="last"'}};
+  if(url.includes('repositories/957055748/commits?'))return {data:[{sha:pin}],headers:{link:'<https://api.github.com/repos/a/b/commits?per_page=1&page=3983>; rel="last"'}};
   if(url.includes('contents/kernel/Kbuild'))return {content:encode('VERSION_BASE := 40000\nVERSION_OFFSET := 2815\nKSU_VERSION := $(shell expr $(VERSION_BASE) + $(LOCAL_COUNT) - $(VERSION_OFFSET))')};
   if(url.includes('/files/'))return {content:encode('#define SUSFS_VERSION "v2.4.0"')};
   if(url.includes('gitlab.com'))return {id:susPin,title:'KernelSU: Sync with upstream'};
-  if(url.includes('SukiSU-Ultra/SukiSU-Ultra/commits/'))return {sha:pin,commit:{message:failSources?'failure':'manager update'}};
+  if(url.includes('repositories/957055748/commits/'))return {sha:pin,commit:{message:failSources?'failure':'manager update'}};
   if(url.includes('/repos/kaos2310/Super-Builders/commits/'))return {sha:pin};
   if(url.includes('/contents/.github/'))return {encoding:'base64',content:encode(`ARGS+=(--expected-main-commit ${pin} --expected-main-code 41168)\nARGS+=(--expected-susfs-commit ${susPin})`)};
   if(url.endsWith('/actions/workflows/build-center.yml'))return {state:'active'};
@@ -39,11 +40,12 @@ try{
   browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
   const context=await browser.newContext({viewport:{width:1440,height:1100},serviceWorkers:'block'});
   const page=await context.newPage();page.on('pageerror',e=>report.pageErrors.push(e.message));
+  await page.addInitScript(()=>localStorage.setItem('center-settings',JSON.stringify({repository:'kaos2310/Super-Builders',ref:'main',channel:'main',auto:false})));
   await page.clock.install();
   await page.route('**/api/proxy',async route=>{
     const b=route.request().postDataJSON();
     if(b.url.endsWith('/repos/kaos2310/Super-Builders/commits/kaos2310'))return route.fulfill({json:{status:422,data:{message:'No commit found for SHA: kaos2310'},headers:{}}});
-    if(failSources&&b.url.includes('SukiSU-Ultra/SukiSU-Ultra/commits/'))return route.fulfill({json:{status:403,data:{},headers:{}}});
+    if(failSources&&b.url.includes('repositories/957055748/commits/'))return route.fulfill({json:{status:403,data:{},headers:{}}});
     if(b.method==='POST'){dispatched++;requestId=b.data.inputs.request_id;currentRun=makeRun(9001);return route.fulfill({json:{status:204,data:null,headers:{}}});}
     const value=response(b.url);await route.fulfill({json:value.data?{status:200,...value}:{status:200,headers:{},data:value}});
   });

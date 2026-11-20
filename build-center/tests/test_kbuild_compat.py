@@ -99,9 +99,25 @@ class KbuildCompatibilityTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'source/version mapping'):
             adapt_compat_patch(self.patch,dict(other,sukisu_code=41184),source)
 
-    def test_changed_unknown_kbuild_is_not_automatically_refreshed(self):
+    def test_unrelated_kbuild_changes_keep_exact_reviewed_hunks_usable(self):
         other={'sukisu_commit':'b'*40,'sukisu_code':41183,'sukisu_count':3998}
         source=FIXTURE.with_name('kbuild-41183-upstream').read_bytes()+b'\n# changed upstream\n'
+        self.assertEqual(adapt_compat_patch(self.patch,other,source),adapt_compat_patch(self.patch,self.plan))
+
+    def test_nova_version_change_uses_the_same_exact_manual_hook_patch(self):
+        source=FIXTURE.with_name('kbuild-nova-upstream').read_bytes()
+        plan={'sukisu_commit':'1439545f12bffe0263690ba862139b70ee5f20cf','sukisu_code':35004,
+              'sukisu_count':4008,'sukisu_version_formula':{'base':30000,'offset':996,'operation':'+'}}
+        fixed=adapt_compat_patch(self.fragment,plan,source)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'kernel').mkdir();(root/'kernel/Kbuild').write_bytes(source)
+            patch=root/'compat.patch';patch.write_bytes(fixed)
+            result=subprocess.run(['git','apply','--no-index','--check',str(patch)],cwd=root,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr.decode(errors='replace'))
+
+    def test_a_change_inside_a_touched_block_still_requires_review(self):
+        other={'sukisu_commit':'b'*40,'sukisu_code':41183,'sukisu_count':3998}
+        source=FIXTURE.with_name('kbuild-41183-upstream').read_bytes().replace(b'max-page-size=0x10000',b'max-page-size=0x20000')
         self.assertEqual(adapt_compat_patch(self.patch,other,source),self.patch)
 
     def test_wrong_version_mapping_is_rejected(self):

@@ -1,10 +1,12 @@
 import {Github, GH, selectKernelArtifact, selectReleaseAssets, selectEzj1ManagerAssets, assertRepository, runOutcome} from './api.js';
+import {AutomaticBuilder} from './automation.js';
 
 const $ = id => document.getElementById(id);
 let token = '', sources = null, installed = null, activeRun = null, checking = false, pollBusy = false;
 let api, localServer = false, nativeCounter = 0, controller = null;
 let settingsGeneration = 0, reviewedBuild = null, refreshAgain = false;
 let lastBuildPoll = 0;
+const automaticBuilder=new AutomaticBuilder(localStorage);
 const nativePending = new Map();
 window.__nativeResult = (id, result) => {
   const pending = nativePending.get(id); if (!pending) return;
@@ -134,6 +136,22 @@ async function refresh(){
     await loadDownloads();
     if(activeRun&&activeRun.head_branch!==$('ref').value.trim())activeRun=null;
     if(installed&&!pendingRequest&&(!activeRun||activeRun.status==='completed')){const runs=await api.runs($('ref').value.trim());if(runs.length)await followRun(runs[0]);}
+    if(!refreshAgain&&generation===settingsGeneration&&requested.auto&&token&&controller&&!pendingRequest&&!$('build-dialog').open){
+      const snapshot={...sources},selected={...controller};
+      const canSubmit=()=>generation===settingsGeneration&&api===requestApi&&controller?.sha===selected.sha
+        &&sources?.sukisu_commit===snapshot.sukisu_commit&&sources?.susfs_commit===snapshot.susfs_commit
+        &&$('auto-check').checked&&!$('build-dialog').open;
+      const result=await automaticBuilder.ensure(requestApi,snapshot,selected,canSubmit);
+      if(generation!==settingsGeneration)return;
+      if(result.outcome==='submitted'){
+        pendingRequest=result.pending;localStorage.setItem('center-pending',JSON.stringify(pendingRequest));activeRun=null;
+        message('Automatischer Build-Auftrag gesendet. Neue Quellen werden in Super-Builders gebaut.');
+        pill('run-status','AUTOMATISCH GESTARTET','running');await poll();
+      }else if(result.run){await followRun(result.run);
+        if(result.outcome==='cooldown')message('Der automatische Build dieses Quellen-/Controllerstands ist fehlgeschlagen. Ein neuer Quellen- oder Controllerstand wird erneut versucht; manuelles Wiederholen bleibt möglich.',true);
+      }else if(result.outcome==='current')message(`SukiSU ${sources.sukisu_code} und SuSFS ${sources.susfs_version}: passende geprüfte Kernel-ZIP ist bereits vorhanden.`);
+      else if(result.outcome==='attempted'&&result.attempt.state==='unconfirmed')message('Ein Build-Auftrag wurde bereits übermittelt, ist aber noch nicht bestätigt. GitHub prüfen; die App sendet keinen Doppelauftrag.',true);
+    }
   }catch(e){message(e.message,true);}finally{checking=false;$('refresh').disabled=false;$('refresh').textContent='↻  Updates prüfen';$('build').disabled=!(installed?.state==='active'&&sources&&controller&&token)||refreshAgain;if(refreshAgain){refreshAgain=false;void refresh();}}
 }
 const stateNames={completed:'Abgeschlossen',in_progress:'Läuft',queued:'In Warteschlange',waiting:'Wartet',pending:'Vorgemerkt',requested:'Angefordert'};
@@ -164,7 +182,10 @@ async function poll(){
   lastBuildPoll=Date.now();pollBusy=true;
   try{
     if(pendingRequest){const run=await api.findRun(pendingRequest.id,pendingRequest.ref||$('ref').value.trim());if(run){pendingRequest=null;localStorage.removeItem('center-pending');await followRun(run);}else if(Date.now()-pendingRequest.time>600000){message('GitHub hat noch keinen passenden Lauf gemeldet. Vor einem erneuten Start die Actions-Seite prüfen.',true);pendingRequest=null;localStorage.removeItem('center-pending');}}
-    else if(activeRun&&activeRun.status!=='completed')await followRun(await api.run(activeRun.id));
+    else if(activeRun&&activeRun.status!=='completed'){
+      await followRun(await api.run(activeRun.id));
+      if(activeRun.status==='completed'&&$('auto-check').checked&&!checking)void refresh();
+    }
   }catch(e){message(e.message,true);}finally{pollBusy=false;}
 }
 $('refresh').addEventListener('click',refresh);

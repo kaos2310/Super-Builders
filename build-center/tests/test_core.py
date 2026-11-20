@@ -111,7 +111,8 @@ class ScheduleTests(unittest.TestCase):
 class ResolveTests(unittest.TestCase):
     def fake(self,url,token='',**kwargs):
         headers={};pin='a'*40
-        if url.endswith('/releases/latest'):data={'tag_name':'v4.3.0-r2','assets':[{'name':'SukiSU_v4.3.0-r2_41150-release.apk'}]}
+        if url.endswith('/repositories/957055748'):data={'id':957055748,'full_name':'SukiSU-Nova/SukiSU-Nova'}
+        elif url.endswith('/releases/latest'):data={'tag_name':'v4.3.0-r2','assets':[{'name':'SukiSU_v4.3.0-r2_41150-release.apk'}]}
         elif '/commits?sha=' in url:data=[{'sha':pin}];headers={'link':f'<https://api.github.com/repos/a/b/commits?sha={pin}&per_page=1&page=3983>; rel="last"'}
         elif 'contents/kernel/Kbuild' in url:data={'content':base64.b64encode(b'VERSION_BASE := 40000\nVERSION_OFFSET := 2815\nKSU_VERSION := $(shell expr $(VERSION_BASE) + $(LOCAL_COUNT) - $(VERSION_OFFSET))').decode()}
         elif '/files/' in url:data={'content':base64.b64encode(b'#define SUSFS_VERSION "v2.4.0"').decode()}
@@ -122,6 +123,20 @@ class ResolveTests(unittest.TestCase):
         p=resolve_sources(get=self.fake)
         self.assertEqual(p['sukisu_code'],41168);self.assertEqual(p['susfs_version'],'v2.4.0')
         self.assertIsNone(p['manager']);self.assertIn('a'*40,p['sukisu_commit'])
+
+    def test_official_nova_formula_resolves_without_an_app_version_patch(self):
+        source=(Path(__file__).parent/'fixtures/kbuild-nova-upstream').read_bytes()
+        def get(url,*args,**kwargs):
+            result=self.fake(url,*args,**kwargs)
+            if 'contents/kernel/Kbuild' in url:
+                result['data']['content']=base64.b64encode(source).decode()
+            if '/commits?sha=' in url:
+                result['headers']['link']='<https://api.github.com/repos/a/b/commits?per_page=1&page=4008>; rel="last"'
+            return result
+        result=resolve_sources(get=get)
+        self.assertEqual(result['sukisu_code'],35004)
+        self.assertEqual(result['sukisu_count'],4008)
+        self.assertEqual(result['sukisu_version_formula'],{'base':30000,'offset':996,'operation':'+'})
 
     def test_expected_main_checks_source_and_version_together(self):
         p=resolve_sources(get=self.fake)
@@ -222,12 +237,12 @@ class BootstrapTests(unittest.TestCase):
             }}}))
             (root/'android14-6.1/samsung-s928bxxu6ezif-target.env').write_bytes((FIRMWARE_DATA/'baseline-target.env').read_bytes())
             (root/'android14-6.1/samsung-e3q-zzi4-dlkm-crc-baseline.tsv').write_bytes((FIRMWARE_DATA/'strict-baseline.tsv').read_bytes())
-            with patch('ci.bootstrap.prepare_susfs_helpers'):
+            with patch('ci.bootstrap.prepare_susfs_helpers'),patch('ci.bootstrap.prepare_identity_helpers'):
                 prepare(root,self.plan())
             evidence=json.loads((h/'sukisu-41168-susfs/PREFLIGHT.json').read_text())
             self.assertFalse(evidence['historical_evidence_reused']);self.assertFalse(evidence['full_kernel_link_tested'])
             self.assertNotIn('arm64_sukisu_subtree_compiled',evidence)
-            self.assertIn('count=3983',(h/'configure-sukisu-41168.py').read_text())
+            self.assertEqual(json.loads((root/'.build-center-plan.json').read_text())['sukisu_count'],3983)
             self.assertFalse((h/'configure-sukisu-41165.py').exists())
 
 

@@ -21,11 +21,12 @@ async function response(b){
     return {status:204,data:null};
   }
   let data,headers={};
-  if(b.url.endsWith('/releases/latest'))data={tag_name:'v4.3.0-r2',assets:[]};
-  else if(b.url.includes('SukiSU-Ultra/SukiSU-Ultra/commits?')){
+  if(b.url.endsWith('/repositories/957055748'))data={id:957055748,full_name:'SukiSU-Nova/SukiSU-Nova'};
+  else if(b.url.endsWith('/releases/latest'))data={tag_name:'v4.3.0-r2',assets:[]};
+  else if(b.url.includes('repositories/957055748/commits?')){
     data=[{sha:pin}];headers.link='<https://api.github.com/repos/a/b/commits?per_page=1&page=3994>; rel="last"';
   }
-  else if(b.url.includes('SukiSU-Ultra/SukiSU-Ultra/commits/'))data={sha:pin,commit:{message:'official main'}};
+  else if(b.url.includes('repositories/957055748/commits/'))data={sha:pin,commit:{message:'official main'}};
   else if(b.url.includes('contents/kernel/Kbuild'))data={content:encode('VERSION_BASE := 40000\nVERSION_OFFSET := 2815\nKSU_VERSION := $(shell expr $(VERSION_BASE) + $(LOCAL_COUNT) - $(VERSION_OFFSET))')};
   else if(b.url.includes('/files/'))data={content:encode('#define SUSFS_VERSION "v2.4.0"')};
   else if(b.url.includes('gitlab.com'))data={id:sus,title:'SUSFS 2.4.0'};
@@ -52,7 +53,7 @@ try{
   const page=await context.newPage();page.on('pageerror',e=>report.pageErrors.push(e.message));
   await page.exposeFunction('nativeTransport',response);
   await page.addInitScript(()=>{
-    localStorage.setItem('center-settings',JSON.stringify({repository:'kaos2310/Super-Builders',ref:'main',channel:'main',auto:true}));
+    localStorage.setItem('center-settings',JSON.stringify({repository:'kaos2310/Super-Builders',ref:'main',channel:'main',auto:false}));
     window.KaosNative={loadToken:()=>'test-only-not-a-credential',storeToken:()=>{},request:(id,body)=>window.nativeTransport(JSON.parse(body)).then(value=>window.__nativeResult(id,value)).catch(e=>window.__nativeResult(id,{error:e.message}))};
   });
   await page.clock.install();await page.goto(base);

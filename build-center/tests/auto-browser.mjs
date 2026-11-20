@@ -31,9 +31,10 @@ try {
           display_title:'Build Center EZJ1 · '+b.data.inputs.request_id,html_url:'https://github.com/kaos2310/Super-Builders/actions/runs/9201'};
         return {status:204,data:null,headers:{}};
       }
+      if(b.url.endsWith('/repositories/957055748'))return ok({id:957055748,full_name:'SukiSU-Nova/SukiSU-Nova'});
       if(b.url.endsWith('/releases/latest'))return ok({tag_name:'v4.3.0-r2',assets:[]});
-      if(b.url.includes('SukiSU-Ultra/SukiSU-Ultra/commits?'))return ok([{sha:pin}],{link:`<https://api.github.com/repos/a/b/commits?per_page=1&page=${code-40000+2815}>; rel="last"`});
-      if(b.url.includes('SukiSU-Ultra/SukiSU-Ultra/commits/'))return ok({sha:pin,commit:{message:'official source update'}});
+      if(b.url.includes('repositories/957055748/commits?'))return ok([{sha:pin}],{link:`<https://api.github.com/repos/a/b/commits?per_page=1&page=${code-40000+2815}>; rel="last"`});
+      if(b.url.includes('repositories/957055748/commits/'))return ok({sha:pin,commit:{message:'official source update'}});
       if(b.url.includes('contents/kernel/Kbuild'))return file('VERSION_BASE := 40000\nVERSION_OFFSET := 2815\nKSU_VERSION := $(shell expr $(VERSION_BASE) + $(LOCAL_COUNT) - $(VERSION_OFFSET))');
       if(b.url.includes('/files/'))return file('#define SUSFS_VERSION "v2.4.0"');
       if(b.url.includes('gitlab.com'))return ok({id:sus,title:'official SUSFS update'});
@@ -55,7 +56,7 @@ try {
     const page=await context.newPage();page.on('pageerror',e=>report.pageErrors.push(e.message));
     await page.exposeFunction('testTransport',response);
     await page.addInitScript(({native,oldBranch})=>{
-      localStorage.setItem('center-settings',JSON.stringify({repository:'kaos2310/Super-Builders',ref:oldBranch,channel:'main',auto:true}));
+      localStorage.setItem('center-settings',JSON.stringify({repository:'kaos2310/Super-Builders',ref:oldBranch,channel:'main',auto:false}));
       if(native)window.KaosNative={loadToken:()=>'test-only-not-a-credential',storeToken:()=>{},
         request:(id,body)=>window.testTransport(JSON.parse(body)).then(result=>window.__nativeResult(id,result)).catch(e=>window.__nativeResult(id,{error:e.message}))};
     },{native,oldBranch});
@@ -70,7 +71,7 @@ try {
     assert.match(await page.locator('#build-hint').textContent(),/41181.*automatisch/);
     assert.equal(posted.length,0);
     const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('center-settings')));
-    assert.equal(saved.ref,branch);assert.equal(saved.channel,'main');assert.equal(saved.auto,true);
+    assert.equal(saved.ref,branch);assert.equal(saved.channel,'main');assert.equal(saved.auto,false);
     assert.ok(!(await page.evaluate(()=>JSON.stringify(localStorage))).includes('test-only-not-a-credential'));
     report.checks.push(`${native?'Android bridge':'Web'}: old 41179 setting migrates to an automatic controller before its first run, preserving preferences`);
     await page.locator('#build').click();assert.match(await page.locator('#plan-review').textContent(),/41181/);
@@ -83,7 +84,8 @@ try {
     await page.waitForFunction(()=>document.getElementById('run-label').textContent.includes('9201'));
     assert.equal(posted.length,1);
     assert.deepEqual(JSON.parse(posted[0].inputs.source_request),{schema:1,channel:'main',sukisu_commit:pin,
-      sukisu_code:41182,sukisu_count:3997,susfs_commit:sus,controller_sha:controller});
+      sukisu_code:41182,sukisu_count:3997,susfs_commit:sus,controller_sha:controller,
+      sukisu_version_formula:{base:40000,offset:2815,operation:'-'}});
     report.checks.push(`${native?'Android bridge':'Web'}: next SukiSU/SuSFS update uses the same branch and sends exactly the reviewed immutable pair`);
     await page.locator('#build').click();assert.equal(posted.length,1);assert.match(await page.locator('#message').textContent(),/läuft bereits/);
     run.status='completed';run.conclusion='success';await page.clock.runFor(16000);

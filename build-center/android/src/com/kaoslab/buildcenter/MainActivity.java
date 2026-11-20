@@ -150,7 +150,7 @@ public class MainActivity extends Activity {
                     boolean valid=false;
                     if(info!=null&&info.signingInfo!=null&&info.signingInfo.getApkContentsSigners().length==1){
                         String certificate=sha(info.signingInfo.getApkContentsSigners()[0].toByteArray());
-                        valid=("com.sukisu.ultra".equals(info.packageName)&&CERT.equals(certificate))||
+                        valid=(("com.sukisu.ultra".equals(info.packageName)||"com.sukisu.nova".equals(info.packageName))&&CERT.equals(certificate))||
                             ("com.kaoslab.sukisu.manager".equals(info.packageName)&&EZJ1_CERT.equals(certificate));
                     }
                     if(!valid){apk.delete();throw new IOException("Paketkennung oder Signatur des SukiSU-Managers stimmt nicht überein.");}
@@ -195,7 +195,7 @@ public class MainActivity extends Activity {
         String host=u.getHost(),path=u.getRawPath();
         if("POST".equals(method))return "api.github.com".equals(host)&&path.matches("/repos/[\\w.-]+/[\\w.-]+/actions/workflows/build-center\\.yml/dispatches");
         if(!"GET".equals(method))return false;
-        if("api.github.com".equals(host))return path.startsWith("/repos/");
+        if("api.github.com".equals(host))return path.startsWith("/repos/")||path.equals("/repositories/957055748")||path.startsWith("/repositories/957055748/");
         if("gitlab.com".equals(host))return path.startsWith("/api/v4/projects/simonpunk%2Fsusfs4ksu/")||path.startsWith("/simonpunk/susfs4ksu/-/archive/");
         return download&&("github.com".equals(host)||"codeload.github.com".equals(host))&&path.matches("/[\\w.-]+/[\\w.-]+/(releases/download|zip|tar\\.gz)/.+");
     }

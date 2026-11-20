@@ -1,0 +1,63 @@
+name: SukiSU Build Center Automatik
+run-name: Build Center Automatik · ${{ inputs.request_id || 'Zeitplan' }} · ${{ inputs.channel || 'main' }}
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/build-center.yml]
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Offizieller Update-Kanal
+        type: choice
+        options: [main, release]
+        default: main
+      force:
+        description: Vorhandenes Ergebnis erneut bauen
+        type: boolean
+        default: false
+      request_id:
+        description: Zuordnung zum Auftrag
+        type: string
+        default: ''
+      source_request:
+        description: Optionaler unveränderlicher Quellenauftrag
+        type: string
+        default: ''
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: build-center-automatic-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  automatic:
+    name: Neue Versionen prüfen und passenden Kernelbau starten
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: codex/build-center-auto-updates
+          persist-credentials: false
+      - name: Geprüften Controller und neue Quellen automatisch zuordnen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: ${{ inputs.channel || 'main' }}
+          FORCE: ${{ inputs.force || false }}
+          REQUEST_ID: ${{ inputs.request_id || '' }}
+          CENTER_SOURCE_REQUEST: ${{ inputs.source_request || '' }}
+        run: |
+          set -euo pipefail
+          ARGS=(--channel "$CHANNEL")
+          [[ "$FORCE" != true ]] || ARGS+=(--force)
+          [[ -z "$REQUEST_ID" ]] || ARGS+=(--request-id "$REQUEST_ID")
+          python3 build-center/ci/automatic.py "${ARGS[@]}"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Build-Center-Automatik-${{ github.run_id }}
+          path: build-center-automatic.json
+          if-no-files-found: warn
+          retention-days: 7

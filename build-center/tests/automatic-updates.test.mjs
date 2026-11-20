@@ -93,3 +93,13 @@ test('automatic dispatch rejects inconsistent counts and channels before POST', 
     assert.equal(posts.length,0);
   }
 });
+
+test('Nova arithmetic requires controller support and is bound in the same source request',async()=>{
+  const next={...source,sukisu_code:35004,sukisu_count:4008,sukisu_version_formula:{base:30000,offset:996,operation:'+'}};
+  const unsupported=fixture();
+  await assert.rejects(()=>unsupported.github.dispatch('main','main',false,{sources:next,controllerSha}));
+  assert.equal(unsupported.posts.length,0);
+  const {github,posts}=fixture({manifestChange:{source_versions:'kbuild-affine-v1'}});
+  await github.dispatch('main','main',false,{sources:next,controllerSha});
+  assert.deepEqual(JSON.parse(posts[0].inputs.source_request).sukisu_version_formula,next.sukisu_version_formula);
+});

@@ -7,6 +7,11 @@ deletion hunk preserves the audited postimage without fuzzy patch application.
 from pathlib import Path
 import hashlib
 import re
+if __package__:
+    from .versioning import validate_mapping, formula_from_kbuild
+else:
+    try:from versioning import validate_mapping, formula_from_kbuild
+    except ImportError:from _center_versioning import validate_mapping, formula_from_kbuild
 
 SOURCE_PIN = '3af6085d0d26e73ffd1a3e7b34362435dcfb5a03'
 REVIEWED_PINS = {
@@ -26,6 +31,20 @@ KBUILD_HEADER = b'diff --git a/kernel/Kbuild b/kernel/Kbuild\n'
 REVIEWED_KBUILD_BLOB = '029f391165b27c59cebacc91e94842c2fccdac8e'
 
 
+def exact_preimage(fragment,source):
+    """Every touched old block must occur exactly once, in the same order."""
+    chunks=re.split(rb'^@@[^\n]*\n',fragment,flags=re.M)[1:]
+    if not chunks:return False
+    cursor=0
+    for chunk in chunks:
+        before=b''.join(line[1:] for line in chunk.splitlines(keepends=True) if line.startswith((b' ',b'-')))
+        if not before or source.count(before)!=1:return False
+        start=source.find(before)
+        if start<cursor:return False
+        cursor=start+len(before)
+    return True
+
+
 def adapt_compat_patch(patch, plan, upstream_kbuild=None):
     """Change only Kbuild's patch section; reject unreviewed inputs."""
     mapping = REVIEWED_PINS.get(plan['sukisu_commit'])
@@ -33,12 +52,14 @@ def adapt_compat_patch(patch, plan, upstream_kbuild=None):
         # Future official commits with exactly the same reviewed Kbuild can
         # use the same bounded refresh without another version/pin exception.
         if upstream_kbuild is None:return patch
-        blob=hashlib.sha1(b'blob '+str(len(upstream_kbuild)).encode()+b'\0'+upstream_kbuild).hexdigest()
-        if blob!=REVIEWED_KBUILD_BLOB:return patch
         code,count=plan['sukisu_code'],plan['sukisu_count']
-        if (not re.fullmatch('[0-9a-f]{40}',plan['sukisu_commit']) or type(count) is not int
-                or type(code) is not int or count<2815 or code!=40000+count-2815):
+        try:
+            if not re.fullmatch('[0-9a-f]{40}',plan['sukisu_commit']):raise ValueError()
+            if validate_mapping(plan)!=formula_from_kbuild(upstream_kbuild.decode()):raise ValueError()
+        except (ValueError,UnicodeError):
             raise RuntimeError('Kbuild refresh requires an exact official source/version mapping')
+        fixed=Path(__file__).with_name('compat').joinpath('kbuild-41176.patch').read_bytes()
+        if not exact_preimage(fixed,upstream_kbuild):return patch
         mapping=(code,count)
     if (plan['sukisu_code'], plan['sukisu_count']) != mapping:
         raise RuntimeError('Kbuild refresh requires an exact reviewed SukiSU source/version mapping')

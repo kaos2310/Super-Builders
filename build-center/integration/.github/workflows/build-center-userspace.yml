@@ -55,7 +55,7 @@ jobs:
         test '${{ inputs.resukisu_version_code }}' = ${{ inputs.center_code }}
     - uses: actions/checkout@v6
       with:
-        repository: SukiSU-Ultra/SukiSU-Ultra
+        repository: ${{ fromJSON(inputs.center_plan).sukisu_repository }}
         ref: ${{ inputs.center_pin }}
         fetch-depth: 0
         path: sukisu

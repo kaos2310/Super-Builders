@@ -1,5 +1,8 @@
+import {readVersionFormula, versionCode, validateSourceVersion} from './versioning.js';
+
 export const GH = 'https://api.github.com';
-export const SUKI = `${GH}/repos/SukiSU-Ultra/SukiSU-Ultra`;
+// Stable official repository identity survives the Ultra -> Nova rename.
+export const SUKI = `${GH}/repositories/957055748`;
 export const SUS = 'https://gitlab.com/api/v4/projects/simonpunk%2Fsusfs4ksu/repository';
 const shaPattern = /^[0-9a-f]{40}$/;
 const profile = 'S928BXXS6EZJ1-EUX-android14-6.1.162';
@@ -19,17 +22,20 @@ function sourceRequest(sources, channel, controllerSha) {
   if (!['main','release'].includes(channel) || sources?.channel !== channel)
     throw new Error('Update-Kanal und geprüfte Quellen stimmen nicht überein. Updates erneut prüfen.');
   if (!shaPattern.test(sources.sukisu_commit) || !shaPattern.test(sources.susfs_commit)
-      || !shaPattern.test(controllerSha) || !Number.isSafeInteger(sources.sukisu_count)
-      || sources.sukisu_count < 2815 || !Number.isSafeInteger(sources.sukisu_code)
-      || sources.sukisu_code !== 40000 + sources.sukisu_count - 2815)
+      || !shaPattern.test(controllerSha))
     throw new Error('Quellen und Versionsberechnung konnten nicht bestätigt werden. Updates erneut prüfen.');
+  validateSourceVersion(sources);
   return {schema:1,channel,sukisu_commit:sources.sukisu_commit,sukisu_code:sources.sukisu_code,
-    sukisu_count:sources.sukisu_count,susfs_commit:sources.susfs_commit,controller_sha:controllerSha};
+    sukisu_count:sources.sukisu_count,susfs_commit:sources.susfs_commit,controller_sha:controllerSha,
+    ...(sources.sukisu_version_formula?{sukisu_version_formula:sources.sukisu_version_formula}:{})};
 }
 
 function controllerMatches(controller, sources) {
   if (controller.protocol !== 2) return workflowMatches(controller.content,sources);
   if (!controller.channels.includes(sources.channel)) return false;
+  if (sources.sukisu_version_formula && (sources.sukisu_version_formula.base!==40000
+      || sources.sukisu_version_formula.offset!==2815 || sources.sukisu_version_formula.operation!=='-')
+      && controller.versionScheme!=='kbuild-affine-v1') return false;
   sourceRequest(sources,sources.channel,controller.sha);
   return true;
 }
@@ -99,6 +105,15 @@ export function selectEzj1ManagerAssets(releases) {
     && a.browser_download_url?.startsWith('https://github.com/kaos2310/Super-Builders/releases/download/')));
 }
 
+export function releaseMatchesSources(release,sources,revision='hidden-name-readdir-v2') {
+  const tag=sources.release_tag+(revision?'-'+revision:'');
+  const body=release.body||'',assets=release.assets||[];
+  return !release.draft && (release.tag_name===tag || (release.tag_name?.startsWith(tag+'-r')&&/^\d+$/.test(release.tag_name.slice(tag.length+2))))
+    && body.includes('SukiSU commit: '+sources.sukisu_commit) && body.includes('SuSFS commit: '+sources.susfs_commit)
+    && assets.some(a=>a.name==='build-plan.json')
+    && assets.some(a=>a.name?.endsWith('AnyKernel3.zip')&&a.name.includes('S928BXXS6EZJ1-EUX')&&/^sha256:[0-9a-f]{64}$/.test(a.digest||''));
+}
+
 export class Github {
   constructor(transport, token = '', repo = 'kaos2310/Super-Builders') {
     this.transport = transport; this.token = token; this.repo = assertRepository(repo);
@@ -115,6 +130,9 @@ export class Github {
   }
   async data(path) { return (await this.call(`${GH}/repos/${this.repo}${path}`)).data; }
   async sources(channel = 'main') {
+    const repository=(await this.call(SUKI)).data;
+    if(repository?.id!==957055748||!/^[-\w.]+\/[-\w.]+$/.test(repository.full_name||''))
+      throw new Error('Offizielle SukiSU-Projektidentität konnte nicht bestätigt werden.');
     const release = (await this.call(`${SUKI}/releases/latest`)).data;
     const commit = (await this.call(`${SUKI}/commits/${encodeURIComponent(channel === 'main' ? 'main' : release.tag_name)}`)).data;
     const pin = commit.sha;
@@ -125,11 +143,7 @@ export class Github {
     if(count < 2815) throw new Error('Vollständige SukiSU-Commitanzahl fehlt in der API-Antwort.');
     const kbuild = (await this.call(`${SUKI}/contents/kernel/Kbuild?ref=${pin}`)).data;
     const build = atob(kbuild.content.replace(/\s/g, ''));
-    if (!/^VERSION_BASE\s*:=\s*40000\s*$/m.test(build) || !/^VERSION_OFFSET\s*:=\s*2815\s*$/m.test(build)
-      || !build.includes('expr $(VERSION_BASE) + $(LOCAL_COUNT) - $(VERSION_OFFSET)')) {
-      throw new Error('SukiSU hat seine Versionsberechnung geändert; Anpassung erforderlich.');
-    }
-    const code = 40000 + count - 2815;
+    const formula=readVersionFormula(build),code=versionCode(count,formula);
     const susCommit = (await this.call(`${SUS}/commits/gki-android14-6.1`)).data;
     if (!shaPattern.test(susCommit.id)) throw new Error('Ungültige SuSFS-Commit-ID.');
     const header = (await this.call(`${SUS}/files/kernel_patches%2Finclude%2Flinux%2Fsusfs.h?ref=${susCommit.id}`)).data;
@@ -137,7 +151,8 @@ export class Github {
     if (!version) throw new Error('SuSFS-Version konnte nicht gelesen werden.');
     const manager = release.assets.find(a => a.name.endsWith('.apk') && a.name.includes(`_${code}-`)) || null;
     return {sukisu_commit: pin, sukisu_code: code, sukisu_count: count, sukisu_tag: release.tag_name,
-      sukisu_message: commit.commit.message.split('\n')[0], channel,
+      sukisu_message: commit.commit.message.split('\n')[0], channel,sukisu_version_formula:formula,
+      sukisu_repository:repository.full_name,sukisu_repository_id:957055748,
       susfs_commit: susCommit.id, susfs_version: version, susfs_message: susCommit.title,
       manager, release_tag: `s928b-ezj1-suki${code}-susfs${version.replace(/^v/, '')}-${pin.slice(0,8)}-${susCommit.id.slice(0,8)}`,
       susfs_source_url: `https://gitlab.com/simonpunk/susfs4ksu/-/archive/${susCommit.id}/susfs4ksu-${susCommit.id}.zip`};
@@ -181,7 +196,9 @@ export class Github {
         || manifest.workflow_sha256 !== await sha256(content)
         || manifest.resolver_sha256 !== await sha256(decodeFile(resolverFile)))
       throw new Error('Build-Controller und Manifest passen nicht zusammen. Integration erneut prüfen.');
-    return {...controller,content,protocol:2,channels:manifest.channels};
+    return {...controller,content,protocol:2,channels:manifest.channels,
+      automatic:manifest.automatic_builds===true,versionScheme:manifest.source_versions,
+      revision:manifest.kernel_revision||'hidden-name-readdir-v2'};
   }
   async compatibleController(sources, ref) {
     let configured;
@@ -228,7 +245,9 @@ export class Github {
       if (controller.protocol === 2) request=sourceRequest(expected.sources,channel,expected.controllerSha);
       ref = controller.ref;
     } else ref = await this.validateWorkflowRef(ref);
-    const requestId = crypto.randomUUID();
+    if (expected?.canSubmit && !expected.canSubmit()) throw new Error('Einstellungen wurden während der Prüfung geändert.');
+    const requestId = expected?.requestId || crypto.randomUUID();
+    if (!/^[A-Za-z0-9._-]{1,100}$/.test(requestId)) throw new Error('Ungültige Build-Auftragskennung.');
     await this.call(`${GH}/repos/${this.repo}/actions/workflows/build-center.yml/dispatches`, 'POST', {
       ref, inputs: {channel, force: String(force), request_id: requestId,
         ...(request ? {source_request:JSON.stringify(request)} : {})}
@@ -252,4 +271,18 @@ export class Github {
   }
   async jobs(id) { return (await this.data(`/actions/runs/${id}/jobs?per_page=100`)).jobs; }
   async releases() { return this.data('/releases?per_page=30'); }
+  async currentRelease(sources,revision) {
+    return (await this.releases()).find(r=>releaseMatchesSources(r,sources,revision))||null;
+  }
+  async recentFailure(sources,controller,now=Date.now()) {
+    const pair=sources.sukisu_commit.slice(0,8)+'-'+sources.susfs_commit.slice(0,8);
+    const response=await this.data('/actions/artifacts?name='+encodeURIComponent('Build-Center-Plan-'+pair)+'&per_page=100');
+    const artifacts=(response.artifacts||[]).filter(a=>!a.expired&&a.workflow_run?.id)
+      .sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at));
+    if(!artifacts.length)return null;
+    const age=now-Date.parse(artifacts[0].created_at);
+    if(!Number.isFinite(age)||age<0||age>=86400000)return null;
+    const run=await this.run(artifacts[0].workflow_run.id);
+    return run.head_sha===controller.sha&&run.status==='completed'&&['failure','timed_out','cancelled'].includes(run.conclusion)?run:null;
+  }
 }
