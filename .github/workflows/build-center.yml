@@ -494,6 +494,8 @@ jobs:
         distribution: temurin
         java-version: '21'
     - uses: android-actions/setup-android@v3
+      with:
+        packages: platform-tools
     - name: Install the unchanged upstream BuiltZygisk build toolchain
       run: |
         set -euo pipefail
