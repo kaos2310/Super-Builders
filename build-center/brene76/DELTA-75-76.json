@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "previous_archive_sha256": "dd5238d64ff71bdf4356e232a625752160964e236e7e8f237c3c006a2e2f1ae3",
+  "next_archive_sha256": "9932421b98ba71b00d500cd1ee944705f0ab2f78ee7c6fbef281bfee4b6f7a8c",
+  "changed_members": {
+    "action.sh": {
+      "75": "fbec4dfa5f27839ad4d279eeda5470852ff42bcdedae99806b59d82158ace481",
+      "76": "87cb78c16a9133c1e4214386c6ca9749895fcc74ef4a5c550d034b42e2f6fadc"
+    },
+    "boot-completed.sh": {
+      "75": "87857c0ba32ef88bdb2257caad36afc39152597f043acaada6332d751a5923e9",
+      "76": "75c141544fd016cec23e573c229d780e247f603239a5bc66844601b145cf1ae1"
+    },
+    "config.sh": {
+      "75": "6339033af6546fd01ef310693a340e2d51c073ab5bc6258eaadb0fd84598dc1b",
+      "76": "3715a200797ce09f9d821a5d2fbc4795d3fe50cc2b621c2860da32ab06a25bc5"
+    },
+    "customize.sh": {
+      "75": "2920367d0bc7b594c9be51c91dd975ea655f1545893d3fcba5ebb1167e8654f0",
+      "76": "622db03d64ace6f3140d52b7231c910d8985698811a669ee98b950d4fef4f87f"
+    },
+    "module.prop": {
+      "75": "0677ac8f56b6726ce168a48a0fb6136a1d009345dccbf33a481a0e05a2b63490",
+      "76": "3ba605f8a521579c0e58c7da61e584711adf729a63f78840c7709f984b9c08bc"
+    },
+    "post-fs-data.sh": {
+      "75": "b464628efb17efff77be98c91c6752326d8b8c9b07784e5d2f65a00651a337bc",
+      "76": "aba6636635657db86c3deeaccbea3cf1815693a732aa8ae29dac2b56e5f6a227"
+    },
+    "tools/susfs": {
+      "75": "cb16825fb8c949775c1bf692263d9f59a52f12127fdcacc531b6a612e258a831",
+      "76": "9ee2c20931d21fdecc656d4cc376e36333900169ed94565bb16c05892ccec945"
+    },
+    "utils.sh": {
+      "75": "2cc7bde7cb7dbee4fa209e301fe05eb6045883ed365ca7e386f0bab8debee6a4",
+      "76": "070ab1a352b34043fdec45e549ea81af7f9afeec5b0292e085c8182dd50ed92a"
+    },
+    "webroot/index.html": {
+      "75": "ac9119edfc863a02896ec2d9786001d04b000043d88a15903019d258224aef3d",
+      "76": "f0169437c4d52e9bc05853bb01e544351568a76f07fd69e014757f7307304b12"
+    },
+    "webroot/script.js": {
+      "75": "3acd0ecc510e524f662c7520339cc8fe22d58ea5b9f49380c4962961ef6b983c",
+      "76": "990a8794696d9da35fd3446433f4fcf3cd74754bc6575fb6f00c477d38f3d49b"
+    }
+  },
+  "new_config_keys": [
+    "hide_oem_unlocking_toggle",
+    "hide_vector_injection",
+    "hide_all_apps_with_uid_10000_and_above"
+  ],
+  "new_native_command": "set_sus_path_uid_filter",
+  "new_property_transformation": "build fingerprint cleanup under existing properties master; opt-in",
+  "upstream_logd_removal": "persist.logd.size writer retained for compatibility with existing Guard75 option",
+  "existing_features_removed": false
+}

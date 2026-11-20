@@ -1,5 +1,5 @@
 export const GH = 'https://api.github.com';
-export const SUKI = `${GH}/repos/SukiSU-Ultra/SukiSU-Ultra`;
+export const SUKI = `${GH}/repos/SukiSU-Nova/SukiSU-Nova`;
 export const SUS = 'https://gitlab.com/api/v4/projects/simonpunk%2Fsusfs4ksu/repository';
 const shaPattern = /^[0-9a-f]{40}$/;
 
@@ -73,11 +73,14 @@ export class Github {
     if(count < 2815) throw new Error('Vollständige SukiSU-Commitanzahl fehlt in der API-Antwort.');
     const kbuild = (await this.call(`${SUKI}/contents/kernel/Kbuild?ref=${pin}`)).data;
     const build = atob(kbuild.content.replace(/\s/g, ''));
-    if (!/^VERSION_BASE\s*:=\s*40000\s*$/m.test(build) || !/^VERSION_OFFSET\s*:=\s*2815\s*$/m.test(build)
-      || !build.includes('expr $(VERSION_BASE) + $(LOCAL_COUNT) - $(VERSION_OFFSET)')) {
+    const formulas = [{family:'ultra',base:40000,offset:2815,operator:'-'}, {family:'nova',base:30000,offset:996,operator:'+'}];
+    const formula = formulas.find(f => new RegExp(`^VERSION_BASE\\s*:=\\s*${f.base}\\s*$`,'m').test(build)
+      && new RegExp(`^VERSION_OFFSET\\s*:=\\s*${f.offset}\\s*$`,'m').test(build)
+      && build.includes(`expr $(VERSION_BASE) + $(LOCAL_COUNT) ${f.operator} $(VERSION_OFFSET)`));
+    if (!formula) {
       throw new Error('SukiSU hat seine Versionsberechnung geändert; Anpassung erforderlich.');
     }
-    const code = 40000 + count - 2815;
+    const code = formula.base + count + (formula.operator==='+' ? formula.offset : -formula.offset);
     const susCommit = (await this.call(`${SUS}/commits/gki-android14-6.1`)).data;
     if (!shaPattern.test(susCommit.id)) throw new Error('Ungültige SuSFS-Commit-ID.');
     const header = (await this.call(`${SUS}/files/kernel_patches%2Finclude%2Flinux%2Fsusfs.h?ref=${susCommit.id}`)).data;
@@ -85,6 +88,7 @@ export class Github {
     if (!version) throw new Error('SuSFS-Version konnte nicht gelesen werden.');
     const manager = release.assets.find(a => a.name.endsWith('.apk') && a.name.includes(`_${code}-`)) || null;
     return {sukisu_commit: pin, sukisu_code: code, sukisu_count: count, sukisu_tag: release.tag_name,
+      sukisu_family:formula.family, sukisu_repository:'SukiSU-Nova/SukiSU-Nova',
       sukisu_message: commit.commit.message.split('\n')[0], channel,
       susfs_commit: susCommit.id, susfs_version: version, susfs_message: susCommit.title,
       manager, release_tag: `s928b-ezj1-suki${code}-susfs${version.replace(/^v/, '')}-${pin.slice(0,8)}-${susCommit.id.slice(0,8)}`,

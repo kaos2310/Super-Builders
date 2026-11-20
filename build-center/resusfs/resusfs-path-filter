@@ -1,0 +1,74 @@
+#!/system/bin/sh
+# Optional native SUS_PATH UID allowlist; never changes another manager's state.
+ROOT=${RESUSFS_ROOT:-}
+BINDIR=${0%/*}
+MODDIR=${RESUSFS_MODDIR:-${BINDIR%/*}}
+PERSISTENT="$ROOT/data/adb/ReSuSFS"
+CONTROL=${RESUSFS_CONTROL:-$MODDIR/bin/resusfs-control}
+TOOL=${RESUSFS_SUSFS_TOOL:-$MODDIR/bin/ksu_susfs}
+PACKAGES="$PERSISTENT/sus-path-visible-packages"
+
+valid_packages() {
+    [ "${#1}" -le 4096 ] || return 64
+    case "$1" in *[!A-Za-z0-9_.,]*) return 64;; esac
+    [ -z "$1" ] && return 0
+    printf '%s\n' "$1" | awk -F, '{for(i=1;i<=NF;i++) if(length($i)>255 || $i !~ /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$/) exit 1}'
+}
+revision() { if [ -f "$PACKAGES" ]; then cksum "$PACKAGES" | awk '{print $1 "-" $2}'; else echo none; fi; }
+value() {
+    local packages
+    packages=$(cat "$PACKAGES" 2>/dev/null)
+    valid_packages "$packages" || return 65
+    printf '%s' "$packages"
+}
+prerequisites() {
+    [ "$("$TOOL" show version 2>/dev/null)" = v2.4.0 ] &&
+        "$TOOL" show enabled_features 2>/dev/null | grep -qx CONFIG_KSU_SUSFS_SUS_PATH
+}
+allowed() { "$CONTROL" allowed && prerequisites; }
+status() {
+    local writable=false ready=false packages='' stored=false valid=true
+    prerequisites && ready=true
+    [ "$ready" = true ] && "$CONTROL" allowed >/dev/null 2>&1 && writable=true
+    if [ -f "$PACKAGES" ]; then stored=true;packages=$(value) || { packages='';valid=false; };fi
+    printf '{"schema":1,"owner":"ReSuSFS","write_allowed":%s,"prerequisites_present":%s,"command_support_probed":false,"kernel_readback_available":false,"packages":"%s","revision":"%s","selection_saved":%s,"saved_selection_valid":%s,"new_settings_default_enabled":false}\n' "$writable" "$ready" "$packages" "$(revision)" "$stored" "$valid"
+}
+set_packages() (
+    [ "$#" = 2 ] || exit 64
+    packages=$1;expected=$2
+    valid_packages "$packages" || exit 64
+    case "$expected" in none) ;; *[!0-9-]*|'') exit 64;; *) printf '%s\n' "$expected" | grep -Eq '^[0-9]+-[0-9]+$' || exit 64;; esac
+    allowed || exit 65
+    umask 077;mkdir -p "$PERSISTENT" || exit 1
+    mkdir "$PERSISTENT/sus-path-uid.lock" 2>/dev/null || exit 75
+    temp="$PACKAGES.tmp.$$"
+    trap 'rm -f "$temp";rmdir "$PERSISTENT/sus-path-uid.lock" 2>/dev/null' EXIT
+    [ "$(revision)" = "$expected" ] || { echo 'Die gespeicherte Pfadfreigabe wurde verändert; neu laden.' >&2;exit 75; }
+    # Prepare the write before mutating the kernel; save only after acknowledgement.
+    printf '%s\n' "$packages" > "$temp" || exit 1
+    allowed || exit 65
+    argument=$packages;[ -n "$argument" ] || argument=,
+    # Upstream rejects an empty CLI argument but ignores comma-separated empty tokens.
+    "$TOOL" set_sus_path_uid_filter "$argument" >&2 || exit $?
+    mv -f "$temp" "$PACKAGES" || { echo 'Kernel hat bestätigt; Speichern fehlgeschlagen. Status neu laden.' >&2;exit 74; }
+    printf '{"applied":true,"saved":true,"kernel_readback_available":false,"revision":"%s"}\n' "$(revision)"
+)
+restore() {
+    # No file means no user choice: leave all kernel defaults unchanged.
+    [ -f "$PACKAGES" ] || return 0
+    allowed || return 65
+    local packages argument
+    umask 077
+    mkdir "$PERSISTENT/sus-path-uid.lock" 2>/dev/null || return 75
+    trap 'rmdir "$PERSISTENT/sus-path-uid.lock" 2>/dev/null' EXIT
+    packages=$(value) || return 65
+    allowed || return 65
+    argument=$packages;[ -n "$argument" ] || argument=,
+    "$TOOL" set_sus_path_uid_filter "$argument"
+}
+case "${1:-}" in
+    status) [ "$#" = 1 ] || exit 64;status;;
+    set) shift;set_packages "$@";;
+    restore) [ "$#" = 1 ] || exit 64;restore;;
+    *) echo 'Usage: resusfs-path-filter status | set PACKAGE_LIST REVISION | restore' >&2;exit 64;;
+esac

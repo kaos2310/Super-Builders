@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
+from ci.versions import identify as identify_version, REPOSITORY as SUKISU_REPOSITORY
 
 ROOT = Path(__file__).resolve().parent
 SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -169,7 +170,7 @@ def resolve_sources(channel="main", token="", get=request, source_ref=None):
         raise CenterError("Unbekannter Update-Kanal.")
     if source_ref is not None and (not SHA.fullmatch(source_ref) or channel != "main"):
         raise CenterError("Ein expliziter Quellstand erfordert eine vollständige Commit-ID im main-Kanal.")
-    base = "https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra"
+    base = "https://api.github.com/repos/" + SUKISU_REPOSITORY
     release = get(base + "/releases/latest", token)["data"]
     ref = source_ref or ("main" if channel == "main" else release["tag_name"])
     commit = get(base + "/commits/" + urllib.parse.quote(ref, safe=""), token)["data"]
@@ -186,12 +187,11 @@ def resolve_sources(channel="main", token="", get=request, source_ref=None):
     kbuild = get(base + "/contents/kernel/Kbuild?ref=" + pin, token)["data"]
     import base64
     text = base64.b64decode(kbuild["content"]).decode()
-    # Reject a changed version formula instead of silently inventing a version.
-    if not (re.search(r"^VERSION_BASE\s*:=\s*40000\s*$", text, re.M)
-            and re.search(r"^VERSION_OFFSET\s*:=\s*2815\s*$", text, re.M)
-            and "expr $(VERSION_BASE) + $(LOCAL_COUNT) - $(VERSION_OFFSET)" in text):
-        raise CenterError("SukiSU hat die Versionsberechnung geändert; Anpassung erforderlich.")
-    code = 40000 + count - 2815
+    try:
+        identity=identify_version(text,count)
+    except ValueError as exc:
+        raise CenterError(str(exc)) from None
+    code=identity['sukisu_code']
     gitlab = "https://gitlab.com/api/v4/projects/simonpunk%2Fsusfs4ksu/repository"
     sus_commit = get(gitlab + "/commits/gki-android14-6.1")["data"]
     sus_pin = sus_commit["id"]
@@ -206,7 +206,8 @@ def resolve_sources(channel="main", token="", get=request, source_ref=None):
     manager = next((a for a in release.get("assets", [])
                     if a["name"].endswith(".apk") and f"_{code}-" in a["name"]), None)
     tag = f"s928b-ezj1-suki{code}-susfs{version.removeprefix('v')}-{pin[:8]}-{sus_pin[:8]}"
-    return {"schema": 1, "channel": "pinned" if source_ref else channel,
+    return {"schema": 1, **identity, "sukisu_repository":SUKISU_REPOSITORY,
+            "channel": "pinned" if source_ref else channel,
             "sukisu_requested_ref": source_ref, "sukisu_commit": pin, "sukisu_code": code,
             "sukisu_count": count, "sukisu_tag": release["tag_name"],
             "sukisu_message": commit["commit"]["message"].splitlines()[0],

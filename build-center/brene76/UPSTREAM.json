@@ -1,0 +1,30 @@
+{
+  "version": "0.0.76",
+  "archive_sha256": "9932421b98ba71b00d500cd1ee944705f0ab2f78ee7c6fbef281bfee4b6f7a8c",
+  "archive_bytes": 122633,
+  "files_sha256": {
+    "action.sh": "87cb78c16a9133c1e4214386c6ca9749895fcc74ef4a5c550d034b42e2f6fadc",
+    "boot-completed.sh": "75c141544fd016cec23e573c229d780e247f603239a5bc66844601b145cf1ae1",
+    "config.sh": "3715a200797ce09f9d821a5d2fbc4795d3fe50cc2b621c2860da32ab06a25bc5",
+    "customize.sh": "622db03d64ace6f3140d52b7231c910d8985698811a669ee98b950d4fef4f87f",
+    "inotify.sh": "e5fecf0763cd0ad1c815ff598edba7a13f14d0c63c1d733cd8c7fcf9979c4dcc",
+    "module.prop": "3ba605f8a521579c0e58c7da61e584711adf729a63f78840c7709f984b9c08bc",
+    "post-fs-data.sh": "aba6636635657db86c3deeaccbea3cf1815693a732aa8ae29dac2b56e5f6a227",
+    "remove_ksu_directory.sh": "1f4ffb78ea8005bdd1f117043dac50f848f637f91e53cd42e574b0f0038a84ba",
+    "sepolicy.rule": "f69105cefbbb13f582caee26439203f6971f1400c603931f1132e94b72e3f8eb",
+    "tools/": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tools/susfs": "9ee2c20931d21fdecc656d4cc376e36333900169ed94565bb16c05892ccec945",
+    "uninstall.sh": "6ec328352121b702a7602285b78a5508543c9d6b9676dfbd90e77159633edf30",
+    "utils.sh": "070ab1a352b34043fdec45e549ea81af7f9afeec5b0292e085c8182dd50ed92a",
+    "webroot/": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "webroot/assets/": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "webroot/assets/kernelsu.js": "ccd921e1311e48488a8611be526e3fc040d30c7914e87ce915fac5a326e9c3b1",
+    "webroot/assets/mwc.js": "81a6f33563056ef13c0005fb0c330132aab92740abb065d8826d3ac092dd3a65",
+    "webroot/index.html": "f0169437c4d52e9bc05853bb01e544351568a76f07fd69e014757f7307304b12",
+    "webroot/script.js": "990a8794696d9da35fd3446433f4fcf3cd74754bc6575fb6f00c477d38f3d49b",
+    "webroot/styles.css": "fe84e3ca0e8b35ee96951e10e3a09078cf2f8a6d6f3078b64ab8bcd7b88e0b9b",
+    "webroot/theme.css": "323d68107b70ccaa2756338d3b40387391879a982ab359570c94b03788ba4b18"
+  },
+  "standalone_scripts_executed": false,
+  "standalone_hooks_installed": false
+}

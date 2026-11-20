@@ -12,9 +12,11 @@ import shutil
 if __package__:
     from .firmware_profile import prepare as prepare_firmware
     from .kbuild_compat import REVIEWED_PINS as KBUILD_REFRESH_PINS, adapt_compat_patch
+    from .versions import validate as validate_version
 else:
     from firmware_profile import prepare as prepare_firmware
     from kbuild_compat import REVIEWED_PINS as KBUILD_REFRESH_PINS, adapt_compat_patch
+    from versions import validate as validate_version
 
 OLD_PIN = 'd7d042816b82b200c25b3a93dcc158ba0307cabf'
 OLD_CODE = '41165'
@@ -25,8 +27,7 @@ def validate(plan):
         if not re.fullmatch('[0-9a-f]{40}', plan.get(key, '')):
             raise ValueError('Invalid immutable pin: '+key)
     count, code = plan['sukisu_count'], plan['sukisu_code']
-    if type(count) is not int or type(code) is not int or code != 40000+count-2815 or count < 2815:
-        raise ValueError('Invalid source/version mapping')
+    validate_version(plan)
     reviewed = KBUILD_REFRESH_PINS.get(plan['sukisu_commit'])
     if reviewed is not None and (code, count) != reviewed:
         raise ValueError('Invalid reviewed source/version mapping')
@@ -79,6 +80,17 @@ def prepare(root, plan):
         compat = port / 'compat.patch'
         compat.write_bytes(adapt_compat_patch(compat.read_bytes(), plan))
         print(f'Refreshed the exact {code} Kbuild preinit deletion hunk; audited build profile retained')
+    if plan.get('sukisu_family')=='nova':
+        if __package__:
+            from .nova import prepare_nova_helpers
+        else:
+            from nova import prepare_nova_helpers
+        prepare_nova_helpers(root,plan)
+        if __package__:
+            from .userspace import prepare as prepare_userspace
+        else:
+            from userspace import prepare as prepare_userspace
+        prepare_userspace(helper,plan)
     wrapper = "from pathlib import Path\nimport sys\nsys.path.insert(0,str(Path(__file__).resolve().parents[1]))\nfrom _center_runtime import {}\n{}()\n"
     (port / 'apply.py').write_text(wrapper.format('port_apply', 'port_apply'), encoding='utf-8')
     (port / 'check.py').write_text(wrapper.format('port_check', 'port_check'), encoding='utf-8')

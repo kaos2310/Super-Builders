@@ -38,7 +38,7 @@ class GuardPublicationTests(unittest.TestCase):
     def test_existing_hook_replacement_is_rejected_even_with_new_member_checksums(self):
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'guard.zip';self.package(path,**{'bin/zm-susfs-owner':b'replaced'})
-            with self.assertRaisesRegex(RuntimeError,'preserv'):checked_guard6(path,self.plan)
+            with self.assertRaisesRegex(RuntimeError,'Preserved module file changed'):checked_guard6(path,self.plan)
 
     def test_cached_device_state_and_wrong_architecture_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,0 +1,11 @@
+# ReSuSFS für SukiSU Nova / SUSFS 2.4.0
+
+Die ursprüngliche ReSuSFS-Oberfläche, Regeln, UserHub, Skripte, Zeitpläne und Einstellungen bleiben erhalten. Runtime und Priority UID bleiben eine separate Ergänzung der SUSFS-Seite. Das bestehende Installationsskript übernimmt vorhandene Einstellungen unabhängig von der numerisch kleineren Nova-Kernelversionsnummer; es schreibt keine vorhandenen Nutzerdateien neu.
+
+Im vorhandenen Runtime-Dialog kommt ein weiterer Abschnitt hinzu: **SUS_PATH: Pfade für ausgewählte Apps sichtbar lassen**. Er verwendet den offiziellen neuen Befehl `set_sus_path_uid_filter` aus dem im Build festgeschriebenen SUSFS-Quellstand. Eingetragene App-Paketnamen bilden eine Sichtbarkeitsfreigabe für vorhandene SUS_PATH-Regeln. Eine leere Auswahl entfernt diese Freigaben. Die Optionen Priority UID und Runtime bleiben unabhängig davon verfügbar.
+
+Das Öffnen der Seite liest nur Status und gespeicherte Auswahl. SUSFS liefert für diese native Paketliste keinen Getter; die Oberfläche behauptet deshalb keine zurückgelesene Kernel-Liste. Auch der Versionsstring v2.4.0 beweist die Existenz des neuen Befehls nicht: erst der ausdrücklich ausgelöste Schreibaufruf bestätigt Unterstützung. Ein Fehler des Kernels wird angezeigt und überschreibt die gespeicherte Auswahl nicht. ReSuSFS muss der aktive SUSFS-Verwalter sein; ein anderer aktiver Verwalter sperrt Schreibaufrufe. Zuständigkeit und globale Tools werden nicht verändert.
+
+Neue Optionen sind ohne eigene Auswahl nicht gesetzt. Nur eine bewusst gespeicherte Liste wird beim Boot wiederhergestellt. Änderungen verwenden die Revision der gespeicherten Liste, eine Schreibsperre und erneute Zuständigkeitsprüfung. Der Kernel löst die Paketnamen anhand der installierten Apps selbst auf und kann unbekannte Pakete ablehnen.
+
+Die ZIP enthält die vollständigen ursprünglichen Moduldateien, den aus den passenden offiziellen C-Quellen gebauten privaten SUSFS-CLI, den unveränderten Runtime-Controller und eine zusätzliche private Pfadfilter-Steuerung. Das Build-Manifest dokumentiert Quellen, Hashes und unveränderte Dateien. Vorhandene Android-Nachweise betreffen den bisherigen Runtime-Controller; sie sind kein Gerätetest des neuen nativen Pfadfilters. Die ZIP wird als Installationsartefakt bereitgestellt; sie installiert oder startet das Telefon nicht automatisch neu.

@@ -1,0 +1,6 @@
+{
+  "upstream_pin": "f76b81f2a6bf98e4029cc0c823c054edbec29803",
+  "fixture_sha256": "857a8eae98653cc722e8d2c64db52c0959ae6f27fd8d15085ee603a4fe560988",
+  "source_file": "kernel_patches/fs/susfs.c",
+  "only_downstream_consumer_change": "susfs_uid_gate_current predicate preserved"
+}

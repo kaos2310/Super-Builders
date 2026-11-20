@@ -11,25 +11,28 @@ def run(*args):
 if __name__=='__main__':
     args=arguments().parse_args();helpers=args.helpers.resolve();plan=json.loads(args.plan.read_text())
     validate(plan,helpers)
-    for changes in ({'sukisu_code':41176},{'susfs_commit':'f'*40},{'profile':'wrong'}):
+    for changes in ({'sukisu_code':41179},{'susfs_commit':'f'*40},{'profile':'wrong'}):
         changed=copy.deepcopy(plan);changed.update(changes)
         try:validate(changed,helpers)
         except RuntimeError:pass
         else:raise RuntimeError('Wrong source/profile was accepted')
-    run('node',helpers/'zeromount-ui-41179/test.mjs')
-    run(sys.executable,'-B',helpers/'zeromount-package-41179/test_install.py')
+    run('node',Path(__file__).resolve().parents[1]/'brene76/test.mjs')
+    run(sys.executable,'-B',Path(__file__).resolve().parents[1]/'brene76/test.py')
+    run(sys.executable,'-B',Path(__file__).resolve().parents[1]/'brene76/test_overlay.py','--helpers',helpers)
+    run('node',helpers/f'zeromount-ui-{plan["sukisu_code"]}/test.mjs')
+    run(sys.executable,'-B',helpers/f'zeromount-package-{plan["sukisu_code"]}/test_install.py')
     with tempfile.TemporaryDirectory() as temporary:
         root=Path(temporary);source=root/'base';source.mkdir()
-        with zipfile.ZipFile(helpers/'zeromount-package-41179/module-base.zip') as archive:
+        with zipfile.ZipFile(helpers/f'zeromount-package-{plan["sukisu_code"]}/module-base.zip') as archive:
             for name in archive.namelist():
                 path=PurePosixPath(name)
                 if path.is_absolute() or '..' in path.parts or '\\' in name:raise RuntimeError('Unsafe baseline')
                 target=source/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(archive.read(name))
-        run(sys.executable,'-B',helpers/'zeromount-ui-41179/test.py',source)
-        result=package(helpers,plan,args.runtime_helper,root/'output')
+        run(sys.executable,'-B',helpers/f'zeromount-ui-{plan["sukisu_code"]}/test.py',source)
+        result=package(helpers,plan,args.runtime_helper,root/'output',args.susfs_tool)
         with zipfile.ZipFile(root/'output'/result['zip_name']) as archive:
             for line in archive.read('COMPAT-SHA256SUMS').decode().splitlines():
                 digest,name=line.split('  ',1)
                 from package import sha
                 if sha(archive.read(name))!=digest:raise RuntimeError('Installed-member checksum mismatch')
-    print('PASS Guard6.13/BRENE75 original controls, additive Runtime, installer persistence, source pair and complete package')
+    print('PASS Guard6.13/BRENE76 original controls, additive Runtime, installer persistence, source pair and complete package')

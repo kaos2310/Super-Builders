@@ -17,12 +17,12 @@ let dispatched=0,requestId='',failSources=false;
 const makeRun=(id,status='in_progress')=>({id,status,conclusion:status==='completed'?'success':null,head_branch:'main',head_sha:pin,display_title:requestId?'Build Center · '+requestId:'Build Center · automatisch',html_url:'https://github.com/a/b/actions/runs/'+id});
 let currentRun=makeRun(9000),jobRequests=0;
 function response(url){
-  if(url.endsWith('/releases/latest'))return {tag_name:'v4.3.0-r2',assets:[]};
-  if(url.includes('SukiSU-Ultra/SukiSU-Ultra/commits?'))return {data:[{sha:pin}],headers:{link:'<https://api.github.com/repos/a/b/commits?per_page=1&page=3983>; rel="last"'}};
-  if(url.includes('contents/kernel/Kbuild'))return {content:encode('VERSION_BASE := 40000\nVERSION_OFFSET := 2815\nKSU_VERSION := $(shell expr $(VERSION_BASE) + $(LOCAL_COUNT) - $(VERSION_OFFSET))')};
+  if(url.endsWith('/releases/latest'))return {tag_name:'v3.0.0',assets:[]};
+  if(url.includes('SukiSU-Nova/SukiSU-Nova/commits?'))return {data:[{sha:pin}],headers:{link:'<https://api.github.com/repos/a/b/commits?per_page=1&page=4008>; rel="last"'}};
+  if(url.includes('contents/kernel/Kbuild'))return {content:encode('VERSION_BASE := 30000\nVERSION_OFFSET := 996\nKSU_VERSION := $(shell expr $(VERSION_BASE) + $(LOCAL_COUNT) + $(VERSION_OFFSET))')};
   if(url.includes('/files/'))return {content:encode('#define SUSFS_VERSION "v2.4.0"')};
   if(url.includes('gitlab.com'))return {id:susPin,title:'KernelSU: Sync with upstream'};
-  if(url.includes('SukiSU-Ultra/SukiSU-Ultra/commits/'))return {sha:pin,commit:{message:failSources?'failure':'manager update'}};
+  if(url.includes('SukiSU-Nova/SukiSU-Nova/commits/'))return {sha:pin,commit:{message:failSources?'failure':'manager update'}};
   if(url.includes('/repos/kaos2310/Super-Builders/commits/'))return {sha:pin};
   if(url.endsWith('/actions/workflows/build-center.yml'))return {state:'active'};
   if(url.includes('/actions/workflows/build-center.yml/runs'))return {workflow_runs:[currentRun]};
@@ -42,11 +42,11 @@ try{
   await page.route('**/api/proxy',async route=>{
     const b=route.request().postDataJSON();
     if(b.url.endsWith('/repos/kaos2310/Super-Builders/commits/kaos2310'))return route.fulfill({json:{status:422,data:{message:'No commit found for SHA: kaos2310'},headers:{}}});
-    if(failSources&&b.url.includes('SukiSU-Ultra/SukiSU-Ultra/commits/'))return route.fulfill({json:{status:403,data:{},headers:{}}});
+    if(failSources&&b.url.includes('SukiSU-Nova/SukiSU-Nova/commits/'))return route.fulfill({json:{status:403,data:{},headers:{}}});
     if(b.method==='POST'){dispatched++;requestId=b.data.inputs.request_id;currentRun=makeRun(9001);return route.fulfill({json:{status:204,data:null,headers:{}}});}
     const value=response(b.url);await route.fulfill({json:value.data?{status:200,...value}:{status:200,headers:{},data:value}});
   });
-  await page.goto(base);await page.waitForFunction(()=>document.getElementById('suki-version').textContent.includes('41168'));
+  await page.goto(base);await page.waitForFunction(()=>document.getElementById('suki-version').textContent.includes('35004'));
   await page.waitForFunction(()=>!document.getElementById('refresh').disabled);
   assert.equal(await page.locator('#build').isDisabled(),true);report.checks.push('Sources resolve without token; dispatch remains disabled');
   const initialJobRequests=jobRequests;

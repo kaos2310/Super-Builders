@@ -1,12 +1,12 @@
 name: SukiSU Build Center
-run-name: SukiSU 41179 EZJ1 · ${{ inputs.request_id || 'official main' }} · Guard6.13 BRENE75 · SUSFS2.4.0
+run-name: SukiSU Nova 35004 EZJ1 · ${{ inputs.request_id || 'official main' }} · Guard6.13 BRENE76 · SUSFS2.4.0
 'on':
   schedule:
   - cron: 17 * * * *
   workflow_dispatch:
     inputs:
       channel:
-        description: Geprüfter offizieller SukiSU-Hauptbranch 41179
+        description: Geprüfter offizieller SukiSU-Nova-Hauptbranch 35004
         type: choice
         options:
         - main
@@ -23,7 +23,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: build-center-${{ github.repository }}-s928b-ezj1-41179-${{ github.ref_name }}
+  group: build-center-${{ github.repository }}-s928b-ezj1-nova35004-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   resolve:
@@ -49,8 +49,8 @@ jobs:
       run: |
         set -euo pipefail
         ARGS=(--channel "$CHANNEL")
-        ARGS+=(--expected-main-commit dae36db016079546b9fc028636a3326d09979777 --expected-main-code 41179)
-        ARGS+=(--expected-susfs-commit 69b8e734920b8f9ed885ab8d112969719698e242)
+        ARGS+=(--expected-main-commit 1439545f12bffe0263690ba862139b70ee5f20cf --expected-main-code 35004)
+        ARGS+=(--expected-susfs-commit f76b81f2a6bf98e4029cc0c823c054edbec29803)
         [[ "$FORCE" != true ]] || ARGS+=(--force)
         python3 build-center/ci/check_updates.py "${ARGS[@]}"
     - uses: actions/upload-artifact@v7
@@ -423,7 +423,7 @@ jobs:
   userspace:
     name: SukiSU${{ needs.resolve.outputs.code }} ksud + ksuinit / native UAPI6 / ARM64
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       LIBCLANG_PATH: /usr/lib/llvm-18/lib
     steps:
@@ -449,14 +449,14 @@ jobs:
         test '${{ needs.resolve.outputs.code }}' = ${{ needs.resolve.outputs.code }}
     - uses: actions/checkout@v6
       with:
-        repository: SukiSU-Ultra/SukiSU-Ultra
+        repository: SukiSU-Nova/SukiSU-Nova
         ref: ${{ needs.resolve.outputs.pin }}
         fetch-depth: 0
         path: sukisu
     - uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: nightly
-        targets: aarch64-linux-android
+        targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android
         components: rust-src
     - name: Install Clang and bindgen prerequisites
       run: |
@@ -480,6 +480,43 @@ jobs:
         set -euo pipefail
         cargo +nightly metadata --locked --format-version 1 --filter-platform aarch64-linux-android --manifest-path userspace/ksuinit/Cargo.toml > ../userspace-artifacts/ksuinit-metadata.json
         cargo +nightly metadata --locked --format-version 1 --filter-platform aarch64-linux-android --manifest-path userspace/ksud/Cargo.toml > ../userspace-artifacts/ksud-metadata.json
+    - name: Checkout the exact Nova BuiltZygisk gitlink and its pinned dependencies
+      uses: actions/checkout@v6
+      with:
+        repository: SukiSU-Nova/BuiltZygisk
+        ref: dfe0b4d2cac3d91a72880b073c3f1d95bc8953d4
+        path: sukisu/external/BuiltZygisk
+        fetch-depth: 0
+        submodules: true
+        persist-credentials: false
+    - uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '21'
+    - uses: android-actions/setup-android@v3
+    - name: Install the unchanged upstream BuiltZygisk build toolchain
+      run: |
+        set -euo pipefail
+        sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "ndk;27.2.12479018" "cmake;4.1.2"
+        cargo install cargo-ndk --version 4.1.2 --locked
+    - name: Build the complete upstream BuiltZygisk payload from pinned sources
+      working-directory: sukisu/external/BuiltZygisk
+      env:
+        CARGO_BUILD_JOBS: '4'
+        RUSTUP_TOOLCHAIN: nightly
+      run: |
+        set -euo pipefail
+        cargo generate-lockfile --manifest-path zygiskd/Cargo.toml
+        cp zygiskd/Cargo.lock "$GITHUB_WORKSPACE/userspace-artifacts/BuiltZygisk.Cargo.lock"
+        cargo metadata --locked --format-version 1 --manifest-path zygiskd/Cargo.toml > "$GITHUB_WORKSPACE/userspace-artifacts/BuiltZygisk-metadata.json"
+        export BUILTZYGISK_CARGO="$(command -v cargo)"
+        mkdir -p "$RUNNER_TEMP/locked-cargo"
+        install -m755 "$GITHUB_WORKSPACE/.build-center/build-center/ci/locked_cargo.py" "$RUNNER_TEMP/locked-cargo/cargo"
+        export PATH="$RUNNER_TEMP/locked-cargo:$PATH"
+        chmod +x gradlew
+        ./gradlew --no-daemon zipRelease -Porg.gradle.parallel=true -Dorg.gradle.jvmargs=-Xmx2048m
+    - name: Verify and embed every ARM64 and compat32 BuiltZygisk asset
+      run: python3 .build-center/build-center/ci/builtzygisk.py sukisu --receipt userspace-artifacts/BUILTZYGISK.json
     - name: Build native workspace ksuinit for Android ARM64
       working-directory: sukisu
       env:
@@ -507,11 +544,12 @@ jobs:
       run: |
         set -euo pipefail
         python3 builder/android14-6.1/build-helpers/verify-sukisu-${{ needs.resolve.outputs.code }}-userspace.py sukisu --receipt userspace-artifacts/BUILD-IDENTITY.json --verify-build --build-messages userspace-artifacts/ksud-build-messages.jsonl
+        python3 .build-center/build-center/ci/builtzygisk.py sukisu --receipt userspace-artifacts/BUILTZYGISK.json --verify
         cp sukisu/target/aarch64-linux-android/release/ksud sukisu/target/aarch64-linux-android/release/ksuinit userspace-artifacts/
         cp sukisu/Cargo.lock userspace-artifacts/Cargo.effective.lock
         git -C sukisu show HEAD:Cargo.lock > userspace-artifacts/Cargo.upstream.lock
         cd userspace-artifacts
-        sha256sum ksud ksuinit *.lock *-metadata.json ksud-build-messages.jsonl BUILD-IDENTITY.json > SHA256SUMS
+        sha256sum ksud ksuinit *.lock *-metadata.json ksud-build-messages.jsonl BUILD-IDENTITY.json BUILTZYGISK.json > SHA256SUMS
     - uses: actions/upload-artifact@v7
       with:
         name: SukiSU-${{ needs.resolve.outputs.code }}-ARM64-ksud-ksuinit
@@ -613,6 +651,14 @@ jobs:
           brene71-adapter/
         if-no-files-found: error
         retention-days: 30
+    - name: Build the latest private SUSFS CLI for Guard6 BRENE76
+      env:
+        ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
+      run: |
+        set -euo pipefail
+        python3 builder/android14-6.1/build-helpers/_center_runtime.py update-tool
+        mkdir -p guard6-output
+        python3 -B builder/android14-6.1/build-helpers/resusfs-${{ needs.resolve.outputs.code }}-240/build_tool.py --ndk "$ANDROID_NDK_ROOT" --output guard6-output/ksu_susfs
     - name: Build matching Guard6.13 Runtime helper from source
       env:
         ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
@@ -622,15 +668,15 @@ jobs:
         CLANG="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
         "$CLANG" --target=aarch64-linux-android26 -Os -nostdlib -static -fno-builtin -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -Wl,-e,_start -Wl,--build-id=none -Wl,-z,max-page-size=16384 "builder/android14-6.1/build-helpers/susfs-runtime-${{ needs.resolve.outputs.code }}/susfs-runtime.c" -o guard6-output/susfs-runtime
         readelf -h guard6-output/susfs-runtime | grep -q AArch64
-    - name: Test and package complete Guard6.13 BRENE75 with additive Runtime menu
+    - name: Test and package complete Guard6.13 BRENE76 with additive Runtime menu
       run: |
         set -euo pipefail
         HELPERS="$GITHUB_WORKSPACE/builder/android14-6.1/build-helpers"
-        python3 -B .build-center/build-center/guard6/test.py --helpers "$HELPERS" --plan builder/.build-center-plan.json --runtime-helper guard6-output/susfs-runtime
-        python3 -B .build-center/build-center/guard6/package.py --helpers "$HELPERS" --plan builder/.build-center-plan.json --runtime-helper guard6-output/susfs-runtime --output guard6-output
+        python3 -B .build-center/build-center/guard6/test.py --helpers "$HELPERS" --plan builder/.build-center-plan.json --runtime-helper guard6-output/susfs-runtime --susfs-tool guard6-output/ksu_susfs
+        python3 -B .build-center/build-center/guard6/package.py --helpers "$HELPERS" --plan builder/.build-center-plan.json --runtime-helper guard6-output/susfs-runtime --susfs-tool guard6-output/ksu_susfs --output guard6-output
     - uses: actions/upload-artifact@v7
       with:
-        name: ZeroMount-Guard6.13-BRENE75-SUSFS2.4.0-SukiSU${{ needs.resolve.outputs.code }}-ARM64
+        name: ZeroMount-Guard6.13-BRENE76-SUSFS2.4.0-SukiSUNova${{ needs.resolve.outputs.code }}-ARM64
         path: guard6-output/
         if-no-files-found: error
         retention-days: 30
@@ -681,11 +727,15 @@ jobs:
     - name: Package ReSuSFS without replacing global tools or saved configuration
       run: |
         set -euo pipefail
-        python3 -B android14-6.1/build-helpers/resusfs-${{ needs.resolve.outputs.code }}-240/package.py --runtime-helper module-output/susfs-runtime --susfs-tool module-output/ksu_susfs --output module-output
-        python3 -B android14-6.1/build-helpers/resusfs-${{ needs.resolve.outputs.code }}-240/test_package.py module-output/ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-r2-SukiSU${{ needs.resolve.outputs.code }}-arm64.zip
+        HELPERS="$GITHUB_WORKSPACE/android14-6.1/build-helpers"
+        LEGACY="$HELPERS/resusfs-${{ needs.resolve.outputs.code }}-240"
+        python3 -B .build-center/build-center/resusfs/test.py --legacy-dir "$LEGACY"
+        node .build-center/build-center/resusfs/test.mjs "$LEGACY"
+        python3 -B .build-center/build-center/resusfs/package.py --helpers "$HELPERS" --plan .build-center-plan.json --runtime-helper module-output/susfs-runtime --susfs-tool module-output/ksu_susfs --output module-output
+        python3 -B .build-center/build-center/resusfs/test.py --legacy-dir "$LEGACY" --zip module-output/ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-r3-Nova${{ needs.resolve.outputs.code }}-arm64.zip
     - uses: actions/upload-artifact@v7
       with:
-        name: ReSuSFS-SUSFS2.4.0-Runtime1-r2-SukiSU${{ needs.resolve.outputs.code }}-ARM64
+        name: ReSuSFS-SUSFS2.4.0-Runtime1-r3-Nova${{ needs.resolve.outputs.code }}-ARM64
         path: module-output/
         if-no-files-found: error
         retention-days: 30
@@ -1120,7 +1170,7 @@ jobs:
         set -euo pipefail
         PIN="${{ needs.resolve.outputs.pin }}"
         test "$PIN" = ${{ needs.resolve.outputs.pin }}
-        git clone https://github.com/SukiSU-Ultra/SukiSU-Ultra.git "$KSU_DIR"
+        git clone https://github.com/SukiSU-Nova/SukiSU-Nova.git "$KSU_DIR"
         git -C "$KSU_DIR" fetch origin "$PIN"
         git -C "$KSU_DIR" checkout --detach "$PIN"
         test "$(git -C "$KSU_DIR" rev-parse HEAD)" = "$PIN"
@@ -1128,7 +1178,7 @@ jobs:
         ln -s "../../$KSU_DIR/kernel" common/drivers/kernelsu
         printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> common/drivers/Makefile
         printf '\nsource "drivers/kernelsu/Kconfig"\n' >> common/drivers/Kconfig
-        echo "RESUKISU_VERSION_FULL=v4.3.0-r2-${{ needs.resolve.outputs.code }}-${{ fromJSON(needs.resolve.outputs.plan).sukisu_short }}" >> "$GITHUB_ENV"
+        echo "RESUKISU_VERSION_FULL=${{ fromJSON(needs.resolve.outputs.plan).sukisu_tag }}-${{ needs.resolve.outputs.code }}-${{ fromJSON(needs.resolve.outputs.plan).sukisu_short }}" >> "$GITHUB_ENV"
     - name: Fix Old Kernel Compatibility
       working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |
@@ -2585,7 +2635,7 @@ jobs:
         merge-multiple: true
     - uses: actions/download-artifact@v8
       with:
-        pattern: ZeroMount-Guard6.13-BRENE75-*
+        pattern: ZeroMount-Guard6.13-BRENE76-*
         path: guard6-files
         merge-multiple: true
     - name: ZIP-Inhalt prüfen und Release mit SHA-256 veröffentlichen

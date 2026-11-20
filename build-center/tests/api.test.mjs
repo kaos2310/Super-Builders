@@ -54,3 +54,20 @@ test('only releases with immutable build manifest become automation results',()=
 test('expired artifacts and API rate limits have actionable errors',()=>{
   assert.match(apiError(410),/abgelaufen/);assert.match(apiError(403),/API-Limit/);
 });
+
+test('Nova main uses the official reset and canonical repository',async()=>{
+  const pin='a'.repeat(40),susPin='b'.repeat(40),calls=[];
+  const api=new Github(async b=>{
+    calls.push(b.url);let data,headers={};
+    if(b.url.endsWith('/releases/latest'))data={tag_name:'v3.0.0',assets:[]};
+    else if(b.url.includes('/commits?')){data=[{sha:pin}];headers.link='<https://api.github.com/repos/SukiSU-Nova/SukiSU-Nova/commits?per_page=1&page=4008>; rel="last"';}
+    else if(b.url.includes('contents/kernel/Kbuild'))data={content:Buffer.from('VERSION_BASE := 30000\nVERSION_OFFSET := 996\nKSU_VERSION := $(shell expr $(VERSION_BASE) + $(LOCAL_COUNT) + $(VERSION_OFFSET))').toString('base64')};
+    else if(b.url.includes('/files/'))data={content:Buffer.from('#define SUSFS_VERSION "v2.4.0"').toString('base64')};
+    else if(b.url.includes('gitlab.com'))data={id:susPin,title:'SUS_PATH filter'};
+    else data={sha:pin,commit:{message:'Nova latest main'}};
+    return {status:200,data,headers};
+  });
+  const source=await api.sources();
+  assert.equal(source.sukisu_code,35004);assert.equal(source.sukisu_family,'nova');
+  assert.ok(calls.filter(u=>u.includes('api.github.com')).every(u=>u.includes('SukiSU-Nova/SukiSU-Nova')));
+});

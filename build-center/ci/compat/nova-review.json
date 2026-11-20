@@ -1,0 +1,33 @@
+{
+  "nova_pin": "1439545f12bffe0263690ba862139b70ee5f20cf",
+  "version_code": 35004,
+  "full_history_count": 4008,
+  "formula": "30000 + 4008 + 996",
+  "susfs_pin": "f76b81f2a6bf98e4029cc0c823c054edbec29803",
+  "susfs_release_base": "a2165b6f875b73e2f87d3c6f12814efac8de061d",
+  "compat_sha256": "5c3ba699fc7a1db821d3b8555218e5e67c47d0ab754606d0385de0bc0be5b3c8",
+  "source_files_base_target_sha256": {
+    "fs/susfs.c": [
+      "eb192f62a9ec70b0c00b0e800d5734a7e51f357bb3d001e10d1e3be9f76e9b0d",
+      "2a8bb10bca2ad5134cd65bf02ef56863795949b1d9cbed603c380b58d9bc61bf"
+    ],
+    "include/linux/susfs.h": [
+      "1dbe8e9d31211bf07eacf5c28054b7f3bb27d034565b88f1ddff371c356c4dd6",
+      "763a502a37c3ffa3807ba2cab46af31807b8bd87cccb86d12e552d0532a96573"
+    ],
+    "include/linux/susfs_def.h": [
+      "cb441cb566d009bce20c1f4ce43fa10ce3472daafd0f37e144cdf1be87b3f88e",
+      "e8a1cee4b41bcdce43998ae337e60fca9888b2f8bea47074fe3b3377220794d8"
+    ]
+  },
+  "fixture_sha256": "bd8393fa50d8a8707f3838c18e9b8d2425f7d995bce4a508103c307f2547a331",
+  "manager_package": "com.sukisu.nova",
+  "native_selinux_implementation_preserved": true,
+  "manual_parallel_selinux_hooks_excluded": [
+    "security/selinux/hooks.c",
+    "security/selinux/selinuxfs.c"
+  ],
+  "sus_path_uid_filter_command": "0x55554",
+  "compiled_evidence_must_be_created_in_current_run": true,
+  "device_runtime_tested": false
+}

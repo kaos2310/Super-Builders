@@ -84,7 +84,7 @@ async function loadDownloads(){
   const rows=[];
   if(sources){
     if(sources.manager){const a=sources.manager;rows.push(row(`SukiSU-Manager ${sources.sukisu_code}`,`Offizielle APK · ${a.digest||'Prüfsumme wird nach dem Download berechnet'}`,window.KaosNative?'Installieren':'Download',()=>download(a.browser_download_url,a.name,a.digest||'','apk'),'APK'));}
-    else rows.push(row(`Manager passend zu ${sources.sukisu_code}`, 'Für diesen Entwicklungsstand ist noch keine passende Release-APK veröffentlicht.','Upstream öffnen',()=>openExternal('https://github.com/SukiSU-Ultra/SukiSU-Ultra/actions'),'APK'));
+    else rows.push(row(`Manager passend zu ${sources.sukisu_code}`, 'Für diesen Entwicklungsstand ist noch keine passende Release-APK veröffentlicht.','Upstream öffnen',()=>openExternal('https://github.com/SukiSU-Nova/SukiSU-Nova/releases'),'APK'));
     rows.push(row(`SuSFS ${sources.susfs_version} · offizieller Quellcode`,`${sources.susfs_commit.slice(0,12)} · gki-android14-6.1 · Quellarchiv`, 'Download',()=>download(sources.susfs_source_url,`SuSFS-${sources.susfs_version}-${sources.susfs_commit.slice(0,8)}-sources.zip`)));
   }
   try{

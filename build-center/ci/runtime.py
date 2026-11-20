@@ -79,6 +79,14 @@ def module(path,name):
     s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
 
 
+def nova_adapter(plan):
+    if plan.get('sukisu_family') != 'nova':return None
+    path=HERE/'_center_nova.py'
+    if not path.exists():path=HERE/'nova.py'
+    adapter=module(path,'center_nova_adapter');adapter.validate(plan)
+    return adapter
+
+
 def source_hashes(ksu,common,helper,code,normalize):
     names=command('git','-C',ksu,'ls-tree','-r','--name-only','HEAD','--','kernel','uapi').decode().splitlines()
     names+=['kernel/compat/kernel_compat.h']
@@ -98,6 +106,8 @@ def check(common,ksu,config=None,final_capture=False):
     native(common,ksu,plan['sukisu_commit'])
     command(sys.executable,h/f'configure-sukisu-{code}.py',ksu,'--verify-only')
     command(sys.executable,h/f'susfs-priority-uid-{code}/apply.py','--common',common,'--ksu',ksu,'--verify-only')
+    if nova_adapter(plan) and (common/'.build-center-susfs-update.json').exists():
+        verify_nova_update(common,ksu,h,plan)
     receipt_path=common/'.build-center-source-manifest.json'
     previous=json.loads(receipt_path.read_text()) if receipt_path.exists() else None
     normalize=not final_capture and not (previous and previous.get('final_sources'))
@@ -119,6 +129,9 @@ def check(common,ksu,config=None,final_capture=False):
         lines=config.read_text().splitlines()
         for item in ('CONFIG_KSU=y','CONFIG_KSU_SUSFS=y','CONFIG_KPM=y','CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER=y'):
             if item not in lines:raise RuntimeError('Missing '+item)
+        if nova_adapter(plan):
+            for item in ('CONFIG_KSU_SUSFS_SUS_PATH=y','CONFIG_KSU_SUSFS_OPEN_REDIRECT=y'):
+                if item not in lines:raise RuntimeError('Native Nova GKI delta review requires '+item)
         if any(s in lines for s in ('CONFIG_CGROUP_PIDS=y','CONFIG_CFS_BANDWIDTH=y','CONFIG_KSU=m')):
             raise RuntimeError('Samsung profile drift')
     (h/f'sukisu-{code}-susfs/PREFLIGHT.json').write_text(json.dumps(result,indent=2)+'\n')
@@ -168,20 +181,25 @@ def prepare_susfs(common):
     if patch_name in changed:
         patches=[get(old,patch_name),get(new,patch_name)]
         if any(p is None for p in patches):raise RuntimeError('Upstream GKI patch was removed')
-        touched=set()
-        for patch in patches:
-            for n in re.findall(rb'^(?:--- a/|\+\+\+ b/)([^\r\n]+)',patch,re.M):touched.add(str(safe_relative(n.decode())))
-        trees=[work/'old-patched',work/'new-patched']
-        for tree,patch in zip(trees,patches):
-            tree.mkdir();command('git','init','-q',tree)
+        adapter=nova_adapter(plan)
+        if adapter:
+            review=adapter.review_native_gki_delta(*patches)
+            (work/'native-gki-port-review.json').write_text(json.dumps(review,indent=2)+'\n')
+        else:
+            touched=set()
+            for patch in patches:
+                for n in re.findall(rb'^(?:--- a/|\+\+\+ b/)([^\r\n]+)',patch,re.M):touched.add(str(safe_relative(n.decode())))
+            trees=[work/'old-patched',work/'new-patched']
+            for tree,patch in zip(trees,patches):
+                tree.mkdir();command('git','init','-q',tree)
+                for name in touched:
+                    original=common/name
+                    if original.is_file():
+                        dest=tree/name;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(original,dest)
+                command('git','-C',tree,'apply','--check','-',input=patch)
+                command('git','-C',tree,'apply','-',input=patch)
             for name in touched:
-                original=common/name
-                if original.is_file():
-                    dest=tree/name;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(original,dest)
-            command('git','-C',tree,'apply','--check','-',input=patch)
-            command('git','-C',tree,'apply','-',input=patch)
-        for name in touched:
-            records[name]=[(tree/name).read_bytes() if (tree/name).exists() else None for tree in trees]
+                records[name]=[(tree/name).read_bytes() if (tree/name).exists() else None for tree in trees]
     for name in changed:
         if name.startswith(('kernel_patches/fs/','kernel_patches/include/linux/')):
             mapped=name.removeprefix('kernel_patches/');safe_relative(mapped)
@@ -201,11 +219,31 @@ def prepare_susfs(common):
 
 def sync_susfs(common,ksu):
     root,plan=context();work=root/'.build-center-susfs';records=json.loads((work/'delta.json').read_text())
+    adapter=nova_adapter(plan);helper=root/'android14-6.1/build-helpers'
+    if adapter:
+        # Establish the previous independently checked overlay before accepting
+        # any upstream changes. Rebased hashes below attest this exact merge,
+        # and never turn an unverified local state into a valid receipt.
+        overlay=module(helper/f"susfs-runtime-{plan['sukisu_code']}/apply.py",'nova_previous_runtime')
+        overlay.verify(common,ksu)
+        uid=module(helper/'susfs-uid-gated/apply.py','nova_previous_uid_gate')
+        uid.verify(common,ksu)
+        priority=module(helper/f"susfs-priority-uid-{plan['sukisu_code']}/apply.py",'nova_previous_priority')
+        priority.verify(common,ksu)
+        release=module(helper/f"susfs-runtime-{plan['sukisu_code']}/release240.py",'nova_previous_release')
+        release.verify(common)
     results={}
+    inputs={};bases={};targets={}
     for name,item in records.items():
         safe_relative(name);p=common/name
         values=[(work/item[k]).read_bytes() if item[k] is not None else None for k in ('base','target')]
-        results[name]=three_way(p.read_bytes() if p.exists() else None,*values)
+        local=p.read_bytes() if p.exists() else None
+        inputs[name]=digest(local) if local is not None else None
+        bases[name]=digest(values[0]) if values[0] is not None else None
+        targets[name]=digest(values[1]) if values[1] is not None else None
+        results[name]=(adapter.merge_susfs_file(name,local,*values,three_way) if adapter else three_way(local,*values))
+    if adapter:
+        receipts=rebase_nova_receipts(common,ksu,helper,plan,results,records,work,overlay,uid,priority)
     # All merges must succeed before any effective kernel source is changed.
     for name,data in results.items():
         p=common/name
@@ -217,9 +255,96 @@ def sync_susfs(common,ksu):
         raise RuntimeError('Merged SuSFS version does not match pinned upstream')
     native(common,ksu,plan['sukisu_commit'])
     receipt={'source_pin':plan['susfs_commit'],'release_base':plan['susfs_release_base'],
-             'susfs_version':plan['susfs_version'],'updated_files':list(results),'conflicts':0}
+             'susfs_version':plan['susfs_version'],'updated_files':list(results),'conflicts':0,
+             'input_sha256':inputs,'base_sha256':bases,'target_sha256':targets,
+             'output_sha256':{name:digest(data) if data is not None else None for name,data in results.items()}}
+    if adapter:
+        receipt.update(reviewed_nova_rebase=True,native_selinux_implementation_preserved=True,
+                       downstream_uid_gate_preserved=True,runtime_remains_additive=True)
+        receipt['native_gki_profile_review']=json.loads((work/'native-gki-port-review.json').read_text())
+        for name,value in receipts.items():
+            (common/name).write_text(json.dumps(value,indent=2)+'\n')
     (common/'.build-center-susfs-update.json').write_text(json.dumps(receipt,indent=2)+'\n')
+    if adapter:
+        verify_nova_update(common,ksu,helper,plan)
+        semantic=adapter.test_sus_path(common,'cc',work/'sus-path-semantic-tests')
+        (common/'.susfs-sus-path-tests.json').write_text(json.dumps(semantic,indent=2)+'\n')
     print('PASS: official SuSFS delta merged without conflicts')
+
+
+def rebase_nova_receipts(common,ksu,helper,plan,results,records,work,overlay,uid,priority):
+    """Validate the planned merged source before issuing current-run hashes."""
+    adapter=nova_adapter(plan)
+    def text(name):
+        group,relative=name.split('/',1)
+        if group=='common' and relative in results:return results[relative].decode()
+        return (common/relative if group=='common' else ksu/relative).read_text()
+    current={name:text(name) for name in overlay.PATHS+overlay.NEW}
+    baseline=overlay.undo({name:current[name] for name in overlay.PATHS})
+    if overlay.transform(baseline)!=current:
+        raise RuntimeError('Latest SuSFS changed the additive runtime overlay contract')
+    runtime=json.loads((common/overlay.STATE).read_text())
+    runtime.update(input_sha256={name:overlay.sha(value) for name,value in baseline.items()},
+                   output_sha256={name:overlay.sha(value) for name,value in current.items()},
+                   rebased_on_official_susfs=plan['susfs_commit'],device_tested=False)
+    files=uid.read_tree(common,ksu)
+    for name,data in results.items():
+        if name in files:files[name]=data.decode()
+    files['fs/susfs.c']=baseline['common/fs/susfs.c']
+    uid_state=json.loads((common/uid.STATE).read_text())
+    scopes=uid.scope_hashes(files,uid_state['scopes'])
+    allowed={'fs/susfs.c:susfs_is_inode_sus_path','include/linux/susfs_def.h'}
+    for name,old in uid_state['scope_sha256'].items():
+        if scopes.get(name)!=old and name not in allowed:
+            raise RuntimeError('Unreviewed UID-gated consumer/protected function delta: '+name)
+    target=(work/records['fs/susfs.c']['target']).read_text()
+    merged=baseline['common/fs/susfs.c']
+    # The complete newest SUS_PATH consumer is retained with one additional
+    # UIDGate predicate. A missing or moved predicate fails this comparison.
+    normalized=adapter.sus_path_guard(merged,False)
+    a,b=adapter.definition(normalized,'susfs_is_inode_sus_path')
+    c,d=adapter.definition(target,'susfs_is_inode_sus_path')
+    if normalized[a:b]!=target[c:d]:
+        raise RuntimeError('Newest SUS_PATH consumer or preserved UID gate changed')
+    new_functions=('susfs_set_sus_path_uid_filter','susfs_parse_sus_path_app_strings',
+                   'susfs_sus_path_app_strings_worker','susfs_is_uid_allowed_for_sus_path')
+    for name in new_functions:
+        a,b=adapter.definition(merged,name);c,d=adapter.definition(target,name)
+        if merged[a:b]!=target[c:d]:raise RuntimeError('Official SUS_PATH implementation drift: '+name)
+    uid_state.update(scope_sha256=scopes,rebased_on_official_susfs=plan['susfs_commit'])
+    # The latest upstream shares bitmap constants with SUS_PATH. Check whole
+    # functions against the pinned source before refreshing their hash receipt.
+    priority_state=json.loads((common/priority.STATE).read_text())
+    for name in priority.NAMES:
+        if priority.body(merged,name)!=priority.body(target,name):
+            raise RuntimeError('Official priority/RCU implementation drift: '+name)
+    priority_state.update(functions_sha256={name:priority.sha(priority.body(merged,name).encode()) for name in priority.NAMES},
+                          rebased_on_official_susfs=plan['susfs_commit'])
+    return {overlay.STATE:runtime,uid.STATE:uid_state,priority.STATE:priority_state}
+
+
+def verify_nova_update(common,ksu,helper,plan):
+    adapter=nova_adapter(plan);adapter.verified_release(common)
+    update=json.loads((common/'.build-center-susfs-update.json').read_text())
+    if update.get('reviewed_nova_rebase') is not True:
+        raise RuntimeError('Reviewed Nova merge receipt missing')
+    for name,expected in update['output_sha256'].items():
+        # The subsequent, separately verified hidden-name integration changes
+        # only readdir.c. Its own exact transformation is checked by check().
+        if name=='fs/readdir.c' and (common/'.susfs-hidden-name-readdir.json').exists():continue
+        p=common/name
+        if (digest(p.read_bytes()) if p.exists() else None)!=expected:
+            raise RuntimeError('Merged official SuSFS source changed: '+name)
+    for path,label in ((helper/f"susfs-runtime-{plan['sukisu_code']}/apply.py",'nova_final_runtime'),
+                       (helper/'susfs-uid-gated/apply.py','nova_final_uid'),
+                       (helper/f"susfs-priority-uid-{plan['sukisu_code']}/apply.py",'nova_final_priority')):
+        module(path,label).verify(common,ksu)
+    dispatch=(ksu/'kernel/supercall/dispatch.c').read_text()
+    if not re.search(r'case CMD_SUSFS_SET_SUS_PATH_UID_FILTER:\s*\{\s*susfs_set_sus_path_uid_filter\(arg\);\s*return 0;',dispatch):
+        raise RuntimeError('Latest SUS_PATH setter is not wired into the native dispatcher')
+    observer=(ksu/'kernel/manager/pkg_observer.c').read_text()
+    if not re.search(r'track_throne\(false\);[\s\S]*?#ifdef CONFIG_KSU_SUSFS_SUS_PATH\s*/\*[^*]*\*/\s*susfs_parse_sus_path_app_strings\(\);',observer):
+        raise RuntimeError('SUS_PATH package reinstall/UID refresh is missing')
 
 
 def update_tool():

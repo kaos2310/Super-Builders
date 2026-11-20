@@ -46,24 +46,40 @@ class InlineWorkflowTests(unittest.TestCase):
         original, _ = expand(self.workflow(), ROOT)
         active = yaml.load((ROOT / '.github/workflows/build-center.yml').read_text(encoding='utf-8'), Loader=Loader)
         self.assertEqual(set(active['jobs']), set(original['jobs']))
-        for name in set(original['jobs']) - {'resolve','zeromount','publish'}:
+        for name in ('dependencies',):
             self.assertEqual(active['jobs'][name], original['jobs'][name], name)
+        strict=copy.deepcopy(original['jobs']['strict'])
+        for step in strict['steps']:
+            if 'run' in step:
+                step['run']=step['run'].replace('https://github.com/SukiSU-Ultra/SukiSU-Ultra.git','https://github.com/SukiSU-Nova/SukiSU-Nova.git')
+                step['run']=step['run'].replace('RESUKISU_VERSION_FULL=v4.3.0-r2-', 'RESUKISU_VERSION_FULL=${{ fromJSON(needs.resolve.outputs.plan).sukisu_tag }}-')
+        self.assertEqual(active['jobs']['strict'],strict,'Every original strict build and attestation step must remain')
+        for name in ('userspace','resusfs'):
+            self.assertEqual(active['jobs'][name]['needs'],original['jobs'][name]['needs'])
+            self.assertEqual(active['jobs'][name]['permissions'],original['jobs'][name]['permissions'])
+        userspace=active['jobs']['userspace']['steps']
+        self.assertTrue(any(s.get('with',{}).get('repository')=='SukiSU-Nova/SukiSU-Nova' for s in userspace))
+        self.assertTrue(any('zipRelease' in s.get('run','') for s in userspace))
+        self.assertEqual(sum('builtzygisk.py' in s.get('run','') for s in userspace),2)
+        self.assertTrue(any('sukisu_${{ needs.resolve.outputs.code }}_lock.py' in s.get('run','') for s in userspace))
         zero=copy.deepcopy(active['jobs']['zeromount'])
         additions=zero['steps'][12:]
         zero['steps']=zero['steps'][:12]
         self.assertEqual(zero,original['jobs']['zeromount'])
-        self.assertEqual(len(additions),3)
-        self.assertIn('guard6/test.py',additions[1]['run'])
-        self.assertIn('guard6/package.py',additions[1]['run'])
-        self.assertIn('ZeroMount-Guard6.13-BRENE75',additions[2]['with']['name'])
+        self.assertEqual(len(additions),4)
+        self.assertIn('build_tool.py',additions[0]['run'])
+        self.assertIn('guard6/test.py',additions[2]['run'])
+        self.assertIn('guard6/package.py',additions[2]['run'])
+        self.assertIn('--susfs-tool guard6-output/ksu_susfs',additions[2]['run'])
+        self.assertIn('ZeroMount-Guard6.13-BRENE76',additions[3]['with']['name'])
         publish=copy.deepcopy(active['jobs']['publish'])
         guard_download=publish['steps'].pop(3)
         self.assertEqual(publish,original['jobs']['publish'])
         self.assertEqual(guard_download['with']['path'],'guard6-files')
         resolver = active['jobs']['resolve']['steps'][1]['run']
-        self.assertIn('--expected-main-code 41179', resolver)
-        self.assertIn('--expected-main-commit dae36db016079546b9fc028636a3326d09979777', resolver)
-        self.assertIn('--expected-susfs-commit 69b8e734920b8f9ed885ab8d112969719698e242',resolver)
+        self.assertIn('--expected-main-code 35004', resolver)
+        self.assertIn('--expected-main-commit 1439545f12bffe0263690ba862139b70ee5f20cf', resolver)
+        self.assertIn('--expected-susfs-commit f76b81f2a6bf98e4029cc0c823c054edbec29803',resolver)
         self.assertNotIn('--sukisu-ref', resolver)
         self.assertNotIn('41178', resolver)
 
