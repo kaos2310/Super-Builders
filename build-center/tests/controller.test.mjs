@@ -21,12 +21,12 @@ test('controller must match both source commits and the version code', () => {
 
 test('Android can find the matching published controller instead of stale main', async () => {
   const github = new api.Github(async body => {
-    if(body.url.includes('/commits/codex%2Fbuild-center-auto-updates'))return {status:404,headers:{},data:{}};
+    if(body.url.includes('/commits/codex%2Fbuild-center-ezjb-auto-20261122'))return {status:404,headers:{},data:{}};
     if(body.url.includes('/commits/'))return ok({sha:body.url.endsWith('/main')?'b'.repeat(40):controllerSha});
     if(body.url.includes('/contents/'))return ok(file(body.url.endsWith(controllerSha)?current:'python3 check_updates.py'));
     if(body.url.includes('/runs?'))return ok({workflow_runs:[
       {head_branch:'main',display_title:'Build Center',status:'completed',conclusion:'success'},
-      {head_branch:'codex/fixed',display_title:'SukiSU 41179 EZJ1',status:'in_progress'}
+      {head_branch:'codex/fixed',display_title:'SukiSU 41179 EZJB',status:'in_progress'}
     ]});
     throw Error('Unexpected request');
   });
@@ -68,6 +68,6 @@ test('a successful planning-only run is never displayed as a built kernel', () =
   const result=api.runOutcome(run,[{name:'Kernel und Samsung Strict KMI / CRC',conclusion:'skipped'}],[]);
   assert.equal(result.text,'KEIN KERNEL GEBAUT');
   assert.equal(result.className,'neutral');
-  const artifact={name:'S928BXXS6EZJ1-EUX-Strict-AnyKernel3-Flash',digest:'sha256:'+'a'.repeat(64)};
+  const artifact={name:'S928BXXU6EZJB-EUX-Strict-AnyKernel3-Flash',digest:'sha256:'+'a'.repeat(64)};
   assert.equal(api.runOutcome(run,[],[artifact]).text,'KERNEL-ZIP BEREIT');
 });

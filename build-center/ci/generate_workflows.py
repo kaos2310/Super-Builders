@@ -9,6 +9,8 @@ import sys
 ROOT=Path(__file__).resolve().parents[1]
 if (ROOT/'.build-deps').exists():sys.path.insert(0,str(ROOT/'.build-deps'))
 import yaml
+from firmware_profile import load as load_firmware, migrate as migrate_firmware
+FIRMWARE_PROFILE = load_firmware()[0]
 
 
 class Loader(yaml.SafeLoader):
@@ -26,10 +28,11 @@ Dumper.add_representer(str,represent_string)
 
 def transform(value):
     if isinstance(value,str):
-        return (value.replace('d7d042816b82b200c25b3a93dcc158ba0307cabf','${{ inputs.center_pin }}')
+        return migrate_firmware(value.replace('d7d042816b82b200c25b3a93dcc158ba0307cabf','${{ inputs.center_pin }}')
                 .replace('d7d04281','${{ inputs.center_short }}')
                 .replace('41165','${{ inputs.center_code }}')
-                .replace('3980','${{ inputs.center_count }}'))
+                .replace('3980','${{ inputs.center_count }}')
+                .replace('S928BXXU6ZZI4',FIRMWARE_PROFILE['firmware']), FIRMWARE_PROFILE)
     if isinstance(value,list):return [transform(v) for v in value]
     if isinstance(value,dict):return {k:transform(v) for k,v in value.items()}
     return value
@@ -106,7 +109,7 @@ def generate(baseline,out):
                 before=next(s for s in steps if s.get('name')=='Verify immutable official workspace lock')
                 before['run']=before['run'].replace('test ! -e sukisu/target',compat+'\ntest ! -e sukisu/target')
                 after=next(s for s in steps if s.get('name')=='Verify immutable locks, real generated UAPI6 and ARM64 binaries')
-                after['run']=after['run'].replace('cp sukisu/Cargo.lock',compat+' --verify-only\ncp sukisu/Cargo.lock')
+                after['run']=after['run'].replace('cp sukisu/target/aarch64-linux-android/release/ksud',compat+' --verify-only\ncp sukisu/target/aarch64-linux-android/release/ksud')
                 after['run']=after['run'].replace('BUILD-IDENTITY.json > SHA256SUMS','BUILD-IDENTITY.json USERSPACE-COMPAT.json > SHA256SUMS')
             if dest=='build-center-resusfs.yml':
                 steps.insert(steps.index(insert[-1])+1,{'name':'Download the exact official SuSFS CLI sources',
@@ -118,6 +121,8 @@ def generate(baseline,out):
                     'RESUKISU_VERSION_FULL=${{ fromJSON(inputs.center_plan).sukisu_tag }}-')
                 setup['run']=setup['run'].replace('https://github.com/SukiSU-Ultra/SukiSU-Ultra.git',
                     'https://github.com/${{ fromJSON(inputs.center_plan).sukisu_repository }}.git')
+                setup['run']=setup['run'].replace('git -C "$KSU_DIR" checkout --detach "$PIN"',
+                    'git -C "$KSU_DIR" fetch origin "$PIN"\ngit -C "$KSU_DIR" checkout --detach "$PIN"')
                 runtime='$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py'
                 before=next(i for i,s in enumerate(steps) if s.get('name')=='Apply pinned SUSFS')
                 steps.insert(before,{'name':'Prepare official pinned SuSFS delta',
@@ -130,10 +135,22 @@ def generate(baseline,out):
                     f'python3 "{release}" "$KERNEL_ROOT/common"\n'+
                     f'python3 "{runtime}" susfs-wire --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'})
                 before=next(i for i,s in enumerate(steps) if s.get('name')=='Build Kernel')
-                steps.insert(before,{'name':'Integrate official SuSFS updates and freeze final sources',
+                steps.insert(before,{'name':'Integrate SuSFS updates and tested hidden-name directory filtering',
                     'run':'set -euo pipefail\n'+
+                    'HIDDEN="$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-hidden-name-readdir"\n'+
+                    'python3 "$HIDDEN/test.py" --common "$KERNEL_ROOT/common" --output "$GITHUB_WORKSPACE/susfs-runtime-audit/hidden-name-host"\n'+
+                    'python3 "$HIDDEN/apply.py" --common "$KERNEL_ROOT/common"\n'+
                     f'python3 "{runtime}" capture-final --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'+
                     'python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_suspath_test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" --output "$GITHUB_WORKSPACE/susfs-runtime-audit/suspath-host"\n'})
+                package=next(s for s in steps if 'cp "$FINAL_CONFIG_FILE" "$GITHUB_WORKSPACE/susfs-runtime-audit/BUILD-CONFIG.txt"' in s.get('run',''))
+                anchor='cp "$FINAL_CONFIG_FILE" "$GITHUB_WORKSPACE/susfs-runtime-audit/BUILD-CONFIG.txt"\n'
+                package['run']=package['run'].replace(anchor,anchor+
+                    'python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-hidden-name-readdir/apply.py" \\\n'+
+                    '  --common "$KERNEL_ROOT/common" --verify-only --image "$ANYKERNEL3/Image" --vmlinux "$VMLINUX" \\\n'+
+                    '  --receipt "$ANYKERNEL3/SUSFS-HIDDEN-NAME-READDIR.json"\n'+
+                    'cp "$GITHUB_WORKSPACE/susfs-runtime-audit/hidden-name-host/TESTS.json" "$ANYKERNEL3/SUSFS-HIDDEN-NAME-TESTS.json"\n'+
+                    'python3 "$GITHUB_WORKSPACE/.build-center/build-center/ci/firmware_profile.py" \\\n'+
+                    '  --root "$GITHUB_WORKSPACE" --image "$ANYKERNEL3/Image" --receipt "$ANYKERNEL3/FIRMWARE-TARGET.json"\n')
                 steps.append({'name':'Upload immutable plan and source manifests','if':'always()',
                     'uses':'actions/upload-artifact@v7','with':{'name':'Build-Center-Source-Evidence-${{ github.run_id }}',
                     'path':'.build-center-plan.json\n**/.build-center-source-manifest.json\n**/.build-center-susfs-update.json\n.build-center-susfs/upstream-changes.json',

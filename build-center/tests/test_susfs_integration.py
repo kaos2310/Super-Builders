@@ -20,7 +20,7 @@ class ReleaseIdentityTests(unittest.TestCase):
             root=Path(tmp);common=root/'common';(common/'include/linux').mkdir(parents=True)
             header=b'#define SUSFS_VERSION "v2.4.0"\nstruct new_upstream_type { int value; };\n'
             (common/'include/linux/susfs.h').write_bytes(header)
-            plan={'profile':'S928BXXS6EZJ1-EUX-android14-6.1.162','susfs_version':'v2.4.0',
+            plan={'profile':'S928BXXU6EZJB-EUX-android14-6.1.162','susfs_version':'v2.4.0',
                   'susfs_commit':'a'*40,'susfs_release_base':'b'*40,'susfs_functional_base':'c'*40}
             (root/'.build-center-plan.json').write_text(json.dumps(plan))
             update={'source_pin':'a'*40,'release_base':'b'*40,'susfs_version':'v2.4.0','conflicts':0,
@@ -52,7 +52,7 @@ class ReleaseIdentityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);common=root/'common';(common/'include/linux').mkdir(parents=True)
             header=common/'include/linux/susfs.h'
-            plan={'profile':'S928BXXS6EZJ1-EUX-android14-6.1.162','susfs_version':'v2.4.1',
+            plan={'profile':'S928BXXU6EZJB-EUX-android14-6.1.162','susfs_version':'v2.4.1',
                   'susfs_commit':'a'*40,'susfs_release_base':'b'*40,'susfs_functional_base':'c'*40}
             (root/'.build-center-plan.json').write_text(json.dumps(plan))
             receipt=common/'.build-center-susfs-update.json'

@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const server=spawn('python',['desktop.py','--no-browser','--stay','--port','18946'],{cwd:root,windowsHide:true,stdio:'ignore'});
-const base='http://127.0.0.1:18946',branch='codex/build-center-auto-updates';
+const base='http://127.0.0.1:18946',branch='codex/build-center-ezjb-auto-20261122';
 const workflow=await readFile(path.join(root,'../.github/workflows/build-center.yml'),'utf8');
 const resolver=await readFile(path.join(root,'ci/check_updates.py'),'utf8');
 const manifest=await readFile(path.join(root,'controller.json'),'utf8');
@@ -26,7 +26,7 @@ try {
         assert.match(b.url,/\/actions\/workflows\/build-center.yml\/dispatches$/);
         posted.push(b.data);
         runs.unshift({id:9300+posted.length,status:'in_progress',conclusion:null,head_branch:branch,head_sha:controller,
-          display_title:'Build Center EZJ1 · '+b.data.inputs.request_id,html_url:'https://github.com/kaos2310/Super-Builders/actions/runs/'+(9300+posted.length)});
+          display_title:'Build Center EZJB · '+b.data.inputs.request_id,html_url:'https://github.com/kaos2310/Super-Builders/actions/runs/'+(9300+posted.length)});
         return {status:204,data:null,headers:{}};
       }
       if(b.url.endsWith('/repositories/957055748'))return ok({id:957055748,full_name:'SukiSU-Nova/SukiSU-Nova'});

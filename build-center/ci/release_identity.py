@@ -25,7 +25,7 @@ def updated_receipt(common):
     root=next((p for p in (common,*common.parents) if (p/'.build-center-plan.json').is_file()),None)
     if root is None:raise RuntimeError('Merged release requires the immutable source plan')
     plan=json.loads((root/'.build-center-plan.json').read_text());update=json.loads(path.read_text())
-    if (plan.get('profile')!='S928BXXS6EZJ1-EUX-android14-6.1.162'
+    if (plan.get('profile')!='S928BXXU6EZJB-EUX-android14-6.1.162'
             or update.get('source_pin')!=plan['susfs_commit'] or update.get('release_base')!=plan['susfs_release_base']
             or update.get('susfs_version')!=plan['susfs_version'] or update.get('conflicts')!=0):
         raise RuntimeError('Merged release source binding changed')

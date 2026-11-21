@@ -1,15 +1,15 @@
 {
   "schema": 1,
   "name": "SukiSU Build Center",
-  "version": "1.2.0",
-  "version_code": 7,
+  "version": "1.2.1",
+  "version_code": 8,
   "repository": "kaos2310/Super-Builders",
-  "controller_ref": "codex/build-center-auto-updates",
+  "controller_ref": "codex/build-center-ezjb-auto-20261122",
   "workflow": "build-center.yml",
   "channel": "main",
   "automatic_builds": true,
   "kernel_revision": "hidden-name-readdir-v2",
-  "profile": "S928BXXS6EZJ1 / EUX / Android 17 (GKI 14) / Linux 6.1.162",
+  "profile": "S928BXXU6EZJB / EUX / Android 17 (GKI 14) / Linux 6.1.162",
   "reference_run": 42129383180,
   "baseline_commit": "f269b2d31779901efe920c3c8a3f00838e35e119",
   "baseline_sukisu": "d7d042816b82b200c25b3a93dcc158ba0307cabf",
@@ -19,7 +19,7 @@
   "susfs_branch": "gki-android14-6.1",
   "susfs_release_base": "a2165b6f875b73e2f87d3c6f12814efac8de061d",
   "susfs_functional_base": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
-  "firmware": "S928BXXS6EZJ1",
-  "firmware_profile": "S928BXXS6EZJ1-EUX-android14-6.1.162",
-  "automatic_controller_ref": "codex/build-center-auto-updates"
+  "firmware": "S928BXXU6EZJB",
+  "firmware_profile": "S928BXXU6EZJB-EUX-android14-6.1.162",
+  "automatic_controller_ref": "codex/build-center-ezjb-auto-20261122"
 }

@@ -5,8 +5,8 @@ import {releaseMatchesSources} from '../web/api.js';
 
 const source={channel:'main',sukisu_commit:'a'.repeat(40),susfs_commit:'b'.repeat(40),sukisu_count:4008,
   sukisu_code:35004,sukisu_version_formula:{base:30000,offset:996,operation:'+'},
-  release_tag:'s928b-ezj1-suki35004-susfs2.4.0-aaaaaaaa-bbbbbbbb'};
-const controller={ref:'codex/build-center-auto-updates',sha:'c'.repeat(40),protocol:2,automatic:true};
+  release_tag:'s928b-ezjb-suki35004-susfs2.4.0-aaaaaaaa-bbbbbbbb'};
+const controller={ref:'codex/build-center-ezjb-auto-20261122',sha:'c'.repeat(40),protocol:2,automatic:true};
 function fixture() {
   const data=new Map(),storage={getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)},posts=[];
   const api={token:'test-only',repo:'kaos2310/Super-Builders',runs:async()=>[],currentRelease:async()=>null,
@@ -49,7 +49,7 @@ test('an unconfirmed POST is not repeated after app restart',async()=>{
 test('a matching release needs both full source IDs and a checked kernel asset',()=>{
   const release={tag_name:source.release_tag+'-hidden-name-readdir-v2-r42',
     body:'SukiSU commit: '+source.sukisu_commit+'\nSuSFS commit: '+source.susfs_commit,
-    assets:[{name:'build-plan.json'},{name:'S928BXXS6EZJ1-EUX-AnyKernel3.zip',digest:'sha256:'+'e'.repeat(64)}]};
+    assets:[{name:'build-plan.json'},{name:'S928BXXU6EZJB-EUX-AnyKernel3.zip',digest:'sha256:'+'e'.repeat(64)}]};
   assert.equal(releaseMatchesSources(release,source),true);
   assert.equal(releaseMatchesSources({...release,body:release.body.replace(source.susfs_commit,'f'.repeat(40))},source),false);
   assert.equal(releaseMatchesSources({...release,assets:[{name:'build-plan.json'}]},source),false);

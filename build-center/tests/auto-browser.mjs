@@ -12,7 +12,7 @@ const workflow=await readFile(path.join(root,'../.github/workflows/build-center.
 const resolver=await readFile(path.join(root,'ci/check_updates.py'),'utf8');
 const manifest=await readFile(path.join(root,'controller.json'),'utf8');
 const legacy=await readFile(path.join(root,'tests/fixtures/legacy-controller.yml'),'utf8');
-const branch='codex/build-center-auto-updates',oldBranch='codex/sukisu-41179-guard6-ezj1';
+const branch='codex/build-center-ezjb-auto-20261122',oldBranch='codex/sukisu-41179-guard6-ezj1';
 const controller='a'.repeat(40),oldController='9'.repeat(40),encode=s=>Buffer.from(s).toString('base64');
 const ok=(data,headers={})=>({status:200,data,headers});
 const file=s=>ok({encoding:'base64',content:encode(s)});
@@ -28,7 +28,7 @@ try {
         assert.match(b.url,/\/actions\/workflows\/build-center.yml\/dispatches$/);
         posted.push(b.data);
         run={id:9201,status:'in_progress',conclusion:null,head_branch:branch,head_sha:controller,
-          display_title:'Build Center EZJ1 · '+b.data.inputs.request_id,html_url:'https://github.com/kaos2310/Super-Builders/actions/runs/9201'};
+          display_title:'Build Center EZJB · '+b.data.inputs.request_id,html_url:'https://github.com/kaos2310/Super-Builders/actions/runs/9201'};
         return {status:204,data:null,headers:{}};
       }
       if(b.url.endsWith('/repositories/957055748'))return ok({id:957055748,full_name:'SukiSU-Nova/SukiSU-Nova'});
@@ -62,7 +62,7 @@ try {
     },{native,oldBranch});
     await page.route('**/api/proxy',async route=>route.fulfill({json:await response(route.request().postDataJSON())}));
     await page.clock.install();await page.goto(base);
-    await page.waitForFunction(()=>!document.getElementById('refresh').disabled&&document.getElementById('ref').value==='codex/build-center-auto-updates');
+    await page.waitForFunction(()=>!document.getElementById('refresh').disabled&&document.getElementById('ref').value==='codex/build-center-ezjb-auto-20261122');
     if(!native) {
       assert.equal(await page.locator('#build').isDisabled(),true);
       await page.locator('#token').fill('test-only-not-a-credential');await page.locator('#settings-form button[type=submit]').click();

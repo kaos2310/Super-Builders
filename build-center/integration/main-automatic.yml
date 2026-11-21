@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: codex/build-center-auto-updates
+          ref: codex/build-center-ezjb-auto-20261122
           persist-credentials: false
       - name: Geprüften Controller und neue Quellen automatisch zuordnen
         env:

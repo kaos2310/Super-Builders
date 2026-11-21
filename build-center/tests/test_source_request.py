@@ -73,7 +73,7 @@ class SourceRequestTests(unittest.TestCase):
                     self.assertFalse(Path('outputs').exists())
 
     def test_cli_writes_the_bound_plan_for_a_matching_app_request(self):
-        plan=dict(self.plan,susfs_version='v2.4.0',release_tag='s928b-ezj1-suki41181-test')
+        plan=dict(self.plan,susfs_version='v2.4.0',release_tag='s928b-ezjb-suki41181-test')
         with tempfile.TemporaryDirectory() as tmp,chdir(tmp):
             env={'CENTER_SOURCE_REQUEST':json.dumps(self.request),'GITHUB_SHA':'a'*40,
                  'GITHUB_OUTPUT':str(Path(tmp)/'outputs')}

@@ -1,4 +1,4 @@
-import {Github, GH, selectKernelArtifact, selectReleaseAssets, selectEzj1ManagerAssets, assertRepository, runOutcome} from './api.js';
+import {Github, GH, selectKernelArtifact, selectReleaseAssets, selectEzjbManagerAssets, assertRepository, runOutcome} from './api.js';
 import {AutomaticBuilder} from './automation.js';
 
 const $ = id => document.getElementById(id);
@@ -92,16 +92,16 @@ async function loadDownloads(){
   }
   try{
     const allReleases=await api.releases();
-    for(const a of selectEzj1ManagerAssets(allReleases).slice(0,1)){
-      rows.unshift(row('SukiSU EZJ1 · Root-Manager mit SuSFS-Runtime',`Eigene Paketkennung · ARM64 · ${a.digest}`,window.KaosNative?'Installieren':'Download',()=>download(a.browser_download_url,a.name,a.digest,'apk'),'APK'));
+    for(const a of selectEzjbManagerAssets(allReleases).slice(0,1)){
+      rows.unshift(row('SukiSU EZJB · Root-Manager mit SuSFS-Runtime',`Eigene Paketkennung · ARM64 · ${a.digest}`,window.KaosNative?'Installieren':'Download',()=>download(a.browser_download_url,a.name,a.digest,'apk'),'APK'));
     }
     const releases=selectReleaseAssets(allReleases);
     const release=releases[0];
     if(release){for(const a of release.assets.filter(a=>a.name.endsWith('.zip')||a.name.endsWith('.apk')||a.name==='SHA256SUMS.txt')){
       rows.unshift(row(a.name,`${release.tag_name} · ${a.digest||'SHA256SUMS.txt im Release'}`,'Download',()=>download(a.browser_download_url,a.name,a.digest||'',a.name.endsWith('.apk')?'apk':a.name.includes('AnyKernel3')?'kernel':'file'),a.name.endsWith('.apk')?'APK':'ZIP'));
     }}
-    else if(api.repo==='kaos2310/Super-Builders'&&allReleases.some(r=>r.tag_name==='s928b-ezj1-sukisu41165-susfs240-20261108'&&!r.draft)){
-      const baseline=allReleases.find(r=>r.tag_name==='s928b-ezj1-sukisu41165-susfs240-20261108'&&!r.draft);
+    else if(api.repo==='kaos2310/Super-Builders'&&allReleases.some(r=>r.tag_name==='s928b-ezjb-sukisu41165-susfs240-20261108'&&!r.draft)){
+      const baseline=allReleases.find(r=>r.tag_name==='s928b-ezjb-sukisu41165-susfs240-20261108'&&!r.draft);
       for(const a of baseline.assets.filter(a=>a.digest?.startsWith('sha256:')&&a.name.endsWith('.zip')&&(a.name.includes('AnyKernel3')||a.name.startsWith('ReSuSFS-')))){
         rows.unshift(row('Referenz · '+a.name,`Vorhandener Stand 41165 / SuSFS 2.4.0 · ${a.digest}`,'Download',()=>download(a.browser_download_url,a.name,a.digest)));
       }
@@ -203,7 +203,7 @@ $('build').addEventListener('click',()=>{
   }
   reviewedBuild={api,ref:controller.ref,channel:$('channel').value,generation:settingsGeneration,
     sources:{...sources},controllerSha:controller.sha};
-  $('plan-review').textContent=`Repository: ${api.repo}\nWorkflow-Branch: ${controller.ref}\nController: ${controller.sha}\n\nSukiSU ${sources.sukisu_code}\n${sources.sukisu_commit}\n\nSuSFS ${sources.susfs_version}\n${sources.susfs_commit}\n\nProfil: S928BXXS6EZJ1 / EUX / 6.1.162\nDie Pipeline prüft die angezeigten Quellen erneut. Bei einer Änderung ist eine neue Prüfung erforderlich.`;
+  $('plan-review').textContent=`Repository: ${api.repo}\nWorkflow-Branch: ${controller.ref}\nController: ${controller.sha}\n\nSukiSU ${sources.sukisu_code}\n${sources.sukisu_commit}\n\nSuSFS ${sources.susfs_version}\n${sources.susfs_commit}\n\nProfil: S928BXXU6EZJB / EUX / 6.1.162\nDie Pipeline prüft die angezeigten Quellen erneut. Bei einer Änderung ist eine neue Prüfung erforderlich.`;
   $('build-dialog').showModal();
 });
 $('build-dialog').addEventListener('close',async()=>{if($('build-dialog').returnValue!=='build')return;

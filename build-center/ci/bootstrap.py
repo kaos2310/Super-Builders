@@ -40,8 +40,8 @@ def validate(plan):
         raise ValueError('Invalid reviewed source/version mapping')
     if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9_.+\-]*', plan['susfs_version']):
         raise ValueError('Invalid SuSFS version')
-    if plan['profile'] != 'S928BXXS6EZJ1-EUX-android14-6.1.162':
-        raise ValueError('Only the audited S928B/EZJ1 profile is supported')
+    if plan['profile'] != 'S928BXXU6EZJB-EUX-android14-6.1.162':
+        raise ValueError('Only the audited S928B/EZJB profile is supported')
     if not re.fullmatch(r'v[\w.+-]+', plan['sukisu_tag']):
         raise ValueError('Invalid SukiSU tag')
 

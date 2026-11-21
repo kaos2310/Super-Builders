@@ -30,19 +30,19 @@ def zip_bytes(items):
     return b.getvalue()
 
 
-def valid_kernel(firmware='S928BXXS6EZJ1', image=b'ARM64 kernel', digest=None):
-    receipt={'firmware':firmware,'csc':'EUX','profile':'S928BXXS6EZJ1-EUX-android14-6.1.162',
+def valid_kernel(firmware='S928BXXU6EZJB', image=b'ARM64 kernel', digest=None):
+    receipt={'firmware':firmware,'csc':'EUX','profile':'S928BXXU6EZJB-EUX-android14-6.1.162',
              'image_sha256': digest or sha256(image)}
     return zip_bytes([('anykernel.sh',b'#!/bin/sh'),('Image',image),('STRICT-KMI.txt',b'full-strict'),
                       ('FIRMWARE-TARGET.json',json.dumps(receipt).encode())])
 
 
 class DownloadTests(unittest.TestCase):
-    def test_release_kernel_must_identify_ezj1_and_its_actual_image(self):
+    def test_release_kernel_must_identify_ezjb_and_its_actual_image(self):
         good=valid_kernel()
         self.assertEqual(checked_file(good,'kernel.zip',sha256(good),'kernel')[0],good)
-        for bad in (valid_kernel(firmware='S928BXXU6EZIF'), valid_kernel(digest='0'*64)):
-            with self.assertRaisesRegex(CenterError,'EZJ1-Firmware'):
+        for bad in (valid_kernel(firmware='S928BXXU6EZIF'), valid_kernel(firmware='S928BXXS6EZJ1'), valid_kernel(digest='0'*64)):
+            with self.assertRaisesRegex(CenterError,'EZJB-Firmware'):
                 checked_file(bad,'kernel.zip',sha256(bad),'kernel')
 
     def test_windows_apk_asset_separators_are_normalized(self):
@@ -215,7 +215,7 @@ class BootstrapTests(unittest.TestCase):
     def plan(self):
         return {'sukisu_commit':'a'*40,'susfs_commit':'b'*40,'baseline_commit':'c'*40,
             'susfs_release_base':'d'*40,'susfs_functional_base':'e'*40,'sukisu_count':3983,'sukisu_code':41168,
-            'susfs_version':'v2.4.0','sukisu_tag':'v4.3.0-r2','profile':'S928BXXS6EZJ1-EUX-android14-6.1.162'}
+            'susfs_version':'v2.4.0','sukisu_tag':'v4.3.0-r2','profile':'S928BXXU6EZJB-EUX-android14-6.1.162'}
     def test_invalid_plan_rejected_before_writes(self):
         p=self.plan();p['sukisu_code']=41170
         with self.assertRaisesRegex(ValueError,'mapping'):validate(p)

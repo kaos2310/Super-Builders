@@ -5,7 +5,7 @@ export const GH = 'https://api.github.com';
 export const SUKI = `${GH}/repositories/957055748`;
 export const SUS = 'https://gitlab.com/api/v4/projects/simonpunk%2Fsusfs4ksu/repository';
 const shaPattern = /^[0-9a-f]{40}$/;
-const profile = 'S928BXXS6EZJ1-EUX-android14-6.1.162';
+const profile = 'S928BXXU6EZJB-EUX-android14-6.1.162';
 
 function decodeFile(file) {
   if (file.encoding !== 'base64' || typeof file.content !== 'string')
@@ -67,7 +67,7 @@ export function apiError(status, headers = {}, data = {}) {
 export function selectKernelArtifact(artifacts, run) {
   if (run?.status !== 'completed' || run?.conclusion !== 'success') return null;
   return artifacts.find(a => !a.expired && a.name.endsWith('-Strict-AnyKernel3-Flash')
-    && a.name.includes('S928BXXS6EZJ1-EUX') && a.digest?.match(/^sha256:[0-9a-f]{64}$/)
+    && a.name.includes('S928BXXU6EZJB-EUX') && a.digest?.match(/^sha256:[0-9a-f]{64}$/)
     && String(a.workflow_run?.id ?? run.id) === String(run.id)) || null;
 }
 
@@ -94,13 +94,13 @@ export function runOutcome(run, jobs = [], artifacts = []) {
 
 export function selectReleaseAssets(releases) {
   // Only Build Center releases carry a manifest generated after the full pipeline.
-  return releases.filter(r => !r.draft && r.tag_name?.startsWith('s928b-ezj1-suki')
+  return releases.filter(r => !r.draft && r.tag_name?.startsWith('s928b-ezjb-suki')
     && r.assets?.some(a => a.name === 'build-plan.json'));
 }
 
-export function selectEzj1ManagerAssets(releases) {
+export function selectEzjbManagerAssets(releases) {
   return releases.filter(r => !r.draft && !r.prerelease).flatMap(r => (r.assets || []).filter(a =>
-    /^SukiSU_EZJ1_v.+_\d+-arm64-v8a-release\.apk$/.test(a.name)
+    /^SukiSU_EZJB_v.+_\d+-arm64-v8a-release\.apk$/.test(a.name)
     && /^sha256:[0-9a-f]{64}$/.test(a.digest || '')
     && a.browser_download_url?.startsWith('https://github.com/kaos2310/Super-Builders/releases/download/')));
 }
@@ -111,7 +111,7 @@ export function releaseMatchesSources(release,sources,revision='hidden-name-read
   return !release.draft && (release.tag_name===tag || (release.tag_name?.startsWith(tag+'-r')&&/^\d+$/.test(release.tag_name.slice(tag.length+2))))
     && body.includes('SukiSU commit: '+sources.sukisu_commit) && body.includes('SuSFS commit: '+sources.susfs_commit)
     && assets.some(a=>a.name==='build-plan.json')
-    && assets.some(a=>a.name?.endsWith('AnyKernel3.zip')&&a.name.includes('S928BXXS6EZJ1-EUX')&&/^sha256:[0-9a-f]{64}$/.test(a.digest||''));
+    && assets.some(a=>a.name?.endsWith('AnyKernel3.zip')&&a.name.includes('S928BXXU6EZJB-EUX')&&/^sha256:[0-9a-f]{64}$/.test(a.digest||''));
 }
 
 export class Github {
@@ -154,7 +154,7 @@ export class Github {
       sukisu_message: commit.commit.message.split('\n')[0], channel,sukisu_version_formula:formula,
       sukisu_repository:repository.full_name,sukisu_repository_id:957055748,
       susfs_commit: susCommit.id, susfs_version: version, susfs_message: susCommit.title,
-      manager, release_tag: `s928b-ezj1-suki${code}-susfs${version.replace(/^v/, '')}-${pin.slice(0,8)}-${susCommit.id.slice(0,8)}`,
+      manager, release_tag: `s928b-ezjb-suki${code}-susfs${version.replace(/^v/, '')}-${pin.slice(0,8)}-${susCommit.id.slice(0,8)}`,
       susfs_source_url: `https://gitlab.com/simonpunk/susfs4ksu/-/archive/${susCommit.id}/susfs4ksu-${susCommit.id}.zip`};
   }
   async resolveWorkflowRef(ref) {
@@ -189,8 +189,13 @@ export class Github {
     let manifest;
     try { manifest=JSON.parse(decodeFile(manifestFile)); }
     catch { throw new Error('Build-Controller-Manifest ist ungültig.'); }
+    if (manifest.profile !== profile) {
+      const error=new Error('Der Build-Controller gehört zu einer anderen Firmware. EZJB-Integration auswählen.');
+      error.code='FIRMWARE_PROFILE_MISMATCH';
+      throw error;
+    }
     if (manifest.schema !== 2 || manifest.workflow !== 'build-center.yml'
-        || manifest.source_binding !== 'source-request-v1' || manifest.profile !== profile
+        || manifest.source_binding !== 'source-request-v1'
         || !Array.isArray(manifest.channels) || !manifest.channels.length
         || manifest.channels.some(c=>!['main','release'].includes(c))
         || manifest.workflow_sha256 !== await sha256(content)
@@ -204,15 +209,16 @@ export class Github {
     let configured;
     try { configured=await this.workflowController(ref); }
     catch (error) {
-      if (this.repo!=='kaos2310/Super-Builders' || !/^codex\/sukisu-\d+[-\w]*$/.test(ref)
-          || ![404,422].includes(error.status)) throw error;
+      const previous=ref==='codex/build-center-auto-updates' || /^codex\/sukisu-\d+[-\w]*$/.test(ref);
+      if (this.repo!=='kaos2310/Super-Builders' || !previous
+          || !(error.code==='FIRMWARE_PROFILE_MISMATCH' || [404,422].includes(error.status))) throw error;
       configured={ref,content:'',protocol:1};
     }
     if (controllerMatches(configured,sources)) return configured;
     // A stable update controller is discoverable before its first Actions run.
     // This also migrates the old version-specific setting saved by APK 1.1.2.
     const preferred = this.repo === 'kaos2310/Super-Builders'
-      ? ['codex/build-center-auto-updates','main'].filter(r=>r!==configured.ref) : [];
+      ? ['codex/build-center-ezjb-auto-20261122','main'].filter(r=>r!==configured.ref) : [];
     for (const branch of preferred) {
       let candidate;
       try { candidate=await this.workflowController(branch); }

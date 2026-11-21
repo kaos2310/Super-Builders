@@ -1,4 +1,4 @@
-"""Install measured EZJ1 target data without changing the audited CRC baseline."""
+"""Install measured EZJB target data without changing the audited CRC baseline."""
 from pathlib import Path
 import argparse
 import hashlib
@@ -6,8 +6,8 @@ import json
 import re
 import shlex
 
-DATA = Path(__file__).resolve().parent / 'firmware/ezj1'
-PROFILE = 'S928BXXS6EZJ1-EUX-android14-6.1.162'
+DATA = Path(__file__).resolve().parent / 'firmware/ezjb'
+PROFILE = 'S928BXXU6EZJB-EUX-android14-6.1.162'
 MARKER = '.build-center-firmware.json'
 
 
@@ -49,7 +49,7 @@ def load():
         raise ValueError('Supplied stock modules do not verify the strict Samsung baseline')
     values = {line.split('=', 1)[0]: shlex.split(line.split('=', 1)[1])[0]
               for line in (DATA / 'target.env').read_text().splitlines() if line and not line.startswith('#')}
-    if values['SAMSUNG_TARGET_FIRMWARE'] != 'S928BXXS6EZJ1' or values['SAMSUNG_TARGET_CSC'] != 'EUX':
+    if values['SAMSUNG_TARGET_FIRMWARE'] != 'S928BXXU6EZJB' or values['SAMSUNG_TARGET_CSC'] != 'EUX':
         raise ValueError('Wrong firmware identity')
     if values['SAMSUNG_TARGET_KERNEL_RELEASE'] != profile['kernel_release']:
         raise ValueError('Stock kernel release mismatch')
@@ -89,7 +89,7 @@ def prepare_device_profile(path, values):
 def prepare(root, plan):
     profile, values = load()
     if plan['profile'] != PROFILE:
-        raise ValueError('Only the independently measured EZJ1 target is accepted')
+        raise ValueError('Only the independently measured EZJB target is accepted')
     root = Path(root)
     marker = root / MARKER
     if marker.exists():
@@ -122,9 +122,9 @@ def prepare(root, plan):
                 raise ValueError('Firmware helper rename collision: ' + str(target))
             path.rename(target)
     outputs = {
-        'samsung-s928bxxs6ezj1-target.env': 'target.env',
-        's928b-ezj1-firmware-evidence.json': 'evidence.json',
-        'e3q-ezj1-gunyah-qcom-stock-modversions.tsv': 'gunyah-modversions.tsv',
+        'samsung-s928bxxu6ezjb-target.env': 'target.env',
+        's928b-ezjb-firmware-evidence.json': 'evidence.json',
+        'e3q-ezjb-gunyah-qcom-stock-modversions.tsv': 'gunyah-modversions.tsv',
     }
     for target, source in outputs.items():
         (android / target).write_bytes((DATA / source).read_bytes())
@@ -161,7 +161,7 @@ def attest(root, image):
         raise ValueError('Packaged kernel is not an uncompressed ARM64 Image')
     banner = b'Linux version ' + receipt['kernel_release'].encode() + b' '
     if banner not in blob:
-        raise ValueError('Packaged Image does not identify the verified EZJ1 target')
+        raise ValueError('Packaged Image does not identify the verified EZJB target')
     return dict(receipt, image_sha256=sha(blob), image_bytes=len(blob), device_boot_tested=False)
 
 

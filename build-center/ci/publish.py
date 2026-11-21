@@ -98,10 +98,10 @@ def main():
         if not {'anykernel.sh','STRICT-KMI.txt'}<=names or 'Image' not in names:
             raise RuntimeError('Strict AnyKernel3 payload missing')
         strict=z.read('STRICT-KMI.txt').decode()
-        if 'S928BXXS6EZJ1' not in strict or 'strict' not in strict.lower():
+        if 'S928BXXU6EZJB' not in strict or 'strict' not in strict.lower():
             raise RuntimeError('Strict firmware evidence missing')
-        if 'Requires firmware S928BXXS6EZJ1' not in z.read('anykernel.sh').decode():
-            raise RuntimeError('Flash installer does not accept the audited EZJ1 firmware')
+        if 'Requires firmware S928BXXU6EZJB' not in z.read('anykernel.sh').decode():
+            raise RuntimeError('Flash installer does not accept the audited EZJB firmware')
         hidden=json.loads(z.read('SUSFS-HIDDEN-NAME-READDIR.json'))
         runtime=json.loads(z.read('SUSFS-RUNTIME.json'))
         susfs_release=json.loads(z.read('SUSFS-RELEASE240.json'))
@@ -127,7 +127,7 @@ def main():
     (root/'build-plan.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     notes=root/'RELEASE-NOTES.md'
     notes.write_text(f"SukiSU {plan['sukisu_code']} + SuSFS {plan['susfs_version']}\n\n"
-        f"S928BXXS6EZJ1 / EUX / Linux 6.1.162.\n\n"
+        f"S928BXXU6EZJB / EUX / Linux 6.1.162.\n\n"
         f"SukiSU commit: {plan['sukisu_commit']}\n\nSuSFS commit: {plan['susfs_commit']}\n\n"
         + (f"Requested source: official PR merge preview, {plan['sukisu_pull_request']}. This is a preview, not the main-branch version.\n\n" if plan.get('sukisu_source_kind') == 'official-pull-request-merge-preview' else '') +
         f"Kernel, ARM64 userspace and ZeroMount compatibility jobs passed. Samsung Strict KMI and DLKM CRC gates passed.\n\n"
@@ -142,7 +142,7 @@ def main():
     # gh obtains the Actions token from GH_TOKEN, never from a command argument.
     subprocess.run(['gh','release','create',plan['release_tag'],'--repo',plan['repository'],
                     '--target',os.environ['GITHUB_SHA'],'--prerelease','--title',
-                    f"S928B EZJ1 · SukiSU {plan['sukisu_code']} · SuSFS {plan['susfs_version']}",
+                    f"S928B EZJB · SukiSU {plan['sukisu_code']} · SuSFS {plan['susfs_version']}",
                     '--notes-file',str(notes),*[str(p) for p in root.iterdir() if p.is_file()]],check=True)
 
 

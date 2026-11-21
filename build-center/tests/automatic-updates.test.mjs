@@ -8,7 +8,7 @@ const workflow = "env:\n  BUILD_CENTER_PROTOCOL: '2'\njobs:\n  resolve:\n    ste
 const resolver = '# resolver with immutable source checks\n';
 const sha256 = text => createHash('sha256').update(text).digest('hex');
 const manifest = {schema:2,workflow:'build-center.yml',source_binding:'source-request-v1',
-  profile:'S928BXXS6EZJ1-EUX-android14-6.1.162',channels:['main','release'],
+  profile:'S928BXXU6EZJB-EUX-android14-6.1.162',channels:['main','release'],
   workflow_sha256:sha256(workflow),resolver_sha256:sha256(resolver)};
 const source = {channel:'main',sukisu_commit:'b'.repeat(40),sukisu_code:41181,
   sukisu_count:3996,susfs_commit:'c'.repeat(40)};
@@ -76,8 +76,22 @@ test('a removed legacy branch migrates without relying on an existing Actions ru
   github.transport=async body=>body.url.includes('/commits/codex%2Fsukisu-41179-guard6-ezj1')
     ? {status:404,headers:{},data:{}} : transport(body);
   const selected=await github.compatibleController(source,'codex/sukisu-41179-guard6-ezj1');
-  assert.equal(selected.ref,'codex/build-center-auto-updates');
+  assert.equal(selected.ref,'codex/build-center-ezjb-auto-20261122');
   assert.equal(selected.protocol,2);
+});
+
+test('the saved EZJ1 automatic controller migrates to the EZJB controller', async () => {
+  const {github,posts}=fixture();
+  const transport=github.transport;
+  github.transport=async body=>body.url.includes('/commits/codex%2Fbuild-center-auto-updates')
+    ? ok({sha:'e'.repeat(40)})
+    : body.url.includes('/contents/build-center/controller.json?ref='+'e'.repeat(40))
+      ? file(JSON.stringify({...manifest,profile:'S928BXXS6EZJ1-EUX-android14-6.1.162'}))
+      : transport(body);
+  const selected=await github.compatibleController(source,'codex/build-center-auto-updates');
+  assert.equal(selected.ref,'codex/build-center-ezjb-auto-20261122');
+  assert.equal(selected.sha,controllerSha);
+  assert.equal(posts.length,0);
 });
 
 test('automatic dispatch still rejects a changed controller before POST', async () => {

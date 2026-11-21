@@ -40,7 +40,7 @@ class FirmwareProfileTests(unittest.TestCase):
 
     def test_measured_profile_matches_all_strict_symbols(self):
         document, values = profile.load()
-        self.assertEqual(values['SAMSUNG_TARGET_FIRMWARE'], 'S928BXXS6EZJ1')
+        self.assertEqual(values['SAMSUNG_TARGET_FIRMWARE'], 'S928BXXU6EZJB')
         self.assertEqual(values['SAMSUNG_TARGET_CSC'], 'EUX')
         self.assertEqual(document['strict_symbols'], 2485)
         self.assertEqual(document['stock_symbols'], 5470)

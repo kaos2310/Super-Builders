@@ -27,8 +27,8 @@ def validate(plan,helpers):
         raise RuntimeError('Guard6 requires the resolved official source kind')
     if plan['susfs_version']!='v2.4.0':
         raise RuntimeError('Guard6 requires the supported SUSFS2.4.0 runtime ABI')
-    if plan.get('firmware')!='S928BXXS6EZJ1':raise RuntimeError('Guard6 firmware mismatch')
-    if plan['profile']!='S928BXXS6EZJ1-EUX-android14-6.1.162':raise RuntimeError('Guard6 firmware profile mismatch')
+    if plan.get('firmware')!='S928BXXU6EZJB':raise RuntimeError('Guard6 firmware mismatch')
+    if plan['profile']!='S928BXXU6EZJB-EUX-android14-6.1.162':raise RuntimeError('Guard6 firmware profile mismatch')
     if 'source_request_schema' in plan:
         if type(plan['source_request_schema']) is not int or plan['source_request_schema']!=1 or not re.fullmatch(r'[0-9a-f]{40}',str(plan.get('controller_sha',''))):
             raise RuntimeError('Guard6 app source request identity is invalid')
@@ -63,22 +63,22 @@ def package(helpers,plan,helper,output):
         if 'store.settings.brene.'+key not in settings:raise RuntimeError('Original Guard6 control missing: '+key)
     for name in ('webroot/susfs-rules.html','webroot/brene75.html','webroot/brene69.html'):
         if name not in members:raise RuntimeError('Original Guard6 page missing: '+name)
-    members['module.prop']=(f'id=meta-zeromount\nname=ZeroMount\nversion=v2.0.216-dev.guard6.13.brene75.susfs240.sukisu{code}.runtime-addon1\nversionCode=2026111201\nauthor=Enginex0, KAOSLAB integration\ndescription=Guard6.13 + BRENE75 + SUSFS2.4.0; Runtime als Zusatz; SukiSU{code} / S928BXXS6EZJ1 EUX.\nmetamodule=1\nbanner=banner.png\n').encode()
+    members['module.prop']=(f'id=meta-zeromount\nname=ZeroMount\nversion=v2.0.216-dev.guard6.13.brene75.susfs240.sukisu{code}.runtime-addon1\nversionCode=2026111201\nauthor=Enginex0, KAOSLAB integration\ndescription=Guard6.13 + BRENE75 + SUSFS2.4.0; Runtime als Zusatz; SukiSU{code} / S928BXXU6EZJB EUX.\nmetamodule=1\nbanner=banner.png\n').encode()
     for name in list(members):
         if name.startswith('README-SukiSU'):
-            members[name]=members[name].replace(b'EZIF',b'EZJ1')
+            members[name]=members[name].replace(b'EZIF',b'EZJB')
     manifest=json.loads(members['build-manifest.json'])
     if manifest.get('sukisu_pin')!=pin or manifest.get('sukisu_version')!=code:
         raise RuntimeError('Guard6 prepared baseline source/version does not match the plan')
     manifest.update(schema=6,revision=f'guard6-{code}-runtime-addon1',susfs_source_pin=susfs,susfs_release_pin=susfs,
-        susfs_release_base=plan['susfs_release_base'],firmware='S928BXXS6EZJ1',
+        susfs_release_base=plan['susfs_release_base'],firmware='S928BXXU6EZJB',
         original_controls_preserved=True,runtime_menu_additive=True,configuration_preserved=True,
         baseline_files_preserved_sha256=preserved,runtime_helper_source_sha256=sha((helpers/f'susfs-runtime-{code}/susfs-runtime.c').read_bytes()),
         runtime_scope='current boot; rules and saved configuration remain unchanged',device_boot_tested=False)
     members['build-manifest.json']=(json.dumps(manifest,indent=2)+'\n').encode()
     members[f'README-Guard6.13-{code}.md']=(f'''# Guard6.13 / BRENE75 / SukiSU{code}
 
-Vollständiges bisheriges ZeroMount-Modul für SUSFS2.4.0 und S928BXXS6EZJ1/EUX.
+Vollständiges bisheriges ZeroMount-Modul für SUSFS2.4.0 und S928BXXU6EZJB/EUX.
 Ursprüngliche Regeln, BRENE75, Properties, Settings und Boot-/Ownership-Backends bleiben erhalten.
 Die zusätzliche Kernel-Laufzeit-Sektion schaltet UID-Gating, Hidden-Name, Unicode und Symbol-Hiding für den aktuellen Boot.
 Öffnen und Aktualisieren lesen ausschließlich Status. Änderungen benötigen die bisherigen SUSFS-/BRENE-Freigaben und einen bestätigten Runtime-ABI-v1-Status.

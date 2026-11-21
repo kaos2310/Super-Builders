@@ -25,7 +25,7 @@ def matching_release(release,plan,revision):
             and 'SukiSU commit: '+plan['sukisu_commit'] in body
             and 'SuSFS commit: '+plan['susfs_commit'] in body
             and any(a.get('name')=='build-plan.json' for a in assets)
-            and any(a.get('name','').endswith('AnyKernel3.zip') and 'S928BXXS6EZJ1-EUX' in a['name']
+            and any(a.get('name','').endswith('AnyKernel3.zip') and 'S928BXXU6EZJB-EUX' in a['name']
                     and re.fullmatch('sha256:[0-9a-f]{64}',a.get('digest') or '') for a in assets))
 
 
@@ -82,7 +82,7 @@ def main():
     repo=os.environ.get('GITHUB_REPOSITORY',config['repository'])
     if repo!=config['repository']:raise ValueError('Automatic target differs from configured repository')
     if not config['automatic_builds'] and not args.force:result={'outcome':'disabled'}
-    else:result=run(repo,config.get('automatic_controller_ref','codex/build-center-auto-updates'),sha,
+    else:result=run(repo,config.get('automatic_controller_ref','codex/build-center-ezjb-auto-20261122'),sha,
         args.channel,args.force,args.request_id,os.environ.get('CENTER_SOURCE_REQUEST',''),
         revision=config.get('kernel_revision',''))
     Path('build-center-automatic.json').write_text(json.dumps(result,indent=2)+'\n')

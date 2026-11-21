@@ -12,10 +12,10 @@ const pin='d'.repeat(40),sus='6'.repeat(40),controller='c'.repeat(40);
 const workflow=`ARGS+=(--expected-main-commit ${pin} --expected-main-code 41179)\nARGS+=(--expected-susfs-commit ${sus})`;
 const encode=s=>Buffer.from(s).toString('base64');
 let submitted=0,requestId='',done=false,artifact=false,moved=false,browser;
-const run=()=>({id:submitted?9101:9100,status:done?'completed':'in_progress',conclusion:done?'success':null,head_branch:'codex/fixed',head_sha:controller,display_title:'SukiSU 41179 EZJ1 '+requestId,html_url:'https://github.com/kaos2310/Super-Builders/actions/runs/9100'});
+const run=()=>({id:submitted?9101:9100,status:done?'completed':'in_progress',conclusion:done?'success':null,head_branch:'codex/fixed',head_sha:controller,display_title:'SukiSU 41179 EZJB '+requestId,html_url:'https://github.com/kaos2310/Super-Builders/actions/runs/9100'});
 const report={checks:[],pageErrors:[]};
 async function response(b){
-  if(b.url.includes('/commits/codex%2Fbuild-center-auto-updates'))return {status:404,data:{},headers:{}};
+  if(b.url.includes('/commits/codex%2Fbuild-center-ezjb-auto-20261122'))return {status:404,data:{},headers:{}};
   if(b.method==='POST'){
     submitted++;requestId=b.data.inputs.request_id;assert.equal(b.data.ref,'codex/fixed');done=false;
     return {status:204,data:null};
@@ -35,12 +35,12 @@ async function response(b){
   else if(b.url.endsWith('/actions/workflows/build-center.yml'))data={state:'active'};
   else if(b.url.includes('/actions/workflows/build-center.yml/runs'))data={workflow_runs:new URL(b.url).searchParams.get('branch')==='codex/fixed'?[run()]:[{head_branch:'main',display_title:'Build Center',status:'completed',conclusion:'success'},run()]};
   else if(b.url.includes('/jobs?'))data={jobs:[{name:'Kernel und Samsung Strict KMI / CRC',status:run().status,conclusion:done?(artifact?'success':'skipped'):null,steps:[]}]};
-  else if(b.url.includes('/artifacts?'))data={artifacts:artifact?[{name:'S928BXXS6EZJ1-EUX-Strict-AnyKernel3-Flash',digest:'sha256:'+'e'.repeat(64),archive_download_url:'https://api.github.com/repos/kaos2310/Super-Builders/actions/artifacts/9/zip'}]:[]};
+  else if(b.url.includes('/artifacts?'))data={artifacts:artifact?[{name:'S928BXXU6EZJB-EUX-Strict-AnyKernel3-Flash',digest:'sha256:'+'e'.repeat(64),archive_download_url:'https://api.github.com/repos/kaos2310/Super-Builders/actions/artifacts/9/zip'}]:[]};
   else if(b.url.endsWith('/actions/runs/42129383180'))data={id:42129383180,status:'completed',conclusion:'success'};
   else if(/\/actions\/runs\/910[01]$/.test(b.url))data=run();
   else if(b.url.includes('/releases?')){
     const code=done&&artifact?41179:41178;
-    data=[{tag_name:`s928b-ezj1-suki${code}-verified`,assets:[{name:'build-plan.json'},
+    data=[{tag_name:`s928b-ezjb-suki${code}-verified`,assets:[{name:'build-plan.json'},
       {name:`ReSuSFS-${code}.zip`,digest:'sha256:'+'f'.repeat(64),browser_download_url:`https://github.com/kaos2310/Super-Builders/releases/download/test/ReSuSFS-${code}.zip`}]}];
   }
   else throw Error('Uncovered native request: '+b.url);
