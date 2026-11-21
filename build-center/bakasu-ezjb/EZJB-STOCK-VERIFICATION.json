@@ -1,0 +1,92 @@
+{
+  "model": "SM-S928B",
+  "firmware": "S928BXXU6EZJB",
+  "firmware_zone": "EUX",
+  "archives": [
+    {
+      "name": "AP_S928BXXU6EZJB_S928BXXU6EZJB_MQB116285468_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5",
+      "tar_bytes": 22200340480,
+      "tar_md5": "5a666191f900e3c6d8f6856593117916",
+      "sha256": "30c3a2b32037230a771195b024bdabbccfa56412049edec8b7da5019cace8ac6"
+    },
+    {
+      "name": "BL_S928BXXU6EZJB_S928BXXU6EZJB_MQB116285468_REV00_user_low_ship_MULTI_CERT.tar.md5",
+      "tar_bytes": 103731200,
+      "tar_md5": "24a6a2a6115e04dc91157fc38e75d232",
+      "sha256": "d2771c6ab1a7adaf74388b15b21494867c1f652b3e9a1e237bcb361c00587aef"
+    },
+    {
+      "name": "CP_S928BXXU6EZJB_CP36966567_MQB116285468_REV00_user_low_ship_MULTI_CERT.tar.md5",
+      "tar_bytes": 84572160,
+      "tar_md5": "ac6c71550fcdb2f23f1ea070ac78e1ff",
+      "sha256": "6514207ddde2857221a7fa1b93c6a7a3652b5327768fc246d60858547b77452b"
+    },
+    {
+      "name": "CSC_OXM_S928BOXM6EZJB_MQB116285468_REV00_user_low_ship_MULTI_CERT.tar.md5",
+      "tar_bytes": 378296320,
+      "tar_md5": "f5947cc29ecade65c69d791e7b2c0606",
+      "sha256": "e2294454030ac997fe7e9bbddf0dab62d94ad4c4f346099c0cd334ac34b5d713"
+    },
+    {
+      "name": "HOME_CSC_OXM_S928BOXM6EZJB_MQB116285468_REV00_user_low_ship_MULTI_CERT.tar.md5",
+      "tar_bytes": 378255360,
+      "tar_md5": "24dfb1ecf28ebedca2c22c758657a9c9",
+      "sha256": "c0156b230e5c92b651a7280b2017003eaf984ff4e63557b87b975d4e64a0bf5d"
+    }
+  ],
+  "stock_kernel": {
+    "kernel_bytes": 38140416,
+    "sha256": "967a494927d3627eb1bfe6661f2e3189f449b94002a9bdbe4b960b4087f41e4e",
+    "linux_banner": "Linux version 6.1.162-android14-11-34343818-abS928BXXU6EZJB (build-user@build-host) (Android (10087095, +pgo, +bolt, +lto, -mlgo, based on r487747c) clang version 17.0.2 (https://android.googlesource.com/toolchain/llvm-project d9f89f4d16663d5012e5c09495f3b30ece3d2362), LLD 17.0.2) #1 SMP PREEMPT Mon Oct 19 08:59:36 UTC 2026",
+    "config_sha256": "fded9d39b569ce979cef984d2dc70a334b11c951f6c87a3de8119ba496554ebb"
+  },
+  "stock_boot_images": [
+    {
+      "name": "boot.img",
+      "bytes": 100663296,
+      "sha256": "7659aecae783407ce2829a57620543e0637f8651074836736d3a7023f54f8514"
+    },
+    {
+      "name": "dtbo.img",
+      "bytes": 16777216,
+      "sha256": "e048e7cbb6a661eade20b4b3f650cd1d697f72abc38ab505d8aeb82dab93b77f"
+    },
+    {
+      "name": "vendor_boot.img",
+      "bytes": 100663296,
+      "sha256": "332b353f39f16d9ba47112d957175aa4f8d2edc0bfa4d34ef24d12e3a1dc2a3c"
+    },
+    {
+      "name": "init_boot.img",
+      "bytes": 8388608,
+      "sha256": "c567d8a711f882b57508722a890dbb9ef72ff02cfb0749c277943e6228853b0e"
+    },
+    {
+      "name": "vbmeta_system.img",
+      "bytes": 4160,
+      "sha256": "ef35ed40b6c78a45d6f909439f388782fb87385a1434ce81f3791f05b3e615d9"
+    }
+  ],
+  "stock_modversions": {
+    "elf_files": 882,
+    "counts": {
+      "vendor_boot": 411,
+      "vendor_dlkm": 351,
+      "system_dlkm": 120
+    },
+    "unique_symbols": 5470,
+    "conflicts": 0,
+    "normalized_table_sha256": "b074fab908180d8d77b7033725a077b4c9f408801313dde2214231f4b4566849",
+    "same_as_reference_stock": true,
+    "strict_symbols": 2485,
+    "strict_stock_matches": 2485,
+    "new_build_attested": false
+  },
+  "reference_run": "44836464612",
+  "stock_gunyah_qcom": {
+    "file": "partitions\\vendor_boot\\ramdisk-0\\lib\\modules\\gunyah_qcom.ko",
+    "sha256": "b0364bcf3b0487c05863de92c4ccad6b313f52f6863fd61dba5b5f23d4a292c2",
+    "count_import_crcs": 11,
+    "matches_reference_stock": true
+  }
+}

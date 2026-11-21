@@ -1,0 +1,98 @@
+name: BakaSU 35262 / EZJB / SUSFS 2.4.0
+
+on:
+  push:
+    branches: [codex/bakasu-35262-ezjb]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bakasu-35262-ezjb-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HELPER: build-center/bakasu-ezjb
+
+jobs:
+  kernel:
+    name: EZJB ThinLTO and Samsung Strict KMI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install kernel build dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y bison flex bc cpio libelf-dev libssl-dev libdw-dev dwarves zstd xz-utils
+      - name: Build pinned ARM64 kernel and verify CRCs
+        run: bash "$HELPER/build.sh" "$RUNNER_TEMP/ezjb-kernel"
+      - name: Package EZJB AnyKernel3
+        run: |
+          bash "$HELPER/reference-assets.sh" "$RUNNER_TEMP/template" kernel
+          python3 -B "$HELPER/bundle.py" kernel "$RUNNER_TEMP/template" "$RUNNER_TEMP/ezjb-kernel" dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: BakaSU-35262-EZJB-Strict-AnyKernel3
+          path: dist/*.zip
+          if-no-files-found: error
+
+  modules:
+    name: BakaSU ZeroMount and ReSuSFS ARM64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Prepare pinned Android NDK and ARM64 test execution
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y qemu-user-static binfmt-support
+          sudo update-binfmts --enable qemu-aarch64
+          ndk="$ANDROID_SDK_ROOT/ndk/29.0.14206865"
+          if [[ ! -d "$ndk/toolchains/llvm" ]]; then
+            "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" 'ndk;29.0.14206865'
+          fi
+          echo "NDK_CLANG=$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" >> "$GITHUB_ENV"
+      - name: Build ARM64 SUSFS tools and modules from checked inputs
+        run: |
+          bash "$HELPER/reference-assets.sh" "$RUNNER_TEMP/template" modules
+          python3 -B "$HELPER/bundle.py" modules "$RUNNER_TEMP/template" "$RUNNER_TEMP/tools" dist --clang "$NDK_CLANG"
+      - name: Verify actual ZIP installers and prop-watch
+        run: |
+          fixture="$RUNNER_TEMP/prop-watch-fixture"
+          "$NDK_CLANG" --target=aarch64-linux-android26 -nostdlib -static -Wl,-e,_start "$HELPER/prop_watch_fixture.S" -o "$fixture"
+          python3 -B "$HELPER/test_prop_watch.py" "$RUNNER_TEMP/template/zeromount.zip" dist/ZeroMount-*.zip "$fixture"
+          python3 -B "$HELPER/test_zero_install.py" dist/ZeroMount-*.zip
+          python3 -B "$HELPER/test_resusfs_baka.py" dist/ReSuSFS-*.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: BakaSU-35262-EZJB-ZeroMount-ReSuSFS
+          path: dist/*.zip
+          if-no-files-found: error
+
+  bundle:
+    name: Assemble all EZJB build artifacts
+    needs: [kernel, modules]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: BakaSU-35262-EZJB-*
+          merge-multiple: true
+          path: dist
+      - name: Verify the three final packages
+        run: |
+          cd dist
+          test "$(find . -maxdepth 1 -name '*.zip' | wc -l)" -eq 3
+          for archive in *.zip; do unzip -tq "$archive"; done
+          sha256sum -- *.zip > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: S928BXXU6EZJB-BakaSU-35262-SUSFS-2.4.0-complete
+          path: dist/*
+          if-no-files-found: error

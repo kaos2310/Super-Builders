@@ -1,0 +1,95 @@
+{
+  "config_sha256": "e5690d86f7e98aebc127fb533a246814cf793b0d1fa7402d9bdf26afa416c071",
+  "verified_runtime_prerequisites": {
+    "core": [
+      "SYSCTL",
+      "UTS_NS",
+      "PROC_FS",
+      "SYSFS",
+      "SECCOMP",
+      "SECCOMP_FILTER"
+    ],
+    "cgroups": [
+      "CGROUP_BPF",
+      "BPF",
+      "BPF_SYSCALL"
+    ],
+    "console_and_images": [
+      "EPOLL",
+      "SIGNALFD",
+      "UNIX98_PTYS",
+      "BLK_DEV_LOOP",
+      "EXT4_FS"
+    ],
+    "optional_filesystems": [
+      "FUSE_FS",
+      "OVERLAY_FS"
+    ],
+    "network": [
+      "TUN",
+      "VETH",
+      "BRIDGE",
+      "IP_NF_NAT",
+      "IP_NF_TARGET_MASQUERADE",
+      "IP6_NF_MANGLE",
+      "IPV6_MULTIPLE_TABLES",
+      "IP_ADVANCED_ROUTER",
+      "IP_MULTIPLE_TABLES",
+      "NF_NAT_REDIRECT",
+      "NETFILTER_XT_TARGET_MASQUERADE",
+      "NETFILTER_XT_TARGET_TCPMSS",
+      "NF_CT_NETLINK"
+    ],
+    "configuration_visibility": [
+      "IKCONFIG",
+      "IKCONFIG_PROC"
+    ]
+  },
+  "mode": "verify",
+  "resource_limits_requested": false,
+  "expected_config": {
+    "SYSVIPC": "y",
+    "POSIX_MQUEUE": "y",
+    "IPC_NS": "y",
+    "PID_NS": "y",
+    "DEVTMPFS": "y",
+    "NETFILTER_XT_MATCH_ADDRTYPE": "y",
+    "USER_NS": "y",
+    "IP6_NF_NAT": "y",
+    "IP6_NF_TARGET_MASQUERADE": "y",
+    "IP_NF_TARGET_REJECT": "y",
+    "IP6_NF_TARGET_REJECT": "y",
+    "NETFILTER_XT_TARGET_LOG": "y",
+    "NETFILTER_XT_MATCH_RECENT": "y",
+    "IP_SET": "y",
+    "IP_SET_HASH_IP": "y",
+    "IP_SET_HASH_NET": "y",
+    "NETFILTER_XT_SET": "y",
+    "TMPFS_POSIX_ACL": "y",
+    "TMPFS_XATTR": "y",
+    "NAMESPACES": "y",
+    "NET_NS": "y",
+    "CGROUPS": "y",
+    "MEMCG": "y",
+    "TMPFS": "y",
+    "NETFILTER": "y",
+    "NETFILTER_ADVANCED": "y",
+    "NETFILTER_XTABLES": "y",
+    "NF_CONNTRACK": "y",
+    "NF_NAT": "y",
+    "IPV6": "y",
+    "IP_NF_IPTABLES": "y",
+    "IP_NF_FILTER": "y",
+    "IP6_NF_IPTABLES": "y",
+    "IP6_NF_FILTER": "y",
+    "CFS_BANDWIDTH": "n",
+    "CGROUP_PIDS": "n"
+  },
+  "guide_commit": "ac38c11fef1402c0db8172ea8187db0401a0bc30",
+  "runtime_checker_commit": "d1d7478d0abc777ab0cfc4e1d9a902769b8b132a",
+  "kabi_patch_commit": "1890424779e46c1f3ced182191af28eea7be8c46",
+  "reject_mapping": "IP_NF_TARGET_REJECT + IP6_NF_TARGET_REJECT",
+  "full_device_module_rebuild_completed": false,
+  "stock_module_compatibility_verified": false,
+  "device_boot_verified": false
+}
