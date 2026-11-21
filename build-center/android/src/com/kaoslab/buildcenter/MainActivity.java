@@ -137,12 +137,8 @@ public class MainActivity extends Activity {
                 String kind=b.optString("kind","file");
                 if("kernel-artifact".equals(kind)){
                     if(expected.isEmpty())throw new IOException("Prüfsumme für Kernel-Artefakt fehlt.");
-                    byte[][] payload=new byte[1][];String[] filename=new String[1];int found=0;
-                    try(ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(raw))){ZipEntry e;while((e=z.getNextEntry())!=null){
-                        if(e.getName().startsWith("/")||e.getName().contains("..")||e.getName().contains("\\"))throw new IOException("Unsicherer ZIP-Pfad.");
-                        if(!e.isDirectory()&&e.getName().endsWith(".zip")){found++;if(found>1)throw new IOException("Mehrdeutiges Kernel-Artefakt.");payload[0]=read(z,LIMIT);filename[0]=e.getName().substring(e.getName().lastIndexOf('/')+1);}
-                    }}
-                    if(found!=1)throw new IOException("Flashbare Kernel-ZIP fehlt.");raw=payload[0];name=filename[0];
+                    KernelArtifact.Payload payload=KernelArtifact.unpack(raw,getCacheDir(),LIMIT);
+                    raw=payload.bytes;name=payload.filename;
                     Set<String> entries=new HashSet<>();try(ZipInputStream z=new ZipInputStream(new ByteArrayInputStream(raw))){ZipEntry e;while((e=z.getNextEntry())!=null){entries.add(e.getName());if(e.getSize()>LIMIT)throw new IOException("ZIP-Eintrag zu groß.");}}
                     if(!entries.contains("anykernel.sh")||!entries.contains("STRICT-KMI.txt")||Collections.disjoint(entries,Arrays.asList("Image","Image.gz","Image.gz-dtb","Image.lz4")))throw new IOException("AnyKernel3-/Strict-KMI-Paket unvollständig.");
                 }
@@ -154,7 +150,7 @@ public class MainActivity extends Activity {
                     boolean valid=false;
                     if(info!=null&&info.signingInfo!=null&&info.signingInfo.getApkContentsSigners().length==1){
                         String certificate=sha(info.signingInfo.getApkContentsSigners()[0].toByteArray());
-                        valid=("com.sukisu.ultra".equals(info.packageName)&&CERT.equals(certificate))||
+                        valid=(("com.sukisu.ultra".equals(info.packageName)||"com.sukisu.nova".equals(info.packageName))&&CERT.equals(certificate))||
                             ("com.kaoslab.sukisu.manager".equals(info.packageName)&&EZJ1_CERT.equals(certificate));
                     }
                     if(!valid){apk.delete();throw new IOException("Paketkennung oder Signatur des SukiSU-Managers stimmt nicht überein.");}
@@ -199,7 +195,7 @@ public class MainActivity extends Activity {
         String host=u.getHost(),path=u.getRawPath();
         if("POST".equals(method))return "api.github.com".equals(host)&&path.matches("/repos/[\\w.-]+/[\\w.-]+/actions/workflows/build-center\\.yml/dispatches");
         if(!"GET".equals(method))return false;
-        if("api.github.com".equals(host))return path.startsWith("/repos/");
+        if("api.github.com".equals(host))return path.startsWith("/repos/")||path.equals("/repositories/957055748")||path.startsWith("/repositories/957055748/");
         if("gitlab.com".equals(host))return path.startsWith("/api/v4/projects/simonpunk%2Fsusfs4ksu/")||path.startsWith("/simonpunk/susfs4ksu/-/archive/");
         return download&&("github.com".equals(host)||"codeload.github.com".equals(host))&&path.matches("/[\\w.-]+/[\\w.-]+/(releases/download|zip|tar\\.gz)/.+");
     }
@@ -209,7 +205,9 @@ public class MainActivity extends Activity {
         URL current=initial.toURL();boolean auth=true;
         for(int i=0;i<6;i++){
             HttpsURLConnection c=(HttpsURLConnection)current.openConnection();c.setConnectTimeout(30000);c.setReadTimeout(binary?90000:35000);c.setInstanceFollowRedirects(false);c.setRequestMethod(method);
-            c.setRequestProperty("User-Agent","KAOSLAB-SukiSU-Build-Center/1.0");c.setRequestProperty("Accept",binary?"application/octet-stream":"application/vnd.github+json");
+            // The Actions API returns a JSON-media redirect; the redirected archive is binary.
+            boolean artifactApi="api.github.com".equals(current.getHost())&&current.getPath().matches("/repos/[\\w.-]+/[\\w.-]+/actions/artifacts/[0-9]+/zip");
+            c.setRequestProperty("User-Agent","KAOSLAB-SukiSU-Build-Center/1.0");c.setRequestProperty("Accept",binary&&!artifactApi?"application/octet-stream":"application/vnd.github+json");
             if(auth&&"api.github.com".equals(current.getHost())&&!token.isEmpty())c.setRequestProperty("Authorization","Bearer "+token);
             if(body!=null){c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");try(OutputStream out=c.getOutputStream()){out.write(body.toString().getBytes(StandardCharsets.UTF_8));}}
             int status=c.getResponseCode();

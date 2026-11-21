@@ -540,14 +540,15 @@ jobs:
         set -euo pipefail
         PIN="${{ inputs.sukisu_commit }}"
         test "$PIN" = ${{ inputs.center_pin }}
-        git clone https://github.com/SukiSU-Ultra/SukiSU-Ultra.git "$KSU_DIR"
+        git clone https://github.com/${{ fromJSON(inputs.center_plan).sukisu_repository }}.git "$KSU_DIR"
+        git -C "$KSU_DIR" fetch origin "$PIN"
         git -C "$KSU_DIR" checkout --detach "$PIN"
         test "$(git -C "$KSU_DIR" rev-parse HEAD)" = "$PIN"
         test "$(git -C "$KSU_DIR" rev-list --count HEAD)" = ${{ inputs.center_count }}
         ln -s "../../$KSU_DIR/kernel" common/drivers/kernelsu
         printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> common/drivers/Makefile
         printf '\nsource "drivers/kernelsu/Kconfig"\n' >> common/drivers/Kconfig
-        echo "RESUKISU_VERSION_FULL=v4.3.0-r2-${{ inputs.center_code }}-${{ inputs.center_short }}" >> "$GITHUB_ENV"
+        echo "RESUKISU_VERSION_FULL=${{ fromJSON(inputs.center_plan).sukisu_tag }}-${{ inputs.center_code }}-${{ inputs.center_short }}" >> "$GITHUB_ENV"
     - name: Fix Old Kernel Compatibility
       working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |
@@ -632,6 +633,13 @@ jobs:
         set -euo pipefail
         python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-priority-uid-${{ inputs.center_code }}/apply.py" \
           --common "$KERNEL_ROOT/common"
+    - name: Integrate pinned SuSFS updates before control overlays
+      run: |
+        set -euo pipefail
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-runtime-${{ inputs.center_code }}/release240.py" "$KERNEL_ROOT/common"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" susfs-after --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-runtime-${{ inputs.center_code }}/release240.py" "$KERNEL_ROOT/common"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" susfs-wire --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
     - name: Apply UID-gated SUSFS visibility consumers
       if: inputs.susfs_uid_gated_hiding
       run: |
@@ -1196,11 +1204,11 @@ jobs:
     - name: Integrate SuSFS updates and tested hidden-name directory filtering
       run: |
         set -euo pipefail
-        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" susfs-after --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
         HIDDEN="$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-hidden-name-readdir"
         python3 "$HIDDEN/test.py" --common "$KERNEL_ROOT/common" --output "$GITHUB_WORKSPACE/susfs-runtime-audit/hidden-name-host"
         python3 "$HIDDEN/apply.py" --common "$KERNEL_ROOT/common"
         python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" capture-final --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"
+        python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_suspath_test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" --output "$GITHUB_WORKSPACE/susfs-runtime-audit/suspath-host"
     - name: Build Kernel
       working-directory: ${{ env.KERNEL_ROOT }}
       env:

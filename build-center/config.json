@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "name": "SukiSU Build Center",
-  "version": "1.1.1",
-  "version_code": 4,
+  "version": "1.2.0",
+  "version_code": 7,
   "repository": "kaos2310/Super-Builders",
-  "controller_ref": "main",
+  "controller_ref": "codex/build-center-auto-updates",
   "workflow": "build-center.yml",
   "channel": "main",
   "automatic_builds": true,
@@ -20,5 +20,6 @@
   "susfs_release_base": "a2165b6f875b73e2f87d3c6f12814efac8de061d",
   "susfs_functional_base": "5369359dbd10f6dd8cbdd59d1df7b788b29b168c",
   "firmware": "S928BXXS6EZJ1",
-  "firmware_profile": "S928BXXS6EZJ1-EUX-android14-6.1.162"
+  "firmware_profile": "S928BXXS6EZJ1-EUX-android14-6.1.162",
+  "automatic_controller_ref": "codex/build-center-auto-updates"
 }

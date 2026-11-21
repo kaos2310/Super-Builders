@@ -35,6 +35,34 @@ def transform(value):
     return value
 
 
+def prepare_resusfs_steps(steps):
+    version='fromJSON(inputs.center_plan).susfs_version'
+    legacy=version+" == 'v2.4.0'"
+    for name in ('Verify retained ReSuSFS behavior and new feature gates',
+                 'Package ReSuSFS without replacing global tools or saved configuration'):
+        next(step for step in steps if step.get('name')==name)['if']=legacy
+
+    build=next(step for step in steps if step.get('name')=='Build private official SUSFS2.4.0 tool and runtime helper')
+    build['name']='Build the ARM64 tool from the exact official SuSFS source'
+    build['env']['LEGACY_SUSFS_COMPANIONS']='${{ '+legacy+' }}'
+    prefix,runtime=build['run'].split('CLANG=',1)
+    runtime='CLANG='+runtime
+    cli_verify='readelf -h module-output/ksu_susfs | grep -q AArch64\n'
+    if runtime.count(cli_verify)!=1:
+        raise RuntimeError('SuSFS ARM64 verification step changed')
+    runtime=runtime.replace(cli_verify,'')
+    build['run']=prefix+cli_verify+'if [[ "$LEGACY_SUSFS_COMPANIONS" == true ]]; then\n'
+    build['run']+=''.join('  '+line for line in runtime.splitlines(keepends=True))+'fi\n'
+
+    upload=next(step for step in steps if step.get('uses','').startswith('actions/upload-artifact@'))
+    upload['if']=legacy
+    steps.insert(steps.index(upload)+1,{
+        'uses':upload['uses'],'if':version+" != 'v2.4.0'",
+        'with':{'name':'SuSFS-Tools-${{ '+version+' }}-SukiSU${{ inputs.center_code }}-ARM64',
+                'path':'module-output/ksu_susfs\nmodule-output/SUSFS-TOOL-BUILD.json\n',
+                'if-no-files-found':'error','retention-days':30}})
+
+
 def generate(baseline,out):
     config=json.loads((ROOT/'config.json').read_text());out.mkdir(parents=True,exist_ok=True)
     mapping={
@@ -71,18 +99,41 @@ def generate(baseline,out):
                     {'name':'Prepare immutable update candidate','env':{'CENTER_PLAN':'${{ inputs.center_plan }}'},
                      'run':f'python3 "$GITHUB_WORKSPACE/.build-center/build-center/ci/bootstrap.py" {location}'}]
             steps[steps.index(checkout)+1:steps.index(checkout)+1]=insert
+            if dest=='build-center-userspace.yml':
+                upstream=next(s for s in steps if s.get('with',{}).get('repository')=='SukiSU-Ultra/SukiSU-Ultra')
+                upstream['with']['repository']='${{ fromJSON(inputs.center_plan).sukisu_repository }}'
+                compat='python3 "$GITHUB_WORKSPACE/.build-center/build-center/ci/userspace_compat.py" sukisu --plan builder/.build-center-plan.json --receipt userspace-artifacts/USERSPACE-COMPAT.json'
+                before=next(s for s in steps if s.get('name')=='Verify immutable official workspace lock')
+                before['run']=before['run'].replace('test ! -e sukisu/target',compat+'\ntest ! -e sukisu/target')
+                after=next(s for s in steps if s.get('name')=='Verify immutable locks, real generated UAPI6 and ARM64 binaries')
+                after['run']=after['run'].replace('cp sukisu/Cargo.lock',compat+' --verify-only\ncp sukisu/Cargo.lock')
+                after['run']=after['run'].replace('BUILD-IDENTITY.json > SHA256SUMS','BUILD-IDENTITY.json USERSPACE-COMPAT.json > SHA256SUMS')
             if dest=='build-center-resusfs.yml':
                 steps.insert(steps.index(insert[-1])+1,{'name':'Download the exact official SuSFS CLI sources',
                     'run':'python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py" update-tool'})
+                prepare_resusfs_steps(steps)
             if dest=='build-center-strict.yml':
+                setup=next(s for s in steps if s.get('name','').startswith('Setup exact official SukiSU'))
+                setup['run']=setup['run'].replace('RESUKISU_VERSION_FULL=v4.3.0-r2-',
+                    'RESUKISU_VERSION_FULL=${{ fromJSON(inputs.center_plan).sukisu_tag }}-')
+                setup['run']=setup['run'].replace('https://github.com/SukiSU-Ultra/SukiSU-Ultra.git',
+                    'https://github.com/${{ fromJSON(inputs.center_plan).sukisu_repository }}.git')
                 runtime='$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_runtime.py'
                 before=next(i for i,s in enumerate(steps) if s.get('name')=='Apply pinned SUSFS')
                 steps.insert(before,{'name':'Prepare official pinned SuSFS delta',
                     'run':f'python3 "{runtime}" susfs-before --common "$KERNEL_ROOT/common"'})
+                release='$GITHUB_WORKSPACE/android14-6.1/build-helpers/susfs-runtime-${{ inputs.center_code }}/release240.py'
+                before=next(i for i,s in enumerate(steps) if s.get('name')=='Apply UID-gated SUSFS visibility consumers')
+                steps.insert(before,{'name':'Integrate pinned SuSFS updates before control overlays',
+                    'run':'set -euo pipefail\n'+f'python3 "{release}" "$KERNEL_ROOT/common"\n'+
+                    f'python3 "{runtime}" susfs-after --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'+
+                    f'python3 "{release}" "$KERNEL_ROOT/common"\n'+
+                    f'python3 "{runtime}" susfs-wire --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'})
                 before=next(i for i,s in enumerate(steps) if s.get('name')=='Build Kernel')
                 steps.insert(before,{'name':'Integrate official SuSFS updates and freeze final sources',
-                    'run':'set -euo pipefail\n'+f'python3 "{runtime}" susfs-after --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'+
-                    f'python3 "{runtime}" capture-final --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'})
+                    'run':'set -euo pipefail\n'+
+                    f'python3 "{runtime}" capture-final --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR"\n'+
+                    'python3 "$GITHUB_WORKSPACE/android14-6.1/build-helpers/_center_suspath_test.py" --common "$KERNEL_ROOT/common" --ksu "$KERNEL_ROOT/$KSU_DIR" --output "$GITHUB_WORKSPACE/susfs-runtime-audit/suspath-host"\n'})
                 steps.append({'name':'Upload immutable plan and source manifests','if':'always()',
                     'uses':'actions/upload-artifact@v7','with':{'name':'Build-Center-Source-Evidence-${{ github.run_id }}',
                     'path':'.build-center-plan.json\n**/.build-center-source-manifest.json\n**/.build-center-susfs-update.json\n.build-center-susfs/upstream-changes.json',

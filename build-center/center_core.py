@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
+from ci.versioning import formula_from_kbuild, version_code
 
 ROOT = Path(__file__).resolve().parent
 SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -31,7 +32,7 @@ def allowed_url(url: str, method: str = "GET", download: bool = False) -> bool:
         if method != "GET":
             return False
         if u.hostname == "api.github.com":
-            return u.path.startswith("/repos/")
+            return u.path=="/repositories/957055748" or u.path.startswith(("/repos/","/repositories/957055748/"))
         if u.hostname == "gitlab.com":
             return u.path.startswith(("/api/v4/projects/simonpunk%2Fsusfs4ksu/",
                                       "/simonpunk/susfs4ksu/-/archive/"))
@@ -164,16 +165,23 @@ def checked_file(raw, name, expected="", kind="file"):
     return raw, safe_name, sha256(raw)
 
 
-def resolve_sources(channel="main", token="", get=request):
+def resolve_sources(channel="main", token="", get=request, source_ref=None):
     if channel not in ("main", "release"):
         raise CenterError("Unbekannter Update-Kanal.")
-    base = "https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra"
+    if source_ref is not None and (not SHA.fullmatch(source_ref) or channel != "main"):
+        raise CenterError("Ein expliziter Quellstand erfordert eine vollständige Commit-ID im main-Kanal.")
+    base = "https://api.github.com/repositories/957055748"
+    repository=get(base,token)['data']
+    if repository.get('id')!=957055748 or not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+',repository.get('full_name','')):
+        raise CenterError('Offizielle SukiSU-Projektidentität konnte nicht bestätigt werden.')
     release = get(base + "/releases/latest", token)["data"]
-    ref = "main" if channel == "main" else release["tag_name"]
+    ref = source_ref or ("main" if channel == "main" else release["tag_name"])
     commit = get(base + "/commits/" + urllib.parse.quote(ref, safe=""), token)["data"]
     pin = commit["sha"]
     if not SHA.fullmatch(pin):
         raise CenterError("Ungültige SukiSU-Commit-ID.")
+    if source_ref is not None and pin != source_ref:
+        raise CenterError("Der aufgelöste SukiSU-Commit stimmt nicht mit dem Auftrag überein.")
     counts = get(base + f"/commits?sha={pin}&per_page=1", token)
     last = re.search(r"[?&]page=(\d+)[^>]*>; rel=\"last\"", counts["headers"].get("link", ""))
     count = int(last[1]) if last else len(counts["data"])
@@ -182,12 +190,10 @@ def resolve_sources(channel="main", token="", get=request):
     kbuild = get(base + "/contents/kernel/Kbuild?ref=" + pin, token)["data"]
     import base64
     text = base64.b64decode(kbuild["content"]).decode()
-    # Reject a changed version formula instead of silently inventing a version.
-    if not (re.search(r"^VERSION_BASE\s*:=\s*40000\s*$", text, re.M)
-            and re.search(r"^VERSION_OFFSET\s*:=\s*2815\s*$", text, re.M)
-            and "expr $(VERSION_BASE) + $(LOCAL_COUNT) - $(VERSION_OFFSET)" in text):
-        raise CenterError("SukiSU hat die Versionsberechnung geändert; Anpassung erforderlich.")
-    code = 40000 + count - 2815
+    try:
+        formula=formula_from_kbuild(text);code=version_code(count,formula)
+    except ValueError as error:
+        raise CenterError('SukiSU-Versionsformel konnte nicht eindeutig geprüft werden: '+str(error)) from None
     gitlab = "https://gitlab.com/api/v4/projects/simonpunk%2Fsusfs4ksu/repository"
     sus_commit = get(gitlab + "/commits/gki-android14-6.1")["data"]
     sus_pin = sus_commit["id"]
@@ -202,8 +208,11 @@ def resolve_sources(channel="main", token="", get=request):
     manager = next((a for a in release.get("assets", [])
                     if a["name"].endswith(".apk") and f"_{code}-" in a["name"]), None)
     tag = f"s928b-ezj1-suki{code}-susfs{version.removeprefix('v')}-{pin[:8]}-{sus_pin[:8]}"
-    return {"schema": 1, "channel": channel, "sukisu_commit": pin, "sukisu_code": code,
+    return {"schema": 1, "channel": "pinned" if source_ref else channel,
+            "sukisu_requested_ref": source_ref, "sukisu_commit": pin, "sukisu_code": code,
             "sukisu_count": count, "sukisu_tag": release["tag_name"],
+            "sukisu_version_formula":formula,
+            "sukisu_repository":repository['full_name'],"sukisu_repository_id":957055748,
             "sukisu_message": commit["commit"]["message"].splitlines()[0],
             "susfs_commit": sus_pin, "susfs_version": version, "release_tag": tag,
             "profile": "S928BXXS6EZJ1-EUX-android14-6.1.162", "firmware": "S928BXXS6EZJ1", "manager": manager,

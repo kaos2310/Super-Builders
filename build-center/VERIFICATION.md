@@ -74,3 +74,9 @@ Die vier neuen Schalter wurden **in der installierten Release-App** aus- und wie
 Ausgangsmaske 15 wurde wiederhergestellt. Dieser App-Runtime-Test lief auf dem vorhandenen EZIF-Kernel 41168/UAPI6; seine Beobachtung wird nicht als EZJ1-Boot-Test ausgegeben.
 
 [Öffentlicher EZJ1-Kernel-Download](https://github.com/kaos2310/Super-Builders/releases/tag/s928b-ezj1-suki41168-susfs2.4.0-674aa00c-69b8e734-hidden-name-readdir-v2-r42894816028). App-/Quellpakete und Prüfsummen stehen im separaten Build-Center-v1.1.0-Release. Lokale Geräte-Backups, private Schlüssel, Token und UI-Screenshots werden nicht in öffentliche Pakete aufgenommen.
+# Nachtrag 1.1.3 vom 14.11.2026
+
+Die automatische Quellzuordnung mit gemeinsamem `source_request` ist implementiert und lokal geprüft. 32 JavaScript-Tests, 77 Python-Tests und 31 Browser-Prüfungen bestehen. Die APK verwendet dasselbe Zertifikat wie 1.1.2; alle neun eingebetteten Web-Dateien wurden bytegenau mit den geprüften Quellen verglichen. Workflow und Resolver sind durch `controller.json` gebunden. Die bisherigen Build- und Veröffentlichungsprüfungen bleiben laut Strukturtests erhalten; actionlint meldet ausschließlich dieselben 41 konstanten Profilbedingungen wie die Ausgangsfassung.
+
+GitHub-Veröffentlichung und Installation dieser Version auf dem Telefon sind noch offen. Die Browser-Prüfungen verwenden simulierte GitHub-Antworten. Ein echter neuer Kernelbau, Flash oder Boot wurde nicht ausgeführt. Der vollständige Arbeitsbericht liegt in `REPARATUR.md` des Reparaturpakets; maschinenlesbare Ergebnisse in `dist/VERIFICATION.json`.
+

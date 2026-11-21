@@ -10,7 +10,12 @@ $appInfo=Get-Content -LiteralPath (Join-Path $root 'config.json') -Raw | Convert
 $work=Join-Path $root 'build\android'
 $output=Join-Path $root "dist\$($appInfo.version)"
 $privateDir=if($SigningDirectory){(Resolve-Path -LiteralPath $SigningDirectory).Path}else{Join-Path $root 'private'}
-New-Item -ItemType Directory -Path $work,$output,$privateDir -Force | Out-Null
+New-Item -ItemType Directory -Path $work,$output -Force | Out-Null
+if($SigningDirectory) {
+    if(!(Test-Path -LiteralPath (Join-Path $privateDir 'build-center.p12')) -or !(Test-Path -LiteralPath (Join-Path $privateDir 'signing-password.txt'))) {
+        throw 'Das angegebene Signierverzeichnis muss den bestehenden App-Schlüssel und seine Passwortdatei enthalten.'
+    }
+} else { New-Item -ItemType Directory -Path $privateDir -Force | Out-Null }
 $platform=Join-Path $AndroidSdk 'platforms\android-36\android.jar'
 $buildTools=Join-Path $AndroidSdk 'build-tools\36.0.0'
 $env:JAVA_HOME=$JavaHome

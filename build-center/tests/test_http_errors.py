@@ -8,10 +8,20 @@ from unittest.mock import patch
 import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from center_core import CenterError, request
+from center_core import CenterError, request, allowed_url
 
 
 class HttpErrorTests(unittest.TestCase):
+    def test_official_repository_id_supports_renames_without_allowing_other_id_routes(self):
+        for suffix in ('','/commits/main','/contents/kernel/Kbuild?ref='+'a'*40):
+            self.assertTrue(allowed_url('https://api.github.com/repositories/957055748'+suffix))
+        for url in ('https://api.github.com/repositories/957055749',
+                    'https://api.github.com/repositories/9570557480/commits/main',
+                    'https://api.github.com/repositories/957055748/commits/main'):
+            if url.endswith('/commits/main') and '9570557480' not in url:
+                self.assertFalse(allowed_url(url,'POST'))
+            else:self.assertFalse(allowed_url(url))
+
     def failure(self, body, code=422, headers=None):
         return urllib.error.HTTPError('https://api.github.com/repos/example/project/commits/missing',
                                       code, 'Unprocessable Entity', headers or Message(), io.BytesIO(body))

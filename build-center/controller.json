@@ -1,0 +1,15 @@
+{
+  "schema": 2,
+  "workflow": "build-center.yml",
+  "source_binding": "source-request-v1",
+  "profile": "S928BXXS6EZJ1-EUX-android14-6.1.162",
+  "channels": [
+    "main",
+    "release"
+  ],
+  "source_versions": "kbuild-affine-v1",
+  "automatic_builds": true,
+  "kernel_revision": "hidden-name-readdir-v2",
+  "workflow_sha256": "a762d64691ad80aa2d42162ece890d2ce384c0d51fb05951b8853ceaa2a199f0",
+  "resolver_sha256": "abc3e14674bf57adc2d9b01c98321319d21877a6de8f2ed5d935c842b9f4976f"
+}

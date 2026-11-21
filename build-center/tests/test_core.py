@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 import zipfile
@@ -16,7 +17,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from center_core import CenterError, SafeRedirect, allowed_url, checked_file, resolve_sources, sha256
 from desktop import CenterServer
 from ci.bootstrap import prepare, validate
-from ci.check_updates import recent_failure
+from ci.check_updates import recent_failure, verify_expected_main, verify_expected_susfs
 from ci.runtime import three_way
 from ci.firmware_profile import DATA as FIRMWARE_DATA
 from tools.normalize_apk import normalize
@@ -110,7 +111,8 @@ class ScheduleTests(unittest.TestCase):
 class ResolveTests(unittest.TestCase):
     def fake(self,url,token='',**kwargs):
         headers={};pin='a'*40
-        if url.endswith('/releases/latest'):data={'tag_name':'v4.3.0-r2','assets':[{'name':'SukiSU_v4.3.0-r2_41150-release.apk'}]}
+        if url.endswith('/repositories/957055748'):data={'id':957055748,'full_name':'SukiSU-Nova/SukiSU-Nova'}
+        elif url.endswith('/releases/latest'):data={'tag_name':'v4.3.0-r2','assets':[{'name':'SukiSU_v4.3.0-r2_41150-release.apk'}]}
         elif '/commits?sha=' in url:data=[{'sha':pin}];headers={'link':f'<https://api.github.com/repos/a/b/commits?sha={pin}&per_page=1&page=3983>; rel="last"'}
         elif 'contents/kernel/Kbuild' in url:data={'content':base64.b64encode(b'VERSION_BASE := 40000\nVERSION_OFFSET := 2815\nKSU_VERSION := $(shell expr $(VERSION_BASE) + $(LOCAL_COUNT) - $(VERSION_OFFSET))').decode()}
         elif '/files/' in url:data={'content':base64.b64encode(b'#define SUSFS_VERSION "v2.4.0"').decode()}
@@ -121,6 +123,44 @@ class ResolveTests(unittest.TestCase):
         p=resolve_sources(get=self.fake)
         self.assertEqual(p['sukisu_code'],41168);self.assertEqual(p['susfs_version'],'v2.4.0')
         self.assertIsNone(p['manager']);self.assertIn('a'*40,p['sukisu_commit'])
+
+    def test_official_nova_formula_resolves_without_an_app_version_patch(self):
+        source=(Path(__file__).parent/'fixtures/kbuild-nova-upstream').read_bytes()
+        def get(url,*args,**kwargs):
+            result=self.fake(url,*args,**kwargs)
+            if 'contents/kernel/Kbuild' in url:
+                result['data']['content']=base64.b64encode(source).decode()
+            if '/commits?sha=' in url:
+                result['headers']['link']='<https://api.github.com/repos/a/b/commits?per_page=1&page=4008>; rel="last"'
+            return result
+        result=resolve_sources(get=get)
+        self.assertEqual(result['sukisu_code'],35004)
+        self.assertEqual(result['sukisu_count'],4008)
+        self.assertEqual(result['sukisu_version_formula'],{'base':30000,'offset':996,'operation':'+'})
+
+    def test_expected_main_checks_source_and_version_together(self):
+        p=resolve_sources(get=self.fake)
+        verify_expected_main(p,'a'*40,41168)
+        self.assertEqual(p['sukisu_source_kind'],'official-main')
+        for pin,code in [('b'*40,41168),('a'*40,41178)]:
+            with self.assertRaisesRegex(ValueError,'official main'):
+                verify_expected_main(p,pin,code)
+
+    def test_expected_main_rejects_preview_even_with_the_expected_version(self):
+        p=resolve_sources(get=self.fake,source_ref='a'*40)
+        with self.assertRaisesRegex(ValueError,'official main'):
+            verify_expected_main(p,'a'*40,41168)
+
+    def test_expected_main_requires_a_complete_valid_expectation(self):
+        p=resolve_sources(get=self.fake)
+        for pin,code in [('main',41168),('a'*40,None),(None,41168)]:
+            with self.assertRaises(ValueError):verify_expected_main(p,pin,code)
+
+    def test_latest_susfs_commit_must_match_the_reviewed_plan(self):
+        p=resolve_sources(get=self.fake)
+        verify_expected_susfs(p,'b'*40)
+        for pin in ('c'*40,'main','b'*39):
+            with self.assertRaisesRegex(ValueError,'SUSFS'):verify_expected_susfs(p,pin)
     def test_release_ref_is_resolved_not_assumed_main(self):
         urls=[]
         def get(url,*args,**kw):urls.append(url);return self.fake(url,*args,**kw)
@@ -132,6 +172,30 @@ class ResolveTests(unittest.TestCase):
             if '/commits?sha=' in url:r['headers']={}
             return r
         with self.assertRaisesRegex(CenterError,'Commitanzahl'):resolve_sources(get=get)
+
+    def test_explicit_source_pin_is_resolved_with_its_true_count(self):
+        urls=[]
+        def get(url,*args,**kw):
+            urls.append(url);r=self.fake(url,*args,**kw)
+            if '/commits?sha=' in url:
+                r['headers']['link']=r['headers']['link'].replace('page=3983','page=3993')
+            return r
+        p=resolve_sources(get=get,source_ref='a'*40)
+        self.assertEqual(p['sukisu_code'],41178)
+        self.assertEqual(p['sukisu_count'],3993)
+        self.assertEqual(p['channel'],'pinned')
+        self.assertEqual(p['sukisu_requested_ref'],'a'*40)
+        self.assertIn('/commits/'+'a'*40,' '.join(urls))
+
+    def test_explicit_pin_cannot_resolve_to_another_commit(self):
+        with self.assertRaisesRegex(CenterError,'Auftrag'):
+            resolve_sources(get=self.fake,source_ref='c'*40)
+
+    def test_invalid_explicit_ref_fails_before_any_network_request(self):
+        def forbidden(*args,**kwargs):raise AssertionError('Network request was not expected')
+        for ref in ('main','refs/pull/1044/merge','a'*39,'a'*41):
+            with self.assertRaises(CenterError):resolve_sources(get=forbidden,source_ref=ref)
+        with self.assertRaises(CenterError):resolve_sources('release',get=forbidden,source_ref='a'*40)
 
 
 class MergeTests(unittest.TestCase):
@@ -155,6 +219,11 @@ class BootstrapTests(unittest.TestCase):
     def test_invalid_plan_rejected_before_writes(self):
         p=self.plan();p['sukisu_code']=41170
         with self.assertRaisesRegex(ValueError,'mapping'):validate(p)
+
+    def test_reviewed_pin_with_another_valid_formula_fails_before_writes(self):
+        p=self.plan();p.update(sukisu_commit='1c9cca42f8049227d4eea20ab3979db3c5662a7d',
+                               sukisu_code=41176,sukisu_count=3991)
+        with self.assertRaisesRegex(ValueError,'reviewed source/version mapping'):validate(p)
     def test_new_sources_do_not_inherit_compilation_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);h=root/'android14-6.1/build-helpers';port=h/'sukisu-41165-susfs';port.mkdir(parents=True)
@@ -168,11 +237,12 @@ class BootstrapTests(unittest.TestCase):
             }}}))
             (root/'android14-6.1/samsung-s928bxxu6ezif-target.env').write_bytes((FIRMWARE_DATA/'baseline-target.env').read_bytes())
             (root/'android14-6.1/samsung-e3q-zzi4-dlkm-crc-baseline.tsv').write_bytes((FIRMWARE_DATA/'strict-baseline.tsv').read_bytes())
-            prepare(root,self.plan())
+            with patch('ci.bootstrap.prepare_susfs_helpers'),patch('ci.bootstrap.prepare_identity_helpers'):
+                prepare(root,self.plan())
             evidence=json.loads((h/'sukisu-41168-susfs/PREFLIGHT.json').read_text())
             self.assertFalse(evidence['historical_evidence_reused']);self.assertFalse(evidence['full_kernel_link_tested'])
             self.assertNotIn('arm64_sukisu_subtree_compiled',evidence)
-            self.assertIn('count=3983',(h/'configure-sukisu-41168.py').read_text())
+            self.assertEqual(json.loads((root/'.build-center-plan.json').read_text())['sukisu_count'],3983)
             self.assertFalse((h/'configure-sukisu-41165.py').exists())
 
 
