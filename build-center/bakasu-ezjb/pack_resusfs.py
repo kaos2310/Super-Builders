@@ -45,8 +45,13 @@ runtime=$("$MODPATH/bin/susfs-runtime" status 2>/dev/null) || abort 'SUSFS Runti
 printf '%s\\n' "$runtime" | grep -q '"supported":15[,}]' || abort 'All four Runtime-v1 switches required'
 '''
     put('customize.sh', installer.replace(first_write, capability_check + first_write))
+    defaults = files['configs/config.txt'][1].decode()
+    mount_hiding = '\nHIDE_SUS_MNTS_NON_SU=1\n'
+    if defaults.count(mount_hiding) != 1:
+        raise ValueError('Unexpected ReSuSFS mount-hiding default')
+    put('configs/config.txt', defaults.replace(mount_hiding, '\nHIDE_SUS_MNTS_NON_SU=0\n'))
     put('module.prop', 'id=ReSuSFS\nname=ReSuSFS\n'
-        'version=v26.10.23.susfs240.runtime1.bakasu35262.ezjb\nversionCode=2026112102\n'
+        'version=v26.10.23.susfs240.runtime1.bakasu35262.ezjb.r2\nversionCode=2026112103\n'
         'author=ahmed-alnassif; KAOSLAB integration\n'
         'description=BakaSU 35262 / SUSFS 2.4.0 for S928B EZJB.\n')
     # The Nova proof files document a different kernel pair.
@@ -60,6 +65,7 @@ printf '%s\\n' "$runtime" | grep -q '"supported":15[,}]' || abort 'All four Runt
         'reference_package_sha256': digest(source.read_bytes()),
         'susfs_tool_sha256': digest(files['bin/ksu_susfs'][1]), 'runtime_helper_sha256': digest(files['bin/susfs-runtime'][1]),
         'installer_checks_features': True, 'installer_mutates_runtime': False,
+        'fresh_install_mount_hiding_default': False,
         'android_device_installation_tested': False,
     }
     put('build-manifest.json', json.dumps(current, indent=2) + '\n')

@@ -8,6 +8,8 @@ import zipfile
 
 with zipfile.ZipFile(sys.argv[1]) as archive:
     installer = archive.read('customize.sh').decode()
+    defaults = archive.read('configs/config.txt').splitlines()
+    assert [line for line in defaults if line.startswith(b'HIDE_SUS_MNTS_NON_SU=')] == [b'HIDE_SUS_MNTS_NON_SU=0']
 
 with tempfile.TemporaryDirectory(prefix='resusfs-baka-') as directory:
     root = Path(directory)
