@@ -11,5 +11,5 @@
   "automatic_builds": true,
   "kernel_revision": "hidden-name-readdir-v2",
   "workflow_sha256": "218f95bbb35ba08286d96de5415525f5345a7780758801a0670441241118760a",
-  "resolver_sha256": "8211b3f74c82cb3f3e5c47cfe0ee2642504ba7031763bb7cff5fcdfc8c3bb331"
+  "resolver_sha256": "abc3e14674bf57adc2d9b01c98321319d21877a6de8f2ed5d935c842b9f4976f"
 }
