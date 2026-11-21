@@ -159,6 +159,8 @@ def checked_guard6(path,plan):
         # reviewed original hook hashes, not just self-reported preserved maps.
         if plan.get('sukisu_family')=='nova':
             _nova_identity(manifest,plan,'sukisu_version','sukisu_pin')
+            if manifest.get('firmware')!=plan['firmware'] or manifest.get('prop_watch_native_entry')!='bin/arm64-v8a/zm-native-core':
+                raise RuntimeError('Guard6 firmware or prop-watch endpoint mismatch')
             if manifest.get('brene_version')!='0.0.76' or 'webroot/brene76.html' not in names or 'bin/zm-brene76' not in names:
                 raise RuntimeError('Complete BRENE76 integration missing')
             if manifest.get('private_susfs_tool_source_pin')!=plan['susfs_commit']:
@@ -212,10 +214,10 @@ def main():
         if not {'anykernel.sh','STRICT-KMI.txt'}<=names or 'Image' not in names:
             raise RuntimeError('Strict AnyKernel3 payload missing')
         strict=z.read('STRICT-KMI.txt').decode()
-        if 'S928BXXS6EZJ1' not in strict or 'strict' not in strict.lower():
+        if 'S928BXXU6EZJB' not in strict or 'strict' not in strict.lower():
             raise RuntimeError('Strict firmware evidence missing')
-        if 'Requires firmware S928BXXS6EZJ1' not in z.read('anykernel.sh').decode():
-            raise RuntimeError('Flash installer does not accept the audited EZJ1 firmware')
+        if 'Requires firmware S928BXXU6EZJB' not in z.read('anykernel.sh').decode():
+            raise RuntimeError('Flash installer does not accept the audited EZJB firmware')
         hidden=json.loads(z.read('SUSFS-HIDDEN-NAME-READDIR.json'))
         firmware=json.loads(z.read('FIRMWARE-TARGET.json'))
         if firmware['firmware']!=plan['firmware'] or firmware['profile']!=plan['profile'] or firmware['image_sha256']!=hashlib.sha256(z.read('Image')).hexdigest():
@@ -254,11 +256,12 @@ def main():
     (root/'build-plan.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     notes=root/'RELEASE-NOTES.md'
     notes.write_text(f"SukiSU Nova {plan['sukisu_code']} + SuSFS {plan['susfs_version']}\n\n"
-        f"S928BXXS6EZJ1 / EUX / Linux 6.1.162.\n\n"
+        f"S928BXXU6EZJB / EUX / Linux 6.1.162.\n\n"
         f"SukiSU commit: {plan['sukisu_commit']}\n\nSuSFS commit: {plan['susfs_commit']}\n\n"
         + (f"Requested source: official PR merge preview, {plan['sukisu_pull_request']}. This is a preview, not the main-branch version.\n\n" if plan.get('sukisu_source_kind') == 'official-pull-request-merge-preview' else '') +
         f"Kernel, ARM64 userspace and ZeroMount compatibility jobs passed. Samsung Strict KMI and DLKM CRC gates passed.\n\n"
         "The separate Guard6.13/BRENE76 ZIP retains the complete custom module and original controls, with Runtime added to the existing menu. Its original configuration and ownership/boot backends are preserved and verified.\n\n"
+        "ZeroMount prop-watch dispatches to the native core. CI exercises the public entry point and verifies that the former alias cannot recurse.\n\n"
         f"CI run: https://github.com/{plan['repository']}/actions/runs/{plan['run_id']}\n\n"
         f"Kernel correction: {plan['kernel_revision']}. Native and compat directory callbacks apply the existing runtime/owner-aware HIDDEN_NAME policy. Exact-C regression and packaged Image receipts are included.\n\n"
         "The kernel ZIP is the actual AnyKernel3 flash package. SuSFS is integrated into this kernel. The ReSuSFS module contains the matching source-built official tool and retained module settings; the separate source ZIP is a source archive. Device boot and installation were not tested by CI.\n",encoding='utf-8')
@@ -267,7 +270,7 @@ def main():
     # gh obtains the Actions token from GH_TOKEN, never from a command argument.
     subprocess.run(['gh','release','create',plan['release_tag'],'--repo',plan['repository'],
                     '--target',os.environ['GITHUB_SHA'],'--prerelease','--title',
-                    f"S928B EZJ1 · SukiSU Nova {plan['sukisu_code']} · SuSFS {plan['susfs_version']}",
+                    f"S928B EZJB · SukiSU Nova {plan['sukisu_code']} · SuSFS {plan['susfs_version']}",
                     '--notes-file',str(notes),*[str(p) for p in root.iterdir() if p.is_file()]],check=True)
 
 

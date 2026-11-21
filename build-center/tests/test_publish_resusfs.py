@@ -13,7 +13,7 @@ class NovaFixtures(unittest.TestCase):
         self.plan={'sukisu_family':'nova','sukisu_repository':'SukiSU-Nova/SukiSU-Nova',
             'sukisu_code':35004,'sukisu_count':4008,'sukisu_commit':'1439545f12bffe0263690ba862139b70ee5f20cf',
             'susfs_version':'v2.4.0','susfs_commit':publish.REVIEWED_SUSFS_PIN,
-            'profile':'S928BXXS6EZJ1-EUX-android14-6.1.162'}
+            'profile':'S928BXXU6EZJB-EUX-android14-6.1.162'}
         elf=bytearray(64);elf[:6]=b'\x7fELF\x02\x01';elf[18:20]=(183).to_bytes(2,'little')
         self.runtime=bytes(elf)+b'runtime fixture'
         self.core=bytes(elf)+b'Guard6 core fixture'

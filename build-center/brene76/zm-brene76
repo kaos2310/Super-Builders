@@ -1,7 +1,8 @@
 #!/system/bin/sh
 # Integrated BRENE 0.0.76 adapter. No standalone BRENE boot scripts are sourced.
 BINDIR=${ZM71_BINDIR:-${0%/*}}
-NATIVE=${ZM71_NATIVE:-$BINDIR/arm64-v8a/zeromount}
+NATIVE=${ZM71_NATIVE:-$BINDIR/arm64-v8a/zm-native-core}
+CONFIG_READER=${ZM71_NATIVE:-$BINDIR/arm64-v8a/zeromount}
 RP=${ZM71_RESETPROP:-$BINDIR/arm64-v8a/resetprop-rs}
 KSUD=${ZM71_KSUD:-/data/adb/ksud}
 [ -x "$KSUD" ] || KSUD=/data/adb/ksu/bin/ksud
@@ -87,7 +88,7 @@ apply_path_filter() {
     "$SUSFS_TOOL" set_sus_path_uid_filter "$value"
 }
 
-native_enabled() { [ "$("$NATIVE" config get "brene.$1" 2>/dev/null)" = true ]; }
+native_enabled() { [ "$("$CONFIG_READER" config get "brene.$1" 2>/dev/null)" = true ]; }
 boot_complete() { [ "$(getprop sys.boot_completed 2>/dev/null)" = 1 ]; }
 patch_month() {
     # Decimal conversion avoids shell octal parsing of August/September.
@@ -120,7 +121,8 @@ property_pass() {
     if native_enabled spoof_os_security_patch_level_property || native_enabled spoof_vendor_security_patch_level_property; then
         month=$(patch_month) || { echo 'BRENE76: invalid clock; property pass skipped' >&2; return 65; }
     fi
-    "$NATIVE" prop-watch || return $?
+    # The public zeromount alias re-enters this adapter for prop-watch.
+    ZM76_PROP_WATCH_ACTIVE=1 "$NATIVE" prop-watch || return $?
     # Match native ownership and group opt-outs. An external SUSFS module owns
     # its own properties; this adapter must not follow a deferred native writer.
     local external
@@ -329,6 +331,10 @@ case "${1:-status}" in
     set) [ "$#" -eq 3 ] || exit 64; set_option "$2" "$3";;
     patch-month) [ "$#" -eq 1 ] || exit 64; patch_month;;
     prop-watch)
+        if [ "${ZM76_PROP_WATCH_ACTIVE:-}" = 1 ]; then
+            echo 'BRENE76: recursive prop-watch dispatch refused' >&2
+            exit 65
+        fi
         case "$#:${2:-}" in 1:) property_pass;; 2:--repeat) while :; do property_pass || exit $?; sleep 60; done;; *) exit 64;; esac;;
     late) [ "$#" -eq 1 ] || exit 64; late_features;;
     *) echo 'usage: zm brene76 status|get KEY|set KEY true|false|late' >&2; exit 64;;

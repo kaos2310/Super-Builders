@@ -53,7 +53,7 @@ def validate(plan):
                 'sukisu_version_operator': '+', 'sukisu_tag': 'v3.0.0',
                 'susfs_commit': SUSFS_PIN, 'susfs_release_base': SUSFS_BASE,
                 'susfs_version': 'v2.4.0',
-                'profile': 'S928BXXS6EZJ1-EUX-android14-6.1.162'}
+                'profile': 'S928BXXU6EZJB-EUX-android14-6.1.162'}
     for key, value in expected.items():
         if plan.get(key) != value:
             raise RuntimeError('Unreviewed Nova source/profile field: '+key)

@@ -1,0 +1,114 @@
+{
+  "baseline_run": 38052119990,
+  "baseline_commit": "39a0f50491823634b15358e527dea9411fe46974",
+  "target_firmware": "S928BXXU6EZJB",
+  "stock_banner": "Linux version 6.1.162-android14-11-34343818-abS928BXXU6EZJB (build-user@build-host) (Android (10087095, +pgo, +bolt, +lto, -mlgo, based on r487747c) clang version 17.0.2 (https://android.googlesource.com/toolchain/llvm-project d9f89f4d16663d5012e5c09495f3b30ece3d2362), LLD 17.0.2) #1 SMP PREEMPT Mon Oct 19 08:59:36 UTC 2026",
+  "stock_config_sha256": "fded9d39b569ce979cef984d2dc70a334b11c951f6c87a3de8119ba496554ebb",
+  "stock_config_identical_to_zzi4": true,
+  "all_5470_module_import_crcs_identical_to_zzi4": true,
+  "strict_baseline_symbols_verified": 2485,
+  "gunyah_import_symbols_verified": 11,
+  "module_files": 882,
+  "unique_modules": 543,
+  "archives": {
+    "ap": {
+      "name": "AP_S928BXXU6EZJB_S928BXXU6EZJB_MQB116285468_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5",
+      "bytes": 22200340603,
+      "tar_md5": "5a666191f900e3c6d8f6856593117916",
+      "sha256": "30c3a2b32037230a771195b024bdabbccfa56412049edec8b7da5019cace8ac6",
+      "md5_verified": true
+    },
+    "bl": {
+      "name": "BL_S928BXXU6EZJB_S928BXXU6EZJB_MQB116285468_REV00_user_low_ship_MULTI_CERT.tar.md5",
+      "bytes": 103731313,
+      "tar_md5": "24a6a2a6115e04dc91157fc38e75d232",
+      "sha256": "d2771c6ab1a7adaf74388b15b21494867c1f652b3e9a1e237bcb361c00587aef",
+      "md5_verified": true,
+      "images": {
+        "vbmeta.img": {
+          "bytes": 8896,
+          "sha256": "02cd9ea4fba8744e8490ab6a907d4854d14e725fc850bc0bf6676876ddbbaf66",
+          "avb_flags": 0
+        },
+        "NON-HLOS.bin": {
+          "bytes": 110604800,
+          "sha256": "f1f62c0d8b5e3aab6713af38ff0b523976c57af0c2e3f444adb34354e0636bd2"
+        }
+      }
+    },
+    "keep_oem_unlock_bl": {
+      "name": "BL_S928BXXU6EZJB_KEEP_OEM_UNLOCK.tar.md5",
+      "bytes": 103721031,
+      "tar_md5": "9848350683792053a840a4175182945a",
+      "sha256": "007f4f2e6149358c626e6676cdda9d27a0920493f4f11ceca3237a24a70586de",
+      "md5_verified": true,
+      "images": {
+        "vbmeta.img": {
+          "bytes": 9664,
+          "sha256": "67b8d114c5c1af81c473fb649f5b47cca340a5744baed548db9660e5907a4535",
+          "avb_flags": 3
+        }
+      }
+    },
+    "cp": {
+      "name": "CP_S928BXXU6EZJB_CP36966567_MQB116285468_REV00_user_low_ship_MULTI_CERT.tar.md5",
+      "bytes": 84572270,
+      "tar_md5": "ac6c71550fcdb2f23f1ea070ac78e1ff",
+      "sha256": "6514207ddde2857221a7fa1b93c6a7a3652b5327768fc246d60858547b77452b",
+      "md5_verified": true,
+      "images": {
+        "modem.bin": {
+          "bytes": 184676864,
+          "sha256": "61ec38555ab07c559f4c9a921884b6db5ab5b1b874dac9c6630c70435495a2ae"
+        }
+      }
+    },
+    "csc": {
+      "name": "CSC_OXM_S928BOXM6EZJB_MQB116285468_REV00_user_low_ship_MULTI_CERT.tar.md5",
+      "bytes": 378296424,
+      "tar_md5": "f5947cc29ecade65c69d791e7b2c0606",
+      "sha256": "e2294454030ac997fe7e9bbddf0dab62d94ad4c4f346099c0cd334ac34b5d713",
+      "md5_verified": true
+    },
+    "home_csc": {
+      "name": "HOME_CSC_OXM_S928BOXM6EZJB_MQB116285468_REV00_user_low_ship_MULTI_CERT.tar.md5",
+      "bytes": 378255469,
+      "tar_md5": "24dfb1ecf28ebedca2c22c758657a9c9",
+      "sha256": "c0156b230e5c92b651a7280b2017003eaf984ff4e63557b87b975d4e64a0bf5d",
+      "md5_verified": true
+    }
+  },
+  "stock_images": {
+    "boot_img_sha256": "7659aecae783407ce2829a57620543e0637f8651074836736d3a7023f54f8514",
+    "init_boot_img_sha256": "c567d8a711f882b57508722a890dbb9ef72ff02cfb0749c277943e6228853b0e",
+    "vendor_boot_img_sha256": "332b353f39f16d9ba47112d957175aa4f8d2edc0bfa4d34ef24d12e3a1dc2a3c",
+    "dtbo_img_sha256": "e048e7cbb6a661eade20b4b3f650cd1d697f72abc38ab505d8aeb82dab93b77f",
+    "system_dlkm_img_sha256": "7507e8cacef98aadcd8b1adfac0ddc79fea84ac0fad307741f50457f75eb5a84",
+    "vendor_dlkm_img_sha256": "ca00dacc6b746c9330e23de2929baf87a4df825a74f21b2eddf2ca792f920746",
+    "vbmeta_img_sha256": "02cd9ea4fba8744e8490ab6a907d4854d14e725fc850bc0bf6676876ddbbaf66",
+    "apnhlos_bin_sha256": "f1f62c0d8b5e3aab6713af38ff0b523976c57af0c2e3f444adb34354e0636bd2",
+    "modem_bin_sha256": "61ec38555ab07c559f4c9a921884b6db5ab5b1b874dac9c6630c70435495a2ae"
+  },
+  "device_boot_verified": false,
+  "source_basis": "Audited Samsung DZG1/ZZHL port onto pinned AOSP Linux 6.1.162, as in baseline run",
+  "strict_crc_baseline": "samsung-e3q-zzi4-dlkm-crc-baseline.tsv",
+  "strict_crc_baseline_revalidation": "All 2485 entries and all 5470 stock module import CRCs independently revalidated against supplied EZJB modules; existing baseline bytes and provenance retained.",
+  "framework_android_release_from_ap_metadata": "17",
+  "stock_config_identical_to_audited_baseline": true,
+  "feature_reference_run": 44836464612,
+  "feature_reference_commit": "ce6ecb674e0c9a68cce861077d714d9225933ff9",
+  "stock_kernel_sha256": "967a494927d3627eb1bfe6661f2e3189f449b94002a9bdbe4b960b4087f41e4e",
+  "module_files_by_partition": {
+    "vendor_boot": 411,
+    "vendor_dlkm": 351,
+    "system_dlkm": 120
+  },
+  "normalized_stock_import_crcs_sha256": "b074fab908180d8d77b7033725a077b4c9f408801313dde2214231f4b4566849",
+  "stock_gunyah_qcom": {
+    "file": "vendor_boot/lib/modules/gunyah_qcom.ko",
+    "sha256": "b0364bcf3b0487c05863de92c4ccad6b313f52f6863fd61dba5b5f23d4a292c2",
+    "count_import_crcs": 11,
+    "matches_reference_stock": true
+  },
+  "exact_ezjb_samsung_source_verified": false
+}

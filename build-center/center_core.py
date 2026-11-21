@@ -152,16 +152,16 @@ def checked_file(raw, name, expected="", kind="file"):
                 if "STRICT-KMI.txt" not in names:
                     raise CenterError("Nachweis des Strict-KMI-Profils fehlt im Kernel-Paket.")
                 if 'FIRMWARE-TARGET.json' not in names or 'Image' not in names:
-                    raise CenterError('Der geprüfte EZJ1-Firmware-Nachweis fehlt.')
+                    raise CenterError('Der geprüfte EZJB-Firmware-Nachweis fehlt.')
                 receipt = json.loads(inner.read('FIRMWARE-TARGET.json'))
-                if (receipt.get('firmware') != 'S928BXXS6EZJ1' or receipt.get('csc') != 'EUX'
-                        or receipt.get('profile') != 'S928BXXS6EZJ1-EUX-android14-6.1.162'
+                if (receipt.get('firmware') != 'S928BXXU6EZJB' or receipt.get('csc') != 'EUX'
+                        or receipt.get('profile') != 'S928BXXU6EZJB-EUX-android14-6.1.162'
                         or receipt.get('image_sha256') != sha256(inner.read('Image'))):
-                    raise CenterError('Kernel-Image und EZJ1-Firmware-Nachweis stimmen nicht überein.')
+                    raise CenterError('Kernel-Image und EZJB-Firmware-Nachweis stimmen nicht überein.')
         except zipfile.BadZipFile:
             raise CenterError("Beschädigte ZIP-Datei.") from None
         except (ValueError, KeyError):
-            raise CenterError('Ungültiger EZJ1-Firmware-Nachweis.') from None
+            raise CenterError('Ungültiger EZJB-Firmware-Nachweis.') from None
     return raw, safe_name, sha256(raw)
 
 
@@ -205,12 +205,12 @@ def resolve_sources(channel="main", token="", get=request, source_ref=None):
     version = match[1]
     manager = next((a for a in release.get("assets", [])
                     if a["name"].endswith(".apk") and f"_{code}-" in a["name"]), None)
-    tag = f"s928b-ezj1-suki{code}-susfs{version.removeprefix('v')}-{pin[:8]}-{sus_pin[:8]}"
+    tag = f"s928b-ezjb-suki{code}-susfs{version.removeprefix('v')}-{pin[:8]}-{sus_pin[:8]}"
     return {"schema": 1, **identity, "sukisu_repository":SUKISU_REPOSITORY,
             "channel": "pinned" if source_ref else channel,
             "sukisu_requested_ref": source_ref, "sukisu_commit": pin, "sukisu_code": code,
             "sukisu_count": count, "sukisu_tag": release["tag_name"],
             "sukisu_message": commit["commit"]["message"].splitlines()[0],
             "susfs_commit": sus_pin, "susfs_version": version, "release_tag": tag,
-            "profile": "S928BXXS6EZJ1-EUX-android14-6.1.162", "firmware": "S928BXXS6EZJ1", "manager": manager,
+            "profile": "S928BXXU6EZJB-EUX-android14-6.1.162", "firmware": "S928BXXU6EZJB", "manager": manager,
             "susfs_source_url": f"https://gitlab.com/simonpunk/susfs4ksu/-/archive/{sus_pin}/susfs4ksu-{sus_pin}.zip"}

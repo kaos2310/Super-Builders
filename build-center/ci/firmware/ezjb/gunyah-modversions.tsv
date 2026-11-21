@@ -1,4 +1,4 @@
-# EZJ1 stock gunyah_qcom imports, extracted from the supplied firmware.
+# EZJB stock gunyah_qcom imports, extracted from the supplied firmware.
 __arm_smccc_sve_check	0x3d93c7c2
 __kmalloc	0xeb233a45
 __stack_chk_fail	0xc2c193d2

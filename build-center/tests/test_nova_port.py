@@ -21,7 +21,7 @@ def plan():
             'sukisu_version_base': 30000, 'sukisu_version_offset': 996,
             'sukisu_version_operator': '+', 'sukisu_tag': 'v3.0.0',
             'susfs_commit': nova.SUSFS_PIN, 'susfs_release_base': nova.SUSFS_BASE,
-            'susfs_version': 'v2.4.0', 'profile': 'S928BXXS6EZJ1-EUX-android14-6.1.162'}
+            'susfs_version': 'v2.4.0', 'profile': 'S928BXXU6EZJB-EUX-android14-6.1.162'}
 
 
 class NovaPortTests(unittest.TestCase):
