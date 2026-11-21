@@ -10,7 +10,7 @@ import pack_zero
 from packaging_io import digest, write_zip
 
 HERE = Path(__file__).resolve().parent
-KERNEL = '6.1.162-BakaSU-35262-SUSFS2.4.0-S928BXXU6EZJB-EUX-Strict-AnyKernel3.zip'
+KERNEL = '6.1.162-BakaSU-35262-SUSFS2.4.0-S928BXXU6EZJB-EUX-Strict-RadioFix-AnyKernel3.zip'
 ZERO = 'ZeroMount-Guard6.13-BRENE76-BakaSU35262-SUSFS2.4.0-EZJB-arm64.zip'
 RESUSFS = 'ReSuSFS-v26.10.23-BakaSU35262-SUSFS2.4.0-EZJB-arm64.zip'
 
@@ -60,7 +60,8 @@ def pack_kernel(source, work, output):
     proof = json.loads(verification)
     image = (work / 'out/arch/arm64/boot/Image').read_bytes()
     if (proof['image_sha256'] != digest(image) or not proof['strict_passed'] or not proof['thinlto_present']
-            or proof['native_kpm_present'] or proof['missing_required_functions']):
+            or proof['native_kpm_present'] or proof['missing_required_functions']
+            or not proof['radio_module_trust']['certificate_linked_in_trusted_key_list']):
         raise ValueError('AnyKernel3 requires the verified BakaSU EZJB Image')
     with ZipFile(source) as archive:
         entries = {item.filename: item for item in archive.infolist() if not item.is_dir() and (

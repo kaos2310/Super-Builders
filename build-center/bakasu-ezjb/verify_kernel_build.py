@@ -1,4 +1,5 @@
 """Compare the actual EZJB build outputs with the validated Samsung KMI table."""
+from base64 import b64decode
 from hashlib import sha256
 import gzip
 import json
@@ -13,6 +14,30 @@ REQUIRED = ('USER_NS', 'PID_NS', 'CGROUPS', 'KSU', 'KSU_SUSFS', 'KSU_SUSFS_SUS_P
             'MODVERSIONS', 'ZEROMOUNT')
 FEATURES = ('susfs_set_sus_path_uid_filter', 'susfs_set_priority_uid_filter',
             'susfs_runtime_handle', 'susfs_runtime_enabled', 'susfs_is_hidden_name')
+SAMSUNG_GKI_CERT_SHA256 = 'f1efe8cfd3717fdd6d9fb3667b856600c718fa1250b4081347732e43a8bbceba'
+
+
+def verify_radio_module_trust(out, image, config):
+    required = {
+        'CONFIG_MODULE_SIG=y', 'CONFIG_MODULE_SIG_PROTECT=y', 'CONFIG_MODULE_SIG_ALL=y',
+        'CONFIG_SYSTEM_TRUSTED_KEYRING=y', 'CONFIG_RFKILL=m',
+        'CONFIG_SYSTEM_TRUSTED_KEYS="certs/samsung-ezjb-gki.pem"',
+    }
+    if required - config:
+        raise ValueError(f'Unexpected EZJB module signing config: {sorted(required - config)}')
+    pem = (ROOT / 'samsung-ezjb-gki.pem').read_bytes().splitlines()
+    if pem[0] != b'-----BEGIN CERTIFICATE-----' or pem[-1] != b'-----END CERTIFICATE-----':
+        raise ValueError('Expected the public Samsung GKI certificate')
+    der = b64decode(b''.join(pem[1:-1]), validate=True)
+    trusted = (out / 'certs/x509_certificate_list').read_bytes()
+    if sha256(der).hexdigest() != SAMSUNG_GKI_CERT_SHA256 or der not in trusted or der not in image:
+        raise ValueError('The Samsung EZJB trust anchor is missing from the built Image')
+    # These adjacent fixed-width entries belong to the protected export table.
+    rfkill_export_proof = b'rfkill_alloc'.ljust(39, b'\0') + b'rfkill_blocked\0'
+    if rfkill_export_proof not in image:
+        raise ValueError('The compiled GKI export protection for rfkill is missing')
+    return {'samsung_gki_certificate_sha256': SAMSUNG_GKI_CERT_SHA256,
+            'certificate_linked_in_trusted_key_list': True, 'rfkill_export_protection_retained': True}
 
 
 def main(out):
@@ -39,6 +64,7 @@ def main(out):
     start = image.index(b'IKCFG_ST') + 8
     end = image.index(b'IKCFG_ED', start)
     config = set(gzip.decompress(image[start:end]).decode().splitlines())
+    radio_module_trust = verify_radio_module_trust(out, image, config)
     reference = json.loads((ROOT / 'DROIDSPACES-CONFIG.json').read_text())
     droidspaces = {name for name, value in reference['expected_config'].items() if value == 'y'}
     for group in reference['verified_runtime_prerequisites'].values():
@@ -60,6 +86,7 @@ def main(out):
         'package_uid_refresh_linked': 'susfs_refresh_after_package_rename' in linked,
         'thinlto_present': 'CONFIG_LTO_CLANG_THIN=y' in config,
         'native_kpm_present': 'CONFIG_KPM=y' in config, 'android_device_tested': False,
+        'radio_module_trust': radio_module_trust,
     }
     (ROOT / 'kernel-build-verification.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({k: (len(v) if k in ('strict_missing', 'strict_mismatch') else v)

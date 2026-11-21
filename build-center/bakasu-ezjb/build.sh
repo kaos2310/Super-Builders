@@ -34,6 +34,7 @@ wait "$common_job"
 wait "$clang_job"
 wait "$ktools_job"
 python3 "$h/overlay.py" "$work/common"
+install -m 0644 "$h/samsung-ezjb-gki.pem" "$work/common/certs/samsung-ezjb-gki.pem"
 tar -xJf "$h/baseband-guard.tar.xz" -C "$work/Baseband-guard-common"
 ln -s ../../BakaSU/kernel "$work/common/drivers/kernelsu"
 ln -s ../../Baseband-guard-common "$work/common/security/baseband-guard"
@@ -45,6 +46,8 @@ export KBUILD_BUILD_TIMESTAMP='Mon Oct 19 08:59:36 UTC 2026'
 compiler=$(clang --version)
 grep -qF 'clang version 17.0.2' <<<"$compiler"
 cp "$h/config-EZJB-ThinLTO.txt" "$work/out/.config"
+"$work/common/scripts/config" --file "$work/out/.config" \
+    --set-str SYSTEM_TRUSTED_KEYS certs/samsung-ezjb-gki.pem
 args=(-C "$work/common" "O=$work/out" ARCH=arm64 LLVM=1 "-j$(nproc)")
 make "${args[@]}" olddefconfig prepare headers_install
 make "${args[@]}" Image modules
