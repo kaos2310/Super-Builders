@@ -1,0 +1,47 @@
+diff --git a/aarch64/src/lib.rs b/aarch64/src/lib.rs
+--- a/aarch64/src/lib.rs
++++ b/aarch64/src/lib.rs
+@@ -544,7 +544,11 @@
+     ) -> std::result::Result<RunnableLinuxVm<V, Vcpu>, Self::Error>
+     where
+         V: VmAArch64,
+         Vcpu: VcpuAArch64,
+     {
++        if !system_allocator.reserve_irq(AARCH64_VMWDT_IRQ) {
++            return Err(Error::AllocateIrq);
++        }
++
+         let has_bios = matches!(components.vm_image, VmImage::Bios(_));
+         let mem = vm.get_memory().clone();
+diff --git a/hypervisor/src/gunyah/mod.rs b/hypervisor/src/gunyah/mod.rs
+--- a/hypervisor/src/gunyah/mod.rs
++++ b/hypervisor/src/gunyah/mod.rs
+@@ -413,6 +413,13 @@
+     }
+ 
+     pub fn register_irqfd(&self, label: u32, evt: &Event, level: bool) -> Result<()> {
++        info!(
++            "GUNYAH IRQFD add: label={} level={} fd={}",
++            label,
++            level,
++            evt.as_raw_descriptor()
++        );
++
+         let gh_fn_irqfd_arg = gh_fn_irqfd_arg {
+             fd: evt.as_raw_descriptor() as u32,
+             label,
+@@ -437,6 +444,14 @@
+                 .insert(GunyahIrqRoute { irq: label, level });
+             Ok(())
+         } else {
++            warn!(
++                "GUNYAH IRQFD add failed: label={} level={} fd={} ret={}",
++                label,
++                level,
++                evt.as_raw_descriptor(),
++                ret
++            );
++
+             errno_result()
+         }
+     }
