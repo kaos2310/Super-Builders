@@ -12,6 +12,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from center_core import CenterError, request, resolve_sources
 from ci.network import source_get
 from ci.versioning import validate_mapping, LEGACY_FORMULA
+from ci.published import matching_release
+
+
+def already_published(repo,plan,token='',get=request):
+    base=f'https://api.github.com/repos/{repo}/releases'
+    try:
+        exact=get(base+'/tags/'+urllib.parse.quote(plan['release_tag'],safe=''),token)['data']
+        if matching_release(exact,plan):return True
+    except CenterError as exc:
+        if 'nicht gefunden' not in str(exc):raise
+    # A successful forced build publishes the same pair under a -r<run> tag.
+    # Require its actual checksummed kernel and both pins, just like the app
+    # and scheduled controller; an unrelated or incomplete release is no hit.
+    releases=get(base+'?per_page=100',token)['data']
+    return any(matching_release(release,plan) for release in releases)
 
 
 def recent_failure(repo,pair,token='',get=request,now=None,controller_sha=None):
@@ -120,14 +135,7 @@ def main():
             plan['release_tag']+='-'+revision
         if args.force:
             plan['release_tag'] += '-r' + (plan['run_id'] or 'local')
-        exists = False
-        try:
-            request(f"https://api.github.com/repos/{plan['repository']}/releases/tags/" +
-                    urllib.parse.quote(plan['release_tag'], safe=''), token)
-            exists = True
-        except CenterError as exc:
-            if 'nicht gefunden' not in str(exc):
-                raise
+        exists = not args.force and already_published(plan['repository'],plan,token,get=request)
         cooldown=not args.force and not exists and recent_failure(plan['repository'],plan['pair_key'],token,
             controller_sha=os.environ.get('GITHUB_SHA') or None)
         outputs = {'build': 'true' if args.force or (not exists and not cooldown) else 'false',

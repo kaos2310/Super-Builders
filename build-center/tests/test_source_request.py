@@ -74,12 +74,15 @@ class SourceRequestTests(unittest.TestCase):
 
     def test_cli_writes_the_bound_plan_for_a_matching_app_request(self):
         plan=dict(self.plan,susfs_version='v2.4.0',release_tag='s928b-ezjb-suki41181-test')
+        def no_published_release(url,*args,**kwargs):
+            if '/releases?' in url:return {'data':[]}
+            raise check_updates.CenterError('nicht gefunden')
         with tempfile.TemporaryDirectory() as tmp,chdir(tmp):
             env={'CENTER_SOURCE_REQUEST':json.dumps(self.request),'GITHUB_SHA':'a'*40,
                  'GITHUB_OUTPUT':str(Path(tmp)/'outputs')}
             with patch.dict(os.environ,env,clear=True),patch.object(sys,'argv',['check_updates.py']),\
                  patch.object(check_updates,'resolve_sources',return_value=plan),\
-                 patch.object(check_updates,'request',side_effect=check_updates.CenterError('nicht gefunden')),\
+                 patch.object(check_updates,'request',side_effect=no_published_release),\
                  patch.object(check_updates,'recent_failure',return_value=False),redirect_stdout(io.StringIO()):
                 check_updates.main()
             result=json.loads(Path('build-plan.json').read_text())
@@ -87,6 +90,40 @@ class SourceRequestTests(unittest.TestCase):
             self.assertEqual(result['susfs_commit'],self.request['susfs_commit'])
             self.assertEqual(result['controller_sha'],self.request['controller_sha'])
             self.assertEqual(result['source_request_schema'],1)
+            self.assertIn('build=true',Path('outputs').read_text())
+
+    def test_cli_recognizes_an_already_published_forced_build_of_the_same_pair(self):
+        plan=dict(self.plan,susfs_version='v2.4.0',firmware='S928BXXU6EZJB',
+                  release_tag='s928b-ezjb-suki41181-test')
+        release={'tag_name':plan['release_tag']+'-hidden-name-readdir-v2-r123',
+                 'body':'SukiSU commit: '+'b'*40+'\nSuSFS commit: '+'c'*40,
+                 'assets':[{'name':'build-plan.json'},
+                           {'name':'S928BXXU6EZJB-EUX-AnyKernel3.zip','digest':'sha256:'+'e'*64}]}
+        def network(url,*args,**kwargs):
+            if '/releases/tags/' in url:raise check_updates.CenterError('nicht gefunden')
+            if '/releases?' in url:return {'data':[release]}
+            raise AssertionError(url)
+        with tempfile.TemporaryDirectory() as tmp,chdir(tmp):
+            env={'CENTER_SOURCE_REQUEST':json.dumps(self.request),'GITHUB_SHA':'a'*40,
+                 'GITHUB_OUTPUT':str(Path(tmp)/'outputs')}
+            with patch.dict(os.environ,env,clear=True),patch.object(sys,'argv',['check_updates.py']),\
+                 patch.object(check_updates,'resolve_sources',return_value=plan),\
+                 patch.object(check_updates,'request',side_effect=network),\
+                 patch.object(check_updates,'recent_failure',return_value=False),redirect_stdout(io.StringIO()):
+                check_updates.main()
+            self.assertIn('build=false',Path('outputs').read_text())
+            self.assertIn('reason=Result already published',Path('outputs').read_text())
+
+    def test_explicit_force_still_builds_without_a_release_lookup(self):
+        plan=dict(self.plan,susfs_version='v2.4.0',release_tag='s928b-ezjb-suki41181-test')
+        with tempfile.TemporaryDirectory() as tmp,chdir(tmp):
+            env={'CENTER_SOURCE_REQUEST':json.dumps(self.request),'GITHUB_SHA':'a'*40,
+                 'GITHUB_OUTPUT':str(Path(tmp)/'outputs')}
+            with patch.dict(os.environ,env,clear=True),patch.object(sys,'argv',['check_updates.py','--force']),\
+                 patch.object(check_updates,'resolve_sources',return_value=plan),\
+                 patch.object(check_updates,'request') as network,redirect_stdout(io.StringIO()):
+                check_updates.main()
+                network.assert_not_called()
             self.assertIn('build=true',Path('outputs').read_text())
 
 

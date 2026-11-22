@@ -12,7 +12,7 @@ from ci.automatic import run,matching_release
 class AutomaticDispatchTests(unittest.TestCase):
     def setUp(self):
         self.sha='c'*40;self.posts=[];self.runs=[];self.releases=[];self.failure=None
-        self.plan={'channel':'main','sukisu_commit':'a'*40,'susfs_commit':'b'*40,'sukisu_code':35004,
+        self.plan={'channel':'main','firmware':'S928BXXU6EZJB','sukisu_commit':'a'*40,'susfs_commit':'b'*40,'sukisu_code':35004,
             'sukisu_count':4008,'sukisu_version_formula':{'base':30000,'offset':996,'operation':'+'},
             'release_tag':'s928b-ezjb-suki35004-susfs2.4.0-aaaaaaaa-bbbbbbbb'}
         self.now=datetime(2026,11,20,20,tzinfo=timezone.utc)

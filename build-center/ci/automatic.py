@@ -14,19 +14,7 @@ from center_core import CenterError,request,resolve_sources
 from ci.check_updates import recent_failure,verify_source_request
 from ci.network import source_get
 from ci.versioning import validate_mapping
-
-
-def matching_release(release,plan,revision):
-    tag=plan['release_tag']+('-'+revision if revision else '')
-    body=release.get('body') or ''
-    assets=release.get('assets') or []
-    return (not release.get('draft')
-            and re.fullmatch(re.escape(tag)+r'(?:-r[0-9]+)?',release.get('tag_name','')) is not None
-            and 'SukiSU commit: '+plan['sukisu_commit'] in body
-            and 'SuSFS commit: '+plan['susfs_commit'] in body
-            and any(a.get('name')=='build-plan.json' for a in assets)
-            and any(a.get('name','').endswith('AnyKernel3.zip') and 'S928BXXU6EZJB-EUX' in a['name']
-                    and re.fullmatch('sha256:[0-9a-f]{64}',a.get('digest') or '') for a in assets))
+from ci.published import matching_release
 
 
 def run(repo,ref,controller_sha,channel='main',force=False,request_id='',source_request='',
