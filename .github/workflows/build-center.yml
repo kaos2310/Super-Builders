@@ -729,7 +729,10 @@ jobs:
         python3 -B .build-center/build-center/resusfs/test.py --legacy-dir "$LEGACY"
         node .build-center/build-center/resusfs/test.mjs "$LEGACY"
         python3 -B .build-center/build-center/resusfs/package.py --helpers "$HELPERS" --plan .build-center-plan.json --runtime-helper module-output/susfs-runtime --susfs-tool module-output/ksu_susfs --output module-output
-        python3 -B .build-center/build-center/resusfs/test.py --legacy-dir "$LEGACY" --zip module-output/ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-r3-Nova${{ needs.resolve.outputs.code }}-arm64.zip
+        MODULE_ZIPS=(module-output/ReSuSFS-*.zip)
+        test "${#MODULE_ZIPS[@]}" -eq 1
+        test -f "${MODULE_ZIPS[0]}"
+        python3 -B .build-center/build-center/resusfs/test.py --legacy-dir "$LEGACY" --zip "${MODULE_ZIPS[0]}"
     - uses: actions/upload-artifact@v7
       with:
         name: ReSuSFS-SUSFS2.4.0-Runtime1-r3-Nova${{ needs.resolve.outputs.code }}-ARM64
