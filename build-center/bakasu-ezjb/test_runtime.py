@@ -15,7 +15,7 @@ def exercise(common, output, filename, mask):
     definitions = [f'-DCONFIG_KSU_SUSFS_{feature}' for index, feature in enumerate(FEATURES)
                    if mask & (1 << index)]
     subprocess.run(['gcc', '-std=c11', '-pthread', '-Wall', '-Wextra', '-Werror', '-O2',
-                    '-I', common / 'fs', '-I', common / 'include/linux',
+                    '-iquote', common / 'fs', '-iquote', common / 'include/linux',
                     f'-DEXPECT_SUPPORTED={mask}', *definitions, HERE / filename, '-o', target], check=True)
     return subprocess.check_output([target], text=True).strip()
 
