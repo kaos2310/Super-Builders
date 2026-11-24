@@ -3,7 +3,7 @@ from hashlib import sha256
 import json
 import zipfile
 
-PIN = '7b65bde0710b5e7c6f755545cb15a4abd417f3a8'
+PIN = '57b2db6076f439cfd489f14576444e8f0f2f0a25'
 SUSFS = 'f76b81f2a6bf98e4029cc0c823c054edbec29803'
 
 
@@ -34,7 +34,7 @@ def package(source, output, tools):
     first_write = 'PERSISTENT_DIR=/data/adb/ReSuSFS'
     if installer.count(first_write) != 1:
         raise ValueError('Unexpected ReSuSFS installer seam')
-    capability_check = '''[ "$BAKASU" = true ] && [ "$KSU_KERNEL_VER_CODE" = 35262 ] && [ "$KSU_UAPI_VER" = 6 ] || abort 'BakaSU 35262 / UAPI 6 required'
+    capability_check = '''[ "$BAKASU" = true ] && [ "$KSU_KERNEL_VER_CODE" = 35285 ] && [ "$KSU_UAPI_VER" = 6 ] || abort 'BakaSU 35285 / UAPI 6 required'
 [ "$(uname -r)" = '6.1.162-android14-11-34343818-abS928BXXU6EZJB' ] || abort 'S928B EZJB kernel required'
 [ "$version" = v2.4.0 ] || abort 'SUSFS v2.4.0 required'
 features=$("$MODPATH/bin/ksu_susfs" show enabled_features 2>/dev/null) || abort 'SUSFS features query failed'
@@ -51,16 +51,16 @@ printf '%s\\n' "$runtime" | grep -q '"supported":15[,}]' || abort 'All four Runt
         raise ValueError('Unexpected ReSuSFS mount-hiding default')
     put('configs/config.txt', defaults.replace(mount_hiding, '\nHIDE_SUS_MNTS_NON_SU=0\n'))
     put('module.prop', 'id=ReSuSFS\nname=ReSuSFS\n'
-        'version=v26.10.23.susfs240.runtime1.bakasu35262.ezjb.r2\nversionCode=2026112103\n'
+        'version=v26.10.23.susfs240.runtime1.bakasu35285.ezjb.r2\nversionCode=2026112403\n'
         'author=ahmed-alnassif; KAOSLAB integration\n'
-        'description=BakaSU 35262 / SUSFS 2.4.0 for S928B EZJB.\n')
+        'description=BakaSU 35285 / SUSFS 2.4.0 for S928B EZJB.\n')
     # The Nova proof files document a different kernel pair.
     for name in tuple(files):
         if name.startswith('verification/') or name in ('LOCAL-DEVICE-READ-VERIFICATION.json', 'README-KAOSLAB-NOVA.md'):
             files.pop(name)
     current = {
         'module_id': 'ReSuSFS', 'official_release': manifest['official_release'],
-        'profile': 'S928BXXU6EZJB-EUX', 'bakasu_version': 35262, 'bakasu_pin': PIN,
+        'profile': 'S928BXXU6EZJB-EUX', 'bakasu_version': 35285, 'bakasu_pin': PIN,
         'susfs_version': 'v2.4.0', 'susfs_pin': SUSFS, 'runtime_abi': 1,
         'reference_package_sha256': digest(source.read_bytes()),
         'susfs_tool_sha256': digest(files['bin/ksu_susfs'][1]), 'runtime_helper_sha256': digest(files['bin/susfs-runtime'][1]),

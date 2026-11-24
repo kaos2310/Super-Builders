@@ -10,9 +10,9 @@ import pack_zero
 from packaging_io import digest, write_zip
 
 HERE = Path(__file__).resolve().parent
-KERNEL = '6.1.162-BakaSU-35262-SUSFS2.4.0-S928BXXU6EZJB-EUX-Strict-RadioFix-AnyKernel3.zip'
-ZERO = 'ZeroMount-Guard6.13-BRENE76-BakaSU35262-SUSFS2.4.0-EZJB-arm64.zip'
-RESUSFS = 'ReSuSFS-v26.10.23-BakaSU35262-SUSFS2.4.0-EZJB-arm64.zip'
+KERNEL = '6.1.162-BakaSU-35285-SUSFS2.4.0-S928BXXU6EZJB-EUX-Strict-RadioFix-AnyKernel3.zip'
+ZERO = 'ZeroMount-Guard6.13-BRENE76-BakaSU35285-SUSFS2.4.0-EZJB-arm64.zip'
+RESUSFS = 'ReSuSFS-v26.10.23-BakaSU35285-SUSFS2.4.0-EZJB-arm64.zip'
 
 
 def build_tools(source, clang, output):
@@ -72,11 +72,13 @@ def pack_kernel(source, work, output):
         raise ValueError('AnyKernel3 firmware or partition anchor changed')
     members['anykernel.sh'] = script.replace(b'S928BXXS6EZJ1', b'S928BXXU6EZJB').replace(
         b'kernel.string=Wild Kernels by TheWildJames aka Morgan Weedman',
-        b'kernel.string=Super-Builders BakaSU 35262 / SUSFS 2.4.0 / EZJB', 1)
+        b'kernel.string=Super-Builders BakaSU 35285 / SUSFS 2.4.0 / EZJB', 1)
     members.update({
         'Image': image, 'BUILD-CONFIG.txt': (work/'out/.config').read_bytes(),
         'FIRMWARE-TARGET.json': (HERE/'EZJB-STOCK-VERIFICATION.json').read_bytes(),
         'BUILD-VERIFICATION.json': verification, 'STRICT-KMI.txt': (work/'strict-audit/summary.md').read_bytes(),
+        'SUSFS-RUNTIME-TESTS.json': (work/'runtime-test/SUSFS-RUNTIME-TESTS.json').read_bytes(),
+        'DROIDSPACES-CONFIG.json': (HERE/'DROIDSPACES-CONFIG.json').read_bytes(),
     })
     members['SHA256SUMS'] = ''.join(f'{digest(raw)}  {name}\n' for name, raw in sorted(members.items())).encode()
     write_zip(output / KERNEL, members, entries)

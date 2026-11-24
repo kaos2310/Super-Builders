@@ -54,7 +54,7 @@ def package(source, output, tools):
     installer = members['customize.sh']
     start = installer.index(b'[ "$KSU"')
     end = installer.index(b'unzip -o', start)
-    gate = b'''[ "$KSU" = true ] && [ "$BAKASU" = true ] && [ "$KSU_KERNEL_VER_CODE" = 35262 ] && [ "$KSU_UAPI_VER" = 6 ] || abort "BakaSU 35262 / UAPI 6 required"
+    gate = b'''[ "$KSU" = true ] && [ "$BAKASU" = true ] && [ "$KSU_KERNEL_VER_CODE" = 35285 ] && [ "$KSU_UAPI_VER" = 6 ] || abort "BakaSU 35285 / UAPI 6 required"
 [ "$(uname -m)" = aarch64 ] || abort "ARM64 required"
 [ "$(uname -r)" = '6.1.162-android14-11-34343818-abS928BXXU6EZJB' ] || abort "S928B EZJB kernel required"
 export ZM_BAKASU1=true
@@ -65,11 +65,11 @@ export ZM_BAKASU1=true
 VERSION=$("$MODPATH/bin/ksu_susfs" show version 2>/dev/null) || abort "SUSFS version query failed"
 [ "$VERSION" = v2.4.0 ] || abort "SUSFS v2.4.0 required"
 ''' + start)
-    edit('customize.sh', b'SukiSU Nova35004', b'BakaSU 35262 / EZJB')
+    edit('customize.sh', b'SukiSU Nova35004', b'BakaSU 35285 / EZJB')
     members['ksu_susfs'] = b'#!/system/bin/sh\nexec "${0%/*}/bin/ksu_susfs" "$@"\n'
     edit('module.prop', b'sukisunova35004.runtime-addon1\nversionCode=2026112001',
-         b'bakasu35262.ezjb.propwatchfix1\nversionCode=2026112102')
-    edit('module.prop', b'SukiSU Nova35004 / S928BXXS6EZJ1', b'BakaSU 35262 / S928BXXU6EZJB')
+         b'bakasu35285.ezjb.propwatchfix1\nversionCode=2026112402')
+    edit('module.prop', b'SukiSU Nova35004 / S928BXXS6EZJ1', b'BakaSU 35285 / S928BXXU6EZJB')
     members['bin/ksu_susfs'] = (tools / 'ksu_susfs').read_bytes()
     members['bin/susfs-runtime'] = (tools / 'susfs-runtime').read_bytes()
     members['SUSFS-TOOL-BUILD.json'] = (tools / 'SUSFS-TOOL-BUILD.json').read_bytes()
@@ -78,7 +78,7 @@ VERSION=$("$MODPATH/bin/ksu_susfs" show version 2>/dev/null) || abort "SUSFS ver
     for name in ('BRENE76-INTEGRATION.json', 'build-manifest.json'):
         members['reference/' + name] = members.pop(name)
     manifest = {
-        'kernel': 'BakaSU 35262', 'firmware': 'S928BXXU6EZJB', 'susfs': 'v2.4.0',
+        'kernel': 'BakaSU 35285', 'firmware': 'S928BXXU6EZJB', 'susfs': 'v2.4.0',
         'reference_zip_sha256': REFERENCE_SHA, 'native_core_reference_sha256': digest(core),
         'native_core_sha256': digest(members[NATIVE]), 'native_detector_marker_offset': 528316,
         'prop_watch_target': NATIVE, 'prop_watch_adapter_sha256': digest(members[ADAPTER]),

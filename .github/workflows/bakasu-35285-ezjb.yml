@@ -1,8 +1,8 @@
-name: BakaSU 35262 / EZJB / SUSFS 2.4.0
+name: BakaSU 35285 / EZJB / SUSFS 2.4.0
 
 on:
   push:
-    branches: [codex/bakasu-35262-ezjb]
+    branches: [codex/bakasu-35285-ezjb]
   workflow_dispatch:
 
 permissions:
@@ -10,15 +10,35 @@ permissions:
   actions: read
 
 concurrency:
-  group: bakasu-35262-ezjb-${{ github.ref }}
+  group: bakasu-35285-ezjb-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   HELPER: build-center/bakasu-ezjb
-  VERIFIED_KERNEL_RUN: '44914827133'
-  VERIFIED_KERNEL_COMMIT: a50838ebec247cdeb26d81e3ec788850e4186605
 
 jobs:
+  userspace:
+    name: BakaSU 35285 locked ARM64 userspace and UAPI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: Baka-SU/BakaSU
+          ref: 57b2db6076f439cfd489f14576444e8f0f2f0a25
+          path: bakasu
+          persist-credentials: false
+      - name: Check both Android dependency graphs and UAPI version
+        working-directory: bakasu
+        run: |
+          grep -Fx 'static const __u32 KERNEL_SU_UAPI_VERSION = 6;' uapi/supercall.h
+          rustup toolchain install nightly --profile minimal
+          for tool in ksud ksuinit; do
+            cargo +nightly metadata --locked --format-version 1 --filter-platform aarch64-linux-android \
+              --manifest-path "userspace/$tool/Cargo.toml" > "$RUNNER_TEMP/$tool-metadata.json"
+            echo "PASS: $tool locked ARM64 dependency graph"
+          done
+
   kernel:
     name: EZJB ThinLTO and Samsung Strict KMI
     runs-on: ubuntu-24.04
@@ -27,56 +47,19 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-          fetch-depth: 2
-      - name: Resolve unchanged kernel build inputs
-        id: kernel-source
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          reuse=false
-          # A companion-only change can retain a successful hosted kernel build.
-          # Any change to a kernel input, build, audit or packer triggers compilation.
-          if git diff --quiet "$VERIFIED_KERNEL_COMMIT" HEAD -- \
-              "$HELPER" ':(exclude)build-center/bakasu-ezjb/pack_resusfs.py' \
-              ':(exclude)build-center/bakasu-ezjb/test_resusfs_baka.py' \
-              ':(exclude)build-center/bakasu-ezjb/verify_imported_kernel.py' \
-              build-center/ci/firmware/ezj1/strict-baseline.tsv; then
-            check=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_KERNEL_RUN/jobs" \
-              --jq '.jobs[] | select(.name == "EZJB ThinLTO and Samsung Strict KMI") | .conclusion')
-            head=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_KERNEL_RUN" --jq .head_sha)
-            ready=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_KERNEL_RUN/artifacts" \
-              --jq '[.artifacts[] | select(.name == "BakaSU-35262-EZJB-Strict-AnyKernel3" and .expired == false)] | length')
-            if [[ "$check" == success && "$head" == "$VERIFIED_KERNEL_COMMIT" && "$ready" == 1 ]]; then
-              reuse=true
-            fi
-          fi
-          echo "reuse=$reuse" >> "$GITHUB_OUTPUT"
-      - uses: actions/download-artifact@v8
-        if: steps.kernel-source.outputs.reuse == 'true'
-        with:
-          name: BakaSU-35262-EZJB-Strict-AnyKernel3
-          path: dist
-          run-id: ${{ env.VERIFIED_KERNEL_RUN }}
-          github-token: ${{ github.token }}
-      - name: Validate reused runner kernel artifact
-        if: steps.kernel-source.outputs.reuse == 'true'
-        run: python3 -B "$HELPER/verify_imported_kernel.py" dist/*-AnyKernel3.zip
       - name: Install kernel build dependencies
-        if: steps.kernel-source.outputs.reuse != 'true'
         run: |
           sudo apt-get update -q
           sudo apt-get install -y bison flex bc cpio libelf-dev libssl-dev libdw-dev dwarves zstd xz-utils
       - name: Build pinned ARM64 kernel and verify CRCs
-        if: steps.kernel-source.outputs.reuse != 'true'
         run: bash "$HELPER/build.sh" "$RUNNER_TEMP/ezjb-kernel"
       - name: Package EZJB AnyKernel3
-        if: steps.kernel-source.outputs.reuse != 'true'
         run: |
           bash "$HELPER/reference-assets.sh" "$RUNNER_TEMP/template" kernel
           python3 -B "$HELPER/bundle.py" kernel "$RUNNER_TEMP/template" "$RUNNER_TEMP/ezjb-kernel" dist
       - uses: actions/upload-artifact@v7
         with:
-          name: BakaSU-35262-EZJB-Strict-AnyKernel3
+          name: BakaSU-35285-EZJB-Strict-AnyKernel3
           path: dist/*.zip
           if-no-files-found: error
 
@@ -111,18 +94,18 @@ jobs:
           python3 -B "$HELPER/test_resusfs_baka.py" dist/ReSuSFS-*.zip
       - uses: actions/upload-artifact@v7
         with:
-          name: BakaSU-35262-EZJB-ZeroMount-ReSuSFS
+          name: BakaSU-35285-EZJB-ZeroMount-ReSuSFS
           path: dist/*.zip
           if-no-files-found: error
 
   bundle:
     name: Assemble all EZJB build artifacts
-    needs: [kernel, modules]
+    needs: [kernel, modules, userspace]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v8
         with:
-          pattern: BakaSU-35262-EZJB-*
+          pattern: BakaSU-35285-EZJB-*
           merge-multiple: true
           path: dist
       - name: Verify the three final packages
@@ -133,6 +116,6 @@ jobs:
           sha256sum -- *.zip > SHA256SUMS.txt
       - uses: actions/upload-artifact@v7
         with:
-          name: S928BXXU6EZJB-BakaSU-35262-SUSFS-2.4.0-complete
+          name: S928BXXU6EZJB-BakaSU-35285-SUSFS-2.4.0-complete
           path: dist/*
           if-no-files-found: error

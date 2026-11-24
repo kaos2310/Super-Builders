@@ -14,6 +14,8 @@ REQUIRED = ('USER_NS', 'PID_NS', 'CGROUPS', 'KSU', 'KSU_SUSFS', 'KSU_SUSFS_SUS_P
             'MODVERSIONS', 'ZEROMOUNT')
 FEATURES = ('susfs_set_sus_path_uid_filter', 'susfs_set_priority_uid_filter',
             'susfs_runtime_handle', 'susfs_runtime_enabled', 'susfs_is_hidden_name')
+PACKAGE_REFRESH = ('ksu_track_throne_tw_func', 'susfs_parse_sus_path_app_strings',
+                   'susfs_parse_priority_app_strings')
 SAMSUNG_GKI_CERT_SHA256 = 'f1efe8cfd3717fdd6d9fb3667b856600c718fa1250b4081347732e43a8bbceba'
 
 
@@ -76,14 +78,14 @@ def main(out):
     missing_functions = sorted(set(FEATURES).difference(linked))
     identity = (b'Linux version 6.1.162-android14-11-34343818-abS928BXXU6EZJB' in image
                 and b'Mon Oct 19 08:59:36 UTC 2026' in image and b'v2.4.0' in image
-                and b'v4.2.0-rc3-7b65bde0' in image)
+                and b'v4.2.0-rc3-57b2db60' in image)
     result = {
         'kernel_linked': True, 'image_sha256': sha256(image).hexdigest(), 'target_identity_in_image': identity,
         'strict_symbol_count': len(strict), 'strict_missing': missing, 'strict_mismatch': mismatch,
         'strict_symbols_only_in_gki_modules': sum('vmlinux' not in providers[symbol] for symbol in strict.keys() & providers.keys()),
         'strict_passed': not missing and not mismatch, 'missing_expected_options': absent,
         'enabled_cpu_pid_limits': enabled_limits, 'missing_required_functions': missing_functions,
-        'package_uid_refresh_linked': 'susfs_refresh_after_package_rename' in linked,
+        'package_uid_refresh_linked': set(PACKAGE_REFRESH) <= linked,
         'thinlto_present': 'CONFIG_LTO_CLANG_THIN=y' in config,
         'native_kpm_present': 'CONFIG_KPM=y' in config, 'android_device_tested': False,
         'radio_module_trust': radio_module_trust,

@@ -21,15 +21,15 @@ fetch_archive() {
     tar -xzf "$path.tar.gz" -C "$path"
 }
 common_pin=4bd1b41bff8bb87bed8c3621fa2bb5b2e96f5d8c
-bakasu_pin=7b65bde0710b5e7c6f755545cb15a4abd417f3a8
+bakasu_pin=57b2db6076f439cfd489f14576444e8f0f2f0a25
 checkout https://android.googlesource.com/kernel/common "$common_pin" "$work/common" & common_job=$!
 fetch_archive https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/382db94fa9597402b69e252c36bf9902cc283b82/clang-r487747c.tar.gz "$work/clang" & clang_job=$!
 fetch_archive https://android.googlesource.com/kernel/prebuilts/build-tools/+archive/e905be252a53d20c52bd9e59df3ff8fdd46b9eab/linux-x86.tar.gz "$work/ktools" & ktools_job=$!
 git clone --no-checkout https://github.com/Baka-SU/BakaSU.git "$work/BakaSU"
 git -C "$work/BakaSU" checkout -q --detach "$bakasu_pin"
-[[ $(git -C "$work/BakaSU" rev-list --count HEAD) == 4562 ]]
-git -C "$work/BakaSU" apply --check "$h/BakaSU-35262-kernel-overlay.patch"
-git -C "$work/BakaSU" apply "$h/BakaSU-35262-kernel-overlay.patch"
+[[ $(git -C "$work/BakaSU" rev-list --count HEAD) == 4585 ]]
+git -C "$work/BakaSU" apply --check "$h/BakaSU-35285-kernel-overlay.patch"
+git -C "$work/BakaSU" apply "$h/BakaSU-35285-kernel-overlay.patch"
 wait "$common_job"
 wait "$clang_job"
 wait "$ktools_job"
@@ -50,6 +50,7 @@ cp "$h/config-EZJB-ThinLTO.txt" "$work/out/.config"
     --set-str SYSTEM_TRUSTED_KEYS certs/samsung-ezjb-gki.pem
 args=(-C "$work/common" "O=$work/out" ARCH=arm64 LLVM=1 "-j$(nproc)")
 make "${args[@]}" olddefconfig prepare headers_install
+python3 -B "$h/test_runtime.py" "$work/common" "$work/runtime-test"
 make "${args[@]}" Image modules
 python3 "$h/verify_kernel_build.py" "$work/out"
 

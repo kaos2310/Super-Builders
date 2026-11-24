@@ -42,12 +42,12 @@ abort() { printf '%s\\n' "$*" >&2; exit 65; }
 set_perm_recursive() { :; }
 set_perm() { :; }
 '''
-    env = dict(os.environ, BAKASU='true', KSU='true', KSU_KERNEL_VER_CODE='35262', KSU_UAPI_VER='6',
+    env = dict(os.environ, BAKASU='true', KSU='true', KSU_KERNEL_VER_CODE='35285', KSU_UAPI_VER='6',
                MODPATH=str(module), PATH=f'{commands}:/usr/bin:/bin', TEST_VERSION='v2.4.0',
                TEST_RELEASE='6.1.162-android14-11-34343818-abS928BXXU6EZJB',
                TEST_RUNTIME='15', TEST_PRIORITY='CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER')
-    cases = [({}, 0, 'existing configuration retained'), ({'BAKASU': 'false'}, 65, 'BakaSU 35262'),
-             ({'KSU_UAPI_VER': '5'}, 65, 'UAPI 6'), ({'KSU_KERNEL_VER_CODE': '35252'}, 65, '35262'),
+    cases = [({}, 0, 'existing configuration retained'), ({'BAKASU': 'false'}, 65, 'BakaSU 35285'),
+             ({'KSU_UAPI_VER': '5'}, 65, 'UAPI 6'), ({'KSU_KERNEL_VER_CODE': '35262'}, 65, '35285'),
              ({'TEST_RELEASE': 'other-release'}, 65, 'EZJB'), ({'TEST_VERSION': 'v2.3.0'}, 65, 'v2.4.0'),
              ({'TEST_PRIORITY': 'none'}, 65, 'Missing kernel feature'),
              ({'TEST_RUNTIME': '7'}, 65, 'All four Runtime-v1 switches')]

@@ -42,11 +42,11 @@ unzip() { :; }
 uname() { case "$1" in -m) echo aarch64;; -r) echo "$TEST_RELEASE";; esac; }
 '''
     source = shell + installer.replace('STATE=/data/adb/zeromount', f'STATE={state}')
-    env = dict(os.environ, BAKASU='true', KSU='true', KSU_KERNEL_VER_CODE='35262', KSU_UAPI_VER='6',
+    env = dict(os.environ, BAKASU='true', KSU='true', KSU_KERNEL_VER_CODE='35285', KSU_UAPI_VER='6',
                TEST_RELEASE='6.1.162-android14-11-34343818-abS928BXXU6EZJB',
                MODPATH=str(module), TEST_VERSION='v2.4.0', TEST_INTEGRITY='0', TEST_ABI='0')
-    cases = [({}, 0, 'BakaSU 35262 / EZJB'), ({'BAKASU': 'false'}, 65, 'UAPI 6'),
-             ({'KSU_KERNEL_VER_CODE': '35252'}, 65, '35262'), ({'TEST_RELEASE': 'other'}, 65, 'EZJB'),
+    cases = [({}, 0, 'BakaSU 35285 / EZJB'), ({'BAKASU': 'false'}, 65, 'UAPI 6'),
+             ({'KSU_KERNEL_VER_CODE': '35262'}, 65, '35285'), ({'TEST_RELEASE': 'other'}, 65, 'EZJB'),
              ({'TEST_VERSION': 'v2.3.0'}, 65, 'v2.4.0 required'),
              ({'TEST_INTEGRITY': '1'}, 65, 'Prüfsummen'), ({'TEST_ABI': '1'}, 65, 'ABI-Prüfung')]
     for overrides, code, expected in cases:

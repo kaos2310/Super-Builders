@@ -1,8 +1,8 @@
 diff --git a/kernel/Kconfig b/kernel/Kconfig
-index 79bc79ee..1c22a235 100644
+index da8787d1..a7b5936c 100644
 --- a/kernel/Kconfig
 +++ b/kernel/Kconfig
-@@ -166,6 +166,27 @@ comment "If anything mismatch with simonpunk's patch, Kernel compile maybe FAILE
+@@ -166,6 +166,18 @@ comment "If anything mismatch with simonpunk's patch, Kernel compile maybe FAILE
  comment "See simonpunk's original patch if you face any compile failed due to hook check"
  comment "Repo: https://gitlab.com/simonpunk/susfs4ksu"
  comment "--------------------------------------------------------------"
@@ -18,20 +18,11 @@ index 79bc79ee..1c22a235 100644
 +	  UID schemes, global symbol/log suppression or ZeroMount routing.
 +	  Local Super-Builders UIDGate-v1 extension; no new userspace ABI.
 +
-+config KSU_SUSFS_PRIORITY_UID_FILTER
-+	bool "Enable to allow adding user-defined uids that will be hidden from getpriority/setpriority/ioprio_get/ioprio_set syscall"
-+	depends on KSU_SUSFS
-+	default y
-+	help
-+	  - Allow hiding user-defined uids from syscalls like getpriority/setpriority/ioprio_get/ioprio_set.
-+	  - Effective on all processes with uid >= 10000.
-+
-+
  config KSU_SUSFS_SUS_PATH
      bool "Enable to hide suspicious path"
      depends on KSU_SUSFS
 diff --git a/kernel/feature/sucompat.c b/kernel/feature/sucompat.c
-index dc8cab81..7fe2dddf 100644
+index a47c3903..b36b2e11 100644
 --- a/kernel/feature/sucompat.c
 +++ b/kernel/feature/sucompat.c
 @@ -321,11 +321,11 @@ long ksu_handle_execveat_sucompat_internal(const char __user **filename_user, in
@@ -197,60 +188,6 @@ index 8277a4bf..9a7b2308 100644
      if (likely(is_appuid(new_uid) && ksu_uid_should_umount(new_uid))) {
          susfs_set_current_proc_no_su();
          susfs_set_current_proc_umounted();
-diff --git a/kernel/manager/throne_tracker.c b/kernel/manager/throne_tracker.c
-index d487fc8d..f32153ed 100644
---- a/kernel/manager/throne_tracker.c
-+++ b/kernel/manager/throne_tracker.c
-@@ -10,6 +10,10 @@
- #include <linux/version.h>
- #include <linux/stat.h>
- #include <linux/namei.h>
-+#include <linux/task_work.h>
-+#if defined(CONFIG_KSU_SUSFS_SUS_PATH) || defined(CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER)
-+#include <linux/susfs.h>
-+#endif
- #include <linux/kernel.h> // for container_of in UL
- 
- #include "policy/allowlist.h"
-@@ -380,6 +384,21 @@ void track_throne(unsigned int flags)
- // for 6.8- kernel, we can use LSM hook in manual hook
- // 6.8+, we use pkg_observer
- #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0) && !defined(CONFIG_KSU_TRACEPOINT_HOOK)
-+#if defined(CONFIG_KSU_SUSFS_SUS_PATH) || defined(CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER)
-+static void susfs_refresh_after_package_rename(struct callback_head *work)
-+{
-+    kfree(work);
-+    if (current->flags & PF_EXITING)
-+        return;
-+#ifdef CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER
-+    susfs_parse_priority_app_strings();
-+#endif
-+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+    susfs_parse_sus_path_app_strings();
-+#endif
-+}
-+#endif
-+
- void ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
- {
-     // skip kernel threads
-@@ -421,6 +440,16 @@ void ksu_handle_rename(struct dentry *old_dentry, struct dentry *new_dentry)
-     // and user install an new app before task_work executed
-     // ^ race here
-     track_throne(TRACK_THRONE_FROM_RENAMEAT | TRACK_THRONE_FORCE_SYNCHRONOUS);
-+#if defined(CONFIG_KSU_SUSFS_SUS_PATH) || defined(CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER)
-+    /* The rename publishes packages.list after this LSM hook returns. */
-+    struct callback_head *work = kmalloc(sizeof(*work), GFP_NOWAIT);
-+
-+    if (work) {
-+        init_task_work(work, susfs_refresh_after_package_rename);
-+        if (task_work_add(current, work, TWA_RESUME))
-+            kfree(work);
-+    }
-+#endif
- }
- #endif
- 
 diff --git a/kernel/policy/allowlist.c b/kernel/policy/allowlist.c
 index ab62d5e8..bc841013 100644
 --- a/kernel/policy/allowlist.c
@@ -292,19 +229,18 @@ index 540b721a..cbe3c3ce 100644
      }
  #endif
 diff --git a/kernel/supercall/dispatch.c b/kernel/supercall/dispatch.c
-index c23a7cb4..7f4bcce0 100644
+index 8af7412d..41ce4d96 100644
 --- a/kernel/supercall/dispatch.c
 +++ b/kernel/supercall/dispatch.c
-@@ -10,6 +10,8 @@
- #include <linux/version.h>
+@@ -11,6 +11,7 @@
  #ifdef CONFIG_KSU_SUSFS
+ #include <linux/susfs.h>
  #include <linux/susfs_def.h>
-+#include <linux/susfs.h>
 +#include <linux/susfs_runtime.h>
  #endif
  
  #include <linux/vmalloc.h>
-@@ -1108,7 +1110,14 @@ static int do_get_kernel_patch_implement(void __user *arg)
+@@ -1109,6 +1110,9 @@ static int do_get_kernel_patch_implement(void __user *arg)
  int ksu_handle_susfs_cmd(unsigned int cmd, void __user **arg)
  {
      switch (cmd) {
@@ -312,23 +248,5 @@ index c23a7cb4..7f4bcce0 100644
 +    case CMD_SUSFS_RUNTIME_SET:
 +        return arg ? susfs_runtime_handle(cmd, *arg) : -EFAULT;
  #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-+    case CMD_SUSFS_SET_SUS_PATH_UID_FILTER: {
-+        susfs_set_sus_path_uid_filter(arg);
-+        return 0;
-+    }
      case CMD_SUSFS_ADD_SUS_PATH: {
          susfs_add_sus_path(arg);
-         return 0;
-@@ -1168,6 +1177,12 @@ int ksu_handle_susfs_cmd(unsigned int cmd, void __user **arg)
-         return 0;
-     }
- #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MAP
-+#ifdef CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER
-+    case CMD_SUSFS_SET_PRIORITY_UID_FILTER: {
-+        susfs_set_priority_uid_filter(arg);
-+        return 0;
-+    }
-+#endif
-     case CMD_SUSFS_ENABLE_AVC_LOG_SPOOFING: {
-         susfs_set_avc_log_spoofing(arg);
-         return 0;
