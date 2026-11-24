@@ -5,8 +5,8 @@ import argparse,contextlib,hashlib,importlib.util,io,json,sys,tempfile,zipfile
 HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE.parent))
 from ci.publish import checked_guard6
+from ci.forgejo import CODE, COUNT, PIN
 from brene76.apply import apply as apply_brene76
-PIN='1439545f12bffe0263690ba862139b70ee5f20cf'
 SUSFS='f76b81f2a6bf98e4029cc0c823c054edbec29803'
 HOOKS={'bin/zm-susfs-owner','bin/zm-patch-policy','bin/zm-bootguard','bin/zm-droidspaces-vfs','bin/zm-open-redirect','post-fs-data.sh','boot-completed.sh','service.sh'}
 def sha(data):return hashlib.sha256(data).hexdigest()
@@ -20,8 +20,8 @@ def arguments():
     return parser
 
 def validate(plan,helpers):
-    if (plan['sukisu_commit'],plan['sukisu_code'],plan['sukisu_count'])!=(PIN,35004,4008):
-        raise RuntimeError('Guard6 requires the reviewed official SukiSU Nova35004 source')
+    if (plan['sukisu_commit'],plan['sukisu_code'],plan['sukisu_count'])!=(PIN,CODE,COUNT):
+        raise RuntimeError(f'Guard6 requires the reviewed official Nova {CODE} source')
     if plan['susfs_commit']!=SUSFS or plan['susfs_version']!='v2.4.0':
         raise RuntimeError('Guard6 requires the reviewed latest SUSFS2.4.0 source')
     if plan['profile']!='S928BXXU6EZJB-EUX-android14-6.1.162':raise RuntimeError('Guard6 firmware profile mismatch')
@@ -46,6 +46,13 @@ def package(helpers,plan,helper,output,susfs_tool):
     tool_source=json.loads((helpers/f'resusfs-{code}-240/SOURCE.json').read_text())
     integration=apply_brene76(members,susfs_tool.resolve(),tool_source,helpers/f'resusfs-{code}-240/upstream')
     ui=json.loads(members['UI-VERIFICATION.json'])
+    style_path='webroot/assets/zm-susfs.css'
+    if style_path not in members:
+        raise RuntimeError('ZeroMount shared WebUI stylesheet missing')
+    style=(HERE/'zm-3d.css').read_bytes()
+    members[style_path]=style
+    ui['changed_files_sha256'][style_path]=sha(style)
+    members['UI-VERIFICATION.json']=(json.dumps(ui,indent=2)+'\n').encode()
     changed=set(ui['changed_files_sha256'])|set(integration['changed_files_sha256'])|{'bin/arm64-v8a/zm-native-core','bin/zm','bin/zm-brene75','META-INF/com/google/android/update-binary'}
     preserved={}
     for name,digest in base['files_sha256'].items():
@@ -58,14 +65,21 @@ def package(helpers,plan,helper,output,susfs_tool):
         if 'store.settings.brene.'+key not in settings:raise RuntimeError('Original Guard6 control missing: '+key)
     for name in ('webroot/susfs-rules.html','webroot/brene75.html','webroot/brene69.html'):
         if name not in members:raise RuntimeError('Original Guard6 page missing: '+name)
-    members['module.prop']=('id=meta-zeromount\nname=ZeroMount\nversion=v2.0.216-dev.guard6.13.brene76.susfs240.sukisunova35004.runtime-addon1.propwatchfix1\nversionCode=2026112102\nauthor=Enginex0, KAOSLAB integration\ndescription=Guard6.13 + BRENE76 + SUSFS2.4.0; Runtime als Zusatz; SukiSU Nova35004 / S928BXXU6EZJB EUX.\nmetamodule=1\nbanner=banner.png\n').encode()
+    members['module.prop']=(
+        'id=meta-zeromount\nname=ZeroMount\n'
+        f'version=v2.0.216-dev.guard6.13.brene76.susfs240.nova{code}.propwatchfix1.3d\n'
+        'versionCode=2026112501\nauthor=Enginex0, KAOSLAB integration\n'
+        f'description=Guard6.13, 3D WebUI, SuSFS2.4.0 und Nova {code} fuer S928BXXU6EZJB EUX.\n'
+        'metamodule=1\nbanner=banner.png\n'
+    ).encode()
     for name in list(members):
         if name.startswith('README-SukiSU'):
             members[name]=members[name].replace(b'EZIF',b'EZJB')
     manifest=json.loads(members['build-manifest.json'])
-    manifest.update(schema=6,revision='guard6-nova35004-brene76-runtime-addon1.propwatchfix1',susfs_source_pin=SUSFS,susfs_release_pin=SUSFS,
+    manifest.update(schema=6,revision=f'guard6-nova{code}-brene76-runtime-addon1.propwatchfix1.3d',susfs_source_pin=SUSFS,susfs_release_pin=SUSFS,
         susfs_release_base=plan['susfs_release_base'],firmware='S928BXXU6EZJB',sukisu_family='nova',brene_version='0.0.76',
         sukisu_repository=plan['sukisu_repository'],sukisu_count=plan['sukisu_count'],
+        sukisu_repository_url=plan['sukisu_repository_url'],module_design=plan['module_design'],module_design_sha256=sha(style),
         brene_upstream_archive_sha256=integration['upstream_archive_sha256'],brene_integration=integration,
         private_susfs_tool_sha256=integration['private_susfs_tool_sha256'],private_susfs_tool_source_pin=SUSFS,
         original_controls_preserved=True,runtime_menu_additive=True,configuration_preserved=True,
@@ -73,7 +87,7 @@ def package(helpers,plan,helper,output,susfs_tool):
         runtime_scope='current boot; rules and saved configuration remain unchanged',device_boot_tested=False,
         prop_watch_native_entry='bin/arm64-v8a/zm-native-core')
     members['build-manifest.json']=(json.dumps(manifest,indent=2)+'\n').encode()
-    members['README-Guard6.13-Nova35004.md']=('''# Guard6.13 / BRENE76 / SukiSU Nova35004
+    members[f'README-Guard6.13-Nova{code}.md']=(f'''# Guard6.13 / BRENE76 / SukiSU Nova {code} / 3D WebUI
 
 Vollständiges bisheriges ZeroMount-Modul für SUSFS2.4.0 und S928BXXU6EZJB/EUX.
 Ursprüngliche Regeln, BRENE75, Properties, Settings und Boot-/Ownership-Backends bleiben erhalten.
@@ -90,7 +104,7 @@ Installation und Geräte-Boot dieses Pakets werden durch CI nicht geprüft.
     sums={n:sha(raw)+'  '+n+'\n' for n,raw in sorted(members.items())}
     members['SHA256SUMS']=''.join(sums.values()).encode()
     members['COMPAT-SHA256SUMS']=''.join(line for n,line in sums.items() if n not in mutable).encode()
-    target=output/'ZeroMount-Guard6.13-BRENE76-SUSFS2.4.0-SukiSUNova35004-EZJB-PropWatchFix1-arm64.zip'
+    target=output/f'ZeroMount-Guard6.13-BRENE76-SUSFS2.4.0-SukiSUNova{code}-EZJB-3D-arm64.zip'
     with zipfile.ZipFile(target,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as archive:
         for name,raw in sorted(members.items()):
             path=PurePosixPath(name)

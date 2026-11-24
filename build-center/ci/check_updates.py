@@ -32,7 +32,7 @@ def verify_expected_main(plan, expected_commit, expected_code):
     if (plan['channel'] != 'main' or plan.get('sukisu_requested_ref') is not None or
             plan['sukisu_commit'] != expected_commit or plan['sukisu_code'] != expected_code):
         raise ValueError('Resolved official main differs from the reviewed source/version; recheck upstream')
-    plan['sukisu_source_kind'] = 'official-main'
+    plan.setdefault('sukisu_source_kind', 'official-main')
 
 
 def verify_expected_susfs(plan, expected_commit):
@@ -50,6 +50,7 @@ def main():
     parser.add_argument('--expected-main-commit', help='Fail if official main moved since source review')
     parser.add_argument('--expected-main-code', type=int, help='Required official main version code')
     parser.add_argument('--expected-susfs-commit', help='Fail if the reviewed latest SUSFS branch moved')
+    parser.add_argument('--forgejo-checkout', type=Path, help='Verified full checkout from the official Forgejo origin')
     args = parser.parse_args()
     config = json.loads((Path(__file__).resolve().parents[1] / 'config.json').read_text())
     scheduled = os.environ.get('GITHUB_EVENT_NAME') == 'schedule'
@@ -57,13 +58,19 @@ def main():
         outputs = {'build': 'false', 'reason': 'Automatic builds are disabled'}
     else:
         token = os.environ.get('GH_TOKEN', '')
-        plan = resolve_sources(args.channel, token, source_ref=args.sukisu_ref)
+        if args.forgejo_checkout is None:
+            plan = resolve_sources(args.channel, token, source_ref=args.sukisu_ref)
+        else:
+            if args.channel != 'main' or args.sukisu_ref is not None:
+                parser.error('The Forgejo checkout requires the reviewed main source')
+            from ci.forgejo import resolve
+            plan = resolve(args.forgejo_checkout)
         if args.expected_susfs_commit is not None:
             verify_expected_susfs(plan, args.expected_susfs_commit)
         if args.expected_main_commit is not None or args.expected_main_code is not None:
             verify_expected_main(plan, args.expected_main_commit, args.expected_main_code)
         elif args.channel == 'main' and args.sukisu_ref is None:
-            plan['sukisu_source_kind'] = 'official-main'
+            plan.setdefault('sukisu_source_kind', 'official-main')
         if args.sukisu_ref == '1c9cca42f8049227d4eea20ab3979db3c5662a7d':
             if (plan['sukisu_code'], plan['sukisu_count']) != (41178, 3993):
                 raise ValueError('The requested 41178 preview source/version mapping changed')

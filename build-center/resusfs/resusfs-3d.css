@@ -1,0 +1,158 @@
+:root {
+  --rs-depth-top: #fffdfa;
+  --rs-depth-surface: #fffaf3;
+  --rs-depth-recess: #eae3db;
+  --rs-depth-text: #2a2422;
+  --rs-depth-border: #37241928;
+  --rs-depth-accent: #754520;
+  --rs-depth-fill: #c78348;
+  --rs-depth-highlight: #ffffffaa;
+  --rs-depth-shadow: #5b3c2322;
+  --rs-depth-edge: #51301a26;
+  --rs-depth-card: linear-gradient(158deg, var(--rs-depth-top), var(--rs-depth-surface) 72%);
+  --rs-depth-button: linear-gradient(175deg, var(--rs-depth-top), var(--rs-depth-recess));
+  --rs-depth-lift: inset 0 1px var(--rs-depth-highlight), 0 3px var(--rs-depth-edge), 0 8px 18px var(--rs-depth-shadow);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --rs-depth-top: #222329;
+    --rs-depth-surface: #17181e;
+    --rs-depth-recess: #131419;
+    --rs-depth-text: #f2f1f5;
+    --rs-depth-border: #ffffff20;
+    --rs-depth-accent: #edc596;
+    --rs-depth-fill: #a96938;
+    --rs-depth-highlight: #ffffff14;
+    --rs-depth-shadow: #00000066;
+    --rs-depth-edge: #00000080;
+  }
+}
+
+.header.blur-box,
+.support-card,
+.backup-card,
+.rs-supplement-dialog {
+  border: 1px solid var(--rs-depth-border);
+  color: var(--rs-depth-text);
+  background: var(--rs-depth-card);
+  box-shadow: var(--rs-depth-lift);
+}
+
+.support-card,
+.backup-card,
+.rs-supplement-dialog {
+  border-radius: 21px;
+}
+
+md-dialog {
+  --md-dialog-container-color: var(--rs-depth-surface);
+  --md-dialog-container-shape: 21px;
+}
+
+.rs-runtime-card,
+.rs-runtime-back {
+  color: var(--rs-depth-text);
+  background: var(--rs-depth-card);
+}
+
+.rs-runtime-row {
+  min-height: 56px;
+  border-color: var(--rs-depth-border);
+}
+
+.rs-runtime-open,
+.rs-runtime-card button {
+  min-height: 44px;
+  border: 1px solid var(--rs-depth-border);
+  border-radius: 13px;
+  color: var(--rs-depth-accent);
+  background: var(--rs-depth-button);
+  box-shadow: var(--rs-depth-lift);
+}
+
+.rs-runtime-open:active,
+.rs-runtime-card button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 1px var(--rs-depth-highlight), 0 1px 2px var(--rs-depth-shadow);
+}
+
+md-switch {
+  --md-switch-track-width: 54px;
+  --md-switch-track-height: 30px;
+  --md-switch-track-shape: 16px;
+  --md-switch-track-color: var(--rs-depth-recess);
+  --md-switch-track-outline-color: var(--rs-depth-border);
+  --md-switch-selected-track-color: var(--rs-depth-fill);
+  --md-switch-selected-hover-track-color: var(--rs-depth-accent);
+  --md-switch-selected-focus-track-color: var(--rs-depth-fill);
+  --md-switch-selected-pressed-track-color: var(--rs-depth-fill);
+  --md-switch-handle-width: 22px;
+  --md-switch-handle-height: 22px;
+  --md-switch-selected-handle-width: 22px;
+  --md-switch-selected-handle-height: 22px;
+  --md-switch-handle-color: #e9e7e2;
+  --md-switch-selected-handle-color: #fff7ee;
+  filter: drop-shadow(0 2px 2px var(--rs-depth-shadow));
+}
+
+.rs-runtime-row input[type="checkbox"] {
+  appearance: none;
+  position: relative;
+  flex: 0 0 54px;
+  width: 54px;
+  height: 30px;
+  margin: 0;
+  border: 1px solid var(--rs-depth-border);
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--rs-depth-recess), var(--rs-depth-top));
+  box-shadow: inset 0 2px 5px var(--rs-depth-shadow), 0 1px var(--rs-depth-highlight);
+  cursor: pointer;
+}
+
+.rs-runtime-row input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 3px;
+  inset-inline-start: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 26%, #fff 0, #f1efeb 50%, #bdb8b4);
+  box-shadow: inset 0 1px #fff, 0 2px 0 #0005, 0 3px 5px #0007;
+  transition: inset-inline-start 180ms cubic-bezier(.22, .9, .42, 1.12);
+}
+
+.rs-runtime-row input[type="checkbox"]:checked {
+  border-color: var(--rs-depth-fill);
+  background: linear-gradient(180deg, var(--rs-depth-fill), #edc596);
+}
+
+.rs-runtime-row input[type="checkbox"]:checked::before {
+  inset-inline-start: 27px;
+  background: radial-gradient(circle at 43% 46%, #a46433 0 3px, #fff 4px, #f9e9d7 73%, #dab99b 100%);
+}
+
+.rs-runtime-row input[type="checkbox"]:disabled {
+  cursor: default;
+}
+
+:is(.rs-runtime-open, .rs-runtime-back, .rs-runtime-card button, .rs-runtime-card input):focus-visible {
+  outline-color: var(--rs-depth-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rs-runtime-row input[type="checkbox"]::before {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .rs-runtime-row input[type="checkbox"] {
+    appearance: auto;
+  }
+
+  .rs-runtime-row input[type="checkbox"]::before {
+    content: none;
+  }
+}

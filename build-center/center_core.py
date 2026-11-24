@@ -165,6 +165,24 @@ def checked_file(raw, name, expected="", kind="file"):
     return raw, safe_name, sha256(raw)
 
 
+def resolve_susfs(get=request):
+    import base64
+
+    gitlab = "https://gitlab.com/api/v4/projects/simonpunk%2Fsusfs4ksu/repository"
+    commit = get(gitlab + "/commits/gki-android14-6.1")["data"]["id"]
+    if not SHA.fullmatch(commit):
+        raise CenterError("Ungültige SuSFS-Commit-ID.")
+    header = get(gitlab + "/files/kernel_patches%2Finclude%2Flinux%2Fsusfs.h?ref=" + commit)["data"]
+    text = base64.b64decode(header["content"]).decode()
+    match = re.search(r'^#define\s+SUSFS_VERSION\s+"(v[\w.+-]+)"', text, re.M)
+    if not match:
+        raise CenterError("SuSFS-Version konnte nicht aus dem offiziellen Header gelesen werden.")
+    return {
+        "susfs_commit": commit, "susfs_version": match[1],
+        "susfs_source_url": f"https://gitlab.com/simonpunk/susfs4ksu/-/archive/{commit}/susfs4ksu-{commit}.zip",
+    }
+
+
 def resolve_sources(channel="main", token="", get=request, source_ref=None):
     if channel not in ("main", "release"):
         raise CenterError("Unbekannter Update-Kanal.")
@@ -192,25 +210,15 @@ def resolve_sources(channel="main", token="", get=request, source_ref=None):
     except ValueError as exc:
         raise CenterError(str(exc)) from None
     code=identity['sukisu_code']
-    gitlab = "https://gitlab.com/api/v4/projects/simonpunk%2Fsusfs4ksu/repository"
-    sus_commit = get(gitlab + "/commits/gki-android14-6.1")["data"]
-    sus_pin = sus_commit["id"]
-    if not SHA.fullmatch(sus_pin):
-        raise CenterError("Ungültige SuSFS-Commit-ID.")
-    header = get(gitlab + "/files/kernel_patches%2Finclude%2Flinux%2Fsusfs.h?ref=" + sus_pin)["data"]
-    sus_text = base64.b64decode(header["content"]).decode()
-    match = re.search(r'^#define\s+SUSFS_VERSION\s+"(v[\w.+-]+)"', sus_text, re.M)
-    if not match:
-        raise CenterError("SuSFS-Version konnte nicht aus dem offiziellen Header gelesen werden.")
-    version = match[1]
+    susfs = resolve_susfs(get)
+    sus_pin, version = susfs["susfs_commit"], susfs["susfs_version"]
     manager = next((a for a in release.get("assets", [])
                     if a["name"].endswith(".apk") and f"_{code}-" in a["name"]), None)
     tag = f"s928b-ezjb-suki{code}-susfs{version.removeprefix('v')}-{pin[:8]}-{sus_pin[:8]}"
-    return {"schema": 1, **identity, "sukisu_repository":SUKISU_REPOSITORY,
+    return {"schema": 1, **identity, **susfs, "sukisu_repository":SUKISU_REPOSITORY,
             "channel": "pinned" if source_ref else channel,
             "sukisu_requested_ref": source_ref, "sukisu_commit": pin, "sukisu_code": code,
             "sukisu_count": count, "sukisu_tag": release["tag_name"],
             "sukisu_message": commit["commit"]["message"].splitlines()[0],
-            "susfs_commit": sus_pin, "susfs_version": version, "release_tag": tag,
-            "profile": "S928BXXU6EZJB-EUX-android14-6.1.162", "firmware": "S928BXXU6EZJB", "manager": manager,
-            "susfs_source_url": f"https://gitlab.com/simonpunk/susfs4ksu/-/archive/{sus_pin}/susfs4ksu-{sus_pin}.zip"}
+            "release_tag": tag,
+            "profile": "S928BXXU6EZJB-EUX-android14-6.1.162", "firmware": "S928BXXU6EZJB", "manager": manager}

@@ -7,7 +7,10 @@ import subprocess
 import tomllib
 import zipfile
 
-PIN = 'dfe0b4d2cac3d91a72880b073c3f1d95bc8953d4'
+if __package__:
+    from .forgejo import BUILT_ZYGISK_PIN as PIN
+else:
+    from forgejo import BUILT_ZYGISK_PIN as PIN
 FILES = {
     'zygiskd': ('bin/arm64-v8a/zygiskd', 2, 183),
     'zygisk-ptrace': ('lib/arm64-v8a/libzygisk_ptrace.so', 2, 183),
@@ -15,7 +18,7 @@ FILES = {
     'libzygisk32.so': ('lib/armeabi-v7a/libzygisk.so', 1, 40),
     'zygisk-module.prop': ('module.prop', None, None),
 }
-DEPS = ('lsplt', 'dobby', 'rv64hook', 'bhook')
+DEPS = ('lsplt', 'dobby', 'rv64hook', 'yukiplt')
 
 def git(root, *args):
     return subprocess.check_output(['git', '-C', str(root), *args], text=True).strip()

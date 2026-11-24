@@ -1,12 +1,10 @@
 name: SukiSU Build Center
-run-name: SukiSU Nova 35004 EZJB · ${{ inputs.request_id || 'official main' }} · Guard6.13 BRENE76 · SUSFS2.4.0
+run-name: SukiSU Nova 35095 · EZJB · ${{ inputs.request_id || 'Forgejo' }} · 3D WebUI
 'on':
-  schedule:
-  - cron: 17 * * * *
   workflow_dispatch:
     inputs:
       channel:
-        description: Geprüfter offizieller SukiSU-Nova-Hauptbranch 35004
+        description: Geprüfter offizieller Forgejo-Stand Nova 35095
         type: choice
         options:
         - main
@@ -23,7 +21,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: build-center-${{ github.repository }}-s928b-ezjb-nova35004-${{ github.ref_name }}
+  group: build-center-${{ github.repository }}-s928b-ezjb-nova35095-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   resolve:
@@ -48,8 +46,9 @@ jobs:
         FORCE: ${{ inputs.force || false }}
       run: |
         set -euo pipefail
-        ARGS=(--channel "$CHANNEL")
-        ARGS+=(--expected-main-commit 1439545f12bffe0263690ba862139b70ee5f20cf --expected-main-code 35004)
+        python3 build-center/ci/forgejo.py "$RUNNER_TEMP/forgejo-nova"
+        ARGS=(--channel "$CHANNEL" --forgejo-checkout "$RUNNER_TEMP/forgejo-nova")
+        ARGS+=(--expected-main-commit 54d6da4e7e792a7d0e70c4f5ec70f1ac1c32fa2b --expected-main-code 35095)
         ARGS+=(--expected-susfs-commit f76b81f2a6bf98e4029cc0c823c054edbec29803)
         [[ "$FORCE" != true ]] || ARGS+=(--force)
         python3 build-center/ci/check_updates.py "${ARGS[@]}"
@@ -445,14 +444,10 @@ jobs:
     - name: Require the exact ${{ needs.resolve.outputs.code }} source pair
       run: |
         set -euo pipefail
-        test '${{ needs.resolve.outputs.pin }}' = ${{ needs.resolve.outputs.pin }}
-        test '${{ needs.resolve.outputs.code }}' = ${{ needs.resolve.outputs.code }}
-    - uses: actions/checkout@v6
-      with:
-        repository: SukiSU-Nova/SukiSU-Nova
-        ref: ${{ needs.resolve.outputs.pin }}
-        fetch-depth: 0
-        path: sukisu
+        test '${{ needs.resolve.outputs.pin }}' = 54d6da4e7e792a7d0e70c4f5ec70f1ac1c32fa2b
+        test '${{ needs.resolve.outputs.code }}' = 35095
+    - name: Checkout verified Forgejo Nova source for userspace
+      run: python3 .build-center/build-center/ci/forgejo.py sukisu
     - uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: nightly
@@ -484,7 +479,7 @@ jobs:
       uses: actions/checkout@v6
       with:
         repository: SukiSU-Nova/BuiltZygisk
-        ref: dfe0b4d2cac3d91a72880b073c3f1d95bc8953d4
+        ref: ${{ fromJSON(needs.resolve.outputs.plan).built_zygisk_commit }}
         path: sukisu/external/BuiltZygisk
         fetch-depth: 0
         submodules: true
@@ -1171,10 +1166,7 @@ jobs:
       run: |
         set -euo pipefail
         PIN="${{ needs.resolve.outputs.pin }}"
-        test "$PIN" = ${{ needs.resolve.outputs.pin }}
-        git clone https://github.com/SukiSU-Nova/SukiSU-Nova.git "$KSU_DIR"
-        git -C "$KSU_DIR" fetch origin "$PIN"
-        git -C "$KSU_DIR" checkout --detach "$PIN"
+        python3 "$GITHUB_WORKSPACE/.build-center/build-center/ci/forgejo.py" "$KSU_DIR"
         test "$(git -C "$KSU_DIR" rev-parse HEAD)" = "$PIN"
         test "$(git -C "$KSU_DIR" rev-list --count HEAD)" = ${{ needs.resolve.outputs.count }}
         ln -s "../../$KSU_DIR/kernel" common/drivers/kernelsu
@@ -2609,7 +2601,7 @@ jobs:
       contents: write
       actions: write
   publish:
-    name: Geprüfte Kernel-ZIP und SuSFS zum Download bereitstellen
+    name: Geprüfte ZIPs als Actions-Artefakt bereitstellen
     needs:
     - resolve
     - strict
@@ -2619,7 +2611,7 @@ jobs:
     if: needs.resolve.outputs.build == 'true'
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
       actions: read
     steps:
     - uses: actions/checkout@v6
@@ -2640,8 +2632,14 @@ jobs:
         pattern: ZeroMount-Guard6.13-BRENE76-*
         path: guard6-files
         merge-multiple: true
-    - name: ZIP-Inhalt prüfen und Release mit SHA-256 veröffentlichen
+    - name: ZIP-Inhalt und SHA-256 prüfen
       env:
-        GH_TOKEN: ${{ github.token }}
+        CENTER_ARTIFACT_ONLY: 'true'
         CENTER_PLAN: ${{ needs.resolve.outputs.plan }}
       run: python3 build-center/ci/publish.py release-files
+    - uses: actions/upload-artifact@v7
+      with:
+        name: EZJB-Nova35095-SuSFS240-3D-verified
+        path: release-files/
+        if-no-files-found: error
+        retention-days: 30

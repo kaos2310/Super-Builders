@@ -8,10 +8,13 @@ import importlib.util
 import io
 import json
 import re
+import sys
 import tempfile
 import zipfile
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))
+from ci.versions import official_nova_repository
 
 
 def sha(data):
@@ -27,7 +30,7 @@ def once(text, old, new):
 def package(helpers, plan, runtime_helper, susfs_tool, output):
     """Reuse the audited original-UI r2 builder, then apply the reviewed addon."""
     code = plan['sukisu_code']
-    if (plan.get('sukisu_repository') != 'SukiSU-Nova/SukiSU-Nova'
+    if (not official_nova_repository(plan)
             or plan.get('sukisu_family') != 'nova'
             or code != 30000 + plan['sukisu_count'] + 996):
         raise ValueError('Nova identity/version mapping is not confirmed')
@@ -69,21 +72,28 @@ def package(helpers, plan, runtime_helper, susfs_tool, output):
         with zipfile.ZipFile(intermediate / prior['zip_name']) as archive:
             files = {name: archive.read(name) for name in archive.namelist()}
     before = dict(files)
+    new_design = plan.get('module_design') == 'zeromount-3d'
     files.pop('SHA256SUMS')
     files['bin/resusfs-path-filter'] = (HERE / 'resusfs-path-filter').read_bytes()
     files['webroot/assets/resusfs-path-filter.mjs'] = (HERE / 'resusfs-path-filter.mjs').read_bytes()
     html = files['webroot/index.html'].decode()
     html = once(html, '</head>', '  <script type="module" src="./assets/resusfs-path-filter.mjs?r=3"></script>\n</head>')
+    if new_design:
+        style = (HERE / 'resusfs-3d.css').read_bytes()
+        files['webroot/assets/resusfs-3d.css'] = style
+        html = once(html, '</head>', '  <link rel="stylesheet" href="./assets/resusfs-3d.css">\n</head>')
     files['webroot/index.html'] = html.encode()
     boot = files['boot-completed.sh'].decode()
     boot = once(boot, 'sh "$MODDIR/bin/resusfs-control" restore priority',
                 'sh "$MODDIR/bin/resusfs-control" restore priority\n'
                 'sh "$MODDIR/bin/resusfs-path-filter" restore')
     files['boot-completed.sh'] = boot.encode()
+    version_suffix = '.3d' if new_design else ''
+    version_code = 2026112501 if new_design else 2026112001
     files['module.prop'] = (
         'id=ReSuSFS\nname=ReSuSFS\n'
-        f'version=v26.10.23.kaoslab.susfs240.runtime1.r3.nova{code}\n'
-        'versionCode=2026112001\n'
+        f'version=v26.10.23.kaoslab.susfs240.runtime1.r3.nova{code}{version_suffix}\n'
+        f'versionCode={version_code}\n'
         'author=ahmed-alnassif; KAOSLAB integration\n'
         'description=Original ReSuSFS + optional Runtime, Priority UID and native SUS_PATH UID allowlist; Nova source pair.\n'
     ).encode()
@@ -114,6 +124,9 @@ def package(helpers, plan, runtime_helper, susfs_tool, output):
             'revision_compare_and_swap': True, 'device_setter_tested': False,
         },
     })
+    if new_design:
+        manifest.update(module_design=plan['module_design'], module_design_sha256=sha(style),
+                        sukisu_repository_url=plan['sukisu_repository_url'])
     allowed_changes = {'webroot/index.html', 'boot-completed.sh', 'module.prop', 'build-manifest.json'}
     changed_existing = {name for name, data in before.items() if name != 'SHA256SUMS' and files.get(name) != data}
     if changed_existing - allowed_changes:
@@ -134,7 +147,8 @@ def package(helpers, plan, runtime_helper, susfs_tool, output):
     }
     files['build-manifest.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     files['SHA256SUMS'] = ''.join(sha(data) + '  ' + name + '\n' for name, data in sorted(files.items())).encode()
-    name = f'ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-r3-Nova{code}-arm64.zip'
+    design_suffix = '-3D' if new_design else ''
+    name = f'ReSuSFS-v26.10.23-KAOSLAB-SUSFS2.4.0-Runtime1-r3-Nova{code}{design_suffix}-arm64.zip'
     target = output / name
     with zipfile.ZipFile(target, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for member, data in sorted(files.items()):

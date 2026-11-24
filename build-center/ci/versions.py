@@ -2,7 +2,13 @@
 import re
 
 REPOSITORY='SukiSU-Nova/SukiSU-Nova'
+FORGEJO_REPOSITORY='shirkneko/SukiSU'
+FORGEJO_URL='https://git.zako.shirkneko.top:20004/' + FORGEJO_REPOSITORY + '.git'
 FORMULAS={'ultra':(40000,2815,'-'),'nova':(30000,996,'+')}
+
+def official_nova_repository(plan):
+    identity=(plan.get('sukisu_repository'), plan.get('sukisu_repository_url'))
+    return identity in ((REPOSITORY, None), (FORGEJO_REPOSITORY, FORGEJO_URL))
 
 def version_code(count,base,offset,operator):
     if type(count) is not int or count<2815:raise ValueError('Full upstream commit count is required')
@@ -25,5 +31,5 @@ def validate(plan):
         if key in plan and plan[key]!=expected:raise ValueError('Invalid reviewed version formula metadata')
     if type(plan['sukisu_code']) is not int or plan['sukisu_code']!=version_code(plan['sukisu_count'],base,offset,operator):
         raise ValueError('Invalid source/version mapping')
-    if family=='nova' and plan.get('sukisu_repository')!=REPOSITORY:
+    if family=='nova' and not official_nova_repository(plan):
         raise ValueError('Nova requires the canonical official repository')

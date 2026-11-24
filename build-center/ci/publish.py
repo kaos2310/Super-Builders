@@ -11,6 +11,7 @@ import zipfile
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from center_core import request, checked_file
+from ci.versions import official_nova_repository
 
 
 # Exact reviewed input identities; refreshed source pins require a new review.
@@ -118,12 +119,24 @@ def _nova_identity(manifest,plan,code_key,pin_key):
     expected={'sukisu_family':'nova','sukisu_repository':plan.get('sukisu_repository'),
               'sukisu_count':plan.get('sukisu_count'),code_key:plan['sukisu_code'],pin_key:plan['sukisu_commit'],
               'susfs_version':plan['susfs_version'],'susfs_source_pin':plan['susfs_commit']}
-    if plan.get('sukisu_family')!='nova' or plan.get('sukisu_repository')!='SukiSU-Nova/SukiSU-Nova':
+    if plan.get('sukisu_family')!='nova' or not official_nova_repository(plan):
         raise RuntimeError('Reviewed Nova repository/family required')
+    if plan.get('sukisu_repository_url'):
+        expected['sukisu_repository_url']=plan['sukisu_repository_url']
     if type(plan.get('sukisu_count')) is not int or plan['sukisu_code']!=30000+plan['sukisu_count']+996:
         raise RuntimeError('Nova source/version mapping mismatch')
     for key,value in expected.items():
         if manifest.get(key)!=value:raise RuntimeError('Module Nova source pair mismatch: '+key)
+
+def _verify_design(archive,manifest,plan,source_path,name):
+    if not plan.get('module_design'):
+        return
+    source=Path(__file__).resolve().parents[1]/source_path
+    css=source.read_bytes()
+    if (manifest.get('module_design')!=plan['module_design']
+            or manifest.get('module_design_sha256')!=_sha(css) or _read(archive,'webroot/assets/'+name)!=css
+            or ('./assets/'+name).encode() not in _read(archive,'webroot/index.html')):
+        raise RuntimeError('Matching 3D WebUI not found in module archive')
 
 def _private_cli(archive,manifest,plan,hash_key):
     tool=_elf(archive,'bin/ksu_susfs',manifest.get(hash_key))
@@ -159,6 +172,7 @@ def checked_guard6(path,plan):
         # reviewed original hook hashes, not just self-reported preserved maps.
         if plan.get('sukisu_family')=='nova':
             _nova_identity(manifest,plan,'sukisu_version','sukisu_pin')
+            _verify_design(archive,manifest,plan,'guard6/zm-3d.css','zm-susfs.css')
             if manifest.get('firmware')!=plan['firmware'] or manifest.get('prop_watch_native_entry')!='bin/arm64-v8a/zm-native-core':
                 raise RuntimeError('Guard6 firmware or prop-watch endpoint mismatch')
             if manifest.get('brene_version')!='0.0.76' or 'webroot/brene76.html' not in names or 'bin/zm-brene76' not in names:
@@ -179,6 +193,7 @@ def checked_resusfs(path,plan):
         names=_archive_integrity(archive,{'SHA256SUMS'})
         manifest=_json(archive,'build-manifest.json')
         _nova_identity(manifest,plan,'sukisu_code','sukisu_source_pin')
+        _verify_design(archive,manifest,plan,'resusfs/resusfs-3d.css','resusfs-3d.css')
         if manifest.get('module_id')!='ReSuSFS' or manifest.get('revision')!='r3':
             raise RuntimeError('Matching complete ReSuSFS r3 required')
         if manifest.get('target_profile')!=plan.get('profile'):
@@ -267,6 +282,8 @@ def main():
         "The kernel ZIP is the actual AnyKernel3 flash package. SuSFS is integrated into this kernel. The ReSuSFS module contains the matching source-built official tool and retained module settings; the separate source ZIP is a source archive. Device boot and installation were not tested by CI.\n",encoding='utf-8')
     sums=''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in sorted(root.iterdir()) if p.is_file() and p.name!='SHA256SUMS.txt')
     (root/'SHA256SUMS.txt').write_text(sums,encoding='utf-8')
+    if os.environ.get('CENTER_ARTIFACT_ONLY')=='true':
+        return
     # gh obtains the Actions token from GH_TOKEN, never from a command argument.
     subprocess.run(['gh','release','create',plan['release_tag'],'--repo',plan['repository'],
                     '--target',os.environ['GITHUB_SHA'],'--prerelease','--title',

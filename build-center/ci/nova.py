@@ -1,4 +1,4 @@
-"""Reviewed Nova 35004 adapter; retain the Samsung manual-hook profile.
+"""Reviewed Nova 35095 adapter; retain the Samsung manual-hook profile.
 
 This adapter is intentionally bound to one full-history source pin. It keeps
 Nova's native SELinux implementation and adds the newest SUS_PATH command to
@@ -13,12 +13,14 @@ import re
 import shutil
 import subprocess
 
-PIN = '1439545f12bffe0263690ba862139b70ee5f20cf'
+PIN = '54d6da4e7e792a7d0e70c4f5ec70f1ac1c32fa2b'
+SOURCE_URL = 'https://git.zako.shirkneko.top:20004/shirkneko/SukiSU.git'
+TAG = 'v3.0.0-r1'
 SUSFS_PIN = 'f76b81f2a6bf98e4029cc0c823c054edbec29803'
 SUSFS_BASE = 'a2165b6f875b73e2f87d3c6f12814efac8de061d'
 GKI_PATCH_BASE = '9104e6b85a0c5af7b347cb2d52aeb1ff0a3b8fcb72c126422e4ac8a04576b171'
 GKI_PATCH_TARGET = 'adaed18bfa298d83c2d768f0433b7c87f418d157e88df0006d2d962dfb8f3144'
-CODE, COUNT = 35004, 4008
+CODE, COUNT = 35095, 4099
 COMPAT_BASE = '9defbe9f834aac26e70914f716a358ffae3c973e02bda2a39ca7d6c36f410b0b'
 COMPAT_NOVA = '5c3ba699fc7a1db821d3b8555218e5e67c47d0ab754606d0385de0bc0be5b3c8'
 CERT = '947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef'
@@ -48,9 +50,9 @@ def validate(plan):
     if plan.get('sukisu_family') != 'nova':
         raise RuntimeError('Nova adapter requires an explicit Nova source family')
     expected = {'sukisu_commit': PIN, 'sukisu_code': CODE, 'sukisu_count': COUNT,
-                'sukisu_repository': 'SukiSU-Nova/SukiSU-Nova',
+                'sukisu_repository': 'shirkneko/SukiSU', 'sukisu_repository_url': SOURCE_URL,
                 'sukisu_version_base': 30000, 'sukisu_version_offset': 996,
-                'sukisu_version_operator': '+', 'sukisu_tag': 'v3.0.0',
+                'sukisu_version_operator': '+', 'sukisu_tag': TAG,
                 'susfs_commit': SUSFS_PIN, 'susfs_release_base': SUSFS_BASE,
                 'susfs_version': 'v2.4.0',
                 'profile': 'S928BXXU6EZJB-EUX-android14-6.1.162'}
@@ -139,17 +141,17 @@ def prepare_nova_helpers(root, plan):
 def configure(root, verify=False):
     root = Path(root)
     if command('git', '-C', root, 'rev-parse', 'HEAD').decode().strip() != PIN:
-        raise RuntimeError('Exact Nova 35004 source required')
+        raise RuntimeError(f'Exact Nova {CODE} source required')
     if int(command('git', '-C', root, 'rev-list', '--count', 'HEAD')) != COUNT:
-        raise RuntimeError('Nova requires full 4008-commit history')
+        raise RuntimeError(f'Nova requires full {COUNT}-commit history')
     path = root/'kernel/Kbuild'
     text = path.read_text()
     for name, value in (('VERSION_BASE', '30000'), ('VERSION_OFFSET', '996')):
         if not re.search('^'+name+r'\s*:=\s*'+value+r'\s*$', text, re.M):
             raise RuntimeError('Nova version arithmetic changed')
-    settings = {'RELEASE_API_BASE': '', 'KSU_RELEASE_VER': '3.0.0', 'RELEASE_COMMITS': '',
-                'LOCAL_COUNT': str(COUNT), 'KSU_VERSION': str(CODE), 'VERSION_TAG': '3.0.0',
-                'KSU_VERSION_FULL': 'v3.0.0-35004-1439545f'}
+    settings = {'RELEASE_API_BASE': '', 'KSU_RELEASE_VER': TAG[1:], 'RELEASE_COMMITS': '',
+                'LOCAL_COUNT': str(COUNT), 'KSU_VERSION': str(CODE), 'VERSION_TAG': TAG[1:],
+                'KSU_VERSION_FULL': f'{TAG}-{CODE}-{PIN[:8]}'}
     for name, value in settings.items():
         pattern = '^'+name+r'\s*:=.*$'
         found = re.findall(pattern, text, re.M)
@@ -170,7 +172,7 @@ def configure(root, verify=False):
     if not verify:
         path.write_text(text, encoding='utf-8', newline='\n')
     return {'pin': PIN, 'version': CODE, 'count': COUNT,
-            'formula': '30000 + 4008 + 996', 'manager_package': 'com.sukisu.nova',
+            'formula': f'30000 + {COUNT} + 996', 'manager_package': 'com.sukisu.nova',
             'kbuild_sha256': sha(text.encode()), 'device_runtime_tested': False}
 
 
