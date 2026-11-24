@@ -228,6 +228,48 @@ index 540b721a..cbe3c3ce 100644
          goto out_abort_creds;
      }
  #endif
+diff --git a/kernel/selinux/sepolicy.c b/kernel/selinux/sepolicy.c
+index 8095a320..f0ba7f34 100644
+--- a/kernel/selinux/sepolicy.c
++++ b/kernel/selinux/sepolicy.c
+@@ -19,10 +19,11 @@
+ #include "ss/symtab.h"
+ #include "compat/kernel_compat.h" // Add check Huawei Device
+ 
+-#ifdef CONFIG_KSU_SUSFS
++/* The automatic backend keeps its own copy of the original policy. */
++#if defined(CONFIG_KSU_SUSFS) && defined(KSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE)
+ extern int susfs_add_sus_avd_allowed_by_type(u32 s_type, u32 t_type, u32 c_type, u32 orig_avd_allowed);
+ extern int susfs_add_sus_type(const char *secctx, u32 type_value);
+-#endif // #ifdef CONFIG_KSU_SUSFS
++#endif
+ 
+ #define KSU_SUPPORT_ADD_TYPE
+ 
+@@ -353,9 +354,9 @@ static bool add_rule_raw(struct policydb *db, struct type_datum *src, struct typ
+                 return false;
+         }
+ 
+-#ifdef CONFIG_KSU_SUSFS
++#if defined(CONFIG_KSU_SUSFS) && defined(KSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE)
+         susfs_add_sus_avd_allowed_by_type(src->value, tgt->value, cls->value, node->datum.u.data);
+-#endif // #ifdef CONFIG_KSU_SUSFS
++#endif
+ 
+         if (invert) {
+             if (perm)
+@@ -780,9 +781,9 @@ static bool add_type(struct policydb *db, const char *type_name, bool attr)
+         ebitmap_set_bit(&db->role_val_to_struct[i]->types, value - 1, 1);
+     }
+ 
+-#ifdef CONFIG_KSU_SUSFS
++#if defined(CONFIG_KSU_SUSFS) && defined(KSU_COMPAT_HAS_SUSFS_FEATURE_SELINUX_HIDE)
+     susfs_add_sus_type(type_name, type->value);
+-#endif // #ifdef CONFIG_KSU_SUSFS
++#endif
+     return true;
+ 
+     // safe? because only huawei do this fucking things
 diff --git a/kernel/supercall/dispatch.c b/kernel/supercall/dispatch.c
 index 8af7412d..41ce4d96 100644
 --- a/kernel/supercall/dispatch.c
