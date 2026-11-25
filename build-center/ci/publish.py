@@ -220,7 +220,10 @@ def checked_resusfs(path,plan):
 
 
 def main():
-    root=Path(sys.argv[1]);plan=json.loads(os.environ['CENTER_PLAN']);token=os.environ['GH_TOKEN']
+    root=Path(sys.argv[1]);plan=json.loads(os.environ['CENTER_PLAN'])
+    artifact_only=os.environ.get('CENTER_ARTIFACT_ONLY')=='true'
+    if not artifact_only and not os.environ.get('GH_TOKEN'):
+        raise RuntimeError('GitHub release credentials required')
     zips=list(root.rglob('*.zip'))
     if len(zips)!=1:raise RuntimeError('Expected exactly one strict flash ZIP')
     kernel=zips[0]
@@ -282,7 +285,7 @@ def main():
         "The kernel ZIP is the actual AnyKernel3 flash package. SuSFS is integrated into this kernel. The ReSuSFS module contains the matching source-built official tool and retained module settings; the separate source ZIP is a source archive. Device boot and installation were not tested by CI.\n",encoding='utf-8')
     sums=''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in sorted(root.iterdir()) if p.is_file() and p.name!='SHA256SUMS.txt')
     (root/'SHA256SUMS.txt').write_text(sums,encoding='utf-8')
-    if os.environ.get('CENTER_ARTIFACT_ONLY')=='true':
+    if artifact_only:
         return
     # gh obtains the Actions token from GH_TOKEN, never from a command argument.
     subprocess.run(['gh','release','create',plan['release_tag'],'--repo',plan['repository'],
