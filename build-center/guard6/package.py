@@ -68,7 +68,7 @@ def package(helpers,plan,helper,output,susfs_tool):
     members['module.prop']=(
         'id=meta-zeromount\nname=ZeroMount\n'
         f'version=v2.0.216-dev.guard6.13.brene76.susfs240.nova{code}.propwatchfix1.3d\n'
-        'versionCode=2026112501\nauthor=Enginex0, KAOSLAB integration\n'
+        'versionCode=2026112601\nauthor=Enginex0, KAOSLAB integration\n'
         f'description=Guard6.13, 3D WebUI, SuSFS2.4.0 und Nova {code} fuer S928BXXU6EZJB EUX.\n'
         'metamodule=1\nbanner=banner.png\n'
     ).encode()

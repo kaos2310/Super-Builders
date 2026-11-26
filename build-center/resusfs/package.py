@@ -89,7 +89,7 @@ def package(helpers, plan, runtime_helper, susfs_tool, output):
                 'sh "$MODDIR/bin/resusfs-path-filter" restore')
     files['boot-completed.sh'] = boot.encode()
     version_suffix = '.3d' if new_design else ''
-    version_code = 2026112501 if new_design else 2026112001
+    version_code = 2026112601 if new_design else 2026112001
     files['module.prop'] = (
         'id=ReSuSFS\nname=ReSuSFS\n'
         f'version=v26.10.23.kaoslab.susfs240.runtime1.r3.nova{code}{version_suffix}\n'

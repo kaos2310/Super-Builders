@@ -1,10 +1,10 @@
 name: SukiSU Build Center
-run-name: SukiSU Nova 35095 · EZJB · ${{ inputs.request_id || 'Forgejo' }} · 3D WebUI
+run-name: SukiSU Nova 35102 · EZJB · ${{ inputs.request_id || 'Forgejo' }} · 3D WebUI
 'on':
   workflow_dispatch:
     inputs:
       channel:
-        description: Geprüfter offizieller Forgejo-Stand Nova 35095
+        description: Geprüfter offizieller Forgejo-Stand Nova 35102
         type: choice
         options:
         - main
@@ -21,7 +21,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: build-center-${{ github.repository }}-s928b-ezjb-nova35095-${{ github.ref_name }}
+  group: build-center-${{ github.repository }}-s928b-ezjb-nova35102-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   resolve:
@@ -48,7 +48,7 @@ jobs:
         set -euo pipefail
         python3 build-center/ci/forgejo.py "$RUNNER_TEMP/forgejo-nova"
         ARGS=(--channel "$CHANNEL" --forgejo-checkout "$RUNNER_TEMP/forgejo-nova")
-        ARGS+=(--expected-main-commit 54d6da4e7e792a7d0e70c4f5ec70f1ac1c32fa2b --expected-main-code 35095)
+        ARGS+=(--expected-main-commit 12387d42ba056c84273bda0f0d52727599413cc3 --expected-main-code 35102)
         ARGS+=(--expected-susfs-commit f76b81f2a6bf98e4029cc0c823c054edbec29803)
         [[ "$FORCE" != true ]] || ARGS+=(--force)
         python3 build-center/ci/check_updates.py "${ARGS[@]}"
@@ -444,8 +444,8 @@ jobs:
     - name: Require the exact ${{ needs.resolve.outputs.code }} source pair
       run: |
         set -euo pipefail
-        test '${{ needs.resolve.outputs.pin }}' = 54d6da4e7e792a7d0e70c4f5ec70f1ac1c32fa2b
-        test '${{ needs.resolve.outputs.code }}' = 35095
+        test '${{ needs.resolve.outputs.pin }}' = 12387d42ba056c84273bda0f0d52727599413cc3
+        test '${{ needs.resolve.outputs.code }}' = 35102
     - name: Checkout verified Forgejo Nova source for userspace
       run: python3 .build-center/build-center/ci/forgejo.py sukisu
     - uses: dtolnay/rust-toolchain@stable
@@ -2642,7 +2642,7 @@ jobs:
       run: python3 build-center/ci/publish.py release-files
     - uses: actions/upload-artifact@v7
       with:
-        name: EZJB-Nova35095-SuSFS240-3D-verified
+        name: EZJB-Nova35102-SuSFS240-3D-verified
         path: release-files/
         if-no-files-found: error
         retention-days: 30

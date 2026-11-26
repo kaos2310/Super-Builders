@@ -1,4 +1,4 @@
-"""Reviewed Nova 35095 adapter; retain the Samsung manual-hook profile.
+"""Reviewed Nova 35102 adapter; retain the Samsung manual-hook profile.
 
 This adapter is intentionally bound to one full-history source pin. It keeps
 Nova's native SELinux implementation and adds the newest SUS_PATH command to
@@ -13,14 +13,14 @@ import re
 import shutil
 import subprocess
 
-PIN = '54d6da4e7e792a7d0e70c4f5ec70f1ac1c32fa2b'
+PIN = '12387d42ba056c84273bda0f0d52727599413cc3'
 SOURCE_URL = 'https://git.zako.shirkneko.top:20004/shirkneko/SukiSU.git'
 TAG = 'v3.0.0-r1'
 SUSFS_PIN = 'f76b81f2a6bf98e4029cc0c823c054edbec29803'
 SUSFS_BASE = 'a2165b6f875b73e2f87d3c6f12814efac8de061d'
 GKI_PATCH_BASE = '9104e6b85a0c5af7b347cb2d52aeb1ff0a3b8fcb72c126422e4ac8a04576b171'
 GKI_PATCH_TARGET = 'adaed18bfa298d83c2d768f0433b7c87f418d157e88df0006d2d962dfb8f3144'
-CODE, COUNT = 35095, 4099
+CODE, COUNT = 35102, 4106
 COMPAT_BASE = '9defbe9f834aac26e70914f716a358ffae3c973e02bda2a39ca7d6c36f410b0b'
 COMPAT_NOVA = '5c3ba699fc7a1db821d3b8555218e5e67c47d0ab754606d0385de0bc0be5b3c8'
 CERT = '947ae944f3de4ed4c21a7e4f7953ecf351bfa2b36239da37a34111ad29993eef'
